@@ -1,0 +1,7 @@
+﻿QWidget#repo {
+    background-color: #f8fafc;
+}
+
+QWidget#repo QLabel {
+    color: #111827;
+}

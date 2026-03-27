@@ -1,0 +1,24 @@
+{
+    "algorithm.clustering": {
+        "epsilonCF": 2.0,
+        "epsilonPW": 0.2,
+        "minPts": 1
+    },
+    "QFluentWidgets": {
+        "FontFamilies": [
+            "Segoe UI",
+            "Microsoft YaHei",
+            "PingFang SC"
+        ],
+        "ThemeColor": "#ff009faa",
+        "ThemeMode": "Light"
+    },
+    "merge.priEqual": {
+        "doaTolerance": 20.0
+    },
+    "plot": {
+        "onlyShowIdentified": true,
+        "order": "CF,PW,PA,DTOA,DOA",
+        "scaleMode": "STRETCH"
+    }
+}

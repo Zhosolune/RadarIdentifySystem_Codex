@@ -1,0 +1,7 @@
+﻿QWidget#home {
+    background-color: #f7fafc;
+}
+
+QWidget#home QLabel {
+    color: #1f2937;
+}

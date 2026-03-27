@@ -1,0 +1,54 @@
+{
+  "device_mask": "187f3a6ed59dac41",
+  "database_paths": [],
+  "clustering_params": {
+    "epsilon_CF": 2.0,
+    "epsilon_PW": 0.2,
+    "min_pts": 1
+  },
+  "identification_params": {
+    "pa_threshold": 0.9,
+    "dtoa_threshold": 0.91,
+    "pa_weight": 1.0,
+    "dtoa_weight": 1.0,
+    "threshold": 0.9
+  },
+  "extraction_params": {
+    "cf_extraction": {
+      "eps": 2,
+      "min_samples": 4,
+      "threshold_ratio": 0.1
+    },
+    "pw_extraction": {
+      "eps": 0.2,
+      "min_samples": 4,
+      "threshold_ratio": 0.1
+    },
+    "pri_extraction": {
+      "eps": 0.2,
+      "min_samples": 3,
+      "threshold_ratio": 0.1,
+      "filter_threshold": 2.0,
+      "harmonic_tolerance": 0.2
+    }
+  },
+  "merge_params": {
+    "pri_equal": {
+      "doa_tolerance": 20.0
+    },
+    "pri_different": {
+      "doa_tolerance": 2.0,
+      "cf_tolerance": 100.0
+    },
+    "pri_none": {
+      "doa_tolerance": 2.0
+    }
+  },
+  "export_params": {
+    "export_path": "",
+    "band_export_mode": 0,
+    "file_split_mode": 2,
+    "file_split_size_mb": 100,
+    "file_split_count": 10
+  }
+}

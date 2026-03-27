@@ -1,0 +1,1 @@
+数据说明：按大端解析（高字在前低字在后）1、Type值为3、5、6为有效数据，其余均为无效数据，并不会做处理2、RF: LSB 1MHz3、TOA=TOAHighWord * 65536 + TOALowWord; LSB 0.1us4、PW: lsb 0.05us5、AOA1: LSB 1.40625°；F26=0时有效，1时无效6、PA1: LSB 0.5dB，值为255时无效7、AOA2: LSB 0.01°，值为65535时无效8、PA2: LSB 0.5dB，值为255时无效

@@ -1,0 +1,16 @@
+﻿legacy_path,new_path,phase,status,owner,risk_level,notes
+ui/default_config.py,app/config.py(AppConfig) + config/config.json,P01,待迁移,,中,全部采用QConfig
+config/default_params_system.json,app/config.py默认值 + config/config.json,P01,待迁移,,低,不再保留base.json
+config/default_params_user.json,config/config.json(运行时持久化),P10,待迁移,,低,不再保留local.json
+ui/style_manager.py,app/style_sheet.py + app/config.py + QConfig,P01+P10,进行中,,中,已完成StyleSheet枚举与页面样式分发，后续补全设置页主题偏好
+ui/main_window.py,ui/main_window.py(FluentWindow),P09,待迁移,,高,引入 PyQt6-Fluent-Widgets
+cores/data_processor.py,core/data/preprocess.py;core/data/slicing.py,P03,待迁移,,中,
+cores/cluster_processor.py,core/clustering/pipeline.py,P04,待迁移,,高,
+cores/roughly_clustering.py,core/clustering/dbscan_1d.py,P04,待迁移,,中,
+cores/model_predictor.py,infra/onnx/predictor.py;core/recognition/evaluator.py,P05+P07,待迁移,,高,
+cores/params_extractor.py,core/params/extractor.py;core/params/related_filter.py,P05,待迁移,,中,
+ui/data_controller.py,app/controllers/main_controller.py;app/workflows/*,P08,待迁移,,高,
+cores/ThreadWorker.py,infra/threading/*;app/workflows/fullspeed_workflow.py,P11,待迁移,,高,workers固定迁移到infra
+ui/components/*.py,ui/widgets/*.py;ui/dialogs/*.py,P09+P10,待迁移,,中,
+common/paths.py,utils/paths.py,P01,待迁移,,低,
+

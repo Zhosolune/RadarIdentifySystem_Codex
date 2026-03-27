@@ -1,0 +1,11 @@
+{
+  "PA": {
+    "312": "312_PA.onnx",
+    "313": "313_PA.onnx",
+    "316": "316_PA.onnx"
+  },
+  "DTOA": {
+    "yyh": "yyh_DTOA.onnx",
+    "1": "1_DTOA.onnx"
+  }
+}
