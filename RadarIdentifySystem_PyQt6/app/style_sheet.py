@@ -14,7 +14,7 @@ from app import resource_rc  # noqa: F401  # 导入即注册 Qt 资源
 class StyleSheet(StyleSheetBase, Enum):
     """项目页面样式枚举。"""
 
-    WELCOME_INTERFACE = "welcome_interface"
+    HOME_INTERFACE = "home_interface"
     SETTING_INTERFACE = "setting_interface"
 
     def path(self, theme: Theme = Theme.AUTO) -> str:

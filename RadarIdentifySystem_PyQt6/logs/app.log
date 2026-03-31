@@ -104,3 +104,61 @@ AttributeError: 'MainWindow' object has no attribute '_app'
 
 2026-03-31 11:25:54 | INFO | main | =========================================
 2026-03-31 11:25:54 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 11:36:25 | INFO | main | =========================================
+2026-03-31 11:36:25 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 11:36:58 | INFO | main | =========================================
+2026-03-31 11:36:58 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 11:37:22 | INFO | main | =========================================
+2026-03-31 11:37:22 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 11:37:41 | INFO | main | =========================================
+2026-03-31 11:37:41 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 11:44:58 | INFO | main | =========================================
+2026-03-31 11:44:58 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 11:45:07 | INFO | main | =========================================
+2026-03-31 11:45:07 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 13:37:11 | INFO | main | =========================================
+2026-03-31 13:37:11 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 15:08:48 | INFO | main | =========================================
+2026-03-31 15:08:48 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 15:48:38 | INFO | main | =========================================
+2026-03-31 15:48:38 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 15:49:49 | INFO | main | =========================================
+2026-03-31 15:49:49 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 15:51:01 | INFO | main | =========================================
+2026-03-31 15:51:01 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 15:53:00 | INFO | main | =========================================
+2026-03-31 15:53:00 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 15:53:01 | CRITICAL | main | Uncaught exception:
+Traceback (most recent call last):
+  File "e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\main.py", line 101, in <module>
+    main()
+  File "e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\main.py", line 94, in main
+    window = MainWindow()
+             ^^^^^^^^^^^^
+  File "E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\main_window.py", line 31, in __init__
+    self.homeInterface = HomeInterface(self)
+                         ^^^^^^^^^^^^^^^^^^^
+  File "E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py", line 46, in __init__
+    self.setStyleSheet(StyleSheet.home_interface)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'StyleSheet' has no attribute 'home_interface'
+
+2026-03-31 15:53:22 | INFO | main | =========================================
+2026-03-31 15:53:22 | INFO | main | RadarIdentifySystem Starting...
+2026-03-31 15:53:23 | CRITICAL | main | Uncaught exception:
+Traceback (most recent call last):
+  File "e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\main.py", line 101, in <module>
+    main()
+  File "e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\main.py", line 94, in main
+    window = MainWindow()
+             ^^^^^^^^^^^^
+  File "E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\main_window.py", line 31, in __init__
+    self.homeInterface = HomeInterface(self)
+                         ^^^^^^^^^^^^^^^^^^^
+  File "E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py", line 46, in __init__
+    self.setStyleSheet(StyleSheet.home_interface)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'StyleSheet' has no attribute 'home_interface'
+
+2026-03-31 15:54:39 | INFO | main | =========================================
+2026-03-31 15:54:39 | INFO | main | RadarIdentifySystem Starting...

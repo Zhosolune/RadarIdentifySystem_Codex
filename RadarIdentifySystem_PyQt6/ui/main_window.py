@@ -40,7 +40,7 @@ class MainWindow(FluentWindow):
 
         timer = QTimer()
         timer.singleShot(1000, self.splashScreen.finish)
-        self.splashScreen.finish()
+        # self.splashScreen.finish()
 
         self.themeListener.start()
 
@@ -66,8 +66,8 @@ class MainWindow(FluentWindow):
         self.setMinimumSize(900, 600)
         
         # 启动页
-        self.splashScreen = SplashScreen(self.windowIcon(), self)
-        self.splashScreen.setIconSize(QSize(120, 120))
+        self.splashScreen = SplashScreen(QIcon(':/RadarIdentifySystem/images/brand.png'), self)
+        self.splashScreen.setIconSize(QSize(400, 400))
         self.splashScreen.raise_()
         
         desktop = QApplication.screens()[0].availableGeometry()

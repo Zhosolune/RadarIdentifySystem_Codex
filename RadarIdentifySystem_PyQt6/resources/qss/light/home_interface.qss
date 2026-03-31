@@ -1,0 +1,12 @@
+﻿/* style/home_interface.qss */
+QFrame#homeInterface {
+    background-color: transparent;
+    border: none;
+}
+
+QFrame#leftColumn,
+QFrame#rightColumn {
+    background-color: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 10px;
+}

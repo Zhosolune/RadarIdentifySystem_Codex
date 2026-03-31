@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QWidget
 from qfluentwidgets import StrongBodyLabel
+from app.style_sheet import StyleSheet
 
 
 class HomeInterface(QFrame):
@@ -42,6 +43,7 @@ class HomeInterface(QFrame):
         super().__init__(parent)
         self.setObjectName("homeInterface")
         self._init_layout()
+        StyleSheet.HOME_INTERFACE.apply(self)
 
     def _init_layout(self) -> None:
         """初始化两栏布局。
@@ -88,15 +90,6 @@ class HomeInterface(QFrame):
         column = QFrame(self)
         column.setObjectName(object_name)
         column.setFrameShape(QFrame.Shape.StyledPanel)
-        column.setStyleSheet(
-            f"""
-            QFrame#{object_name} {{
-                border: 1px solid rgba(0, 0, 0, 0.08);
-                border-radius: 10px;
-                background-color: transparent;
-            }}
-            """
-        )
 
         column_layout = QHBoxLayout(column)
         column_layout.setContentsMargins(0, 0, 0, 0)
