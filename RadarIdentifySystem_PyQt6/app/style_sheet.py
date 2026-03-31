@@ -14,9 +14,8 @@ from app import resource_rc  # noqa: F401  # 导入即注册 Qt 资源
 class StyleSheet(StyleSheetBase, Enum):
     """项目页面样式枚举。"""
 
-    WELCOME_PAGE = "welcome_page"
-    REPO_PAGE = "repo_page"
-    SETTING_PAGE = "setting_page"
+    WELCOME_INTERFACE = "welcome_interface"
+    SETTING_INTERFACE = "setting_interface"
 
     def path(self, theme: Theme = Theme.AUTO) -> str:
         """返回样式文件路径。
@@ -29,7 +28,7 @@ class StyleSheet(StyleSheetBase, Enum):
             theme (Theme): 主题模式，默认值为 `Theme.AUTO`。
 
         返回值说明：
-            str: qss 路径，可能是 `:/easyVer/...` 资源路径或本地绝对路径。
+            str: qss 路径，可能是 `:/RadarIdentifySystem/...` 资源路径或本地绝对路径。
 
         异常说明：
             无。
@@ -37,7 +36,7 @@ class StyleSheet(StyleSheetBase, Enum):
 
         effective_theme = qconfig.theme if theme == Theme.AUTO else theme
         theme_name = effective_theme.value.lower()
-        resource_path = f":/easyVer/qss/{theme_name}/{self.value}.qss"
+        resource_path = f":/RadarIdentifySystem/qss/{theme_name}/{self.value}.qss"
         if QFile.exists(resource_path):
             return resource_path
 

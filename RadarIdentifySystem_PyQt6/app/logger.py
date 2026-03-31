@@ -6,7 +6,8 @@ import logging
 from pathlib import Path
 
 from utils.paths import get_log_dir
-
+from app.app_config import appConfig
+import os
 
 def get_logger(name: str) -> logging.Logger:
     """获取统一配置的日志器。
@@ -51,3 +52,24 @@ def get_logger(name: str) -> logging.Logger:
     logger.addHandler(file_handler)
     logger.propagate = False
     return logger
+
+LOGGER = get_logger("app.logger")
+
+def clear_all_logs() -> int:
+    """
+    清理配置目录下的所有日志文件。
+    :return: 成功清理的日志文件数量
+    """
+    import glob
+    log_dir = appConfig.logDir.value
+    if not os.path.exists(log_dir):
+        return 0
+        
+    count = 0
+    for log_file in glob.glob(os.path.join(log_dir, "easyver_run_*.log")):
+        try:
+            os.remove(log_file)
+            count += 1
+        except Exception as e:
+            LOGGER.error("Failed to delete %s: %s", log_file, e)
+    return count
