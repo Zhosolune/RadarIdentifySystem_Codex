@@ -60,10 +60,10 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM,
         )
     def initWindow(self) -> None:
-        self.setWindowIcon(QIcon(':/RadarIdentifySystem/images/logo.png'))
+        self.setWindowIcon(QIcon(':/RadarIdentifySystem/images/icon.png'))
         self.setWindowTitle("RadarIdentifySystem")
-        self.resize(1280, 800)
-        self.setMinimumSize(900, 600)
+        self.resize(1500, 1000)
+        self.setMinimumSize(1200, 800)
         
         # 启动页
         self.splashScreen = SplashScreen(QIcon(':/RadarIdentifySystem/images/brand.png'), self)

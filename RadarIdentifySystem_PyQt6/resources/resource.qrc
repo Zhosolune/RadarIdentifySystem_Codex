@@ -2,6 +2,7 @@
     <qresource prefix="/RadarIdentifySystem">
         <file>images/logo.png</file>
         <file>images/brand.png</file>
+        <file>images/icon.png</file>
 
         <file>qss/dark/home_interface.qss</file>
         <file>qss/dark/setting_interface.qss</file>

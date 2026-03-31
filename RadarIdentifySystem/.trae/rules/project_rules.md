@@ -22,6 +22,8 @@
 
 - 本项目是Python和PyQt项目，禁止使用web预览功能
 
+- 本项目所有样式相关必须写入对应的QSS文件，禁止使用`setStyleSheet`进行内联样式设置
+
 2. **终端使用**
 
 - 使用Windows的powershell语法
