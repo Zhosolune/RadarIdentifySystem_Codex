@@ -1,0 +1,20 @@
+/* style/slice_interface.qss */
+QFrame#sliceInterface {
+    background-color: transparent;
+    border: none;
+}
+
+QWidget#sliceLeftColumn,
+QWidget#sliceMiddleColumn,
+QWidget#sliceRightColumn {
+    background-color: transparent;
+    border: none;
+}
+
+
+SimpleCardWidget#sliceImageCard {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 6px;
+    min-height: 120px;
+}

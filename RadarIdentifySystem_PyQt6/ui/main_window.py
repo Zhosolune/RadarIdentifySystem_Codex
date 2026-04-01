@@ -16,6 +16,7 @@ from qfluentwidgets import (
 from app.logger import get_logger
 
 from ui.interfaces.home_interface import HomeInterface
+from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.setting_interface import SettingInterface
 
 LOGGER = get_logger("ui.mainWindow")
@@ -29,6 +30,7 @@ class MainWindow(FluentWindow):
 
         # 创建子页面
         self.homeInterface = HomeInterface(self)
+        self.sliceInterface = SliceInterface(self)
         self.iconInterface = SettingInterface(self)
 
 
@@ -51,6 +53,10 @@ class MainWindow(FluentWindow):
         # 主页
         self.addSubInterface(
             self.homeInterface, FluentIcon.HOME, "主页",
+            position=NavigationItemPosition.TOP,
+        )
+        self.addSubInterface(
+            self.sliceInterface, FluentIcon.PIE_SINGLE, "切片处理",
             position=NavigationItemPosition.TOP,
         )
 

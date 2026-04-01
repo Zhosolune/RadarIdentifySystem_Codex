@@ -1,4 +1,4 @@
-﻿"""应用样式表入口。"""
+"""应用样式表入口。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ class StyleSheet(StyleSheetBase, Enum):
     """项目页面样式枚举。"""
 
     HOME_INTERFACE = "home_interface"
+    SLICE_INTERFACE = "slice_interface"
     SETTING_INTERFACE = "setting_interface"
 
     def path(self, theme: Theme = Theme.AUTO) -> str:
