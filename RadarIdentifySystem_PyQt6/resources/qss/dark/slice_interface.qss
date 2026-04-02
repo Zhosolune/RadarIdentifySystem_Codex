@@ -11,6 +11,17 @@ QWidget#sliceRightColumn {
     border: none;
 }
 
+QLabel#sliceLeftTitle,
+QLabel#sliceMiddleTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+}
+
+QLabel#sliceDimensionLabel {
+    font-size: 16px;
+    color: white;
+}
 
 SimpleCardWidget#sliceImageCard {
     background-color: rgba(255, 255, 255, 0.08);

@@ -94,5 +94,6 @@ class AppConfig(QConfig):
 appConfig = AppConfig()
 
 appConfig.themeMode.value = Theme.AUTO
-_CONFIG_PATH = Path.home() / ".RadarIdentifySystem" / "config.json"
+# _CONFIG_PATH = Path.home() / ".RadarIdentifySystem" / "config.json"
+_CONFIG_PATH = get_config_file_path()
 qconfig.load(str(_CONFIG_PATH), appConfig)
