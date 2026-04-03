@@ -1,5 +1,23 @@
 # 操作日志
 
+## 2026-04-03 16:11
+- 操作类型：修改
+- 影响文件：`ui/components/slice_dimension_card.py`、`resources/qss/dark/slice_interface.qss`、`resources/qss/light/slice_interface.qss`、`docs/operateLog.md`
+- 变更摘要：移除 `SliceDimensionCard` 中图像容器的内边距，并将 `RoundedImageLabel` 的圆角参数恢复为 6px 以匹配卡片圆角；同时修改深色和浅色主题的 QSS 样式文件，为 `SimpleCardWidget#sliceImageCard` 添加 1px 的主题色边框（`border: 1px solid --ThemeColorPrimary;`）。
+- 原因：用户要求使用主题色边框替代内边距方案，以此更好地适配 Fluent 风格并兼顾多主题表现。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-03 16:07
+- 操作类型：新增
+- 影响文件：`ui/components/slice_dimension_card.py`、`docs/operateLog.md`
+- 变更摘要：在 `slice_dimension_card.py` 中新增 `RoundedImageLabel` 类，利用 `QPainter` 与 `QPainterPath` 对显示的 `QPixmap` 实现了圆角裁剪绘制；并修改了切片图像卡片内部布局，增加了 2px 内边距与对应的圆角参数（radius=4）。
+- 原因：原 `QLabel` 设置 `setScaledContents(True)` 无法直接保持图像圆角，导致图像呈直角并贴边，视觉不佳。为保持卡片（6px 圆角）与内部图像的视觉一致性，增加内边距与平滑裁剪逻辑。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-03 16:03
 - 操作类型：修改
 - 影响文件：`ui/components/slice_dimension_card.py`、`docs/operateLog.md`

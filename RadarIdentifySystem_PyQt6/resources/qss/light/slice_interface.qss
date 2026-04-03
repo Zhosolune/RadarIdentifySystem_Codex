@@ -25,7 +25,7 @@ QLabel#sliceDimensionLabel {
 
 SimpleCardWidget#sliceImageCard {
     background-color: rgba(255, 255, 255, 0.72);
-    border: none;
+    border: 1px solid --ThemeColorPrimary;
     border-radius: 6px;
     min-height: 120px;
 }
