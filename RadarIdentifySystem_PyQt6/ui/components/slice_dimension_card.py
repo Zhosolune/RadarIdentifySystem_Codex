@@ -65,6 +65,7 @@ class SliceDimensionCard(QWidget):
         self.image_label.setObjectName("sliceImageLabel")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setScaledContents(True)
+        self.image_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
 
         # 为 image_card 设置布局
         card_layout = QHBoxLayout(self.image_card)

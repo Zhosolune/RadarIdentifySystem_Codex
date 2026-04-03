@@ -1,5 +1,14 @@
 # 操作日志
 
+## 2026-04-03 16:03
+- 操作类型：修改
+- 影响文件：`ui/components/slice_dimension_card.py`、`docs/operateLog.md`
+- 变更摘要：为 `SliceDimensionCard` 内部显示图像的 `QLabel` (`image_label`) 设置 `QSizePolicy.Policy.Ignored`。
+- 原因：修复展示大尺寸图片时卡片被撑大、大小发生改变的问题，确保组件尺寸稳定性。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-03 16:00
 - 操作类型：修改
 - 影响文件：`ui/components/slice_dimension_card.py`、`ui/interfaces/slice_interface.py`、`docs/operateLog.md`
