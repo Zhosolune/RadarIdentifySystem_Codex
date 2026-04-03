@@ -1,0 +1,102 @@
+"""切片工作线程。"""
+
+from __future__ import annotations
+
+import logging
+
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
+
+from app.signal_bus import signal_bus
+from core.models.processing_session import ProcessingSession, ProcessingStage
+from core.preprocess import preprocess
+from core.slicing import slice_by_toa
+from infra.plotting import render_slice_images
+
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class SliceWorker(QThread):
+    """切片后台工作线程。
+
+    在子线程中执行预处理、切片与渲染计算，防止阻塞主界面。
+    使用单一职责原则，专门负责切片相关的繁重计算任务。
+
+    Attributes:
+        finished_signal (pyqtSignal): 任务完成或失败时发出的信号，签名 `(session_id, success, error_msg)`。
+    """
+
+    # 信号：(session_id, success, error_msg)
+    finished_signal = pyqtSignal(str, bool, str)
+
+    def __init__(
+        self,
+        session: ProcessingSession,
+        slice_length_ms: float = 250.0,
+        parent: QObject | None = None,
+    ) -> None:
+        """初始化切片工作线程。
+
+        保存当前正在处理的 session 实例与切片容差时长参数。
+
+        Args:
+            session (ProcessingSession): 当前流程所依附的会话上下文。
+            slice_length_ms (float, optional): 数据切分默认时长(ms)，默认为 250.0。
+            parent (QObject | None, optional): 挂载的 Qt 父节点。
+        """
+        super().__init__(parent)
+        self._session = session
+        self._slice_length_ms = slice_length_ms
+
+    def run(self) -> None:
+        """执行切片逻辑。
+
+        依序调用数据预处理、时间轴切片计算和首图渲染的流程，
+        并将过程中的状态变更写入 session 对象中，最后抛出结果信号。
+
+        Args:
+            无。
+
+        Returns:
+            None
+
+        Raises:
+            无。捕获内部所有异常后通过 finished_signal 抛出错误消息。
+        """
+        session_id = self._session.session_id
+        try:
+            # 1. 预处理
+            if not self._session.is_imported or self._session.raw_batch is None:
+                raise RuntimeError("数据尚未导入，无法切片")
+
+            _LOGGER.info("[session:%s] 开始预处理", session_id)
+            preprocess_res = preprocess(self._session.raw_batch.data)
+            self._session.preprocess_result = preprocess_res
+
+            # 2. 切片
+            _LOGGER.info("[session:%s] 开始切片", session_id)
+            slice_res = slice_by_toa(
+                preprocess_res.data,
+                slice_length_ms=self._slice_length_ms,
+            )
+            self._session.slice_result = slice_res
+            self._session.stage = ProcessingStage.SLICED
+
+            # 3. 如果有切片结果，通知渲染第一张图（默认索引 0）
+            if slice_res.slice_count > 0:
+                _LOGGER.info("[session:%s] 开始渲染第 0 个切片", session_id)
+                first_slice_data = slice_res.slices[0]
+                time_range = slice_res.time_ranges[0]
+                
+                image_bundle = render_slice_images(
+                    first_slice_data,
+                    band=preprocess_res.band,
+                    time_range=time_range,
+                )
+                signal_bus.slice_image_ready.emit(session_id, 0, image_bundle)
+
+            self.finished_signal.emit(session_id, True, "")
+
+        except Exception as e:
+            _LOGGER.error("[session:%s] 切片过程失败: %s", session_id, e, exc_info=True)
+            self.finished_signal.emit(session_id, False, str(e))

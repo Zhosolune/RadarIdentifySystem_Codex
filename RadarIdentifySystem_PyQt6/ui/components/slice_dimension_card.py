@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
 from qfluentwidgets import SimpleCardWidget
 
@@ -59,7 +60,35 @@ class SliceDimensionCard(QWidget):
         self.image_card.setObjectName("sliceImageCard")
         self.image_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+        # 添加用于显示图像的 QLabel
+        self.image_label = QLabel(self.image_card)
+        self.image_label.setObjectName("sliceImageLabel")
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setScaledContents(True)
+
+        # 为 image_card 设置布局
+        card_layout = QHBoxLayout(self.image_card)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.addWidget(self.image_label)
+
         self._init_layout()
+
+    def set_image(self, pixmap: QPixmap) -> None:
+        """设置卡片内的图像。
+
+        功能描述：
+            将 QPixmap 图像设置到图片标签中。
+
+        参数说明：
+            pixmap (QPixmap): 要显示的图像对象。
+
+        返回值说明：
+            None: 无返回值。
+
+        异常说明：
+            无。
+        """
+        self.image_label.setPixmap(pixmap)
 
     def _init_layout(self) -> None:
         """初始化组件布局。

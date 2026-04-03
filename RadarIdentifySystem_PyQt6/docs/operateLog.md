@@ -1,5 +1,32 @@
 # 操作日志
 
+## 2026-04-03 16:00
+- 操作类型：修改
+- 影响文件：`ui/components/slice_dimension_card.py`、`ui/interfaces/slice_interface.py`、`docs/operateLog.md`
+- 变更摘要：修复 `slice_interface.py` 中 `SliceDimensionCard` 缺少 `setTitle` 方法导致的 AttributeError 报错；为 `SliceDimensionCard` 添加内部 `QLabel` 用于显示图片，并新增 `set_image(QPixmap)` 方法，完善渲染结果更新回调逻辑。
+- 原因：之前的切片组件未正确封装图片显示接口，且 UI 界面在更新标题时错误调用了组件的非存在方法。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-03 15:51
+- 操作类型：重构
+- 影响文件：`runtime/workflows/slice_workflow.py`、`runtime/threading/slice_worker.py`、`docs/operateLog.md`
+- 变更摘要：根据单一职责与目录约束原则，创建 `runtime/threading` 目录，将切片工作流文件中的 `_SliceWorker` 线程类抽离并移动到 `slice_worker.py` 文件中，确保 workflow 只做编排不掺杂线程类
+- 原因：修复先前未严格遵守《目录结构与分层约束》规则的问题，解除编排与后台线程在物理文件上的耦合
+- 测试状态：无需测试（重构结构调整）
+
+---
+
+## 2026-04-03 15:16
+- 操作类型：新增
+- 影响文件：`app/signal_bus.py`、`runtime/workflows/slice_workflow.py`、`ui/interfaces/slice_interface.py`、`docs/operateLog.md`
+- 变更摘要：实现切片工作流（独立子线程进行预处理、切片与首个切片图像渲染），在 `slice_interface` 右侧添加测试用的导入与切片触发按钮，并通过全局 `signal_bus` 连接渲染结果展示到左侧组件
+- 原因：推进“核心算法 + runtime 编排 + UI 被动展示”的架构闭环验证，避免 UI 直接调用核心业务或执行耗时计算
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-03 10:34
 - 操作类型：重构
 - 影响文件：`infra/plotting.py` -> `infra/plotting/` (`types.py`, `utils.py`, `engine.py`, `facades.py`, `exporter.py`, `__init__.py`), `infra/__init__.py`, `docs/plot_manager到新架构映射清单.md`

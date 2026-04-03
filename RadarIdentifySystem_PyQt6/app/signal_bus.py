@@ -1,70 +1,37 @@
-﻿"""全局信号总线。"""
+"""核心全局信号总线。"""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from core.models.processing_session import ProcessingSession
+from infra.plotting.types import RenderedImageBundle
 
-class AppSignalBus(QObject):
-    """应用级全局信号总线。
 
-    功能描述：
-        提供跨模块轻量事件通知，避免页面与业务模块直接耦合。
+class _SignalBus(QObject):
+    """全局单例事件总线。
 
-    参数说明：
-        无。
-
-    返回值说明：
-        无。
-
-    异常说明：
-        无。
+    用于隔离各个UI组件与业务核心的工作流之间的直接耦合。
+    所有的生命周期事件及处理结果都在此发布和订阅。
     """
 
-    data_import_started = pyqtSignal(str)
-    data_import_finished = pyqtSignal(object)
-    data_import_failed = pyqtSignal(object)
+    # -------------------------------------------------------------------
+    # 生命周期事件 (携带 session_id 等元信息)
+    # -------------------------------------------------------------------
+    session_created = pyqtSignal(str)          # session_id
+    stage_started = pyqtSignal(str, str)         # session_id, stage_name
+    stage_finished = pyqtSignal(str, str)        # session_id, stage_name
+    stage_failed = pyqtSignal(str, str, str)     # session_id, stage_name, error_msg
 
-    slice_started = pyqtSignal()
-    slice_ready = pyqtSignal(object)
-    slice_changed = pyqtSignal(int)
+    # -------------------------------------------------------------------
+    # 结果数据事件
+    # -------------------------------------------------------------------
+    # 当数据导入完成后发出，携带整个 session 的最新状态供 UI 刷新摘要
+    import_completed = pyqtSignal(ProcessingSession)
 
-    identify_started = pyqtSignal()
-    identify_progress = pyqtSignal(object)
-    cluster_ready = pyqtSignal(object)
-    identify_finished = pyqtSignal(bool, int)
-
-    merge_started = pyqtSignal()
-    merge_finished = pyqtSignal(object)
-
-    export_started = pyqtSignal(str)
-    export_progress = pyqtSignal(object)
-    export_finished = pyqtSignal(str)
-    export_failed = pyqtSignal(object)
-
-    config_changed = pyqtSignal(str, object)
-    theme_changed = pyqtSignal(str, str)
-
-    toast_requested = pyqtSignal(str, str)
-    error_reported = pyqtSignal(object)
-
-    def __init__(self) -> None:
-        """初始化信号总线。
-
-        功能描述：
-            构建应用全局信号对象。
-
-        参数说明：
-            无。
-
-        返回值说明：
-            None: 无返回值。
-
-        异常说明：
-            无。
-        """
-
-        super().__init__()
+    # 当一个切片的 5 维原始图像渲染完成后发出
+    # 参数：session_id, slice_index, image_bundle
+    slice_image_ready = pyqtSignal(str, int, RenderedImageBundle)
 
 
-signal_bus = AppSignalBus()
+signal_bus = _SignalBus()
