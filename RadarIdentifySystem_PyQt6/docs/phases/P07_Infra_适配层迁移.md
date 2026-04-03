@@ -1,4 +1,4 @@
-﻿# P07 Infra 适配层迁移
+# P07 Infra 适配层迁移
 
 ## 目标
 完成 infra 适配层迁移（解析/推理/绘图/导出），配置不再由 infra 单独维护。
@@ -11,9 +11,8 @@
 5. `infra/plotting/plot_service.py`
 6. `infra/storage/result_exporter.py`
 7. `infra/storage/pulse_exporter.py`
-8. `infra/threading/task_runner.py`
-9. `tests/integration/test_infra_parsers.py`
-10. `tests/integration/test_infra_exporters.py`
+8. `tests/integration/test_infra_parsers.py`
+9. `tests/integration/test_infra_exporters.py`
 
 ## 执行步骤
 1. 迁移解析器（Excel/Bin/MAT）。

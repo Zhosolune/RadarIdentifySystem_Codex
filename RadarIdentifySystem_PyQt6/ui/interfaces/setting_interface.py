@@ -3,6 +3,7 @@
 ui/interfaces/setting_interface.py
 设置界面。
 """
+import logging
 
 from PyQt6.QtWidgets import QWidget, QFileDialog
 from PyQt6.QtCore import QUrl, Qt
@@ -15,9 +16,9 @@ from qfluentwidgets import (
 from qfluentwidgets import qconfig, setTheme, setThemeColor
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
-from app.logger import get_logger, clear_all_logs, get_current_log_file_path, get_log_dir_path
+from app.logger import clear_all_logs, get_current_log_file_path, get_log_dir_path
 
-LOGGER = get_logger("ui.settingInterface")
+LOGGER = logging.getLogger(__name__)
 
 class LogSettingCard(ExpandGroupSettingCard):
     """ 日志设置卡片 """

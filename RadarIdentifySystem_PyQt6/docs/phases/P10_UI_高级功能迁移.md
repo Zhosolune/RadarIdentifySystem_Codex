@@ -1,11 +1,11 @@
-﻿# P10 UI 高级功能迁移（Fluent 组件与设置页）
+# P10 UI 高级功能迁移（Fluent 组件与设置页）
 
 ## 目标
 迁移配置窗口、模型管理和高级组件，优先采用 Fluent 原生组件替换自定义实现。
 
 ## 本阶段重点
 1. 设置页使用 Fluent `SettingCard`。
-2. 所有配置项绑定到 `app/config.py` 中的 `ConfigItem`。
+2. 所有配置项绑定到 `app/app_config.py` 中的 `ConfigItem`。
 3. 通知/提示统一到 `InfoBar` / Fluent 对话框。
 4. 主题与界面偏好使用同一 `QConfig`。
 5. 新增绘图配置分组页面，覆盖 `plot.dimension.*`、`plot.bandProfile.*`、`plot.mergePalette`。

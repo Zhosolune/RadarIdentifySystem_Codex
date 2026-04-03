@@ -6,6 +6,8 @@ ui/main_window.py
   - 每个仓库对应一个侧边栏导航项（运行时动态添加/移除）
   - 设置页（固定末项）
 """
+import logging
+
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtGui import QIcon
@@ -13,13 +15,12 @@ from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
     InfoBar, InfoBarPosition, SystemThemeListener, SplashScreen
 )
-from app.logger import get_logger
 
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.setting_interface import SettingInterface
 
-LOGGER = get_logger("ui.mainWindow")
+LOGGER = logging.getLogger(__name__)
 
 class MainWindow(FluentWindow):
     """RadarIdentifySystem 主窗口。"""

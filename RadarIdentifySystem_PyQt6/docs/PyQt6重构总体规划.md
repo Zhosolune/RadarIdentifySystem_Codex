@@ -1,9 +1,10 @@
-﻿# RadarIdentifySystem PyQt6 轻量重构总体方案（全 QConfig 版）
+# RadarIdentifySystem PyQt6 轻量重构总体方案（全 QConfig 版）
 
 ## 1. 架构
 - `app`：应用生命周期、全局配置、日志、信号总线、样式管理
 - `core`：算法与规则（纯业务逻辑）
-- `infra`：解析、推理、绘图、线程、导出等基础设施适配
+- `infra`：解析、推理、绘图、导出等基础设施适配
+- `runtime`：流程编排、线程执行、流程事件模型
 - `ui`：基于 PyQt-Fluent-Widgets 的窗口/页面/组件
 - `utils`：通用工具
 - `resources`：静态资源（图标、QSS、qrc）
@@ -27,7 +28,7 @@
 
 ## 4. 配置系统（单一方案）
 全部配置采用 Fluent `QConfig`：
-1. 在 `app/config.py` 中集中定义 `ConfigItem` 与默认值。
+1. 在 `app/app_config.py` 中集中定义 `ConfigItem` 与默认值。
 2. UI 偏好与业务参数都在同一个 `QConfig` 实例中管理。
 3. 使用 `ConfigValidator` 做类型/范围/枚举校验。
 4. 使用 `qconfig.load("config/config.json", appConfig)` 初始化加载，并通过 `appConfig.save()` 持久化。

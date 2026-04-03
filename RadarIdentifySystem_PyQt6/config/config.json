@@ -4,14 +4,20 @@
         "epsilonPW": 0.2,
         "minPts": 1
     },
+    "Interface": {
+        "DpiScale": "Auto"
+    },
     "QFluentWidgets": {
         "FontFamilies": [
             "Segoe UI",
             "Microsoft YaHei",
             "PingFang SC"
         ],
-        "ThemeColor": "#ff009faa",
+        "ThemeColor": "#ff4772c3",
         "ThemeMode": "Light"
+    },
+    "System": {
+        "LogDir": "C:\\Users\\lenovo\\.RadarIdentifySystem\\logs"
     },
     "merge.priEqual": {
         "doaTolerance": 20.0

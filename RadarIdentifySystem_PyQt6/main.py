@@ -17,11 +17,11 @@ from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessag
 from qfluentwidgets import FluentTranslator
 from app.app_config import appConfig
 from ui.main_window import MainWindow
-from app.logger import get_logger
+from app.logger import configure_logging, get_current_log_file_path
 from app import resource_rc
 import logging
 
-LOGGER = get_logger("main")
+LOGGER = logging.getLogger(__name__)
 
 def qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: str):
     """
@@ -68,11 +68,13 @@ def exception_hook(exctype, value, tb):
 
 
 def main() -> None:
+    configure_logging(appConfig.logDir.value)
     sys.excepthook = exception_hook
     qInstallMessageHandler(qt_message_handler)
 
     LOGGER.info("=========================================")
     LOGGER.info("RadarIdentifySystem Starting...")
+    LOGGER.info("当前运行日志文件：%s", get_current_log_file_path())
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
