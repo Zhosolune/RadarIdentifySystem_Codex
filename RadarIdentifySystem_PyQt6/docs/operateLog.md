@@ -1,5 +1,50 @@
 # 操作日志
 
+## 2026-04-03 10:34
+- 操作类型：重构
+- 影响文件：`infra/plotting.py` -> `infra/plotting/` (`types.py`, `utils.py`, `engine.py`, `facades.py`, `exporter.py`, `__init__.py`), `infra/__init__.py`, `docs/plot_manager到新架构映射清单.md`
+- 变更摘要：将 `infra/plotting.py` 拆分为 `infra/plotting` 子包，按数据结构、辅助函数、核心渲染、场景门面、导出工具分模块组织，并同步更新了映射文档
+- 原因：原 `plotting.py` 文件结构过长，职责混合，拆分子包后模块更清晰，避免后续代码膨胀
+- 测试状态：已测试（`python -m compileall infra` 通过，诊断无错误）
+
+---
+
+## 2026-04-03 09:56
+- 操作类型：新增
+- 影响文件：`infra/plotting.py`、`infra/__init__.py`、`docs/operateLog.md`
+- 变更摘要：完成 infra 纯绘图能力实现，新增绘图规格、切片/聚类/预测/合并渲染函数与图像导出接口，并导出为包公共能力
+- 原因：落实映射清单中“绘图算法下沉 infra、runtime 仅编排”的分层目标
+- 测试状态：已测试（`python -m compileall infra` 通过，诊断无错误）
+
+---
+
+## 2026-04-03 09:54
+- 操作类型：修改
+- 影响文件：`docs/operateLog.md`
+- 变更摘要：开始实现 `infra/plotting.py` 纯绘图功能，准备按映射清单落地数据结构与渲染函数
+- 原因：将旧版绘图规则下沉为基础设施层能力，为 runtime 工作流接入提供稳定接口
+- 测试状态：无需测试（开发中）
+
+---
+
+## 2026-04-03 09:41
+- 操作类型：新增
+- 影响文件：`docs/plot_manager到新架构映射清单.md`、`docs/operateLog.md`
+- 变更摘要：新增旧版 `plot_manager.py` 到新项目 `core/infra/runtime/ui` 分层的映射清单文档，并给出函数级迁移建议与迁移顺序
+- 原因：为后续绘图模块抽离提供稳定的职责边界，避免重构时再次形成“大而全”的绘图管理类
+- 测试状态：无需测试（文档新增）
+
+---
+
+## 2026-04-03 09:40
+- 操作类型：修改
+- 影响文件：`docs/operateLog.md`
+- 变更摘要：开始整理旧版 `plot_manager.py` 向新项目架构的职责映射文档
+- 原因：为后续绘图模块抽离与重构提供统一迁移清单，避免把旧版绘图器整类平移到新架构
+- 测试状态：无需测试（文档整理中）
+
+---
+
 ## 2026-04-02 17:23
 - 操作类型：重构
 - 影响文件：`app/logger.py`、`main.py`、`core/preprocess.py`、`core/slicing.py`、`ui/main_window.py`、`ui/interfaces/setting_interface.py`、`app/application.py`、`docs/operateLog.md`
