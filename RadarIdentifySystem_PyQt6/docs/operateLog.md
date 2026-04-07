@@ -1,5 +1,23 @@
 # 操作日志
 
+## 2026-04-07 14:07
+- 操作类型：修改
+- 影响文件：`docs/目录结构与分层约束.md`
+- 变更摘要：更新目录基线，将 `infra/plotting.py` 更改为子包结构，新增 `ui/controllers/` 目录用于体现 MVP/MVC 架构分离，并修正 `runtime/workflows` 和 `runtime/threading` 的命名与注释。
+- 原因：保持架构文档与实际落地代码的一致性，反映最近几次关于绘图剥离和 UI 逻辑解耦的重构成果。
+- 测试状态：无需测试
+
+---
+
+## 2026-04-07 13:57
+- 操作类型：重构
+- 影响文件：`ui/interfaces/slice_interface.py`、`ui/controllers/import_controller.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：将 `slice_interface.py` 中关于“导入数据”和“切片处理”的槽函数与信号监听逻辑剥离，分别迁移至新建的 `ImportController` 和 `SliceController` 中。
+- 原因：解决 UI 界面文件因混合布局逻辑与事件处理逻辑导致的臃肿问题，遵循 MVP/MVC 架构规范中的单一职责原则，提高代码的可维护性与可读性。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-07 11:17
 - 操作类型：重构
 - 影响文件：`runtime/threading/import_worker.py`、`runtime/workflows/import_workflow.py`、`ui/interfaces/slice_interface.py`

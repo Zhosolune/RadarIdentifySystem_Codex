@@ -1,6 +1,6 @@
-﻿# 目录结构与分层约束（基线）
+# 目录结构与分层约束（基线）
 
-## 1. 目录基线（当前采纳）
+## 1. 目录基线
 
 ```text
 easyVer-style (RadarIdentifySystem_PyQt6)
@@ -49,10 +49,6 @@ easyVer-style (RadarIdentifySystem_PyQt6)
 └── requirements.txt
 ```
 
-说明：
-- 本项目当前阶段不引入 `db` 层。
-- 如后续确有落库需求，需单独评审并新增 `db/` 目录与迁移规范。
-
 ## 2. 分层职责
 1. `app`：生命周期、启动装配、全局日志/配置/信号总线/样式资源管理。
 2. `core`：纯业务规则与算法，不依赖 UI/线程/数据库。
@@ -76,3 +72,4 @@ easyVer-style (RadarIdentifySystem_PyQt6)
 5. 不允许新增第二套配置系统。
 6. 不允许在 `ui` 直接调用 `core`/`infra` 具体实现。
 7. `ui` 槽函数仅处理界面状态与意图发射，业务处理槽函数必须落在 `runtime/workflow`。
+8. 控件的槽函数等逻辑必须落在 `ui/controllers/` 下。

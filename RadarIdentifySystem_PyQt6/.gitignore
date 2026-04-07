@@ -26,3 +26,5 @@ build/
 results/
 # config/
 # docs/
+
+.vscode/
