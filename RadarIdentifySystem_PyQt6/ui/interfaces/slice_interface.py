@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QFileDialog, QMessageBox
-
-from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import PrimaryPushButton, PushButton
 
 from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from infra.plotting.types import RenderedImageBundle
-from runtime.workflows.slice_workflow import slice_workflow
-from runtime.workflows.import_workflow import import_workflow
 from ui.components import SliceDimensionCard
+from ui.controllers.import_controller import ImportController
+from ui.controllers.slice_controller import SliceController
 
 
 class SliceInterface(QFrame):
@@ -71,42 +68,9 @@ class SliceInterface(QFrame):
         # 为了测试新架构，界面持有一个测试用的 Session 引用
         self._test_session = ProcessingSession()
         
-        # 绑定全局信号总线，监听渲染结果
-        signal_bus.slice_image_ready.connect(self._on_slice_image_ready)
-
-    def _on_slice_image_ready(self, session_id: str, slice_index: int, bundle: RenderedImageBundle) -> None:
-        """接收渲染图片结果并展示到左侧卡片。"""
-        if session_id != self._test_session.session_id:
-            return
-            
-        import numpy as np
-        
-        # 更新标题
-        if hasattr(self, 'left_title_label'):
-            self.left_title_label.setText(f"第{slice_index}个切片数据  原始图像")
-        
-        # 更新 5 个维度的图片
-        cards = {
-            "CF": self.original_cf_card,
-            "PW": self.original_pw_card,
-            "PA": self.original_pa_card,
-            "DTOA": self.original_dtoa_card,
-            "DOA": self.original_doa_card,
-        }
-        
-        for dim_name, image_data in bundle.images.items():
-            if dim_name in cards:
-                # np array(uint8) -> QImage
-                height, width = image_data.shape
-                bytes_per_line = width
-                q_image = QImage(
-                    image_data.data,
-                    width,
-                    height,
-                    bytes_per_line,
-                    QImage.Format.Format_Grayscale8,
-                )
-                cards[dim_name].set_image(QPixmap.fromImage(q_image))
+        # 初始化控制器，将业务逻辑抽离
+        self._import_controller = ImportController(self)
+        self._slice_controller = SliceController(self)
 
     def _init_layout(self) -> None:
         """初始化三栏主布局。
@@ -228,85 +192,9 @@ class SliceInterface(QFrame):
         self.btn_import = PushButton("1. 从 Excel 导入数据", right_column)
         self.btn_slice = PrimaryPushButton("2. 开始切片工作流", right_column)
         
-        self.btn_import.clicked.connect(self._on_import_clicked)
-        self.btn_slice.clicked.connect(self._on_slice_clicked)
-        
         right_layout.addWidget(title)
         right_layout.addWidget(self.btn_import)
         right_layout.addWidget(self.btn_slice)
         right_layout.addStretch(1)
         
         return right_column
-
-    def _on_import_clicked(self) -> None:
-        """选择 Excel 文件并导入数据到 Session。
-
-        功能描述：
-            唤起文件选择对话框选取 Excel，通过 pandas 解析并写入 PulseBatch。
-            此为临时测试功能，易于后续重构或删除。
-        """
-        import numpy as np
-        import pandas as pd
-        
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "选择 Excel 文件",
-            "",
-            "Excel Files (*.xlsx *.xls)"
-        )
-        
-        if not file_path:
-            return
-            
-        try:
-            self.btn_import.setText("读取与预处理中...")
-            self.btn_import.setEnabled(False)
-            
-            import_workflow.start_import(self._test_session, file_path)
-            
-            def on_import_finished(session_id: str, stage: str) -> None:
-                if session_id == self._test_session.session_id and stage == "importing":
-                    pulses = self._test_session.raw_batch.data.shape[0] if self._test_session.raw_batch else 0
-                    self.btn_import.setText(f"1. 导入完成 ({pulses}条数据)")
-                    self.btn_import.setEnabled(True)
-                    cleanup_listeners()
-                    
-            def on_import_failed(session_id: str, stage: str, error_msg: str) -> None:
-                if session_id == self._test_session.session_id and stage == "importing":
-                    self.btn_import.setText("1. 从 Excel 导入数据")
-                    self.btn_import.setEnabled(True)
-                    QMessageBox.critical(self, "导入失败", f"无法读取或预处理 Excel 文件:\n{error_msg}")
-                    cleanup_listeners()
-                    
-            def cleanup_listeners() -> None:
-                signal_bus.stage_finished.disconnect(on_import_finished)
-                signal_bus.stage_failed.disconnect(on_import_failed)
-                    
-            signal_bus.stage_finished.connect(on_import_finished)
-            signal_bus.stage_failed.connect(on_import_failed)
-            
-        except Exception as e:
-            self.btn_import.setEnabled(True)
-            self.btn_import.setText("1. 从 Excel 导入数据")
-            QMessageBox.critical(self, "导入失败", f"启动工作流失败:\n{str(e)}")
-        
-    def _on_slice_clicked(self) -> None:
-        """触发切片工作流。"""
-        if not self._test_session.is_imported:
-            self.btn_slice.setText("请先导入数据！")
-            return
-            
-        self.btn_slice.setText("切片计算中...")
-        self.btn_slice.setEnabled(False)
-        
-        # 将测试 Session 发给全局单例切片工作流处理
-        slice_workflow.start_slice(self._test_session)
-        
-        # 监听此 Session 阶段完成事件复位按钮
-        def on_finished(sid: str, stage: str) -> None:
-            if sid == self._test_session.session_id and stage == "slicing":
-                self.btn_slice.setText("2. 开始切片工作流 (完成)")
-                self.btn_slice.setEnabled(True)
-                signal_bus.stage_finished.disconnect(on_finished)
-                
-        signal_bus.stage_finished.connect(on_finished)
