@@ -82,22 +82,22 @@ class RoundedImageLabel(QLabel):
             super().paintEvent(event)
             return
 
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        with QPainter(self) as painter:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        # 构建圆角裁剪路径
-        path = QPainterPath()
-        path.addRoundedRect(QRectF(self.rect()), self._radius, self._radius)
-        painter.setClipPath(path)
+            # 构建圆角裁剪路径
+            path = QPainterPath()
+            path.addRoundedRect(QRectF(self.rect()), self._radius, self._radius)
+            painter.setClipPath(path)
 
-        # 缩放并绘制图像
-        scaled_pixmap = self._pixmap.scaled(
-            self.size(),
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-        painter.drawPixmap(self.rect(), scaled_pixmap)
+            # 缩放并绘制图像
+            scaled_pixmap = self._pixmap.scaled(
+                self.size(),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            painter.drawPixmap(self.rect(), scaled_pixmap)
 
 
 class SliceDimensionCard(QWidget):
