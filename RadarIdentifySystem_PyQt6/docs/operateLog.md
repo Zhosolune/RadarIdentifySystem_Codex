@@ -1,5 +1,41 @@
 # 操作日志
 
+## 2026-04-07 11:17
+- 操作类型：重构
+- 影响文件：`runtime/threading/import_worker.py`、`runtime/workflows/import_workflow.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：根据 `signal_bus` 的生命周期架构规范，重构了 `ImportWorkflow` 和 `ImportWorker` 的信号机制。`ImportWorker` 的回调改为统一的 `finished_signal`；`ImportWorkflow` 改为使用 `signal_bus.stage_started`、`stage_finished` 与 `stage_failed` 向全局广播状态；UI 层也更新了对应的错误与成功回调监听，分离了错误处理与成功业务逻辑。
+- 原因：之前的 `import_workflow` 没有正确遵循全局的 `signal_bus` 生命周期规范，而是通过伪造事件名（如 `"import_error: xxx"`）将失败和成功混用，导致 UI 层监听逻辑混乱且容易出错。本次重构将其与切片工作流（`slice_workflow`）完全对齐。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-07 11:13
+- 操作类型：新增
+- 影响文件：`runtime/threading/import_worker.py`、`runtime/workflows/import_workflow.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：根据现有 `core/preprocess.py` 中的数据处理纯函数，设计并实现了 Excel 数据导入的工作流 (`ImportWorkflow`) 与后台线程 (`ImportWorker`)。修改了 `slice_interface.py` 中测试面板的导入按钮逻辑，现在点击导入会启动导入工作流，不仅能异步读取数据，还会执行数据清洗、时间翻折修正等预处理操作，并且保证整个流程的 session_id 与后续切片一致。
+- 原因：之前的直接导入只进行了数据组合而未调用 `core` 中的预处理逻辑。采用 Workflow + Worker 模式后，导入阶段也能避免阻塞主线程，同时完成了真正的“清洗 -> 提取 -> 修正”链路闭环，为后续核心算法的准确性提供保障。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-07 09:11
+- 操作类型：修改
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：将切片测试界面的数据导入方式从硬编码伪造数据更改为唤起文件选择对话框导入 Excel 文件。
+- 原因：支持从本地选择真实的 Excel 雷达信号数据进行切片渲染测试，验证核心算法在真实数据下的表现。临时功能易于删除。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-07 08:51
+- 操作类型：修改
+- 影响文件：`ui/components/slice_dimension_card.py`
+- 变更摘要：修复 `RoundedImageLabel.paintEvent` 中 `QPainter` 的资源释放问题，改用 `with QPainter(self) as painter:` 上下文管理器语法。
+- 原因：之前的代码中直接实例化了 `QPainter` 对象但未调用 `end()`，可能导致潜在的内存泄漏和资源未正确释放。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-03 16:11
 - 操作类型：修改
 - 影响文件：`ui/components/slice_dimension_card.py`、`resources/qss/dark/slice_interface.qss`、`resources/qss/light/slice_interface.qss`、`docs/operateLog.md`

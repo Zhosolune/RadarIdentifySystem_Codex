@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QFileDialog, QMessageBox
 
 from PyQt6.QtGui import QImage, QPixmap
 from qfluentwidgets import PrimaryPushButton, PushButton
@@ -14,6 +14,7 @@ from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
 from infra.plotting.types import RenderedImageBundle
 from runtime.workflows.slice_workflow import slice_workflow
+from runtime.workflows.import_workflow import import_workflow
 from ui.components import SliceDimensionCard
 
 
@@ -224,7 +225,7 @@ class SliceInterface(QFrame):
         title = QLabel("操作面板 (测试版)", right_column)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        self.btn_import = PushButton("1. 模拟导入数据", right_column)
+        self.btn_import = PushButton("1. 从 Excel 导入数据", right_column)
         self.btn_slice = PrimaryPushButton("2. 开始切片工作流", right_column)
         
         self.btn_import.clicked.connect(self._on_import_clicked)
@@ -238,21 +239,56 @@ class SliceInterface(QFrame):
         return right_column
 
     def _on_import_clicked(self) -> None:
-        """模拟外部完成导入写数据到 Session。"""
+        """选择 Excel 文件并导入数据到 Session。
+
+        功能描述：
+            唤起文件选择对话框选取 Excel，通过 pandas 解析并写入 PulseBatch。
+            此为临时测试功能，易于后续重构或删除。
+        """
         import numpy as np
+        import pandas as pd
         
-        # 伪造 100 个模拟脉冲 (列序: CF, PW, DOA, PA, TOA)
-        fake_data = np.zeros((100, 5), dtype=np.float64)
-        fake_data[:, 0] = np.random.uniform(5000, 5500, 100) # C波段
-        fake_data[:, 1] = np.random.uniform(10, 50, 100)     # PW
-        fake_data[:, 2] = np.random.uniform(0, 360, 100)     # DOA
-        fake_data[:, 3] = np.random.uniform(50, 100, 100)    # PA
-        # TOA 线性递增，模拟脉冲列
-        fake_data[:, 4] = np.linspace(0, 1000, 100) + np.random.uniform(0, 5, 100)
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择 Excel 文件",
+            "",
+            "Excel Files (*.xlsx *.xls)"
+        )
         
-        self._test_session.raw_batch = PulseBatch(fake_data)
-        self._test_session.stage = ProcessingStage.IMPORTED
-        self.btn_import.setText("1. 导入完成 (100条伪造数据)")
+        if not file_path:
+            return
+            
+        try:
+            self.btn_import.setText("读取与预处理中...")
+            self.btn_import.setEnabled(False)
+            
+            import_workflow.start_import(self._test_session, file_path)
+            
+            def on_import_finished(session_id: str, stage: str) -> None:
+                if session_id == self._test_session.session_id and stage == "importing":
+                    pulses = self._test_session.raw_batch.data.shape[0] if self._test_session.raw_batch else 0
+                    self.btn_import.setText(f"1. 导入完成 ({pulses}条数据)")
+                    self.btn_import.setEnabled(True)
+                    cleanup_listeners()
+                    
+            def on_import_failed(session_id: str, stage: str, error_msg: str) -> None:
+                if session_id == self._test_session.session_id and stage == "importing":
+                    self.btn_import.setText("1. 从 Excel 导入数据")
+                    self.btn_import.setEnabled(True)
+                    QMessageBox.critical(self, "导入失败", f"无法读取或预处理 Excel 文件:\n{error_msg}")
+                    cleanup_listeners()
+                    
+            def cleanup_listeners() -> None:
+                signal_bus.stage_finished.disconnect(on_import_finished)
+                signal_bus.stage_failed.disconnect(on_import_failed)
+                    
+            signal_bus.stage_finished.connect(on_import_finished)
+            signal_bus.stage_failed.connect(on_import_failed)
+            
+        except Exception as e:
+            self.btn_import.setEnabled(True)
+            self.btn_import.setText("1. 从 Excel 导入数据")
+            QMessageBox.critical(self, "导入失败", f"启动工作流失败:\n{str(e)}")
         
     def _on_slice_clicked(self) -> None:
         """触发切片工作流。"""
