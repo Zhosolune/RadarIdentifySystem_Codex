@@ -1,5 +1,32 @@
 # 操作日志
 
+## 2026-04-07 16:14
+- 操作类型：重构
+- 影响文件：`ui/controllers/slice_controller.py`、`ui/controllers/import_controller.py`
+- 变更摘要：移除了代码中原本通过修改按钮文本或使用原生 `QMessageBox` 来作为用户交互提示的做法，全面统一替换为使用 `qfluentwidgets.InfoBar`。包括数据导入的成功与失败提示、切片执行的前置拦截提示与成功提示。
+- 原因：提升系统界面的视觉一致性与交互体验，遵循全局的交互规范。该规范已被写入核心记忆。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-07 16:08
+- 操作类型：重构
+- 影响文件：`ui/components/slice_action_card.py`、`ui/interfaces/slice_interface.py`、`ui/controllers/import_controller.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：根据最新的 UI 控件命名规范（业务词组_组件类型），将代码中不符合规范的简写组件名进行了全局替换。例如 `btn_slice` 变更为 `start_slicing_button`，`chk_adaptive` 变更为 `adaptive_slicing_checkbox`，`btn_import` 变更为 `import_data_button`。
+- 原因：保持项目中变量命名的语义化和一致性，提升代码可读性。并将此命名规则写入了智能体的核心记忆中，以便后续生成代码时严格遵守。
+- 测试状态：无需测试
+
+---
+
+## 2026-04-07 15:40
+- 操作类型：新增与重构
+- 影响文件：`ui/components/slice_action_card.py`、`ui/components/__init__.py`、`ui/interfaces/slice_interface.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：新建了 `SliceActionCard` 组合卡片组件（包含“开始切片工作流”按钮和“启用自适应切片”复选框）。在 `slice_interface.py` 右侧面板中用该新卡片替换了原有的纯按钮组件，并在 `slice_controller.py` 中更新了业务绑定逻辑，支持读取复选框的配置状态。
+- 原因：根据需求将单纯的切片操作按钮升级为带选项的组合卡片，进一步利用 Fluent 风格的 `SimpleCardWidget` 规范化右侧操作面板的 UI 结构，且保持控制器（Controller）逻辑分离。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-07 14:07
 - 操作类型：修改
 - 影响文件：`docs/目录结构与分层约束.md`

@@ -10,7 +10,7 @@ from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from ui.components import SliceDimensionCard
+from ui.components import SliceDimensionCard, SliceActionCard
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 
@@ -189,12 +189,12 @@ class SliceInterface(QFrame):
         title = QLabel("操作面板 (测试版)", right_column)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        self.btn_import = PushButton("1. 从 Excel 导入数据", right_column)
-        self.btn_slice = PrimaryPushButton("2. 开始切片工作流", right_column)
+        self.import_data_button = PushButton("1. 从 Excel 导入数据", right_column)
+        self.action_card = SliceActionCard(right_column)
         
         right_layout.addWidget(title)
-        right_layout.addWidget(self.btn_import)
-        right_layout.addWidget(self.btn_slice)
+        right_layout.addWidget(self.import_data_button)
+        right_layout.addWidget(self.action_card)
         right_layout.addStretch(1)
         
         return right_column

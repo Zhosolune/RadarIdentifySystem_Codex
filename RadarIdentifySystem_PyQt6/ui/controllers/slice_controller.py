@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage, QPixmap
+from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
@@ -50,7 +51,7 @@ class SliceController(QObject):
         self.view = view
 
         # 绑定按钮点击事件
-        self.view.btn_slice.clicked.connect(self.handle_slice)
+        self.view.action_card.start_slicing_button.clicked.connect(self.handle_slice)
 
         # 绑定全局生命周期信号与数据就绪信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
@@ -73,12 +74,24 @@ class SliceController(QObject):
         """
         # 校验数据导入状态
         if not self.view._test_session.is_imported:
-            self.view.btn_slice.setText("请先导入数据！")
+            InfoBar.warning(
+                title="提示",
+                content="请先从 Excel 导入雷达脉冲数据，再执行切片操作。",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.view
+            )
             return
 
+        # 获取复选框状态（目前暂存打印，后续可传给 workflow）
+        is_adaptive = self.view.action_card.adaptive_slicing_checkbox.isChecked()
+        print(f"执行切片，自适应模式: {is_adaptive}")
+
         # 更新按钮状态
-        self.view.btn_slice.setText("切片计算中...")
-        self.view.btn_slice.setEnabled(False)
+        self.view.action_card.start_slicing_button.setText("切片计算中...")
+        self.view.action_card.start_slicing_button.setEnabled(False)
 
         # 启动后台切片工作流
         slice_workflow.start_slice(self.view._test_session)
@@ -102,8 +115,19 @@ class SliceController(QObject):
         # 校验会话与阶段
         if session_id == self.view._test_session.session_id and stage == "slicing":
             # 恢复按钮状态
-            self.view.btn_slice.setText("2. 开始切片工作流 (完成)")
-            self.view.btn_slice.setEnabled(True)
+            self.view.action_card.start_slicing_button.setText("开始切片")
+            self.view.action_card.start_slicing_button.setEnabled(True)
+            
+            # 弹出成功提示
+            InfoBar.success(
+                title="成功",
+                content="数据切片与图像渲染完成！",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.view
+            )
 
     def _on_slice_image_ready(self, session_id: str, slice_index: int, bundle: RenderedImageBundle) -> None:
         """接收渲染图片结果并展示到卡片。

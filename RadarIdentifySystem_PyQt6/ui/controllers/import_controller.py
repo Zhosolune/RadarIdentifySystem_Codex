@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus
 from runtime.workflows.import_workflow import import_workflow
@@ -49,7 +50,7 @@ class ImportController(QObject):
         self.view = view
 
         # 绑定按钮点击事件
-        self.view.btn_import.clicked.connect(self.handle_import)
+        self.view.import_data_button.clicked.connect(self.handle_import)
 
         # 绑定全局生命周期信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
@@ -83,18 +84,26 @@ class ImportController(QObject):
 
         try:
             # 更新按钮状态
-            self.view.btn_import.setText("读取与预处理中...")
-            self.view.btn_import.setEnabled(False)
+            self.view.import_data_button.setText("读取与预处理中...")
+            self.view.import_data_button.setEnabled(False)
 
             # 启动后台导入工作流
             import_workflow.start_import(self.view._test_session, file_path)
 
         except Exception as e:
             # 恢复按钮状态
-            self.view.btn_import.setEnabled(True)
-            self.view.btn_import.setText("1. 从 Excel 导入数据")
+            self.view.import_data_button.setEnabled(True)
+            self.view.import_data_button.setText("1. 从 Excel 导入数据")
             # 弹出错误提示
-            QMessageBox.critical(self.view, "导入失败", f"启动工作流失败:\n{str(e)}")
+            InfoBar.error(
+                title="导入失败",
+                content=f"启动工作流失败:\n{str(e)}",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=5000,
+                parent=self.view
+            )
 
     def _on_stage_finished(self, session_id: str, stage: str) -> None:
         """处理阶段完成信号。
@@ -116,9 +125,20 @@ class ImportController(QObject):
         if session_id == self.view._test_session.session_id and stage == "importing":
             pulses = self.view._test_session.raw_batch.data.shape[0] if self.view._test_session.raw_batch else 0
             # 更新按钮文本
-            self.view.btn_import.setText(f"1. 导入完成 ({pulses}条数据)")
+            self.view.import_data_button.setText(f"1. 导入完成 ({pulses}条数据)")
             # 启用按钮
-            self.view.btn_import.setEnabled(True)
+            self.view.import_data_button.setEnabled(True)
+            
+            # 弹出成功提示
+            InfoBar.success(
+                title="导入成功",
+                content=f"已成功读取并预处理 {pulses} 条脉冲数据！",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.view
+            )
 
     def _on_stage_failed(self, session_id: str, stage: str, error_msg: str) -> None:
         """处理阶段失败信号。
@@ -140,7 +160,7 @@ class ImportController(QObject):
         # 校验会话与阶段
         if session_id == self.view._test_session.session_id and stage == "importing":
             # 恢复按钮状态
-            self.view.btn_import.setText("1. 从 Excel 导入数据")
-            self.view.btn_import.setEnabled(True)
+            self.view.import_data_button.setText("1. 从 Excel 导入数据")
+            self.view.import_data_button.setEnabled(True)
             # 弹出错误提示
             QMessageBox.critical(self.view, "导入失败", f"无法读取或预处理 Excel 文件:\n{error_msg}")
