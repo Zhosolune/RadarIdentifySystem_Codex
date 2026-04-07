@@ -10,7 +10,7 @@ from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from ui.components import SliceDimensionCard, SliceActionCard
+from ui.components import SliceDimensionCard, SliceProcCard
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 
@@ -123,12 +123,12 @@ class SliceInterface(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        title = QLabel("第0个切片数据  原始图像", column)
-        title.setObjectName("sliceLeftTitle")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.left_title_label = title
-        layout.addWidget(title)
+        self.slice_title_label = QLabel("第0个切片数据  原始图像", column)
+        self.slice_title_label.setObjectName("sliceLeftTitle")
+        self.slice_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.slice_title_label.setFixedHeight(25)
 
+        layout.addWidget(self.slice_title_label)
         layout.addWidget(self.original_cf_card, 1)
         layout.addWidget(self.original_pw_card, 1)
         layout.addWidget(self.original_pa_card, 1)
@@ -158,12 +158,13 @@ class SliceInterface(QFrame):
         layout = QVBoxLayout(column)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
+        
+        self.cluster_title_label = QLabel("CF/PW维度聚类 第0类", column)
+        self.cluster_title_label.setObjectName("sliceMiddleTitle")
+        self.cluster_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cluster_title_label.setFixedHeight(25)
 
-        title = QLabel("CF/PW维度聚类 第0类", column)
-        title.setObjectName("sliceMiddleTitle")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
-
+        layout.addWidget(self.cluster_title_label)
         layout.addWidget(self.cluster_cf_card, 1)
         layout.addWidget(self.cluster_pw_card, 1)
         layout.addWidget(self.cluster_pa_card, 1)
@@ -183,18 +184,22 @@ class SliceInterface(QFrame):
         right_column = QWidget(self)
         right_column.setObjectName("sliceRightColumn")
         right_layout = QVBoxLayout(right_column)
-        right_layout.setContentsMargins(20, 20, 20, 20)
-        right_layout.setSpacing(16)
-        
-        title = QLabel("操作面板 (测试版)", right_column)
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        right_layout.setContentsMargins(0, 35, 0, 0)
+        right_layout.setSpacing(10)
         
         self.import_data_button = PushButton("1. 从 Excel 导入数据", right_column)
-        self.action_card = SliceActionCard(right_column)
+
+        # 切片信息标签
+        self.slice_info_label = QLabel("预计将获得 0 个250ms切片", right_column)
+        self.slice_info_label.setObjectName("sliceInfoLabel")
+        self.slice_info_label.setFixedHeight(25)
+
+        # 切片操作卡片
+        self.slice_proc_card = SliceProcCard(right_column)
         
-        right_layout.addWidget(title)
         right_layout.addWidget(self.import_data_button)
-        right_layout.addWidget(self.action_card)
+        right_layout.addWidget(self.slice_info_label)
+        right_layout.addWidget(self.slice_proc_card)
         right_layout.addStretch(1)
         
         return right_column

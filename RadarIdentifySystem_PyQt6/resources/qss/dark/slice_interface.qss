@@ -18,6 +18,12 @@ QLabel#sliceMiddleTitle {
     color: white;
 }
 
+QLabel#sliceInfoLabel {
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+}
+
 QLabel#sliceDimensionLabel {
     font-size: 16px;
     color: white;

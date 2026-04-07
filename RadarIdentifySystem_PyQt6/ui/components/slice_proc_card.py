@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QWidget
 from qfluentwidgets import CheckBox, PrimaryPushButton, SimpleCardWidget
 
 
-class SliceActionCard(SimpleCardWidget):
+class SliceProcCard(SimpleCardWidget):
     """切片操作卡片。
 
     功能描述：
@@ -65,7 +65,7 @@ class SliceActionCard(SimpleCardWidget):
         """
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(12)
+        layout.setSpacing(35)
 
         # 左侧为按钮，右侧为复选框
         layout.addWidget(self.start_slicing_button)

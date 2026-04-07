@@ -51,7 +51,7 @@ class SliceController(QObject):
         self.view = view
 
         # 绑定按钮点击事件
-        self.view.action_card.start_slicing_button.clicked.connect(self.handle_slice)
+        self.view.slice_proc_card.start_slicing_button.clicked.connect(self.handle_slice)
 
         # 绑定全局生命周期信号与数据就绪信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
@@ -86,12 +86,12 @@ class SliceController(QObject):
             return
 
         # 获取复选框状态（目前暂存打印，后续可传给 workflow）
-        is_adaptive = self.view.action_card.adaptive_slicing_checkbox.isChecked()
+        is_adaptive = self.view.slice_proc_card.adaptive_slicing_checkbox.isChecked()
         print(f"执行切片，自适应模式: {is_adaptive}")
 
         # 更新按钮状态
-        self.view.action_card.start_slicing_button.setText("切片计算中...")
-        self.view.action_card.start_slicing_button.setEnabled(False)
+        self.view.slice_proc_card.start_slicing_button.setText("切片计算中...")
+        self.view.slice_proc_card.start_slicing_button.setEnabled(False)
 
         # 启动后台切片工作流
         slice_workflow.start_slice(self.view._test_session)
@@ -115,8 +115,8 @@ class SliceController(QObject):
         # 校验会话与阶段
         if session_id == self.view._test_session.session_id and stage == "slicing":
             # 恢复按钮状态
-            self.view.action_card.start_slicing_button.setText("开始切片")
-            self.view.action_card.start_slicing_button.setEnabled(True)
+            self.view.slice_proc_card.start_slicing_button.setText("开始切片")
+            self.view.slice_proc_card.start_slicing_button.setEnabled(True)
             
             # 弹出成功提示
             InfoBar.success(
@@ -151,9 +151,9 @@ class SliceController(QObject):
             return
 
         # 更新左侧标题
-        if hasattr(self.view, 'left_title_label'):
-            self.view.left_title_label.setText(f"第{slice_index}个切片数据  原始图像")
-
+        if hasattr(self.view, 'slice_title_label'):
+            self.view.slice_title_label.setText(f"第{slice_index}个切片数据  原始图像")
+        
         # 构建维度到卡片的映射字典
         cards = {
             "CF": self.view.original_cf_card,
