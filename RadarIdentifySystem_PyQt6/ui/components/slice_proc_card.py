@@ -36,7 +36,7 @@ class SliceProcCard(SimpleCardWidget):
             无。
         """
         super().__init__(parent)
-        self.setObjectName("sliceActionCard")
+        self.setObjectName("sliceProcCard")
 
         # 初始化内部组件
         self.start_slicing_button = PrimaryPushButton("开始切片", self)
