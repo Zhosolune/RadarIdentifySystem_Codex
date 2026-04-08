@@ -40,9 +40,9 @@ class SliceProcCard(SimpleCardWidget):
 
         # 初始化内部组件
         self.start_slicing_button = PrimaryPushButton("开始切片", self)
-        self.adaptive_slicing_checkbox = CheckBox("启用自适应切片", self)
-        
-        # 默认不勾选
+        self.start_slicing_button.setFixedWidth(80)
+        self.adaptive_slicing_checkbox = CheckBox("启用自适应切片       ", self)
+        self.adaptive_slicing_checkbox.setFixedWidth(250)
         self.adaptive_slicing_checkbox.setChecked(False)
 
         # 构建水平布局
@@ -65,11 +65,10 @@ class SliceProcCard(SimpleCardWidget):
         """
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(35)
+        layout.setSpacing(0)
 
         # 左侧为按钮，右侧为复选框
         layout.addWidget(self.start_slicing_button)
+        layout.addStretch(1)
         layout.addWidget(self.adaptive_slicing_checkbox)
         
-        # 添加弹性空间防止组件被拉伸
-        layout.addStretch(1)

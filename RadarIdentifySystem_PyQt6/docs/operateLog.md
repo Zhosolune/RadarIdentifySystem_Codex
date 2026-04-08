@@ -1,5 +1,27 @@
 # 操作日志
 
+## 2026-04-07 17:33
+- 操作类型：修改
+- 影响文件：`ui/dialogs/processing_dialog.py`
+- 变更摘要：将阻塞式处理动画对话框 `ProcessingDialog` 中的 `IndeterminateProgressBar`（不确定进度条）替换为 `IndeterminateProgressRing`（不确定进度环）。重新设计了内部布局，使进度环与文字（标题与详情）呈现更美观的水平居中排列。
+- 原因：进度环在视觉上比横向进度条更加紧凑和现代化，更符合 Fluent Design 的全局加载动画规范，提升整体美观度。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-07 17:10
+- 操作类型：新增与重构
+- 影响文件：`ui/components/recognition_proc_card.py`、`ui/components/__init__.py`、`ui/dialogs/processing_dialog.py`、`ui/interfaces/slice_interface.py`、`ui/controllers/slice_controller.py`、`ui/controllers/import_controller.py`
+- 变更摘要：
+  1. 新增 `RecognitionProcCard` 识别处理卡片，包含主题色识别按钮、类别导航、切片导航、重置及自动识别复选框。
+  2. 新增全局阻塞式动画对话框 `ProcessingDialog`，集成不确定进度条。
+  3. 将新组件应用到切片右侧操作面板。
+  4. 修改了导入和切片工作流控制器，在发起工作流时弹启动画遮罩，结束时关闭。
+- 原因：丰富切片阶段所需的操作区界面以供后续接入识别算法；通过统一的阻塞式对话框增强长耗时任务（导入、切片）期间的用户体验，防止错误连点。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-07 16:14
 - 操作类型：重构
 - 影响文件：`ui/controllers/slice_controller.py`、`ui/controllers/import_controller.py`

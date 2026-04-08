@@ -11,6 +11,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from runtime.workflows.slice_workflow import slice_workflow
+from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
     from ui.interfaces.slice_interface import SliceInterface
@@ -49,6 +50,7 @@ class SliceController(QObject):
         """
         super().__init__(view)
         self.view = view
+        self._processing_dialog = None
 
         # 绑定按钮点击事件
         self.view.slice_proc_card.start_slicing_button.clicked.connect(self.handle_slice)
@@ -93,6 +95,10 @@ class SliceController(QObject):
         self.view.slice_proc_card.start_slicing_button.setText("切片计算中...")
         self.view.slice_proc_card.start_slicing_button.setEnabled(False)
 
+        # 显示动画对话框
+        self._processing_dialog = ProcessingDialog(self.view, title="切片处理", content="正在执行数据切片与聚类渲染，请稍候...")
+        self._processing_dialog.show()
+
         # 启动后台切片工作流
         slice_workflow.start_slice(self.view._test_session)
 
@@ -114,6 +120,10 @@ class SliceController(QObject):
         """
         # 校验会话与阶段
         if session_id == self.view._test_session.session_id and stage == "slicing":
+            if self._processing_dialog:
+                self._processing_dialog.close()
+                self._processing_dialog = None
+                
             # 恢复按钮状态
             self.view.slice_proc_card.start_slicing_button.setText("开始切片")
             self.view.slice_proc_card.start_slicing_button.setEnabled(True)

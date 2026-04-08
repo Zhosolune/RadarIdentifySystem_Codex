@@ -10,6 +10,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus
 from runtime.workflows.import_workflow import import_workflow
+from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
     from ui.interfaces.slice_interface import SliceInterface
@@ -48,6 +49,7 @@ class ImportController(QObject):
         """
         super().__init__(view)
         self.view = view
+        self._processing_dialog = None
 
         # 绑定按钮点击事件
         self.view.import_data_button.clicked.connect(self.handle_import)
@@ -87,10 +89,19 @@ class ImportController(QObject):
             self.view.import_data_button.setText("读取与预处理中...")
             self.view.import_data_button.setEnabled(False)
 
+            # 显示动画对话框
+            self._processing_dialog = ProcessingDialog(self.view, title="导入数据", content="正在读取与预处理，请稍候...")
+            self._processing_dialog.show()
+
             # 启动后台导入工作流
             import_workflow.start_import(self.view._test_session, file_path)
 
         except Exception as e:
+            # 隐藏动画
+            if self._processing_dialog:
+                self._processing_dialog.close()
+                self._processing_dialog = None
+            
             # 恢复按钮状态
             self.view.import_data_button.setEnabled(True)
             self.view.import_data_button.setText("1. 从 Excel 导入数据")
@@ -123,6 +134,10 @@ class ImportController(QObject):
         """
         # 校验会话与阶段
         if session_id == self.view._test_session.session_id and stage == "importing":
+            if self._processing_dialog:
+                self._processing_dialog.close()
+                self._processing_dialog = None
+                
             pulses = self.view._test_session.raw_batch.data.shape[0] if self.view._test_session.raw_batch else 0
             # 更新按钮文本
             self.view.import_data_button.setText(f"1. 导入完成 ({pulses}条数据)")
@@ -159,6 +174,10 @@ class ImportController(QObject):
         """
         # 校验会话与阶段
         if session_id == self.view._test_session.session_id and stage == "importing":
+            if self._processing_dialog:
+                self._processing_dialog.close()
+                self._processing_dialog = None
+                
             # 恢复按钮状态
             self.view.import_data_button.setText("1. 从 Excel 导入数据")
             self.view.import_data_button.setEnabled(True)

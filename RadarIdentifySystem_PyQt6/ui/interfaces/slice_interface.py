@@ -10,7 +10,7 @@ from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from ui.components import SliceDimensionCard, SliceProcCard
+from ui.components import SliceDimensionCard, SliceProcCard, RecognitionProcCard
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 
@@ -197,9 +197,13 @@ class SliceInterface(QFrame):
         # 切片操作卡片
         self.slice_proc_card = SliceProcCard(right_column)
         
+        # 识别操作卡片
+        self.recognition_proc_card = RecognitionProcCard(right_column)
+        
         right_layout.addWidget(self.import_data_button)
         right_layout.addWidget(self.slice_info_label)
         right_layout.addWidget(self.slice_proc_card)
+        right_layout.addWidget(self.recognition_proc_card)
         right_layout.addStretch(1)
         
         return right_column
