@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .slice_dimension_card import SliceDimensionCard
-from .slice_proc_card import SliceProcCard
-from .recognition_proc_card import RecognitionProcCard
+from .main_action_card import MainActionCard
+from .navigation_control_card import NavigationControlCard
 
-__all__ = ["SliceDimensionCard", "SliceProcCard", "RecognitionProcCard"]
+__all__ = ["SliceDimensionCard", "MainActionCard", "NavigationControlCard"]

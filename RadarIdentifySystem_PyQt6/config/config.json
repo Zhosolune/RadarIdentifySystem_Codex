@@ -4,6 +4,9 @@
         "epsilonPW": 0.2,
         "minPts": 1
     },
+    "business": {
+        "autoRecognizeNextSlice": true
+    },
     "Interface": {
         "DpiScale": "Auto"
     },
@@ -14,7 +17,7 @@
             "PingFang SC"
         ],
         "ThemeColor": "#ff4772c3",
-        "ThemeMode": "Light"
+        "ThemeMode": "Dark"
     },
     "System": {
         "LogDir": "C:\\Users\\lenovo\\.RadarIdentifySystem\\logs"

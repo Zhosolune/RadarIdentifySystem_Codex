@@ -1,5 +1,47 @@
 # 操作日志
 
+## 2026-04-08 16:12
+- 操作类型：重构
+- 影响文件：`app/app_config.py`、`ui/components/navigation_control_card.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：
+  1. 在全局配置 `app_config.py` 中新增 `autoRecognizeNextSlice` 配置项（属于 `business` 组），用于持久化管理业务逻辑。
+  2. 重构了 `navigation_control_card.py`：将四个导航按钮替换为自定义的 `NavButtonCard`（继承自 `ElevatedCardWidget`），使其成为可悬浮交互的正方形按钮并居中排列在第一行；将原本的复选框替换为 `SwitchSettingCard`（开关设置卡），绑定了全局配置项，占据第二行。
+  3. 修改了 `slice_controller.py`，从直接读取 UI 复选框状态改为读取 `appConfig.autoRecognizeNextSlice.value`。
+- 原因：提升界面的精致度，利用 `ElevatedCardWidget` 增加按钮的立体悬浮感；利用 `SwitchSettingCard` 提供更直观的配置说明和开关体验；配置与 UI 解耦，使“自动识别”状态可以持久化保存。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-08 11:09
+- 操作类型：修改
+- 影响文件：`ui/components/navigation_control_card.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：
+  1. 重构了导航控制卡片布局：将“上一类”、“下一类”、“上一片”、“下一片”导航按钮合并到同一行，并将“自动识别”复选框移动到下方；为四个导航按钮添加了对应的 `FluentIcon` (左右箭头和左右实心三角)。
+  2. 修改了 `slice_interface.py` 中右侧面板的布局约束，添加了 `setMaximumWidth(400)` 以防止卡片被拉伸得过宽。
+  3. 将“重置切片”按钮从导航卡片中提取出来，改为主题色按钮 `PrimaryPushButton` 并命名为“重置当前切片”，放置在右侧面板布局的最底部且靠右对齐。
+- 原因：优化 UI 布局和视觉表现，解决组件在全屏下被拉伸失真的问题。同时将重置操作突出显示并分离出高频的导航操作区域，防止误触。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-08 10:04
+- 操作类型：重构
+- 影响文件：`ui/components/main_action_card.py` (新增)、`ui/components/navigation_control_card.py` (新增)、`ui/components/slice_proc_card.py` (删除)、`ui/components/recognition_proc_card.py` (删除)、`ui/interfaces/slice_interface.py`、`ui/controllers/slice_controller.py`、`ui/components/__init__.py`
+- 变更摘要：根据用户要求重构了右侧操作面板的卡片布局和命名。将原有的切片和识别卡片重组为“主操作卡片（MainActionCard）”和“导航控制卡片（NavigationControlCard）”。“主操作卡片”现在包含“开始切片”和“开始识别”按钮；“导航控制卡片”包含自动识别复选框以及所有的切片与类别切换导航按钮。
+- 原因：原有的按“切片”和“识别”阶段划分卡片的方式在视觉和操作逻辑上不够紧凑，重新划分为“主操作（触发计算）”和“导航（切换查看数据）”两部分，更符合用户在测试验证时的心智模型和操作连贯性。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-08 09:46
+- 操作类型：修改
+- 影响文件：`ui/components/slice_proc_card.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：将切片操作卡片中的普通 `PrimaryPushButton` 替换为 `PrimarySplitPushButton`。为拆分按钮添加了“开始切片”与“自适应切片”两个下拉选项菜单。在控制器中适配了拆分按钮的事件逻辑，使其根据当前按钮显示的文本状态来决定执行何种模式。
+- 原因：支持多模式操作入口，让界面交互更为丰富和灵活，符合 Fluent Design 组件库的高级用法设计。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-07 17:33
 - 操作类型：修改
 - 影响文件：`ui/dialogs/processing_dialog.py`

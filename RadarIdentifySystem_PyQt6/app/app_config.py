@@ -90,6 +90,14 @@ class AppConfig(QConfig):
         default="CF,PW,PA,DTOA,DOA",
     )
 
+    # 业务控制 ─────────────────────────────────────────────────────────────────
+    autoRecognizeNextSlice = ConfigItem(
+        group="business",
+        name="autoRecognizeNextSlice",
+        default=False,
+        validator=BoolValidator(),
+    )
+
 
 appConfig = AppConfig()
 

@@ -10,7 +10,7 @@ from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from ui.components import SliceDimensionCard, SliceProcCard, RecognitionProcCard
+from ui.components import SliceDimensionCard, MainActionCard, NavigationControlCard
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 
@@ -96,9 +96,13 @@ class SliceInterface(QFrame):
         middle_column = self._create_middle_column()
         right_column = self._create_right_column()
 
-        root_layout.addWidget(left_column, 1)
-        root_layout.addWidget(middle_column, 1)
-        root_layout.addWidget(right_column, 1)
+        # 添加三列控件
+        root_layout.addWidget(left_column, 2)
+        root_layout.addWidget(middle_column, 2)
+        root_layout.addWidget(right_column, 3)
+
+        # 限制右侧面板最大宽度
+        right_column.setFixedWidth(580)
 
     def _create_left_column(self) -> QWidget:
         """创建左侧列容器。
@@ -194,16 +198,16 @@ class SliceInterface(QFrame):
         self.slice_info_label.setObjectName("sliceInfoLabel")
         self.slice_info_label.setFixedHeight(25)
 
-        # 切片操作卡片
-        self.slice_proc_card = SliceProcCard(right_column)
+        # 主操作卡片（切片、识别）
+        self.main_action_card = MainActionCard(right_column)
         
-        # 识别操作卡片
-        self.recognition_proc_card = RecognitionProcCard(right_column)
+        # 导航控制卡片
+        self.navigation_control_card = NavigationControlCard(right_column)
         
         right_layout.addWidget(self.import_data_button)
         right_layout.addWidget(self.slice_info_label)
-        right_layout.addWidget(self.slice_proc_card)
-        right_layout.addWidget(self.recognition_proc_card)
+        right_layout.addWidget(self.main_action_card)
+        right_layout.addWidget(self.navigation_control_card)
         right_layout.addStretch(1)
         
         return right_column

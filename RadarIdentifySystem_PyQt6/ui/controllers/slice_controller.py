@@ -53,7 +53,7 @@ class SliceController(QObject):
         self._processing_dialog = None
 
         # 绑定按钮点击事件
-        self.view.slice_proc_card.start_slicing_button.clicked.connect(self.handle_slice)
+        self.view.main_action_card.start_slicing_button.clicked.connect(self.handle_slice)
 
         # 绑定全局生命周期信号与数据就绪信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
@@ -63,7 +63,7 @@ class SliceController(QObject):
         """处理切片按钮点击事件。
 
         功能描述：
-            校验数据是否已导入，更新按钮状态并启动切片工作流。
+            校验数据是否已导入，获取当前的切片模式（从按钮文字判断），更新按钮状态并启动切片工作流。
 
         参数说明：
             无。
@@ -87,16 +87,24 @@ class SliceController(QObject):
             )
             return
 
-        # 获取复选框状态（目前暂存打印，后续可传给 workflow）
-        is_adaptive = self.view.slice_proc_card.adaptive_slicing_checkbox.isChecked()
-        print(f"执行切片，自适应模式: {is_adaptive}")
+        # 判断当前选择的切片模式
+        current_mode = self.view.main_action_card.start_slicing_button.text()
+        is_adaptive = (current_mode == "自适应切片")
+        
+        # 也可以结合全局配置（此处暂存打印）
+        from app.app_config import appConfig
+        checkbox_adaptive = appConfig.autoRecognizeNextSlice.value
+        print(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {checkbox_adaptive}")
 
         # 更新按钮状态
-        self.view.slice_proc_card.start_slicing_button.setText("切片计算中...")
-        self.view.slice_proc_card.start_slicing_button.setEnabled(False)
+        self.view.main_action_card.start_slicing_button.setEnabled(False)
 
         # 显示动画对话框
-        self._processing_dialog = ProcessingDialog(self.view, title="切片处理", content="正在执行数据切片与聚类渲染，请稍候...")
+        self._processing_dialog = ProcessingDialog(
+            self.view, 
+            title="切片处理", 
+            content="正在执行数据切片与聚类渲染，请稍候..."
+        )
         self._processing_dialog.show()
 
         # 启动后台切片工作流
@@ -125,8 +133,7 @@ class SliceController(QObject):
                 self._processing_dialog = None
                 
             # 恢复按钮状态
-            self.view.slice_proc_card.start_slicing_button.setText("开始切片")
-            self.view.slice_proc_card.start_slicing_button.setEnabled(True)
+            self.view.main_action_card.start_slicing_button.setEnabled(True)
             
             # 弹出成功提示
             InfoBar.success(
