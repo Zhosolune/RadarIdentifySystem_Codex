@@ -5,7 +5,7 @@
         "minPts": 1
     },
     "business": {
-        "autoRecognizeNextSlice": true
+        "autoRecognizeNextSlice": false
     },
     "Interface": {
         "DpiScale": "Auto"
@@ -26,7 +26,7 @@
         "doaTolerance": 20.0
     },
     "plot": {
-        "onlyShowIdentified": true,
+        "onlyShowIdentified": "ALL",
         "order": "CF,PW,PA,DTOA,DOA",
         "scaleMode": "STRETCH"
     }

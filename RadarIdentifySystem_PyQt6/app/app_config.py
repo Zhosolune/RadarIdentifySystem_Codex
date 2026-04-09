@@ -78,11 +78,11 @@ class AppConfig(QConfig):
             ["STRETCH", "STRETCH_BILINEAR", "STRETCH_NEAREST_PRESERVE"]
         ),
     )
-    plotOnlyShowIdentified = ConfigItem(
+    plotOnlyShowIdentified = OptionsConfigItem(
         group="plot",
         name="onlyShowIdentified",
-        default=True,
-        validator=BoolValidator(),
+        default="ALL",
+        validator=OptionsValidator(["ALL", "IDENTIFIED_ONLY"]),
     )
     plotOrder = ConfigItem(
         group="plot",

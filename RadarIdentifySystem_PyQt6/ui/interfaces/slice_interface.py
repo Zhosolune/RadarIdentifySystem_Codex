@@ -10,7 +10,7 @@ from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from ui.components import SliceDimensionCard, MainActionCard, NavigationControlCard
+from ui.components import SliceDimensionCard, MainActionCard, NavigationControlCard, PlotControlCard
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 
@@ -204,10 +204,14 @@ class SliceInterface(QFrame):
         # 导航控制卡片
         self.navigation_control_card = NavigationControlCard(right_column)
         
+        # 绘图控制卡片
+        self.plot_control_card = PlotControlCard(right_column)
+        
         right_layout.addWidget(self.import_data_button)
         right_layout.addWidget(self.slice_info_label)
         right_layout.addWidget(self.main_action_card)
         right_layout.addWidget(self.navigation_control_card)
+        right_layout.addWidget(self.plot_control_card)
         right_layout.addStretch(1)
         
         return right_column

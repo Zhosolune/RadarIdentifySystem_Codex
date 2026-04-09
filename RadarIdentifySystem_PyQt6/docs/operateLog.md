@@ -1,5 +1,39 @@
 # 操作日志
 
+## 2026-04-09 09:51
+- 操作类型：修改
+- 影响文件：`ui/components/redraw_option_card.py`
+- 变更摘要：将重绘选项卡（`RedrawOptionCard`）的父类从 `SimpleCardWidget` 重构为 `SettingCard`，调整为 `qfluentwidgets` 设置卡组件的通用样式（带有图标、标题和描述描述），并将输入框和重绘按钮添加到右侧 `hBoxLayout` 中。
+- 原因：根据用户需求，使界面样式与应用内的其他设置卡（如自动识别选项等）保持视觉上的一致性。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-08 17:28
+- 操作类型：新增与修改
+- 影响文件：`ui/components/redraw_option_card.py`、`ui/components/plot_control_card.py`、`ui/components/__init__.py`
+- 变更摘要：
+  1. 新增 `RedrawOptionCard`（重绘选项卡），包含指定切片编号的整数输入框（`LineEdit` + `QIntValidator`，约束为≥1）和主题色的“重绘”按钮，支持对外发射带切片编号的 `redraw_requested` 信号。
+  2. 修改 `plot_control_card.py` 布局：修复并更新了内部类的导入（如相对导入 `PlotOptionCard`）和类文档注释，将 `RedrawOptionCard` 实例化并添加进卡片的垂直布局容器中。
+  3. 更新 `ui/components/__init__.py`，暴露 `RedrawOptionCard` 供外部使用。
+- 原因：根据最新规划补充重绘功能，方便通过编号直接回溯或重绘画布图像，进一步完善界面右侧控制面板的操作覆盖范围，并且使用组件化嵌套保持卡片结构整洁。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-08 16:57
+- 操作类型：新增与重构
+- 影响文件：`app/app_config.py`、`ui/components/plot_control_card.py`、`ui/components/__init__.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：
+  1. 在全局配置 `app_config.py` 中新增 `plotOnlyShowIdentified` 和 `plotScaleMode` 配置项（属于 `business` 组），用于持久化管理绘图参数。
+  2. 新增 `PlotControlCard` 组件，使用 `ExpandGroupSettingCard` 包裹两个带下拉框设置的子卡片（图像展示模式、图像绘制模式）。
+  3. 将该组件注册导出并在 `slice_interface.py` 的右侧面板中应用。
+  4. 实现配置项与下拉框双向同步（`currentIndexChanged` 绑定 `QConfig` 写入，`valueChanged` 绑定下拉框索引更新）。
+- 原因：根据用户需求，提供可视化的绘图参数控制界面，同时结合全局配置系统实现状态持久化与解耦，完善 Fluent Design 界面体验。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-08 16:12
 - 操作类型：重构
 - 影响文件：`app/app_config.py`、`ui/components/navigation_control_card.py`、`ui/controllers/slice_controller.py`
