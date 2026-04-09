@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QVBoxLayout, QLabel
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget
+from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtCore import Qt
-from qfluentwidgets import CardWidget, FluentIcon, IconWidget
+from qfluentwidgets import CardWidget, FluentIcon, IconWidget, isDarkTheme
 
 class ActionButtonCard(CardWidget):
     """自定义的可点击悬浮卡片按钮。"""
@@ -50,6 +51,30 @@ class ActionButtonCard(CardWidget):
         if e.button() == Qt.MouseButton.LeftButton:
             self.setProperty('isPressed', False)
             self.style().polish(self)
+            
+    def paintEvent(self, e):
+        """覆盖父类的 paintEvent。
+        
+        功能描述：
+            屏蔽父类的默认边框绘制，使普通按钮也受 QSS 控制，从而与 SettingCard 等保持一致外观。
+        """
+        from PyQt6.QtWidgets import QStyleOption, QStyle
+        from PyQt6.QtGui import QPainter
+        
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        painter.setRenderHints(QPainter.RenderHint.Antialiasing)
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
+
+        if isDarkTheme():
+            # painter.setBrush(QColor(255, 255, 255, 13))
+            painter.setPen(QColor(0, 0, 0, 50))
+        else:
+            # painter.setBrush(QColor(255, 255, 255, 170))
+            painter.setPen(QColor(0, 0, 0, 19))
+
+        painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
 
 class PrimaryActionButtonCard(ActionButtonCard):
     """主题色的自定义可点击悬浮卡片按钮。"""
@@ -75,19 +100,4 @@ class PrimaryActionButtonCard(ActionButtonCard):
             # 浅色模式下，主色（如深蓝）背景需搭配白色图标
             self.icon_widget.setIcon(self._icon.icon(theme=Theme.DARK))
 
-    def paintEvent(self, e):
-        """覆盖父类（CardWidget）的 paintEvent。
-        
-        功能描述：
-            CardWidget 在其原生的 paintEvent 中会绘制一套默认的浅色/深色半透明背景和边框，
-            导致哪怕在 QSS 中设置了 background-color，也会因为这层额外的原生绘制叠加出“蒙版”效果。
-            这里利用 QStyleOption 结合样式表配置重新进行纯净渲染。
-        """
-        from PyQt6.QtWidgets import QStyleOption, QStyle
-        from PyQt6.QtGui import QPainter
-        
-        opt = QStyleOption()
-        opt.initFrom(self)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
+    # paintEvent 已经由父类 ActionButtonCard 提供，子类无需重复编写

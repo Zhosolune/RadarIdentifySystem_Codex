@@ -27,7 +27,7 @@
         "doaTolerance": 20.0
     },
     "plot": {
-        "onlyShowIdentified": "ALL",
+        "onlyShowIdentified": "IDENTIFIED_ONLY",
         "order": "CF,PW,PA,DTOA,DOA",
         "scaleMode": "STRETCH"
     }

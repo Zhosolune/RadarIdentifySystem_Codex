@@ -36,18 +36,35 @@ SimpleCardWidget#sliceImageCard {
     min-height: 120px;
 }
 
+#actionButtonCard {
+    background-color: rgba(255, 255, 255, 13);
+    border-radius: 6px;
+}
+#actionButtonCard:hover, #actionButtonCard[isHover=true] {
+    background-color: rgba(255, 255, 255, 0.0837);
+}
+#actionButtonCard:pressed, #actionButtonCard[isPressed=true] {
+    color: rgba(255, 255, 255, 0.786);
+    background: rgba(255, 255, 255, 0.0326);
+}
+#actionButtonCard > QLabel {
+    color: white;
+}
+
 #primaryActionButtonCard {
     background-color: --ThemeColorPrimary;
-    border: 1px solid --ThemeColorPrimary;
+    border: 1px solid --ThemeColorLight1;
     border-radius: 6px;
 }
 #primaryActionButtonCard:hover, #primaryActionButtonCard[isHover=true] {
-    background-color: --ThemeColorLight1;
+    background-color: --ThemeColorDark1;
     border: 1px solid --ThemeColorLight1;
+    border-bottom: 1px solid --ThemeColorLight2;
 }
 #primaryActionButtonCard:pressed, #primaryActionButtonCard[isPressed=true] {
-    background-color: --ThemeColorLight2;
-    border: 1px solid --ThemeColorLight2;
+    color: rgba(0, 0, 0, 0.63);
+    background-color: --ThemeColorDark2;
+    border: 1px solid --ThemeColorDark2;
 }
 #primaryActionButtonCard > QLabel {
     color: black;

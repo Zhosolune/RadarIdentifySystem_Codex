@@ -1,5 +1,28 @@
 # 操作日志
 
+## 2026-04-09 12:30
+- 操作类型：修复
+- 影响文件：`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`
+- 变更摘要：提取了 `qfluentwidgets` 组件库底层 `SimpleCardWidget` 的原生硬编码颜色值，并在 QSS 中对 `#actionButtonCard` 进行了精确的替换。
+  - **浅色模式**：背景色调整为 `rgba(255, 255, 255, 170)`，边框统一调整为 `1px solid rgba(0, 0, 0, 12)`。
+  - **深色模式**：背景色调整为 `rgba(255, 255, 255, 13)`，边框统一调整为 `1px solid rgba(0, 0, 0, 48)`。
+- 原因：之前通过肉眼估算的边框及背景色 rgba 参数不够精确，导致用户感知悬浮按钮的边框依然比设置卡的细且浅。通过检索第三方库源码（`card_widget.py`），获取了最精确的 0-255 色彩数值。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-09 12:20
+- 操作类型：修改
+- 影响文件：`ui/components/action_button_widget.py`、`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`
+- 变更摘要：
+  1. 将 `ActionButtonCard` 的父类从普通的 `CardWidget` 更改为了 `SimpleCardWidget`，这与 `SettingCard`（底层也是 `SimpleCardWidget`）的组件家族渊源更加贴近。
+  2. 在 `ActionButtonCard` 中重写了 `paintEvent`，屏蔽了父类的默认绘制（防止其默认的边框影响我们的自定义样式）。
+  3. 在 `light` 和 `dark` 两个主题的 QSS 样式表中，补充了对 `#actionButtonCard`（普通状态悬浮按钮）的详细颜色定义，包含其 `background-color`、`border` 以及 `hover/pressed` 交互状态，确保了它的边框颜色深浅与粗细与同页面的设置卡（`SettingCard`）完全一致。
+- 原因：用户反馈操作按钮组件的边框颜色比设置卡（`SettingCard`）更浅且更细。原有的 `CardWidget` 对边框和背景的硬编码导致外观与组件库标准设置卡不完全同步，通过统一继承基类并用统一的 QSS 参数管理予以解决。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-09 12:00
 - 操作类型：修复
 - 影响文件：`ui/components/action_button_widget.py`

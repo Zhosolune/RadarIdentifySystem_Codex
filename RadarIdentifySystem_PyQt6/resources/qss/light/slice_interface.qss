@@ -36,6 +36,20 @@ SimpleCardWidget#sliceImageCard {
     min-height: 120px;
 }
 
+#actionButtonCard {
+    background-color: rgba(255, 255, 255, 170);
+    border-radius: 6px;
+}
+#actionButtonCard:hover, #actionButtonCard[isHover=true] {
+    background-color: rgba(249, 249, 249, 128);
+}
+#actionButtonCard:pressed, #actionButtonCard[isPressed=true] {
+    background-color: rgba(249, 249, 249, 76);
+}
+#actionButtonCard > QLabel {
+    color: black;
+}
+
 #primaryActionButtonCard {
     background-color: --ThemeColorPrimary;
     border: 1px solid --ThemeColorPrimary;
