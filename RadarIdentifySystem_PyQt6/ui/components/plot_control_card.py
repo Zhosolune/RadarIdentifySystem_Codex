@@ -1,19 +1,18 @@
-"""绘图控制卡片组件。"""
+"""绘图控制组件。"""
 
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
-from qfluentwidgets import SimpleCardWidget
 
-from .plot_option_card import PlotOptionCard
-from .redraw_option_card import RedrawOptionCard
+from .plot_option_widget import PlotOptionWidget
+from .redraw_option_widget import RedrawOptionWidget
 
 
-class PlotControlCard(SimpleCardWidget):
-    """绘图控制卡片。
+class PlotControlCard(QWidget):
+    """绘图控制组件。
 
     功能描述：
-        作为绘图相关操作的容器卡片，包裹绘图选项卡（PlotOptionCard）和重绘选项卡（RedrawOptionCard）。
+        作为绘图相关操作的容器组件，包裹绘图选项卡（PlotOptionCard）和重绘选项卡（RedrawOptionCard）。
         整体采用垂直布局划分区域。
 
     参数说明：
@@ -25,7 +24,7 @@ class PlotControlCard(SimpleCardWidget):
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """初始化绘图控制卡片。
+        """初始化绘图控制组件。
 
         功能描述：
             创建布局并实例化内部的绘图选项卡与重绘选项卡组件。
@@ -43,10 +42,10 @@ class PlotControlCard(SimpleCardWidget):
         self.setObjectName("PlotControlCard")
 
         # 绘图选项卡
-        self.plot_option_card = PlotOptionCard(self)
+        self.plot_option_card = PlotOptionWidget(self)
         
         # 重绘选项卡
-        self.redraw_option_card = RedrawOptionCard(self)
+        self.redraw_option_card = RedrawOptionWidget(self)
 
         self._init_layout()
 
@@ -66,7 +65,7 @@ class PlotControlCard(SimpleCardWidget):
             无。
         """
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 12, 16, 12)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(5)
 
         # 绘图选项卡

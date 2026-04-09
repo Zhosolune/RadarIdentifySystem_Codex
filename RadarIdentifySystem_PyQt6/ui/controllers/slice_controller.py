@@ -88,8 +88,8 @@ class SliceController(QObject):
             return
 
         # 判断当前选择的切片模式
-        current_mode = self.view.main_action_card.start_slicing_button.text()
-        is_adaptive = (current_mode == "自适应切片")
+        is_adaptive = self.view.main_action_card.adaptive_slicing_checkbox.isChecked()
+        current_mode = "自适应切片" if is_adaptive else "开始切片"
         
         # 也可以结合全局配置（此处暂存打印）
         from app.app_config import appConfig

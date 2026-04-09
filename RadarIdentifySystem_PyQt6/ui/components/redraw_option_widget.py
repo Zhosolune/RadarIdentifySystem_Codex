@@ -8,8 +8,8 @@ from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import FluentIcon, LineEdit, PrimaryPushButton, SettingCard
 
 
-class RedrawOptionCard(SettingCard):
-    """重绘选项卡片。
+class RedrawOptionWidget(SettingCard):
+    """重绘选项卡片组件。
 
     功能描述：
         提供输入切片编号并触发重绘操作的界面组件，继承自组件库的通用设置卡样式。

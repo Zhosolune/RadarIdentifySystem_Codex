@@ -7,8 +7,8 @@ from qfluentwidgets import ExpandGroupSettingCard, FluentIcon
 from app.app_config import appConfig
 
 
-class PlotOptionCard(ExpandGroupSettingCard):
-    """绘图选项卡片。
+class PlotOptionWidget(ExpandGroupSettingCard):
+    """绘图选项卡片组件。
 
     功能描述：
         使用 ExpandGroupSettingCard 包裹与绘图相关的子配置卡片。

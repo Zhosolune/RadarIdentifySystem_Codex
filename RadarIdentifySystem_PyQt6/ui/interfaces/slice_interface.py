@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QFileDialog
-from qfluentwidgets import PrimaryPushButton, PushButton, PushSettingCard, FluentIcon
+from qfluentwidgets import PrimaryPushButton, PushButton, PushSettingCard, FluentIcon, SimpleCardWidget
 
 from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
@@ -186,27 +186,34 @@ class SliceInterface(QFrame):
             QWidget: 右侧列容器。
         """
 
-        right_column = QWidget(self)
-        right_column.setObjectName("sliceRightColumn")
-        right_layout = QVBoxLayout(right_column)
-        right_layout.setContentsMargins(0, 35, 0, 0)
+        column = QWidget(self)
+        column.setObjectName("sliceRightColumn")
+        right_layout = QVBoxLayout(column)
+        right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
         
-        self.import_data_button = PushButton("1. 从 Excel 导入数据", right_column)
-
         # 切片信息标签
-        self.slice_info_label = QLabel("预计将获得 0 个250ms切片", right_column)
+        self.slice_info_label = QLabel("预计将获得 0 个250ms切片", column)
         self.slice_info_label.setObjectName("sliceInfoLabel")
+        # self.slice_info_label.setStyleSheet("margin-left: 16px")
         self.slice_info_label.setFixedHeight(25)
 
+        # 使用 SimpleCardWidget 包裹所有业务面板组件
+        self.right_panel_card = SimpleCardWidget(column)
+        self.right_panel_layout = QVBoxLayout(self.right_panel_card)
+        self.right_panel_layout.setContentsMargins(16, 12, 16, 12)
+        self.right_panel_layout.setSpacing(5)
+        
+        self.import_data_button = PushButton("从 Excel 导入数据", self.right_panel_card)
+
         # 主操作卡片（切片、识别）
-        self.main_action_card = MainActionCard(right_column)
+        self.main_action_card = MainActionCard(self.right_panel_card)
         
         # 导航控制卡片
-        self.navigation_control_card = NavigationControlCard(right_column)
+        self.navigation_control_card = NavigationControlCard(self.right_panel_card)
         
         # 绘图控制卡片
-        self.plot_control_card = PlotControlCard(right_column)
+        self.plot_control_card = PlotControlCard(self.right_panel_card)
         
         # 导出路径设置卡
         self.export_path_card = PushSettingCard(
@@ -214,21 +221,24 @@ class SliceInterface(QFrame):
             icon=FluentIcon.FOLDER,
             title="保存/导出路径",
             content=appConfig.exportDirPath.value,
-            parent=right_column
+            parent=self.right_panel_card
         )
         self.export_path_card.clicked.connect(self._on_export_path_clicked)
         # 绑定配置改变事件以更新 UI
         appConfig.exportDirPath.valueChanged.connect(self._on_export_path_config_changed)
         
-        right_layout.addWidget(self.import_data_button)
+        self.right_panel_layout.addWidget(self.import_data_button)
+        self.right_panel_layout.addWidget(self.main_action_card)
+        self.right_panel_layout.addWidget(self.navigation_control_card)
+        self.right_panel_layout.addWidget(self.plot_control_card)
+        self.right_panel_layout.addWidget(self.export_path_card)
+        self.right_panel_layout.addStretch(1)
+        
         right_layout.addWidget(self.slice_info_label)
-        right_layout.addWidget(self.main_action_card)
-        right_layout.addWidget(self.navigation_control_card)
-        right_layout.addWidget(self.plot_control_card)
-        right_layout.addWidget(self.export_path_card)
+        right_layout.addWidget(self.right_panel_card)
         right_layout.addStretch(1)
         
-        return right_column
+        return column
 
     def _on_export_path_clicked(self) -> None:
         """处理更改导出路径按钮点击事件。"""

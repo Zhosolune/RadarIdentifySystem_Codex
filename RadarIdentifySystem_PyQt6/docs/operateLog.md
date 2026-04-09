@@ -1,5 +1,48 @@
 # 操作日志
 
+## 2026-04-09 11:35
+- 操作类型：重构
+- 影响文件：`ui/components/action_button_widget.py`
+- 变更摘要：移除了 `ActionButtonCard` 中的自定义 `clicked` 信号定义以及对 `mouseReleaseEvent` 的重写逻辑。
+- 原因：排查发现 `qfluentwidgets` 提供的基础组件 `CardWidget` 本身已经内置并暴露了 `clicked` 信号，之前子类中自行定义和触发信号属于重复实现，不仅多余，还导致了由于双重触发引发的“警告弹窗出现两次”的 bug。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-09 11:31
+- 操作类型：修改
+- 影响文件：`ui/components/action_button_widget.py`
+- 变更摘要：修复了 `ActionButtonCard` 组件中 `mouseReleaseEvent` 触发两次或非预期点击信号的问题，通过增加 `if e.button() == Qt.MouseButton.LeftButton:` 的条件判断，确保只有在鼠标左键松开时才发射 `clicked` 信号。
+- 原因：排查发现开始切片按钮的警告触发两次并非由于控制器重复绑定了信号，而是由于自定义的悬浮按钮卡片（`ActionButtonCard` 继承自 `CardWidget`）在重写 `mouseReleaseEvent` 时没有限制鼠标按键类型。这导致鼠标操作（例如右键或释放过程中的多次事件捕获）被无差别地当做点击事件广播，从而触发了两次逻辑。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-09 11:22
+- 操作类型：重构
+- 影响文件：`ui/components/main_action_widget.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：
+  1. 重构了主操作组件（`main_action_widget.py`），使用之前抽离的自定义悬浮按钮 `ActionButtonCard` 替换了原有的普通按钮和带下拉菜单的拆分按钮（`PrimarySplitPushButton` 和 `PrimaryPushButton`）。
+  2. 取消了按钮内的下拉菜单选项，将“自适应切片”功能独立出来，使用组件库自带的 `CheckBox` 复选框添加到按钮下方的布局中。
+  3. 修改了 `slice_controller.py` 的处理逻辑，现在不再通过按钮的文本获取切片模式，而是直接读取新增复选框 `adaptive_slicing_checkbox` 的选中状态，并对相关绑定的变量名进行了调整以匹配更新后的控件树。
+- 原因：根据用户需求，使主操作区的按钮风格与导航控制区的悬浮卡片按钮保持一致，并通过独立的复选框让自适应切片功能的启用状态更加直观。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-09 10:16
+- 操作类型：重构
+- 影响文件：`ui/interfaces/slice_interface.py`、`ui/components/main_action_widget.py`、`ui/components/navigation_control_widget.py`、`ui/components/plot_control_widget.py`、`ui/components/__init__.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：
+  1. 取消了右侧操作面板各个独立组件（主操作组件、导航控制组件、绘图控制组件）的 `SimpleCardWidget` 继承，将它们重构为普通的 `QWidget`。
+  2. 对这些组件所属的文件进行了重命名（将 `_card` 后缀改为 `_widget`），并更新了 `__init__.py` 的导出声明。
+  3. 在 `slice_interface.py` 的右侧面板中，引入了一个整体的 `SimpleCardWidget`（变量名：`right_panel_card`），用它统一包裹了导入按钮、切片信息、主操作组件、导航组件、绘图组件以及导出路径设置卡片。
+  4. 同步更新了控制器 `slice_controller.py` 中引用的组件实例属性名称。
+- 原因：根据用户要求，为了在视觉上提供更好的卡片层级和统一的区域感，不再让每个小组件各自拥有卡片背景，而是使用一个大卡片包裹右侧所有操作项。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-09 09:59
 - 操作类型：新增
 - 影响文件：`app/app_config.py`、`ui/interfaces/slice_interface.py`

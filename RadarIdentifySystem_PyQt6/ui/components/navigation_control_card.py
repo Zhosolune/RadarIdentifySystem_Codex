@@ -1,43 +1,15 @@
-"""导航控制卡片组件。"""
+"""导航控制组件。"""
 
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
-from qfluentwidgets import CardWidget, PushButton, PrimaryPushButton, TransparentPushButton, SimpleCardWidget, FluentIcon, ElevatedCardWidget, SwitchSettingCard, IconWidget
+from qfluentwidgets import CardWidget, FluentIcon, SwitchSettingCard, IconWidget
+from .action_button_widget import ActionButtonCard
 from app.app_config import appConfig
 
-
-class NavButtonCard(CardWidget):
-    """自定义的可点击悬浮卡片按钮。"""
-    
-    clicked = pyqtSignal()
-    
-    def __init__(self, icon: FluentIcon, text: str, parent=None):
-        super().__init__(parent)
-        # self.setFixedSize(60, 60)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        
-        self.icon_widget = IconWidget(icon, self)
-        self.icon_widget.setFixedSize(20, 20)
-        
-        self.label = QLabel(text, self)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet("font-size: 14px;")
-        
-        self.vBoxLayout = QVBoxLayout(self)
-        self.vBoxLayout.setContentsMargins(0, 10, 0, 10)
-        self.vBoxLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.vBoxLayout.addWidget(self.icon_widget, 0, Qt.AlignmentFlag.AlignHCenter)
-        self.vBoxLayout.addWidget(self.label, 0, Qt.AlignmentFlag.AlignHCenter)
-        
-    def mouseReleaseEvent(self, e):
-        super().mouseReleaseEvent(e)
-        self.clicked.emit()
-
-
-class NavigationControlCard(SimpleCardWidget):
-    """导航控制卡片。
+class NavigationControlCard(QWidget):
+    """导航控制组件。
 
     功能描述：
         提供“上一类”、“下一类”、“上一片”、“下一片”导航按钮（使用 ElevatedCardWidget，位于同一行）。
@@ -56,7 +28,7 @@ class NavigationControlCard(SimpleCardWidget):
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """初始化导航控制卡片。
+        """初始化导航控制组件。
 
         功能描述：
             创建布局并实例化内部的所有导航按钮和复选框组件。
@@ -74,16 +46,15 @@ class NavigationControlCard(SimpleCardWidget):
         self.setObjectName("navigationControlCard")
 
         # 类别导航
-        self.prev_cluster_button = NavButtonCard(FluentIcon.CHEVRON_RIGHT, "上一类", self)
-        self.next_cluster_button = NavButtonCard(FluentIcon.CHEVRON_RIGHT, "下一类", self)
+        self.prev_cluster_button = ActionButtonCard(FluentIcon.CHEVRON_RIGHT, "上一类", self)
+        self.next_cluster_button = ActionButtonCard(FluentIcon.CHEVRON_RIGHT, "下一类", self)
 
         # 重置按钮
-        self.reset_cur_slice_button  = NavButtonCard(FluentIcon.CHEVRON_RIGHT, "重置当前切片", self)
-        # self.reset_cur_slice_button = TransparentPushButton("重置当前切片", self)
+        self.reset_cur_slice_button  = ActionButtonCard(FluentIcon.CHEVRON_RIGHT, "重置当前切片", self)
 
         # 切片导航
-        self.prev_slice_button = NavButtonCard(FluentIcon.CARE_LEFT_SOLID, "上一片", self)
-        self.next_slice_button = NavButtonCard(FluentIcon.CARE_RIGHT_SOLID, "下一片", self)
+        self.prev_slice_button = ActionButtonCard(FluentIcon.CARE_LEFT_SOLID, "上一片", self)
+        self.next_slice_button = ActionButtonCard(FluentIcon.CARE_RIGHT_SOLID, "下一片", self)
         
         # 自动选项设置卡
         self.auto_recognize_card = SwitchSettingCard(
@@ -112,7 +83,7 @@ class NavigationControlCard(SimpleCardWidget):
             无。
         """
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 12, 16, 12)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(5)
 
         # 第一行：所有导航按钮
