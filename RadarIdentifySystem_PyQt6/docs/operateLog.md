@@ -1,5 +1,17 @@
 # 操作日志
 
+## 2026-04-09 15:42
+- 操作类型：新增与修改
+- 影响文件：`app/custom_icon.py`、`ui/components/action_button_widget.py`、`ui/components/navigation_control_card.py`
+- 变更摘要：
+  1. 新建 `app/custom_icon.py`，实现 `CustomIcon` 类继承自 `FluentIconBase`，通过重写 `path(self, theme)` 方法实现 SVG 图标针对深浅模式（`black/white`）的自动切换。
+  2. 在 `ui/components/action_button_widget.py` 中增加对 `FluentIconBase` 的类型兼容支持（`icon: FluentIconBase | FluentIcon`）。
+  3. 在 `ui/components/navigation_control_card.py` 中将上/下一类、上/下一片的图标替换为了自定义的 `CustomIcon.CHEVRONS_LEFT/RIGHT` 以及 `CustomIcon.CHEVRON_LEFT/RIGHT`。
+- 原因：根据用户需求，将导航控制卡片内的方向箭头替换为指定目录（`resources/images/icons`）下的自定义 SVG 图标，同时兼容 `qfluentwidgets` 的深浅色主题自动切换规范。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-09 12:30
 - 操作类型：修复
 - 影响文件：`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`

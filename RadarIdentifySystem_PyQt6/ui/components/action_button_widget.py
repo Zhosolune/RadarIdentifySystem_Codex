@@ -5,12 +5,12 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget
 from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtCore import Qt
-from qfluentwidgets import CardWidget, FluentIcon, IconWidget, isDarkTheme
+from qfluentwidgets import CardWidget, FluentIcon, IconWidget, isDarkTheme, FluentIconBase
 
 class ActionButtonCard(CardWidget):
     """自定义的可点击悬浮卡片按钮。"""
     
-    def __init__(self, icon: FluentIcon, text: str, parent=None):
+    def __init__(self, icon: FluentIconBase | FluentIcon, text: str, parent=None):
         super().__init__(parent)
         self.setObjectName("actionButtonCard")
         self.setFixedHeight(60)
@@ -79,7 +79,7 @@ class ActionButtonCard(CardWidget):
 class PrimaryActionButtonCard(ActionButtonCard):
     """主题色的自定义可点击悬浮卡片按钮。"""
     
-    def __init__(self, icon: FluentIcon, text: str, parent=None):
+    def __init__(self, icon: FluentIconBase | FluentIcon, text: str, parent=None):
         super().__init__(icon, text, parent)
         self.setObjectName("primaryActionButtonCard")
         self.label.setObjectName("primaryActionButtonLabel")

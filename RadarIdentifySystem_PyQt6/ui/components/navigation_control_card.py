@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from qfluentwidgets import CardWidget, FluentIcon, SwitchSettingCard, IconWidget
 from .action_button_widget import ActionButtonCard
 from app.app_config import appConfig
+from app.custom_icon import CustomIcon
 
 class NavigationControlCard(QWidget):
     """导航控制组件。
@@ -46,15 +47,15 @@ class NavigationControlCard(QWidget):
         self.setObjectName("navigationControlCard")
 
         # 类别导航
-        self.prev_cluster_button = ActionButtonCard(FluentIcon.CHEVRON_RIGHT, "上一类", self)
-        self.next_cluster_button = ActionButtonCard(FluentIcon.CHEVRON_RIGHT, "下一类", self)
+        self.prev_cluster_button = ActionButtonCard(CustomIcon.CHEVRON_LEFT, "上一类", self)
+        self.next_cluster_button = ActionButtonCard(CustomIcon.CHEVRON_RIGHT, "下一类", self)
 
         # 重置按钮
-        self.reset_cur_slice_button  = ActionButtonCard(FluentIcon.CHEVRON_RIGHT, "重置当前切片", self)
+        self.reset_cur_slice_button  = ActionButtonCard(CustomIcon.RESET, "重置当前切片", self)
 
         # 切片导航
-        self.prev_slice_button = ActionButtonCard(FluentIcon.CARE_LEFT_SOLID, "上一片", self)
-        self.next_slice_button = ActionButtonCard(FluentIcon.CARE_RIGHT_SOLID, "下一片", self)
+        self.prev_slice_button = ActionButtonCard(CustomIcon.CHEVRONS_LEFT, "上一片", self)
+        self.next_slice_button = ActionButtonCard(CustomIcon.CHEVRONS_RIGHT, "下一片", self)
         
         # 自动选项设置卡
         self.auto_recognize_card = SwitchSettingCard(

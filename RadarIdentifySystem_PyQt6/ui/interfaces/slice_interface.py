@@ -195,13 +195,13 @@ class SliceInterface(QFrame):
         # 切片信息标签
         self.slice_info_label = QLabel("预计将获得 0 个250ms切片", column)
         self.slice_info_label.setObjectName("sliceInfoLabel")
-        # self.slice_info_label.setStyleSheet("margin-left: 16px")
+        # self.slice_info_label.setStyleSheet("margin-left: 12px")
         self.slice_info_label.setFixedHeight(25)
 
         # 使用 SimpleCardWidget 包裹所有业务面板组件
         self.right_panel_card = SimpleCardWidget(column)
         self.right_panel_layout = QVBoxLayout(self.right_panel_card)
-        self.right_panel_layout.setContentsMargins(16, 12, 16, 12)
+        self.right_panel_layout.setContentsMargins(12, 12, 12, 12)
         self.right_panel_layout.setSpacing(5)
         
         self.import_data_button = PushButton("从 Excel 导入数据", self.right_panel_card)
