@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, CheckBox
-from .action_button_widget import ActionButtonCard
+from .action_button_widget import ActionButtonCard, PrimaryActionButtonCard
 
 
 class MainActionCard(QWidget):
@@ -43,7 +43,7 @@ class MainActionCard(QWidget):
 
         # 初始化内部组件
         self.start_slicing_button = ActionButtonCard(FluentIcon.CUT, "开始切片", self)
-        self.start_recognition_button = ActionButtonCard(FluentIcon.SEARCH, "开始识别", self)
+        self.start_recognition_button = PrimaryActionButtonCard(FluentIcon.SEARCH, "开始识别", self)
         
         self.adaptive_slicing_checkbox = CheckBox("启用自适应切片", self)
 

@@ -1,5 +1,28 @@
 # 操作日志
 
+## 2026-04-09 12:00
+- 操作类型：修复
+- 影响文件：`ui/components/action_button_widget.py`
+- 变更摘要：在 `PrimaryActionButtonCard` 中覆盖了继承自组件库 `CardWidget` 的 `paintEvent` 方法。使用 `QStyleOption` 配合原生 `drawPrimitive` 进行背景的纯净渲染。
+- 原因：用户反馈“主题色按钮仿佛盖了一层蒙版”。经过排查，`qfluentwidgets` 提供的 `CardWidget` 在底层的 `paintEvent` 中会默认硬编码绘制一层半透明的背景和边框，导致我们在 QSS 中设置的背景色与底层原生的半透明背景色进行了混合（叠加），看起来就像盖了一层灰色的蒙版。覆盖 `paintEvent` 阻断了底层默认行为，使得颜色直接受 QSS 控制，恢复了纯正的主题色。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-09 11:57
+- 操作类型：新增与修改
+- 影响文件：`ui/components/action_button_widget.py`、`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`、`ui/components/main_action_card.py`
+- 变更摘要：
+  1. 丰富了 `action_button_widget.py` 组件库，基于现有的 `ActionButtonCard` 派生了主题色的按钮组件 `PrimaryActionButtonCard`。
+  2. 覆写了 `ActionButtonCard` 的 `enterEvent`、`leaveEvent`、`mousePressEvent` 和 `mouseReleaseEvent`，引入并管理了 `isHover` 和 `isPressed` 属性，用于触发 QSS 的动态样式刷新（`style().polish(self)`）。
+  3. 考虑到深浅色主题适配，在 `PrimaryActionButtonCard` 中监听了 `qconfig.themeChanged` 信号，在浅色模式下应用白色图标（保证对比深色主色背景），在深色模式下应用黑色图标（保证对比浅色主色背景）。
+  4. 在深浅两套 `slice_interface.qss` 样式表文件中统一添加了对 `#primaryActionButtonCard` 的悬浮、点击等状态定义（颜色取自 `--ThemeColorPrimary`、`--ThemeColorLight1` 等变量）。
+  5. 将 `main_action_card.py` 中原本普通的“开始识别”按钮（`ActionButtonCard`）替换为新的 `PrimaryActionButtonCard`。
+- 原因：根据用户需求提供高亮的主题色悬浮操作按钮组件。由于原生 `qfluentwidgets` 的 `CardWidget` 对于 QSS 伪状态（如 `:hover`）的支持存在局限性或被硬编码覆盖，故采用了结合动态属性和手动抛光（`polish`）的方式重构以完美贴合 QSS 管理机制。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-09 11:35
 - 操作类型：重构
 - 影响文件：`ui/components/action_button_widget.py`
