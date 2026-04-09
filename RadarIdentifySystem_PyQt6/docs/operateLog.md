@@ -1,5 +1,17 @@
 # 操作日志
 
+## 2026-04-09 09:59
+- 操作类型：新增
+- 影响文件：`app/app_config.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：
+  1. 在全局配置 `app_config.py` 中新增 `exportDirPath` 配置项，默认路径为用户的桌面目录，用于持久化管理导出的保存路径。
+  2. 在 `slice_interface.py` 右侧面板中新增了基于 `PushSettingCard` 的“保存/导出路径”设置卡片。
+  3. 为该设置卡添加了选择文件夹的功能：点击按钮弹出 `QFileDialog.getExistingDirectory` 对话框，并双向绑定了全局配置项，使得选中路径可以自动展示并持久化存储。
+- 原因：根据用户需求补充保存路径设置入口，使用标准组件维持应用风格一致，且统一接入全局配置以支持跨组件、跨生命周期的状态管理。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-09 09:51
 - 操作类型：修改
 - 影响文件：`ui/components/redraw_option_card.py`

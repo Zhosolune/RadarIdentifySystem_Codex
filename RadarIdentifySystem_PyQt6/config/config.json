@@ -5,7 +5,8 @@
         "minPts": 1
     },
     "business": {
-        "autoRecognizeNextSlice": false
+        "autoRecognizeNextSlice": false,
+        "exportDirPath": "E:/myProjects_Trae/RadarIdentifySystem/model_wm"
     },
     "Interface": {
         "DpiScale": "Auto"
@@ -17,7 +18,7 @@
             "PingFang SC"
         ],
         "ThemeColor": "#ff4772c3",
-        "ThemeMode": "Dark"
+        "ThemeMode": "Light"
     },
     "System": {
         "LogDir": "C:\\Users\\lenovo\\.RadarIdentifySystem\\logs"

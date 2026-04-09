@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
-from qfluentwidgets import PrimaryPushButton, PushButton
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QFileDialog
+from qfluentwidgets import PrimaryPushButton, PushButton, PushSettingCard, FluentIcon
 
 from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
+from app.app_config import appConfig
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
 from ui.components import SliceDimensionCard, MainActionCard, NavigationControlCard, PlotControlCard
@@ -207,11 +208,38 @@ class SliceInterface(QFrame):
         # 绘图控制卡片
         self.plot_control_card = PlotControlCard(right_column)
         
+        # 导出路径设置卡
+        self.export_path_card = PushSettingCard(
+            text="选择文件夹",
+            icon=FluentIcon.FOLDER,
+            title="保存/导出路径",
+            content=appConfig.exportDirPath.value,
+            parent=right_column
+        )
+        self.export_path_card.clicked.connect(self._on_export_path_clicked)
+        # 绑定配置改变事件以更新 UI
+        appConfig.exportDirPath.valueChanged.connect(self._on_export_path_config_changed)
+        
         right_layout.addWidget(self.import_data_button)
         right_layout.addWidget(self.slice_info_label)
         right_layout.addWidget(self.main_action_card)
         right_layout.addWidget(self.navigation_control_card)
         right_layout.addWidget(self.plot_control_card)
+        right_layout.addWidget(self.export_path_card)
         right_layout.addStretch(1)
         
         return right_column
+
+    def _on_export_path_clicked(self) -> None:
+        """处理更改导出路径按钮点击事件。"""
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "选择保存/导出目录",
+            appConfig.exportDirPath.value
+        )
+        if folder:
+            appConfig.exportDirPath.value = folder
+
+    def _on_export_path_config_changed(self, new_path: str) -> None:
+        """同步全局配置到导出路径设置卡。"""
+        self.export_path_card.setContent(new_path)

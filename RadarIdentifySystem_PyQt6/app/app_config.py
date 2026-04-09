@@ -97,6 +97,12 @@ class AppConfig(QConfig):
         default=False,
         validator=BoolValidator(),
     )
+    
+    exportDirPath = ConfigItem(
+        group="business",
+        name="exportDirPath",
+        default=str(Path.home() / "Desktop"),
+    )
 
 
 appConfig = AppConfig()
