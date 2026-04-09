@@ -103,6 +103,13 @@ class AppConfig(QConfig):
         name="exportDirPath",
         default=str(Path.home() / "Desktop"),
     )
+    
+    autoExport = ConfigItem(
+        group="business",
+        name="autoExport",
+        default=False,
+        validator=BoolValidator(),
+    )
 
 
 appConfig = AppConfig()

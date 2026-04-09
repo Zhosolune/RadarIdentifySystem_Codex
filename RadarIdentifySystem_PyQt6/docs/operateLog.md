@@ -1,5 +1,52 @@
 # 操作日志
 
+## 2026-04-09 16:48
+- 操作类型：修复
+- 影响文件：`ui/components/export_option_card.py`
+- 变更摘要：
+  1. 修复了修改导出路径时抛出 `AttributeError: 'ExportOptionCard' object has no attribute 'setContent'` 的问题，将 `self.setContent(new_path)` 修改为正确的 `self.card.setContent(new_path)`（调用内部的 `HeaderSettingCard` 的方法）。
+  2. 修复了自动保存状态标签位置错位的问题，将标签从展开区域的 `self.viewLayout` 移动到主卡片头部的 `self.card.hBoxLayout` 中。
+  3. 修复了拨动自动保存开关时全局配置不生效的问题，将直接对 `value` 赋值修改为使用 `qfluentwidgets.qconfig.set(appConfig.autoExport, is_checked)` 以正确触发配置持久化和信号同步。对路径保存配置也进行了同等修复。
+- 原因：修复新编写的 `ExpandGroupSettingCard` 派生类内部对第三方组件库结构调用不当以及配置管理 API 误用导致的三个 Bug，确保功能正常运行。
+- 测试状态：待手动测试验证
+
+## 2026-04-09 16:27
+- 操作类型：重构
+- 影响文件：`ui/components/export_option_card.py`
+- 变更摘要：修复了 `ExpandGroupSettingCard` 内部子项添加方式的问题。将直接调用 `addGroupWidget` 添加 `SwitchSettingCard` 的做法，重构为使用 `addGroup` 方法结合原生的 `SwitchButton`，从而使得内部展开列表符合标准的折叠卡片UI规范（左侧图标和描述，右侧是控制组件）。
+- 原因：`ExpandGroupSettingCard` 作为容器，其内部展开项应该通过自带的 `addGroup` 方法来组装包含图标、标题、内容描述以及原生交互控件的组合行，而不是简单粗暴地将另一个完整的卡片组件（如 `SwitchSettingCard`）直接塞进去，否则会导致UI层级和视觉效果上的错乱。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-09 16:20
+- 操作类型：重构
+- 影响文件：`ui/components/export_option_widget.py`、`ui/components/__init__.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：
+  1. 新建 `ui/components/export_option_widget.py`，将刚才编写在 `slice_interface.py` 中的“保存选项”（`ExpandGroupSettingCard`）及其子控件（更改路径按钮、自动保存开关、动态状态标签）和所有相关的配置绑定槽函数逻辑（如选择文件夹对话框等）全部迁移封装进这个独立的类中。
+  2. 在 `ui/components/__init__.py` 中对外暴露了 `ExportOptionWidget`。
+  3. 在 `slice_interface.py` 中清理了所有的旧代码，直接实例化调用 `ExportOptionWidget`，进一步精简了页面层代码，使其更加专注于布局结构。
+- 原因：根据用户要求，为了保持代码整洁和组件化规范，将功能内聚且带有自身交互逻辑的卡片抽取为独立组件。
+- 测试状态：待手动测试验证
+
+---
+
+## 2026-04-09 16:15
+- 操作类型：重构与修改
+- 影响文件：`app/custom_icon.py`、`app/app_config.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：
+  1. 重构了 `custom_icon.py` 的路径获取方式，不再使用 `os.path` 拼凑本地文件系统路径，而是改为直接通过 Qt QRC 资源系统读取（例如 `:/RadarIdentifySystem/images/icons/...`）。
+  2. 在 `app_config.py` 中新增 `autoExport` 布尔类型配置项（默认 `False`），用于管理业务控制模块中的“自动保存”选项状态。
+  3. 修改了 `slice_interface.py` 中的导出路径设置卡，将其从单一的 `PushSettingCard` 升级为 `ExpandGroupSettingCard`（标题为“保存选项”）。
+     - 主卡片：使用 `content` 显示当前路径，并在最右侧（通过动态操作 `viewLayout`）插入了一个 `QLabel` 显示“已启用自动保存”或“未启用自动保存”的状态文字。
+     - 展开组项 1：添加了一个“选择文件夹”的普通 `PushButton`（点击依然会调起文件选择器并更新配置）。
+     - 展开组项 2：添加了一个“自动保存”的 `SwitchSettingCard`（绑定至 `autoExport` 全局配置）。
+     - 通过绑定 `autoExport` 配置的 `valueChanged` 信号，使得自动保存状态文本能够随着开关操作实时同步。
+- 原因：根据用户指示，为了打包和跨平台运行的稳定性应使用已建立好的 `.qrc` 资源；同时为了丰富业务保存选项，将“选择路径”和“自动保存开关”收纳整合在一个统一的折叠卡片中。
+- 测试状态：待手动测试验证
+
+---
+
 ## 2026-04-09 15:42
 - 操作类型：新增与修改
 - 影响文件：`app/custom_icon.py`、`ui/components/action_button_widget.py`、`ui/components/navigation_control_card.py`

@@ -9,6 +9,7 @@ from .navigation_control_card import NavigationControlCard
 from .plot_option_widget import PlotOptionWidget
 from .redraw_option_widget import RedrawOptionWidget
 from .plot_control_card import PlotControlCard
+from .export_option_card import ExportOptionCard
 
 __all__ = [
     "ActionButtonCard",
@@ -17,5 +18,6 @@ __all__ = [
     "NavigationControlCard", 
     "PlotControlCard", 
     "PlotOptionWidget",
-    "RedrawOptionWidget"
+    "RedrawOptionWidget",
+    "ExportOptionCard"
 ]

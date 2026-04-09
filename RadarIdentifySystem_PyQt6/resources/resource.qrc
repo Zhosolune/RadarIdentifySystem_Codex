@@ -8,11 +8,13 @@
         <file>images/icons/ChevronRight_black.svg</file>
         <file>images/icons/ChevronsLeft_black.svg</file>
         <file>images/icons/ChevronsRight_black.svg</file>
+        <file>images/icons/Reset_black.svg</file>
         
         <file>images/icons/ChevronLeft_white.svg</file>
         <file>images/icons/ChevronRight_white.svg</file>
         <file>images/icons/ChevronsLeft_white.svg</file>
         <file>images/icons/ChevronsRight_white.svg</file>
+        <file>images/icons/Reset_white.svg</file>
 
         <file>qss/dark/home_interface.qss</file>
         <file>qss/dark/slice_interface.qss</file>
