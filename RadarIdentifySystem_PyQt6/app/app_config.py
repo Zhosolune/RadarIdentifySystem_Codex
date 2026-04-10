@@ -94,7 +94,7 @@ class AppConfig(QConfig):
     autoRecognizeNextSlice = ConfigItem(
         group="business",
         name="autoRecognizeNextSlice",
-        default=False,
+        default=True,
         validator=BoolValidator(),
     )
     

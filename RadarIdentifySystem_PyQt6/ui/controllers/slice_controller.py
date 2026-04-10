@@ -53,7 +53,7 @@ class SliceController(QObject):
         self._processing_dialog = None
 
         # 绑定按钮点击事件
-        self.view.main_action_card.start_slicing_button.clicked.connect(self.handle_slice)
+        self.view.navigation_control_card.start_slicing_button.clicked.connect(self.handle_slice)
 
         # 绑定全局生命周期信号与数据就绪信号
         signal_bus.stage_finished.connect(self._on_stage_finished)

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 ui/main_window.py
 动态导航主窗口：
@@ -8,8 +8,8 @@ ui/main_window.py
 """
 import logging
 
-from PyQt6.QtCore import Qt, QSize, QTimer
-from PyQt6.QtWidgets import QWidget, QApplication
+from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject
+from PyQt6.QtWidgets import QWidget, QApplication, QAbstractButton
 from PyQt6.QtGui import QIcon
 from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
@@ -40,12 +40,55 @@ class MainWindow(FluentWindow):
         self.connectSignalToSlot()
 
         self.initNavigation()
+        self._enable_pointing_hand_cursor()
 
         timer = QTimer()
         timer.singleShot(1000, self.splashScreen.finish)
         # self.splashScreen.finish()
 
         self.themeListener.start()
+
+    def _enable_pointing_hand_cursor(self) -> None:
+        """为全局按钮统一设置手指光标。"""
+        # 初始化已创建按钮的光标
+        self._apply_pointing_cursor(self)
+        # 监听后续动态创建按钮（组件库内部可能延迟创建）
+        app = QApplication.instance()
+        if app:
+            app.installEventFilter(self)
+
+    def _apply_pointing_cursor(self, root: QObject) -> None:
+        """递归设置按钮光标。
+
+        参数说明：
+            root (QObject): 需要遍历的根对象。
+        """
+        # 扫描所有按钮子控件
+        if isinstance(root, QWidget):
+            for button in root.findChildren(QAbstractButton):
+                # 设置手指光标
+                button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """事件过滤器。
+
+        功能描述：
+            处理组件库延迟创建按钮时的光标同步问题。
+        """
+        # 处理按钮显示事件
+        if isinstance(obj, QAbstractButton) and event.type() in (QEvent.Type.Show, QEvent.Type.Polish):
+            # 强制覆盖手指光标
+            obj.setCursor(Qt.CursorShape.PointingHandCursor)
+        # 处理动态子对象创建事件
+        elif event.type() == QEvent.Type.ChildAdded and hasattr(event, "child"):
+            child = event.child()
+            if isinstance(child, QAbstractButton):
+                # 同步新建按钮光标
+                child.setCursor(Qt.CursorShape.PointingHandCursor)
+            elif isinstance(child, QWidget):
+                # 递归同步新建容器下的按钮光标
+                self._apply_pointing_cursor(child)
+        return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------
     # 初始化
@@ -92,6 +135,10 @@ class MainWindow(FluentWindow):
     # 生命周期
     # ------------------------------------------------------------------
     def closeEvent(self, event) -> None:
+        # 解除事件过滤器
+        app = QApplication.instance()
+        if app:
+            app.removeEventFilter(self)
         self.themeListener.terminate()
         self.themeListener.deleteLater()
         super().closeEvent(event)

@@ -11,7 +11,7 @@ from app.style_sheet import StyleSheet
 from app.app_config import appConfig
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from ui.components import SliceDimensionCard, MainActionCard, NavigationControlCard, PlotOptionCard, RedrawOptionCard, ExportOptionCard, JitterFreeCardGroup
+from ui.components import SliceDimensionCard, NavigationControlCard, PlotOptionCard, RedrawOptionCard, ExportOptionCard, JitterFreeCardGroup
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 
@@ -224,10 +224,7 @@ class SliceInterface(QFrame):
         # 所有的卡片组件用 JitterFreeCardGroup 包裹，放入右侧面板
         cards_group = JitterFreeCardGroup(self.right_panel_card)
         
-        # 主操作卡片（切片、识别）
-        self.main_action_card = MainActionCard(cards_group)
-        
-        # 导航控制卡片
+        # 导航与主操作控制卡片
         self.navigation_control_card = NavigationControlCard(cards_group)
         
         # 绘图选项卡
@@ -239,7 +236,6 @@ class SliceInterface(QFrame):
         # 导出路径设置卡
         self.export_path_card = ExportOptionCard(cards_group)
 
-        cards_group.addSettingCard(self.main_action_card)
         cards_group.addSettingCard(self.navigation_control_card)
         cards_group.addSettingCard(self.plot_option_card)
         cards_group.addSettingCard(self.redraw_option_card)

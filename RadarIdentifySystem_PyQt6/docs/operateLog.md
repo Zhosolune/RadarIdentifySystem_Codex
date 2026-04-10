@@ -1,5 +1,19 @@
 # 操作日志
 
+## 2026-04-10 15:46
+- 操作类型：重构
+- 影响文件：`ui/main_window.py`
+- 变更摘要：在主窗口新增全局按钮光标统一机制，应用启动后递归扫描所有 `QAbstractButton` 并设置为手指样式；同时通过应用级事件过滤器监听 `Show/Polish/ChildAdded` 事件，对组件库延迟创建的按钮自动补齐手指光标。
+- 原因：组件库部分按钮会在运行期动态创建，或在主题刷新后重置光标，仅靠一次性遍历无法覆盖全部按钮。通过“初始化批量设置 + 事件过滤器兜底”的双层机制，确保所有按钮始终保持手指指针。
+- 测试状态：已测试（`python -m py_compile ui/main_window.py`）
+
+## 2026-04-10 14:05
+- 操作类型：重构
+- 影响文件：`ui/components/navigation_control_card.py`、`ui/components/main_action_card.py` (删除)、`ui/interfaces/slice_interface.py`、`ui/components/__init__.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：删除了 `main_action_card.py` 组件，将其内部的“开始切片”、“开始识别”按钮以及“自适应切片”复选框迁移至了 `NavigationControlCard` 的顶部。同时，将 `NavigationControlCard` 中的所有导航相关按钮（上一类、下一片等）从自定义的 `ActionButtonCard` 全部降级替换为组件库标准的 `PushButton` 和 `PrimaryPushButton`。同步更新了相关界面的引用以及控制器中的事件绑定。
+- 原因：根据用户需求，通过聚合操作面板减少界面的碎片化组件，提升控制卡片的集成度。使用组件库内置的 `PushButton` 替代自定义按钮，避免了复杂的自定义 `paintEvent` 带来的样式维护成本和状态冲突，直接享受组件库最原生的深浅色主题支持与边缘抗锯齿。
+- 测试状态：待手动测试验证
+
 ## 2026-04-10 11:43
 - 操作类型：修复
 - 影响文件：`ui/components/action_button_widget.py`、`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`
