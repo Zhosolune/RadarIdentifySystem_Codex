@@ -91,7 +91,7 @@ class SliceController(QObject):
             return
 
         # 判断当前选择的切片模式
-        is_adaptive = self.view.main_action_card.adaptive_slicing_checkbox.isChecked()
+        is_adaptive = self.view.navigation_control_card.adaptive_slicing_checkbox.isChecked()
         current_mode = "自适应切片" if is_adaptive else "开始切片"
         
         # 也可以结合全局配置（此处暂存打印）
@@ -100,7 +100,7 @@ class SliceController(QObject):
         print(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {checkbox_adaptive}")
 
         # 更新按钮状态
-        self.view.main_action_card.start_slicing_button.setEnabled(False)
+        self.view.navigation_control_card.start_slicing_button.setEnabled(False)
 
         # 显示动画对话框
         self._processing_dialog = ProcessingDialog(
@@ -136,7 +136,7 @@ class SliceController(QObject):
                 self._processing_dialog = None
                 
             # 恢复按钮状态
-            self.view.main_action_card.start_slicing_button.setEnabled(True)
+            self.view.navigation_control_card.start_slicing_button.setEnabled(True)
             
             # 弹出成功提示
             InfoBar.success(
