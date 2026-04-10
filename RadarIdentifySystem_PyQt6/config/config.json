@@ -7,7 +7,7 @@
     "business": {
         "autoExport": false,
         "autoRecognizeNextSlice": true,
-        "exportDirPath": "C:/Users/lenovo/Desktop"
+        "exportDirPath": "C:\\Users\\lenovo\\Desktop"
     },
     "Interface": {
         "DpiScale": "Auto"
@@ -19,7 +19,7 @@
             "PingFang SC"
         ],
         "ThemeColor": "#ff4772c3",
-        "ThemeMode": "Light"
+        "ThemeMode": "Auto"
     },
     "System": {
         "LogDir": "C:\\Users\\lenovo\\.RadarIdentifySystem\\logs"

@@ -81,7 +81,7 @@ class AppConfig(QConfig):
     plotOnlyShowIdentified = OptionsConfigItem(
         group="plot",
         name="onlyShowIdentified",
-        default="ALL",
+        default="IDENTIFIED_ONLY",
         validator=OptionsValidator(["ALL", "IDENTIFIED_ONLY"]),
     )
     plotOrder = ConfigItem(
