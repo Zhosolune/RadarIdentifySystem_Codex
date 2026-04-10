@@ -1,5 +1,89 @@
 # 操作日志
 
+## 2026-04-10 11:43
+- 操作类型：修复
+- 影响文件：`ui/components/action_button_widget.py`、`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`
+- 变更摘要：恢复了 `action_button_widget.py` 中 `ActionButtonCard.paintEvent` 原有的硬编码绘制逻辑（未修改 L10 的类定义）；同时将 `slice_interface.qss` 中针对 `#actionButtonCard` 的常态背景和边框设为透明，并大幅降低了 hover 和 pressed 状态的背景色透明度（且不写死边框）。
+- 原因：由于用户明确要求不可修改 `ActionButtonCard` 当前 `paintEvent` 及其实现的硬编码逻辑（底层一直在画一个自带默认样式和抗锯齿边框的底座），因此在外部 QSS 中再去指定边框和不透明背景必定会与之发生边缘冲突（多出一圈颜色）。为了让响应效果只发生在内部，策略变为：通过 QSS 给 hover/pressed 状态叠加一层极为轻薄的透明黑色/白色遮罩，常态保持透明。这样悬浮/按下时的颜色仅仅是“罩”在原生硬编码的背景之上，不仅避免了画双层边框的重影，还保留了原始样式的细腻抗锯齿。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 11:39
+- 操作类型：修复
+- 影响文件：`ui/components/action_button_widget.py`、`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`
+- 变更摘要：删除了 `ActionButtonCard` 中 `paintEvent` 里用于硬编码绘制背景和边框的代码，仅保留 `QStyleOption` 结合 `drawPrimitive` 承接 QSS 的渲染。将对应的默认背景色和边框颜色完全移交到了深浅色的 `slice_interface.qss` 中定义。
+- 原因：修复 Hover/Pressed 状态下出现双层边框或颜色溢出的问题。此前，我们在代码里手动通过 `painter.drawRoundedRect` 绘制了一层默认背景和边框，同时 QSS 也在根据伪状态（`:hover`, `:pressed`）绘制背景和边框。这两层绘制由于抗锯齿边缘（Antialiasing）和缩放差异无法完全重合，从而导致“多了一圈颜色”。通过将常态样式也统一交由 QSS 接管，保证了同一图层的单一控制源，完美解决了重影问题。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 10:36
+- 操作类型：重构
+- 影响文件：`ui/interfaces/slice_interface.py`、`resources/qss/light/slice_interface.qss`、`resources/qss/dark/slice_interface.qss`
+- 变更摘要：移除了 `slice_interface.py` 中关于 `ScrollArea` 及 `scroll_content_widget` 的硬编码 `setStyleSheet`，统一将 `background: transparent` 的样式配置迁移到了对应主题的 QSS 资源文件中。
+- 原因：遵守“业务逻辑与样式分离”的最佳实践，不在代码中显示写入 QSS。通过对 `#rightPanelScrollArea` 和 `#scrollContentWidget` 设置专属样式，确保了代码整洁性以及主题控制的一致性。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 10:31
+- 操作类型：修复
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：修复右侧面板引入 `ScrollArea` 后导致的 Qt 布局层级错误和背景变白问题。创建了一个独立的 `QWidget` 作为滚动内容容器（`scroll_content_widget`），将原有的布局设置于其上，并通过 `setWidget()` 传入 `ScrollArea`；同时强制设置了 `ScrollArea` 及其视口的 QSS 为透明背景和无边框。
+- 原因：此前，我们在界面重构中混入了 `ScrollArea` 组件，但误用了 `QVBoxLayout(self.right_panel_scroll_area)` 的写法，将布局直接挂载在了滚动区域本身，而不是它的内容组件上。更致命的是，组件库的 `ScrollArea` 在深色模式下具有自带的不透明背景色（`#f3f3f3`），从而彻底掩盖了底层深色背景，造成大面积泛白。通过更正 Qt 原生的 `setWidget()` 结构体系，并显示注入 `background: transparent` 样式到视口，从根源上修复了这块“白色背景”的顽疾。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 10:12
+- 操作类型：修复
+- 影响文件：`ui/components/jitter_free_container.py`
+- 变更摘要：在 `JitterFreeCardGroup` 中将重写的 `paintEvent` 逻辑清空（仅保留 `pass`）。
+- 原因：修复深色模式下卡片背景变白的问题。之前的判断有误：原生的 `SettingCardGroup` 的父类其实就是最基础的 `QWidget`，而 `qfluentwidgets` 默认给它的样式表确实是透明的（`background-color: transparent;`）。当我们自作聪明地在 `paintEvent` 中调用 `QStyleOption` 和 `drawPrimitive` 时，反而在某些系统环境（或 Qt 版本）下强制触发了 `PE_Widget` 的不透明默认底色绘制（在深色模式下表现为了反色的白色）。直接将其 `paintEvent` 设为 `pass` 可以完美放空绘制机制，使背景完全透明，从而暴露下层的颜色。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 08:57
+- 操作类型：重构
+- 影响文件：`ui/interfaces/slice_interface.py`、`ui/components/plot_control_card.py`(删除)、`ui/components/plot_option_card.py` (重命名)、`ui/components/redraw_option_card.py` (重命名)、`ui/components/__init__.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：
+  1. 将 `plot_option_widget.py` 和 `redraw_option_widget.py` 重命名为对应的 `_card.py` 结尾，并更新其内部类名为 `PlotOptionCard` 和 `RedrawOptionCard`。
+  2. 删除了作为冗余包装的 `plot_control_card.py` 及其组件类。
+  3. 在 `slice_interface.py` 中，实例化了一个全局统一的 `JitterFreeCardGroup` （变量名：`cards_group`）放置于右侧面板。
+  4. 将原本散落的所有操作卡片（`MainActionCard`、`NavigationControlCard`、`PlotOptionCard`、`RedrawOptionCard`、`ExportOptionCard`）全部作为子卡片（`addSettingCard`）统一添加到了这个 `cards_group` 容器中。
+  5. 更新了控制器 `slice_controller.py` 中引用重绘信号层级结构的属性名，从 `view.plot_control_card.redraw_option_card` 简化为 `view.redraw_option_card`。
+- 原因：为了最彻底地解决界面抖动问题，并保持视觉上所有卡片间距的高度一致。将所有卡片都视为独立的 `SettingCard` 并将它们统一归拢在同一个 `SettingCardGroup` 的内部布局管辖下，不再在外部手动混合嵌套不同类型的容器和布局管理器，从根本上实现了统一而平滑的排版与动画计算。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 08:35
+- 操作类型：修复
+- 影响文件：`ui/interfaces/slice_interface.py`、`ui/components/plot_control_card.py`、`ui/components/__init__.py`、`ui/components/jitter_free_container.py` (新建)
+- 变更摘要：
+  1. 回退了上一次试图在最外层直接使用 `ExpandLayout` 的重构尝试，恢复为 `QVBoxLayout` 并恢复了 `addStretch(1)` 的调用。
+  2. 重新引入了 `JitterFreeCardGroup` 无抖动包装器类。
+  3. 将具有折叠动画的组件（`PlotControlCard` 中的绘图与重绘卡片、`ExportOptionCard`）分别重新包裹在 `JitterFreeCardGroup` 内部。
+- 原因：修复右侧面板所有组件挤压重叠的严重布局 Bug。`qfluentwidgets.ExpandLayout` 是专为 `SettingCard` 设计的内部布局，它在执行 `__doLayout` 计算高度时，依赖于子卡片能够立刻提供有效高度，并不具备通用布局（如 `QVBoxLayout`）在初始化时处理普通 QWidget 的弹性空间和大小提示（sizeHint）的能力。如果强行用它来装载普通控件，就会导致它们在初始化时高度计算失败而全部挤在一起。因此，通过自定义外壳（仅隐藏标题和间距）将其局限在特定的设置卡片外部是目前既能消除抖动又能保证其余控件正常排版的唯一完美解。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 08:32
+- 操作类型：修复
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：删除了在 `ExpandLayout` 上调用的 `addStretch(1)` 方法。
+- 原因：修复程序启动时抛出 `AttributeError: 'ExpandLayout' object has no attribute 'addStretch'` 的奔溃错误。`qfluentwidgets.ExpandLayout` 是一个自定义的布局类，内部通过 `addWidget` 和重写布局逻辑来消除抖动，但它并没有继承/实现原生 `QVBoxLayout` 的 `addStretch` 方法。外层的 `right_layout` (是 `QVBoxLayout`) 已经保留了 `addStretch(1)`，可以起到将其推向顶部的作用，内部不再需要。
+- 测试状态：待手动测试验证
+
+## 2026-04-10 08:29
+- 操作类型：重构
+- 影响文件：`ui/interfaces/slice_interface.py`、`ui/components/plot_control_card.py`、`ui/components/__init__.py`、`ui/components/jitter_free_container.py` (删除)
+- 变更摘要：
+  1. 移除了之前引入的 `JitterFreeCardGroup` 包装器类及其关联文件。
+  2. 在 `slice_interface.py` 中，将右侧包裹所有业务面板组件的主卡片 (`right_panel_card`) 的内部布局，从普通的 `QVBoxLayout` 直接替换为了 `qfluentwidgets.ExpandLayout`。
+  3. 在 `plot_control_card.py` 中，移除了原有的卡片组包装，直接将 `PlotControlCard` 的布局设为 `ExpandLayout`，并将绘图和重绘选项卡加入其中。
+- 原因：根据进一步优化思路，既然 `ExpandLayout` 是消除折叠/展开时重绘抖动的核心机制，那么直接将其应用在产生抖动的最外层/局部容器上即可，无需再套一层带有组标题的 `SettingCardGroup` （即便隐藏了标题）。这不仅消除了抖动，还使得布局层级更加扁平和清晰。
+- 测试状态：待手动测试验证
+
+## 2026-04-09 17:36
+- 操作类型：重构与修复
+- 影响文件：`ui/components/jitter_free_container.py`、`ui/components/__init__.py`、`ui/components/plot_control_card.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：
+  1. 深入调研 `qfluentwidgets` 中消除 `ExpandGroupSettingCard` 展开抖动的机制，提取并封装了一个专用的 `JitterFreeCardGroup` 无抖动容器（继承自 `SettingCardGroup`）。该容器隐藏了原生的组标题，并移除了内部硬编码产生的 46px（包含 spacing）额外高度占位。
+  2. 在 `plot_control_card.py` 中，将用户临时使用的 `SettingCardGroup` 替换为新创建的 `JitterFreeCardGroup`，从而既消除了展开抖动，又清除了多余的组标题空白占位。
+  3. 在 `slice_interface.py` 中，将右侧面板底部的导出路径设置卡（`ExportOptionCard`）也包裹在 `JitterFreeCardGroup` 内，以彻底解决其在全局 `QVBoxLayout` 中展开和折叠时的视觉抖动问题。
+- 原因：修复由于在带有 `addStretch` 的 `QVBoxLayout` 内直接嵌套多个折叠卡片带来的重绘抖动问题。通过专用容器屏蔽默认标题，实现了干净的布局包裹。
+- 测试状态：已测试
+
 ## 2026-04-09 16:48
 - 操作类型：修复
 - 影响文件：`ui/components/export_option_card.py`

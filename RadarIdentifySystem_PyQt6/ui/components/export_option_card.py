@@ -66,7 +66,6 @@ class ExportOptionCard(ExpandGroupSettingCard):
         # 展开项 1：更改路径按钮
         self.change_export_path_button = PushButton("选择文件夹", self)
         self.change_export_path_button.setFixedWidth(120)
-        self.addGroup(FluentIcon.FOLDER, "导出路径", "更改切片或识别结果保存的默认目录", self.change_export_path_button)
 
         # 展开项 2：自动保存开关
         self.auto_export_switch = SwitchButton(parent=self, indicatorPos=IndicatorPosition.RIGHT)
@@ -80,6 +79,7 @@ class ExportOptionCard(ExpandGroupSettingCard):
         appConfig.autoExport.valueChanged.connect(self.auto_export_switch.setChecked)
         self.auto_export_switch.checkedChanged.connect(self._on_switch_checked_changed)
         
+        self.addGroup(FluentIcon.FOLDER, "导出路径", "更改切片或识别结果保存的默认目录", self.change_export_path_button)
         self.addGroup(FluentIcon.SAVE, "自动保存", "切片或识别完成后自动导出结果", self.auto_export_switch)
 
     def _connect_signals(self) -> None:

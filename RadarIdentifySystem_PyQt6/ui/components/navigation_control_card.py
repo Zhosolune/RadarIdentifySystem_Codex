@@ -45,6 +45,7 @@ class NavigationControlCard(QWidget):
         """
         super().__init__(parent)
         self.setObjectName("navigationControlCard")
+        self.setFixedHeight(132)
 
         # 类别导航
         self.prev_cluster_button = ActionButtonCard(CustomIcon.CHEVRON_LEFT, "上一类", self)
@@ -85,7 +86,7 @@ class NavigationControlCard(QWidget):
         """
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(5)
+        main_layout.setSpacing(2)
 
         # 第一行：所有导航按钮
         nav_layout = QHBoxLayout()

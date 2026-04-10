@@ -68,10 +68,10 @@ class ActionButtonCard(CardWidget):
         self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
 
         if isDarkTheme():
-            # painter.setBrush(QColor(255, 255, 255, 13))
+            painter.setBrush(QColor(255, 255, 255, 13))
             painter.setPen(QColor(0, 0, 0, 50))
         else:
-            # painter.setBrush(QColor(255, 255, 255, 170))
+            painter.setBrush(QColor(255, 255, 255, 170))
             painter.setPen(QColor(0, 0, 0, 19))
 
         painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
@@ -100,4 +100,17 @@ class PrimaryActionButtonCard(ActionButtonCard):
             # 浅色模式下，主色（如深蓝）背景需搭配白色图标
             self.icon_widget.setIcon(self._icon.icon(theme=Theme.DARK))
 
-    # paintEvent 已经由父类 ActionButtonCard 提供，子类无需重复编写
+    def paintEvent(self, e):
+        
+        from PyQt6.QtWidgets import QStyleOption, QStyle
+        from PyQt6.QtGui import QPainter
+
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        painter.setRenderHints(QPainter.RenderHint.Antialiasing)
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
+
+        painter.setPen(QColor(0, 0, 0, 0))
+            
+        painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)

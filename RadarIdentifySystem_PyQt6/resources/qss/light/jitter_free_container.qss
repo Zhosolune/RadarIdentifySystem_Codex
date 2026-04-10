@@ -1,0 +1,9 @@
+JitterFreeCardGroup {
+    background-color: transparent;
+}
+
+JitterFreeCardGroup>QLabel {
+    background-color: transparent;
+    color: black;
+    border: none;
+}

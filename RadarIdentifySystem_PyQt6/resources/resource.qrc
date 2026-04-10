@@ -19,9 +19,11 @@
         <file>qss/dark/home_interface.qss</file>
         <file>qss/dark/slice_interface.qss</file>
         <file>qss/dark/setting_interface.qss</file>
+        <file>qss/dark/jitter_free_container.qss</file>
 
         <file>qss/light/home_interface.qss</file>
         <file>qss/light/slice_interface.qss</file>
         <file>qss/light/setting_interface.qss</file>
+        <file>qss/light/jitter_free_container.qss</file>
     </qresource>
 </RCC>

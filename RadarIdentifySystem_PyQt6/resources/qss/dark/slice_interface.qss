@@ -37,15 +37,14 @@ SimpleCardWidget#sliceImageCard {
 }
 
 #actionButtonCard {
-    background-color: rgba(255, 255, 255, 13);
-    border-radius: 6px;
+    background-color: transparent;
+    border-radius: 8px;
 }
 #actionButtonCard:hover, #actionButtonCard[isHover=true] {
-    background-color: rgba(255, 255, 255, 0.0837);
+    background-color: rgba(255, 255, 255, 9);
 }
 #actionButtonCard:pressed, #actionButtonCard[isPressed=true] {
-    color: rgba(255, 255, 255, 0.786);
-    background: rgba(255, 255, 255, 0.0326);
+    background-color: rgba(255, 255, 255, 6);
 }
 #actionButtonCard > QLabel {
     color: white;
@@ -53,19 +52,24 @@ SimpleCardWidget#sliceImageCard {
 
 #primaryActionButtonCard {
     background-color: --ThemeColorPrimary;
-    border: 1px solid --ThemeColorLight1;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 #primaryActionButtonCard:hover, #primaryActionButtonCard[isHover=true] {
     background-color: --ThemeColorDark1;
-    border: 1px solid --ThemeColorLight1;
-    border-bottom: 1px solid --ThemeColorLight2;
 }
 #primaryActionButtonCard:pressed, #primaryActionButtonCard[isPressed=true] {
     color: rgba(0, 0, 0, 0.63);
     background-color: --ThemeColorDark2;
-    border: 1px solid --ThemeColorDark2;
 }
 #primaryActionButtonCard > QLabel {
     color: black;
+}
+
+#rightPanelScrollArea, #rightPanelScrollArea > QWidget {
+    background: transparent;
+    border: none;
+}
+
+#scrollContentWidget {
+    background: transparent;
 }

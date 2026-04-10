@@ -17,6 +17,8 @@ class StyleSheet(StyleSheetBase, Enum):
     HOME_INTERFACE = "home_interface"
     SLICE_INTERFACE = "slice_interface"
     SETTING_INTERFACE = "setting_interface"
+    JITTER_FREE_CONTAINER = "jitter_free_container"
+
 
     def path(self, theme: Theme = Theme.AUTO) -> str:
         """返回样式文件路径。

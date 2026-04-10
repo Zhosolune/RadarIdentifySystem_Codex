@@ -59,6 +59,9 @@ class SliceController(QObject):
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.slice_image_ready.connect(self._on_slice_image_ready)
 
+        # 绑定重绘请求信号
+        self.view.redraw_option_card.redraw_requested.connect(self._on_redraw_requested)
+
     def handle_slice(self) -> None:
         """处理切片按钮点击事件。
 
@@ -145,6 +148,15 @@ class SliceController(QObject):
                 duration=3000,
                 parent=self.view
             )
+
+    def _on_redraw_requested(self, slice_index: int) -> None:
+        """处理重绘请求。
+        
+        参数说明：
+            slice_index (int): 请求重绘的切片编号。
+        """
+        # TODO: 接入重绘工作流或核心绘图能力
+        print(f"收到重绘请求，切片编号: {slice_index}")
 
     def _on_slice_image_ready(self, session_id: str, slice_index: int, bundle: RenderedImageBundle) -> None:
         """接收渲染图片结果并展示到卡片。

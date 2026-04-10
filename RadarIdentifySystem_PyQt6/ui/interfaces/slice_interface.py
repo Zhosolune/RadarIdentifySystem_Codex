@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QFileDialog
-from qfluentwidgets import PrimaryPushButton, PushButton, PushSettingCard, FluentIcon, SimpleCardWidget, ExpandGroupSettingCard, SwitchSettingCard
+from qfluentwidgets import PrimaryPushButton, PushButton, PushSettingCard, FluentIcon, SimpleCardWidget, ExpandGroupSettingCard, SwitchSettingCard, ScrollArea, ExpandLayout
 
 from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from app.app_config import appConfig
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.pulse_batch import PulseBatch
-from ui.components import SliceDimensionCard, MainActionCard, NavigationControlCard, PlotControlCard, ExportOptionCard
+from ui.components import SliceDimensionCard, MainActionCard, NavigationControlCard, PlotOptionCard, RedrawOptionCard, ExportOptionCard, JitterFreeCardGroup
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 
@@ -192,41 +192,67 @@ class SliceInterface(QFrame):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
         
-        # 切片信息标签
+        # 1. 切片信息标签
         self.slice_info_label = QLabel("预计将获得 0 个250ms切片", column)
         self.slice_info_label.setObjectName("sliceInfoLabel")
         # self.slice_info_label.setStyleSheet("margin-left: 12px")
         self.slice_info_label.setFixedHeight(25)
 
-        # 使用 SimpleCardWidget 包裹所有业务面板组件
-        self.right_panel_card = SimpleCardWidget(column)
-        self.right_panel_layout = QVBoxLayout(self.right_panel_card)
-        self.right_panel_layout.setContentsMargins(12, 12, 12, 12)
-        self.right_panel_layout.setSpacing(5)
+        # 2. 操作面板滚动区域
+        self.right_panel_scroll_area = ScrollArea(column)
+        self.right_panel_scroll_area.setObjectName("rightPanelScrollArea")
+        self.right_panel_scroll_area.setWidgetResizable(True)
+
+        # 业务面板容器 (作为 ScrollArea 的内容部件)
+        self.scroll_content_widget = QWidget()
+        self.scroll_content_widget.setObjectName("scrollContentWidget")
+
+        self.panel_area_layout = QVBoxLayout(self.scroll_content_widget)
+        self.panel_area_layout.setContentsMargins(0, 0, 0, 0)
+        self.panel_area_layout.setSpacing(10)
+
+        # 业务面板卡片容器
+        self.right_panel_card = SimpleCardWidget(self.scroll_content_widget)
+        
+        # 选项卡面板布局
+        control_panel_layout = QVBoxLayout(self.right_panel_card)
+        control_panel_layout.setContentsMargins(12, 12, 12, 12)
+        control_panel_layout.setSpacing(5)
         
         self.import_data_button = PushButton("从 Excel 导入数据", self.right_panel_card)
 
+        # 所有的卡片组件用 JitterFreeCardGroup 包裹，放入右侧面板
+        cards_group = JitterFreeCardGroup(self.right_panel_card)
+        
         # 主操作卡片（切片、识别）
-        self.main_action_card = MainActionCard(self.right_panel_card)
+        self.main_action_card = MainActionCard(cards_group)
         
         # 导航控制卡片
-        self.navigation_control_card = NavigationControlCard(self.right_panel_card)
+        self.navigation_control_card = NavigationControlCard(cards_group)
         
-        # 绘图控制卡片
-        self.plot_control_card = PlotControlCard(self.right_panel_card)
+        # 绘图选项卡
+        self.plot_option_card = PlotOptionCard(cards_group)
         
-        # 导出路径设置卡 (使用独立组件)
-        self.export_path_card = ExportOptionCard(self.right_panel_card)
+        # 重绘选项卡
+        self.redraw_option_card = RedrawOptionCard(cards_group)
         
-        self.right_panel_layout.addWidget(self.import_data_button)
-        self.right_panel_layout.addWidget(self.main_action_card)
-        self.right_panel_layout.addWidget(self.navigation_control_card)
-        self.right_panel_layout.addWidget(self.plot_control_card)
-        self.right_panel_layout.addWidget(self.export_path_card)
-        self.right_panel_layout.addStretch(1)
+        # 导出路径设置卡
+        self.export_path_card = ExportOptionCard(cards_group)
+
+        cards_group.addSettingCard(self.main_action_card)
+        cards_group.addSettingCard(self.navigation_control_card)
+        cards_group.addSettingCard(self.plot_option_card)
+        cards_group.addSettingCard(self.redraw_option_card)
+        cards_group.addSettingCard(self.export_path_card)
+        
+        control_panel_layout.addWidget(self.import_data_button)
+        control_panel_layout.addWidget(cards_group)
+
+        self.panel_area_layout.addWidget(self.right_panel_card)
+        self.panel_area_layout.addStretch(1)
+        self.right_panel_scroll_area.setWidget(self.scroll_content_widget)
         
         right_layout.addWidget(self.slice_info_label)
-        right_layout.addWidget(self.right_panel_card)
-        right_layout.addStretch(1)
+        right_layout.addWidget(self.right_panel_scroll_area)
         
         return column

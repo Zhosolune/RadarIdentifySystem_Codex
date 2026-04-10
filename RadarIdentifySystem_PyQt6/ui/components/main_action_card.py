@@ -49,6 +49,7 @@ class MainActionCard(QWidget):
 
         # 构建布局
         self._init_layout()
+        self.setFixedHeight(60)
 
     def _init_layout(self) -> None:
         """初始化内部布局。
