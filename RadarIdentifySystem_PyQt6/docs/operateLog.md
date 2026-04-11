@@ -1,5 +1,12 @@
 # 操作日志
 
+## 2026-04-11 16:37
+- 操作类型：修复
+- 影响文件：`ui/components/plot_option_card.py`
+- 变更摘要：修复了绘图选项配置（`plotOnlyShowIdentified` 和 `plotScaleMode`）无法持久化保存到本地 `config.json` 的问题。将下拉框选项改变时直接赋值 `config_item.value = value` 的错误做法，修改为调用 `qfluentwidgets.qconfig.set(config_item, value)`。
+- 原因：在 `PyQt6-Fluent-Widgets` 框架中，直接修改 `ConfigItem.value` 不会触发配置文件的序列化写入，也不会发射 `valueChanged` 信号，必须使用 `qconfig.set()` API 才能完成完整的状态同步与持久化。同时已将此规则记录至核心记忆中。
+- 测试状态：已测试
+
 ## 2026-04-10 15:46
 - 操作类型：重构
 - 影响文件：`ui/main_window.py`

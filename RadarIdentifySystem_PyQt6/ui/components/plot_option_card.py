@@ -70,20 +70,21 @@ class PlotOptionCard(ExpandGroupSettingCard):
         cb.setCurrentIndex(index)
         
         # 绑定下拉框改变事件到全局配置
-        cb.currentIndexChanged.connect(lambda i: self._on_combo_changed(config_item, i))
+        cb.currentIndexChanged.connect(lambda i, c=config_item: self._on_combo_changed(c, i))
         
         # 绑定全局配置的改变事件到下拉框（双向同步）
-        config_item.valueChanged.connect(lambda val: self._on_config_changed(cb, config_item, val))
+        config_item.valueChanged.connect(lambda val, b=cb, c=config_item: self._on_config_changed(b, c, val))
         
         return cb
 
     def _on_combo_changed(self, config_item, index):
         """当下拉框选择改变时，同步更新 appConfig"""
+        from qfluentwidgets import qconfig
         try:
             value = config_item.validator.options[index]
             # 只有值不同才更新，避免死循环
             if config_item.value != value:
-                config_item.value = value
+                qconfig.set(config_item, value)
         except Exception:
             pass
 
