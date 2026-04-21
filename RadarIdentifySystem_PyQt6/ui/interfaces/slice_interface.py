@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QFileDialog
-from qfluentwidgets import PrimaryPushButton, PushButton, PushSettingCard, FluentIcon, SimpleCardWidget, ExpandGroupSettingCard, SwitchSettingCard, ScrollArea, ExpandLayout
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtGui import QColor
+from qfluentwidgets import  TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, PushButton, SimpleCardWidget, ScrollArea, qconfig
 
-from app.signal_bus import signal_bus
+from app.custom_icon import CustomIcon
 from app.style_sheet import StyleSheet
-from app.app_config import appConfig
-from core.models.processing_session import ProcessingSession, ProcessingStage
-from core.models.pulse_batch import PulseBatch
+from core.models.processing_session import ProcessingSession
 from ui.components import SliceDimensionCard, NavigationControlCard, PlotOptionCard, RedrawOptionCard, ExportOptionCard, JitterFreeCardGroup
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
@@ -65,6 +64,7 @@ class SliceInterface(QFrame):
 
         self._init_layout()
         StyleSheet.SLICE_INTERFACE.apply(self)
+        qconfig.themeChanged.connect(self._update_icon_colors)
         
         # 为了测试新架构，界面持有一个测试用的 Session 引用
         self._test_session = ProcessingSession()
@@ -105,6 +105,19 @@ class SliceInterface(QFrame):
         # 限制右侧面板最大宽度
         right_column.setFixedWidth(580)
 
+    def _update_icon_colors(self) -> None:
+        """切换图标主题色
+
+        """
+        light_color = themeColor()
+        dark_color = QColor("white")
+
+        # 更新透明图标按钮图标的颜色
+        self.prev_slice_button.setIcon(CustomIcon.CHEVRONS_LEFT.colored(light_color, dark_color))
+        self.next_slice_button.setIcon(CustomIcon.CHEVRONS_RIGHT.colored(light_color, dark_color))
+        self.prev_cluster_button.setIcon(CustomIcon.CHEVRON_LEFT.colored(light_color, dark_color))
+        self.next_cluster_button.setIcon(CustomIcon.CHEVRON_RIGHT.colored(light_color, dark_color))
+
     def _create_left_column(self) -> QWidget:
         """创建左侧列容器。
 
@@ -128,12 +141,39 @@ class SliceInterface(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
+        # 标题区域水平布局
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(0)
+
+        from qfluentwidgets import TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor
+        from PyQt6.QtCore import QSize
+        from PyQt6.QtGui import QColor
+        from app.custom_icon import CustomIcon
+        
+        self.prev_slice_button = TransparentToolButton(CustomIcon.CHEVRONS_LEFT.colored(themeColor(), QColor("white")), column)
+        self.prev_slice_button.setFixedSize(25, 25)
+        self.prev_slice_button.setIconSize(QSize(20, 20))
+        self.prev_slice_button.setToolTip("上一片")
+        self.prev_slice_button.installEventFilter(ToolTipFilter(self.prev_slice_button, 1000, ToolTipPosition.TOP))
+        
         self.slice_title_label = QLabel("第0个切片数据  原始图像", column)
         self.slice_title_label.setObjectName("sliceLeftTitle")
         self.slice_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.slice_title_label.setFixedHeight(25)
+        
+        self.next_slice_button = TransparentToolButton(CustomIcon.CHEVRONS_RIGHT.colored(themeColor(), QColor("white")), column)
+        self.next_slice_button.setFixedSize(25, 25)
+        self.next_slice_button.setIconSize(QSize(20, 20))
+        self.next_slice_button.setToolTip("下一片")
+        self.next_slice_button.installEventFilter(ToolTipFilter(self.next_slice_button, 1000, ToolTipPosition.TOP))
 
-        layout.addWidget(self.slice_title_label)
+        title_layout.addSpacing(33)
+        title_layout.addWidget(self.prev_slice_button)
+        title_layout.addWidget(self.slice_title_label, 1)
+        title_layout.addWidget(self.next_slice_button)
+
+        layout.addLayout(title_layout)
         layout.addWidget(self.original_cf_card, 1)
         layout.addWidget(self.original_pw_card, 1)
         layout.addWidget(self.original_pa_card, 1)
@@ -164,12 +204,34 @@ class SliceInterface(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         
+        # 标题区域水平布局
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(0)
+        
+        self.prev_cluster_button = TransparentToolButton(CustomIcon.CHEVRON_LEFT.colored(themeColor(), QColor("white")), column)
+        self.prev_cluster_button.setFixedSize(25, 25)
+        self.prev_cluster_button.setIconSize(QSize(20, 20))
+        self.prev_cluster_button.setToolTip("上一类")
+        self.prev_cluster_button.installEventFilter(ToolTipFilter(self.prev_cluster_button, 1000, ToolTipPosition.TOP))
+
         self.cluster_title_label = QLabel("CF/PW维度聚类 第0类", column)
         self.cluster_title_label.setObjectName("sliceMiddleTitle")
         self.cluster_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cluster_title_label.setFixedHeight(25)
+        
+        self.next_cluster_button = TransparentToolButton(CustomIcon.CHEVRON_RIGHT.colored(themeColor(), QColor("white")), column)
+        self.next_cluster_button.setFixedSize(25, 25)
+        self.next_cluster_button.setIconSize(QSize(20, 20))
+        self.next_cluster_button.setToolTip("下一类")
+        self.next_cluster_button.installEventFilter(ToolTipFilter(self.next_cluster_button, 1000, ToolTipPosition.TOP))
 
-        layout.addWidget(self.cluster_title_label)
+        title_layout.addSpacing(33)
+        title_layout.addWidget(self.prev_cluster_button)
+        title_layout.addWidget(self.cluster_title_label, 1)
+        title_layout.addWidget(self.next_cluster_button)
+
+        layout.addLayout(title_layout)
         layout.addWidget(self.cluster_cf_card, 1)
         layout.addWidget(self.cluster_pw_card, 1)
         layout.addWidget(self.cluster_pa_card, 1)

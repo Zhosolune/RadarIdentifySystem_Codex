@@ -50,11 +50,11 @@ class NavigationControlCard(QWidget):
         self.adaptive_slicing_checkbox = CheckBox("启用自适应切片", self)
 
         # --- 导航控制区域 ---
-        self.prev_cluster_button = PushButton(CustomIcon.CHEVRON_LEFT, "上一类", self)
-        self.next_cluster_button = PushButton(CustomIcon.CHEVRON_RIGHT, "下一类", self)
+        # self.prev_cluster_button = PushButton(CustomIcon.CHEVRON_LEFT, "上一类", self)
+        # self.next_cluster_button = PushButton(CustomIcon.CHEVRON_RIGHT, "下一类", self)
         self.reset_cur_slice_button  = PrimaryPushButton(CustomIcon.RESET, "重置当前切片", self)
-        self.prev_slice_button = PushButton(CustomIcon.CHEVRONS_LEFT, "上一片", self)
-        self.next_slice_button = PushButton(CustomIcon.CHEVRONS_RIGHT, "下一片", self)
+        # self.prev_slice_button = PushButton(CustomIcon.CHEVRONS_LEFT, "上一片", self)
+        # self.next_slice_button = PushButton(CustomIcon.CHEVRONS_RIGHT, "下一片", self)
         
         # --- 自动选项设置卡 ---
         self.auto_recognize_card = SwitchSettingCard(
@@ -85,14 +85,11 @@ class NavigationControlCard(QWidget):
         action_button_layout.addWidget(self.adaptive_slicing_checkbox, 2)
         action_button_layout.addStretch(1)
         
-        # 导航行：所有导航按钮
+        # 导航行：重置当前切片按钮
         nav_layout = QHBoxLayout()
         nav_layout.setSpacing(8)
-        nav_layout.addWidget(self.prev_cluster_button)
-        nav_layout.addWidget(self.next_cluster_button)
-        nav_layout.addWidget(self.prev_slice_button)
-        nav_layout.addWidget(self.next_slice_button)
         nav_layout.addWidget(self.reset_cur_slice_button)
+        nav_layout.addStretch(1)
 
         main_layout.addLayout(action_button_layout)
         main_layout.addLayout(nav_layout)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QWidget, QLabel, QFileDialog
-from qfluentwidgets import ExpandGroupSettingCard, FluentIcon, PushButton, SwitchButton, IndicatorPosition, qconfig
+from qfluentwidgets import ExpandGroupSettingCard, FluentIcon, PushButton, SwitchButton, IndicatorPosition, CaptionLabel, qconfig
 from app.app_config import appConfig
 
 class ExportOptionCard(ExpandGroupSettingCard):
@@ -56,8 +56,8 @@ class ExportOptionCard(ExpandGroupSettingCard):
             动态添加状态标签到主卡片右侧，并添加内部展开项。
         """
         # 动态添加状态标签到主卡片
-        self.auto_export_status_label = QLabel("已启用自动保存" if appConfig.autoExport.value else "未启用自动保存", self)
-        self.auto_export_status_label.setStyleSheet("color: gray;")
+        self.auto_export_status_label = CaptionLabel("已启用自动保存" if appConfig.autoExport.value else "未启用自动保存", self)
+        # self.auto_export_status_label.setStyleSheet("color: gray;")
         
         # 将标签插入到主卡片(HeaderSettingCard)的水平布局中（放在展开箭头之前）
         self.card.hBoxLayout.insertWidget(self.card.hBoxLayout.count() - 2, self.auto_export_status_label)
@@ -69,8 +69,6 @@ class ExportOptionCard(ExpandGroupSettingCard):
 
         # 展开项 2：自动保存开关
         self.auto_export_switch = SwitchButton(parent=self, indicatorPos=IndicatorPosition.RIGHT)
-        # self.auto_export_switch.setOnText("开")
-        # self.auto_export_switch.setOffText("关")
         
         # 根据配置初始化状态
         self.auto_export_switch.setChecked(appConfig.autoExport.value)

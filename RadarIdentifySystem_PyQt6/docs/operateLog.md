@@ -1,5 +1,61 @@
 # 操作日志
 
+## 2026-04-11 17:48
+- 操作类型：UI/修复
+- 影响文件：`resources/images/icons/*.svg` (8个方向箭头文件)、`fix_svgs.py`
+- 变更摘要：更新了用于生成轮廓化多边形的 Python 脚本（`fix_svgs.py`），将其内部预设的 SVG `path d` 属性替换为了使用 `stroke-width=2`（加粗）渲染并重新轮廓化后的多边形数据。重新执行脚本覆盖了原有的 8 个 SVG 图标文件。
+- 原因：由于上一步将线条描边（stroke）转化为多边形填充（fill）时，采用了标准的 1.5 像素粗细，导致在特定的 DPI 缩放或渲染引擎下，视觉上显得过于单薄和纤细。本次将其重新按照加粗样式（相当于 stroke-width=2.0）进行几何换算，以增强透明按钮图标的视觉存在感。
+- 测试状态：请确保执行了资源重编译（如 `pyrcc` 或 `pyside6-rcc`）后测试
+
+## 2026-04-11 17:42
+- 操作类型：UI/修复
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：在透明图标按钮的实例化代码中，使用了 `CustomIcon.xxx.colored(themeColor(), QColor("white"))` 替代了之前的 `.icon(color=...)` 或默认枚举引用。
+- 原因：用户提出在深色模式下图标不应该继续保持主题色，而应该恢复成白色的需求。`PyQt6-Fluent-Widgets` 的 `FluentIconBase` 提供了 `.colored(lightColor, darkColor)` 方法，它专门用于生成在浅色模式和深色模式下分别呈现不同自定义颜色的自适应图标 (`ColoredFluentIcon`)。如此配置后，浅色模式下图标呈现主题色，深色模式下自动变为纯白色，实现了完美的视觉平衡。
+- 测试状态：待手动测试验证
+
+## 2026-04-11 17:35
+- 操作类型：UI/修复
+- 影响文件：`resources/images/icons/*.svg` (8个方向箭头文件)、`ui/interfaces/slice_interface.py`
+- 变更摘要：编写 Python 脚本将 `ChevronLeft`、`ChevronRight`、`ChevronsLeft`、`ChevronsRight` 这 8 个（包含黑白模式）由于原先使用 `<path stroke="#000000" />` 绘制的 Lucide 开放线条 SVG 文件，重写为等效的 `<path fill="#000000" />` （轮廓化描边后的多边形填充格式）。并在 UI 代码中重新启用了 `.icon(color=themeColor())`。
+- 原因：用户希望这些透明按钮的图标能响应全局的主题色。由于 `qfluentwidgets` 底层 `SvgIconEngine` 的机制是暴力替换 `fill` 属性，对于仅使用 `stroke`（线条）绘制的 SVG，它会错误地填充线条闭合的内部区域。为了迎合该机制，将图标源文件“轮廓化”（Stroke to Path），使得原本的线条本身变成实心多边形，从而完美支持 `qfluentwidgets` 的 `color` 滤镜渲染。
+- 测试状态：请确保执行了资源重编译（如 `pyrcc` 或 `pyside6-rcc`）后测试
+
+## 2026-04-11 17:22
+- 操作类型：UI/修复
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：撤销了上一版本中对 `CustomIcon` 使用 `color=themeColor()` 的着色操作。将四个翻页按钮的图标重新恢复为默认的 `CustomIcon.xxx`。
+- 原因：用户反馈使用 `.icon(color=...)` 后，SVG 图标不仅线条颜色没变，反而出现了区域填充的问题，且失去了跟随系统深浅色主题自动切换颜色的能力。这是因为 `qfluentwidgets` 的图标着色机制通常依赖特定的 SVG 内部结构（如特定的 `path fill` 属性）。我们现有的 `CustomIcon` 已经通过枚举重写了 `path()` 方法，内部直接加载了预先画好的黑/白两个物理 `.svg` 文件，自带完美的主题切换能力。强行加 `color` 滤镜反而会破坏这种机制，故予以回退。
+- 测试状态：待手动测试验证
+
+## 2026-04-11 17:15
+- 操作类型：UI/重构
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：在实例化四个 `TransparentToolButton` 翻页按钮时，通过调用 `CustomIcon.xxx.icon(color=themeColor())`，将原先黑白配色的默认图标渲染为了当前应用配置的全局主题色（Theme Color）。
+- 原因：用户希望标题两侧的翻页控制按钮更加醒目并融入主题系统。`qfluentwidgets` 的枚举图标底层支持在生成 `QIcon` 时通过 `color` 参数进行染色，直接应用 `themeColor()` 可以完美使图标颜色与软件的 Primary 按钮以及高亮色保持绝对一致。
+- 测试状态：待手动测试验证
+
+## 2026-04-11 17:08
+- 操作类型：UI/重构
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：调整了切片和类别标题两侧的 `TransparentToolButton` 尺寸。将按钮的固定大小（FixedSize）设为 25×25，并将内部图标大小（IconSize）设为 20×20。
+- 原因：根据用户反馈，默认的透明按钮和图标尺寸可能偏大，影响标题区域的紧凑和精致感。通过显式限制组件库图标按钮的长宽像素，使其在布局中显得更加协调与秀气。
+- 测试状态：待手动测试验证
+
+## 2026-04-11 17:02
+- 操作类型：UI/重构
+- 影响文件：`ui/interfaces/slice_interface.py`
+- 变更摘要：在标题两侧的透明翻页按钮上，补充了组件库专属的 `ToolTipFilter`（悬浮提示过滤器），并设置了 `ToolTipPosition.TOP`（顶部显示）和 1000ms 的悬浮延迟显示。
+- 原因：原先直接使用的 `setToolTip()` 只会触发 Qt 原生的系统级黑底/白底悬浮提示，不符合 Fluent Design 规范。引入 `ToolTipFilter` 可使其悬浮提示变为带有圆角、阴影及半透明效果的现代样式，保持全应用 UI 风格的一致性。
+- 测试状态：待手动测试验证
+
+## 2026-04-11 16:58
+- 操作类型：UI/重构
+- 影响文件：`ui/components/navigation_control_card.py`、`ui/interfaces/slice_interface.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：在 `newUI` 分支上对切片处理界面的导航控件进行了结构调整。删除了 `navigation_control_card.py` 中底部的“上一片/下一片”、“上一类/下一类”等按钮；在 `slice_interface.py` 中，为左侧切片标题和中间类别标题的两侧分别添加了基于组件库 `TransparentToolButton` 的透明图标按钮（使用现有的 `CustomIcon` 方向箭头）；并在 `slice_controller.py` 中重新绑定了这四个新按钮的占位点击事件。
+- 原因：根据用户需求，将切换片和类别的操作入口从右侧面板底部直接移动到对应的展示区标题两侧，不仅使右侧操作面板更加精简，也使得用户的视觉焦点更集中，操作更直观（“所见即所控”）。透明按钮在常态下无背景，完美融入标题栏的视觉效果中。
+- 测试状态：待手动测试验证
+
 ## 2026-04-11 16:45
 - 操作类型：新增文档
 - 影响文件：`docs/多页面多模型架构设计指南.md`

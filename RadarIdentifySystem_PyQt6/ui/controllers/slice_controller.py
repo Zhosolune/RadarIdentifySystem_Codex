@@ -54,6 +54,12 @@ class SliceController(QObject):
 
         # 绑定按钮点击事件
         self.view.navigation_control_card.start_slicing_button.clicked.connect(self.handle_slice)
+        
+        # 绑定标题旁边的透明导航按钮
+        self.view.prev_slice_button.clicked.connect(lambda: print("上一片点击"))
+        self.view.next_slice_button.clicked.connect(lambda: print("下一片点击"))
+        self.view.prev_cluster_button.clicked.connect(lambda: print("上一类点击"))
+        self.view.next_cluster_button.clicked.connect(lambda: print("下一类点击"))
 
         # 绑定全局生命周期信号与数据就绪信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
