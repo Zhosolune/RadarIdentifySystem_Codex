@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QRectF
-from PyQt6.QtGui import QPixmap, QPainter, QPainterPath
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QPainterPath
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
 from qfluentwidgets import SimpleCardWidget
 
@@ -13,6 +13,7 @@ class RoundedImageLabel(QLabel):
 
     功能描述：
         重写绘制事件，利用 QPainterPath 对设置的 QPixmap 进行圆角裁剪与缩放。
+        内置缓存机制与模式适配：根据当前大小和设定的图像拉伸模式预先生成 QPixmap，提升重绘性能。
 
     参数说明：
         radius (int): 圆角半径，默认值为 4。
@@ -29,75 +30,81 @@ class RoundedImageLabel(QLabel):
         """初始化圆角图像标签。
 
         功能描述：
-            设置圆角半径并初始化内部 pixmap 引用。
+            设置圆角半径并初始化内部图像引用。
 
         参数说明：
             radius (int): 圆角半径，默认值为 4。
             parent (QWidget | None): 父级控件，默认值为 None。
-
-        返回值说明：
-            None: 无返回值。
-
-        异常说明：
-            无。
         """
         super().__init__(parent)
         self._radius = radius
-        self._pixmap: QPixmap | None = None
+        self._source_image: QImage | None = None
+        self._cached_pixmap: QPixmap | None = None
 
-    def setPixmap(self, pixmap: QPixmap) -> None:
-        """设置图像并触发重绘。
+    def set_image(self, image: QImage) -> None:
+        """设置源图像并触发更新。
 
         功能描述：
-            保存图像引用并通知控件更新显示。
+            保存源图像的深拷贝，并根据当前控件尺寸重新计算缓存图像。
 
         参数说明：
-            pixmap (QPixmap): 要显示的图像对象。
-
-        返回值说明：
-            None: 无返回值。
-
-        异常说明：
-            无。
+            image (QImage): 源图像。
         """
-        self._pixmap = pixmap
+        self._source_image = image.copy()
+        self._update_scaled_pixmap()
+
+    def resizeEvent(self, event) -> None:
+        """窗口尺寸变化事件。
+
+        功能描述：
+            尺寸改变时重新计算拉伸后的缓存图像。
+        """
+        super().resizeEvent(event)
+        self._update_scaled_pixmap()
+
+    def update_image_mode(self) -> None:
+        """主动触发缓存图像更新（供外部配置变更时调用）。"""
+        self._update_scaled_pixmap()
+
+    def _update_scaled_pixmap(self) -> None:
+        """内部方法：根据当前缩放模式生成尺寸完全匹配的 QPixmap 缓存。"""
+        if self._source_image is None or self._source_image.isNull():
+            return
+            
+        if self.width() <= 0 or self.height() <= 0:
+            return
+            
+        from ui.adapters.image_scaler import apply_scale_mode
+        from app.app_config import appConfig
+        
+        mode = appConfig.plotScaleMode.value
+        scaled_qimage = apply_scale_mode(self._source_image, self.width(), self.height(), mode)
+        self._cached_pixmap = QPixmap.fromImage(scaled_qimage)
         self.update()
 
     def paintEvent(self, event) -> None:
         """绘制带有圆角的图像。
 
         功能描述：
-            如果存在图像，则使用 QPainter 开启抗锯齿并应用圆角裁剪路径后，绘制缩放图像。
+            如果存在缓存图像，则使用 QPainter 开启抗锯齿并应用圆角裁剪路径后，绘制该图像。
+            由于图像已经按尺寸缩放，无需再指定 SmoothPixmapTransform。
 
         参数说明：
             event (QPaintEvent): 绘制事件对象。
-
-        返回值说明：
-            None: 无返回值。
-
-        异常说明：
-            无。
         """
-        if self._pixmap is None or self._pixmap.isNull():
+        if self._cached_pixmap is None or self._cached_pixmap.isNull():
             super().paintEvent(event)
             return
 
         with QPainter(self) as painter:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
             # 构建圆角裁剪路径
             path = QPainterPath()
             path.addRoundedRect(QRectF(self.rect()), self._radius, self._radius)
             painter.setClipPath(path)
 
-            # 缩放并绘制图像
-            scaled_pixmap = self._pixmap.scaled(
-                self.size(),
-                Qt.AspectRatioMode.IgnoreAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            painter.drawPixmap(self.rect(), scaled_pixmap)
+            painter.drawPixmap(self.rect(), self._cached_pixmap)
 
 
 class SliceDimensionCard(QWidget):
@@ -166,14 +173,14 @@ class SliceDimensionCard(QWidget):
 
         self._init_layout()
 
-    def set_image(self, pixmap: QPixmap) -> None:
+    def set_image(self, image: QImage) -> None:
         """设置卡片内的图像。
 
         功能描述：
-            将 QPixmap 图像设置到图片标签中。
+            将 QImage 源图像设置到图片标签中。
 
         参数说明：
-            pixmap (QPixmap): 要显示的图像对象。
+            image (QImage): 要显示的源图像对象。
 
         返回值说明：
             None: 无返回值。
@@ -181,7 +188,11 @@ class SliceDimensionCard(QWidget):
         异常说明：
             无。
         """
-        self.image_label.setPixmap(pixmap)
+        self.image_label.set_image(image)
+
+    def update_image_mode(self) -> None:
+        """更新内部图像标签的拉伸模式。"""
+        self.image_label.update_image_mode()
 
     def _init_layout(self) -> None:
         """初始化组件布局。

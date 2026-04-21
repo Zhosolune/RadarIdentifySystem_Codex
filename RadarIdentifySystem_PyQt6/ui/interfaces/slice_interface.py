@@ -66,6 +66,10 @@ class SliceInterface(QFrame):
         StyleSheet.SLICE_INTERFACE.apply(self)
         qconfig.themeChanged.connect(self._update_icon_colors)
         
+        # 监听绘图拉伸模式变化，以通知子卡片重新拉伸图片
+        from app.app_config import appConfig
+        appConfig.plotScaleMode.valueChanged.connect(self._on_plot_scale_mode_changed)
+        
         # 为了测试新架构，界面持有一个测试用的 Session 引用
         self._test_session = ProcessingSession()
         
@@ -106,9 +110,7 @@ class SliceInterface(QFrame):
         right_column.setFixedWidth(580)
 
     def _update_icon_colors(self) -> None:
-        """切换图标主题色
-
-        """
+        """当主题切换时，重新获取当前正确的 themeColor 并应用"""
         light_color = themeColor()
         dark_color = QColor("white")
 
@@ -117,6 +119,18 @@ class SliceInterface(QFrame):
         self.next_slice_button.setIcon(CustomIcon.CHEVRONS_RIGHT.colored(light_color, dark_color))
         self.prev_cluster_button.setIcon(CustomIcon.CHEVRON_LEFT.colored(light_color, dark_color))
         self.next_cluster_button.setIcon(CustomIcon.CHEVRON_RIGHT.colored(light_color, dark_color))
+
+    def _on_plot_scale_mode_changed(self, mode: str) -> None:
+        """当绘图拉伸模式变更时，触发所有显示图片的重绘。"""
+        cards = [
+            self.original_cf_card, self.original_pw_card, self.original_pa_card,
+            self.original_dtoa_card, self.original_doa_card,
+            self.cluster_cf_card, self.cluster_pw_card, self.cluster_pa_card,
+            self.cluster_dtoa_card, self.cluster_doa_card,
+        ]
+        for card in cards:
+            if hasattr(card, "update_image_mode"):
+                card.update_image_mode()
 
     def _create_left_column(self) -> QWidget:
         """创建左侧列容器。

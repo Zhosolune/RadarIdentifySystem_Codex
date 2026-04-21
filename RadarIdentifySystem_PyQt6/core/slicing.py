@@ -23,7 +23,7 @@ import logging
 import numpy as np
 
 from core.models.pulse_batch import COL_TOA
-from core.models.slice_result import PreprocessResult, SliceResult
+from core.models.slice_result import PreprocessResult, SliceResult, SingleSlice
 
 # 日志器
 LOGGER = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def slice_by_toa(
     # 空数据直接返回
     if len(data) == 0:
         LOGGER.warning("slice_by_toa: 接收到空数据，返回空切片结果")
-        return SliceResult(slices=[], time_ranges=[], slice_length_ms=slice_length_ms)
+        return SliceResult(slices=[], slice_length_ms=slice_length_ms)
 
     # 提取 TOA 列
     toa_values = data[:, toa_col]
@@ -93,8 +93,8 @@ def slice_by_toa(
     if len(boundaries) < 2:
         boundaries = np.array([t_min, t_min + slice_length_ms])
 
-    slices: list[np.ndarray] = []
-    time_ranges: list[tuple[float, float]] = []
+    slices: list[SingleSlice] = []
+    slice_index = 0
 
     # 遍历相邻边界对，提取各窗口内的脉冲
     for i in range(len(boundaries) - 1):
@@ -109,8 +109,12 @@ def slice_by_toa(
         if len(current_slice) == 0:
             continue
 
-        slices.append(current_slice)
-        time_ranges.append((start_ms, end_ms))
+        slices.append(SingleSlice(
+            index=slice_index,
+            data=current_slice,
+            time_range=(start_ms, end_ms)
+        ))
+        slice_index += 1
 
     LOGGER.info(
         "slice_by_toa: 切片完成，有效切片 %d 个（跳过空切片 %d 个）",
@@ -120,7 +124,6 @@ def slice_by_toa(
 
     return SliceResult(
         slices=slices,
-        time_ranges=time_ranges,
         slice_length_ms=slice_length_ms,
     )
 

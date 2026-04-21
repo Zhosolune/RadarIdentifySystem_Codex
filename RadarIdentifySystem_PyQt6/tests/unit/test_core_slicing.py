@@ -24,7 +24,7 @@ import numpy as np
 from core.data.slicing import slice_by_toa, slice_from_preprocess
 from core.data.preprocess import preprocess
 from core.models.pulse_batch import COL_TOA
-from core.models.slice_result import SliceResult
+from core.models.slice_result import SliceResult, SingleSlice
 
 
 # -------------------------------------------------------------------
@@ -53,7 +53,6 @@ def test_slice_empty_data():
     result = slice_by_toa(data)
     assert result.slice_count == 0
     assert len(result.slices) == 0
-    assert len(result.time_ranges) == 0
 
 
 def test_slice_single_pulse():
@@ -69,7 +68,9 @@ def test_slice_all_in_one_window():
     data = _make_data_with_toa(toa)
     result = slice_by_toa(data, slice_length_ms=250.0)
     assert result.slice_count == 1
-    assert len(result.slices[0]) == 5
+    assert len(result.slices[0].data) == 5
+    assert result.slices[0].time_range == (0.0, 250.0)
+    assert result.slices[0].index == 0
 
 
 def test_slice_two_windows():
@@ -78,8 +79,12 @@ def test_slice_two_windows():
     data = _make_data_with_toa(toa)
     result = slice_by_toa(data, slice_length_ms=250.0)
     assert result.slice_count == 2
-    assert len(result.slices[0]) == 2, "第1片应有2条脉冲"
-    assert len(result.slices[1]) == 2, "第2片应有2条脉冲"
+    assert len(result.slices[0].data) == 2, "第1片应有2条脉冲"
+    assert len(result.slices[1].data) == 2, "第2片应有2条脉冲"
+    assert result.slices[0].time_range == (0.0, 250.0)
+    assert result.slices[1].time_range == (250.0, 500.0)
+    assert result.slices[0].index == 0
+    assert result.slices[1].index == 1
 
 
 def test_slice_skip_empty_window():
@@ -89,6 +94,10 @@ def test_slice_skip_empty_window():
     data = _make_data_with_toa(toa)
     result = slice_by_toa(data, slice_length_ms=250.0)
     assert result.slice_count == 2, f"中间空窗口应被跳过，期望 2 片，实际 {result.slice_count}"
+    assert result.slices[0].time_range == (0.0, 250.0)
+    assert result.slices[1].time_range == (500.0, 750.0)
+    assert result.slices[0].index == 0
+    assert result.slices[1].index == 1
 
 
 def test_slice_time_ranges_align_with_slices():
@@ -134,16 +143,7 @@ def test_slice_total_pulses_preserved():
     assert total_in_slices == 200, f"期望 200 条脉冲，实际 {total_in_slices}"
 
 
-def test_slice_result_post_init_consistency():
-    """SliceResult 在 slices/time_ranges 长度不一致时抛出 ValueError。"""
-    try:
-        bad = SliceResult(
-            slices=[np.empty((1, 5))],
-            time_ranges=[(0, 250), (250, 500)],  # 长度不一致
-        )
-        assert False, "应抛出 ValueError"
-    except ValueError:
-        pass  # 预期行为
+
 
 
 # -------------------------------------------------------------------

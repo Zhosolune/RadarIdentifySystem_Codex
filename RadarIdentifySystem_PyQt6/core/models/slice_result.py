@@ -49,49 +49,53 @@ class PreprocessResult:
 
 
 @dataclass
+class SingleSlice:
+    """单个切片数据容器。
+
+    功能描述：
+        存储单个切片的数据矩阵及其对应的时间范围与索引信息。
+
+    属性：
+        index (int): 切片在全局切片序列中的索引下标。
+        data (np.ndarray): 本切片包含的脉冲数据，shape=(K, 5)。
+        time_range (tuple[float, float]): 本切片的时间跨度 (start_ms, end_ms)。
+    """
+
+    index: int
+    data: np.ndarray
+    time_range: tuple[float, float]
+
+    @property
+    def pulse_count(self) -> int:
+        """获取本切片的脉冲数量。
+
+        返回值说明：
+            int: 脉冲数。
+        """
+        return len(self.data)
+
+
+@dataclass
 class SliceResult:
-    """切片结果。
+    """切片结果集。
 
     功能描述：
         存储 slicing.py 对预处理数据完成时间维度切片后的结果集。
-        slices 与 time_ranges 严格按索引对应，不包含空切片。
+        内部通过 SingleSlice 对象列表来维护切片序列。
 
     属性：
-        slices (list[np.ndarray]): 每个切片的脉冲数据数组列表，元素 shape=(K, 5)。
-        time_ranges (list[tuple[float, float]]): 与 slices 一一对应的时间区间列表，
-            每元素为 (start_ms, end_ms)。
+        slices (list[SingleSlice]): 切片对象列表。
         slice_length_ms (float): 本次切片所用的时间窗口长度（ms）。
-
-    参数说明：
-        slices: 切片数据列表，默认空列表。
-        time_ranges: 时间区间列表，默认空列表。
-        slice_length_ms: 切片步长，默认 250.0 ms。
     """
 
-    slices: list[np.ndarray] = field(default_factory=list)
-    time_ranges: list[tuple[float, float]] = field(default_factory=list)
+    slices: list[SingleSlice] = field(default_factory=list)
     slice_length_ms: float = 250.0
 
     @property
     def slice_count(self) -> int:
-        """实际有效切片数量（等于 slices 列表长度）。
+        """实际有效切片数量。
 
         返回值说明：
             int: 切片总数。
         """
         return len(self.slices)
-
-    def __post_init__(self) -> None:
-        """校验 slices 与 time_ranges 长度一致性。
-
-        功能描述：
-            防止索引错位导致下游访问越界。
-
-        异常说明：
-            ValueError: slices 与 time_ranges 长度不一致时抛出。
-        """
-        if len(self.slices) != len(self.time_ranges):
-            raise ValueError(
-                f"SliceResult.slices 长度 ({len(self.slices)}) "
-                f"与 time_ranges 长度 ({len(self.time_ranges)}) 不一致"
-            )

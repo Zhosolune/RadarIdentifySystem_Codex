@@ -1,5 +1,33 @@
 # 操作日志
 
+## 2026-04-21 17:50
+- 操作类型：重构/移动
+- 影响文件：`infra/plotting/image_scaler.py` -> `ui/adapters/image_scaler.py`、`ui/components/slice_dimension_card.py`
+- 变更摘要：将 `image_scaler.py` 从 `infra/plotting/` 移动到了新创建的 `ui/adapters/` 目录下，并更新了导入路径。
+- 原因：重新审视了分层架构契约（`ui -> runtime -> infra`）。`image_scaler.py` 本质上是一个纯粹的 Qt 视图渲染辅助函数，用于解决 UI 控件放大时的显示效果，不涉及底层基础设施，因此放在 `infra` 层违反了 UI 不能直接依赖 Infra 的契约。为了遵守严格分层，且避免使用容易引起层级混淆的 `ui/utils`，采纳了用户建议的 `adapters`（适配器）概念，将其归类为 UI 层的专属显示适配工具。
+- 测试状态：待手动测试验证
+
+## 2026-04-21 17:45
+- 操作类型：重构/移动
+- 影响文件：`ui/utils/image_scaler.py` -> `infra/plotting/image_scaler.py`、`ui/components/slice_dimension_card.py`
+- 变更摘要：响应用户反馈，将用于处理图像拉伸与插值算法的 `image_scaler.py` 模块从 `ui/utils/` 移动到了 `infra/plotting/` 目录下。同时删除了已清空的 `ui/utils` 目录。
+- 原因：考虑到项目中已经存在根级别的 `utils/` 目录，再次创建 `ui/utils/` 容易引起目录层级的混淆。此外，`image_scaler.py` 中虽然处理的是 `QImage` 的渲染逻辑，但其核心本质是基于 NumPy 的图像重采样算法，将其归类为绘图（plotting）基础设施（`infra/plotting`）的一部分在架构上更为合理，能够更好地保持基础设施层的内聚性。
+- 测试状态：待手动测试验证
+
+## 2026-04-21 17:40
+- 操作类型：重构/修复
+- 影响文件：`ui/utils/image_scaler.py`（新增）、`ui/components/slice_dimension_card.py`、`ui/controllers/slice_controller.py`、`ui/interfaces/slice_interface.py`
+- 变更摘要：排查了新架构下绘图模糊的原因，发现是因为 `SliceDimensionCard` 中硬编码了 `SmoothTransformation` (双线性滤波)，导致 1 像素的点被虚化。新建了 `ui/utils/image_scaler.py` 图像拉伸算法模块，将旧版本的三种图像展示方式（STRETCH 原始拉伸、STRETCH_BILINEAR 双线性插值、STRETCH_NEAREST_PRESERVE 最近邻保留）以纯 Python/NumPy 向量化加速的方式移植到了新架构中。同时重构了 `RoundedImageLabel` 以支持内部图片按尺寸和模式进行缓存缩放，并接入了全局配置 `appConfig.plotScaleMode` 实现动态切换。
+- 原因：原先为了支持圆角抗锯齿硬编码了平滑缩放，这会破坏仅有单像素点宽度的离散散点图的可视性（使其模糊）。通过补齐并升级原有的三种自定义缩放算法，兼顾了不同用户的观测需求，并将纯展示逻辑代码收敛到正确的 `ui/utils` 工具目录内。
+- 测试状态：待手动测试验证
+
+## 2026-04-21 17:30
+- 操作类型：重构
+- 影响文件：`core/models/slice_result.py`、`core/slicing.py`、`runtime/threading/slice_worker.py`、`tests/unit/test_core_slicing.py`
+- 变更摘要：重构了切片结果的数据结构。引入了 `SingleSlice` 数据类，用于表示单个切片，包含 `index`（索引）、`data`（脉冲数据）和 `time_range`（时间范围）。`SliceResult` 类现已更新，其 `slices` 属性变更为包含 `SingleSlice` 对象列表，而不再是使用两个平行的 `slices` 和 `time_ranges` 列表。
+- 原因：根据用户需求，将单个切片的数据和元数据（如索引、时间范围）封装到一个内聚的对象 (`SingleSlice`) 中。这种面向对象的设计更符合直觉，提高了代码的可读性和维护性，避免了之前维护两个平行列表时可能出现的索引不一致问题。
+- 测试状态：待手动测试验证
+
 ## 2026-04-11 17:48
 - 操作类型：UI/修复
 - 影响文件：`resources/images/icons/*.svg` (8个方向箭头文件)、`fix_svgs.py`

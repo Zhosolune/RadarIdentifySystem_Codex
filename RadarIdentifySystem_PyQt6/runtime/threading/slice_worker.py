@@ -85,13 +85,12 @@ class SliceWorker(QThread):
             # 3. 如果有切片结果，通知渲染第一张图（默认索引 0）
             if slice_res.slice_count > 0:
                 _LOGGER.info("[session:%s] 开始渲染第 0 个切片", session_id)
-                first_slice_data = slice_res.slices[0]
-                time_range = slice_res.time_ranges[0]
+                first_slice = slice_res.slices[0]
                 
                 image_bundle = render_slice_images(
-                    first_slice_data,
+                    first_slice.data,
                     band=preprocess_res.band,
-                    time_range=time_range,
+                    time_range=first_slice.time_range,
                 )
                 signal_bus.slice_image_ready.emit(session_id, 0, image_bundle)
 

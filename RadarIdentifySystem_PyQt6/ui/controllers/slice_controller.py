@@ -215,4 +215,4 @@ class SliceController(QObject):
                 )
                 
                 # 设置图像到卡片
-                cards[dim_name].set_image(QPixmap.fromImage(q_image))
+                cards[dim_name].set_image(q_image)
