@@ -12,7 +12,7 @@ from core.models.processing_session import ProcessingSession
 from runtime.threading.slice_worker import SliceWorker
 
 
-_LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class SliceWorkflow(QObject):
@@ -51,7 +51,7 @@ class SliceWorkflow(QObject):
             无。如果已经在运行中则直接返回（忽略请求）。
         """
         if self._worker is not None and self._worker.isRunning():
-            _LOGGER.warning("切片工作流正在运行，忽略本次请求")
+            LOGGER.warning("切片工作流正在运行，忽略本次请求", extra={"session_id": session.session_id})
             return
 
         # 发送流程开始全局信号

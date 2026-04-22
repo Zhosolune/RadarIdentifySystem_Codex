@@ -192,7 +192,7 @@ class SettingInterface(ScrollArea):
             # 将新路径写入配置
             qconfig.set(appConfig.logDir, path)
             self._logCard.setLogPath(path)
-            LOGGER.info("日志目录已更新为：%s", path)
+            LOGGER.info("日志目录已更新为：%s", path, extra={"session_id": "-"})
             InfoBar.success("设置成功", "新的日志路径已被保存，将在下次启动时生效。", parent=self.window())
 
     def _on_open_log_path(self) -> None:
@@ -200,21 +200,21 @@ class SettingInterface(ScrollArea):
         log_dir = get_log_dir_path()
         if log_dir.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(log_dir)))
-            LOGGER.info("已打开日志目录：%s", log_dir)
+            LOGGER.info("已打开日志目录：%s", log_dir, extra={"session_id": "-"})
         else:
-            LOGGER.warning("日志目录不存在：%s", log_dir)
+            LOGGER.warning("日志目录不存在：%s", log_dir, extra={"session_id": "-"})
             InfoBar.warning("未找到", f"路径不存在：{log_dir}", parent=self.window())
 
     def _on_clear_logs(self) -> None:
         try:
-            LOGGER.info("开始清理日志，当前运行日志文件：%s", get_current_log_file_path())
+            LOGGER.info("开始清理日志，当前运行日志文件：%s", get_current_log_file_path(), extra={"session_id": "-"})
             count = clear_all_logs()
             if count == 0:
-                LOGGER.info("日志清理完成，无历史日志文件需要删除")
+                LOGGER.info("日志清理完成，无历史日志文件需要删除", extra={"session_id": "-"})
                 InfoBar.success("已清理", "当前没有需要清理的日志文件。", parent=self.window())
             else:
-                LOGGER.info("日志清理完成，删除数量：%s", count)
+                LOGGER.info("日志清理完成，删除数量：%s", count, extra={"session_id": "-"})
                 InfoBar.success("清理完毕", f"共清理了 {count} 个历史日志文件（当次运行日志可能因占用无法删除）。", parent=self.window())
         except Exception as e:
-            LOGGER.exception("清理日志失败：%s", e)
+            LOGGER.exception("清理日志失败：%s", e, extra={"session_id": "-"})
             InfoBar.error("清理异常", str(e), parent=self.window())

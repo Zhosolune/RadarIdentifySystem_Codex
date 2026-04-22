@@ -13,7 +13,7 @@ from core.slicing import slice_by_toa
 from infra.plotting import render_slice_images
 
 
-_LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class SliceWorker(QThread):
@@ -65,26 +65,30 @@ class SliceWorker(QThread):
         """
         session_id = self._session.session_id
         try:
-            # 1. 预处理
+            # 1. 检查数据与预处理结果
             if not self._session.is_imported or self._session.raw_batch is None:
+                LOGGER.error("数据尚未导入，无法切片", extra={"session_id": session_id})
                 raise RuntimeError("数据尚未导入，无法切片")
+                
+            if self._session.preprocess_result is None:
+                LOGGER.error("数据预处理结果缺失，无法切片", extra={"session_id": session_id})
+                raise ValueError("数据预处理结果缺失，无法切片")
 
-            _LOGGER.info("[session:%s] 开始预处理", session_id)
-            preprocess_res = preprocess(self._session.raw_batch.data)
-            self._session.preprocess_result = preprocess_res
+            preprocess_res = self._session.preprocess_result
 
             # 2. 切片
-            _LOGGER.info("[session:%s] 开始切片", session_id)
+            LOGGER.info("开始切片", extra={"session_id": session_id})
             slice_res = slice_by_toa(
                 preprocess_res.data,
                 slice_length_ms=self._slice_length_ms,
+                session_id=session_id,
             )
             self._session.slice_result = slice_res
             self._session.stage = ProcessingStage.SLICED
 
             # 3. 如果有切片结果，通知渲染第一张图（默认索引 0）
             if slice_res.slice_count > 0:
-                _LOGGER.info("[session:%s] 开始渲染第 0 个切片", session_id)
+                LOGGER.info("开始渲染第 0 个切片", extra={"session_id": session_id})
                 first_slice = slice_res.slices[0]
                 
                 image_bundle = render_slice_images(
@@ -97,5 +101,5 @@ class SliceWorker(QThread):
             self.finished_signal.emit(session_id, True, "")
 
         except Exception as e:
-            _LOGGER.error("[session:%s] 切片过程失败: %s", session_id, e, exc_info=True)
+            LOGGER.error("切片过程失败: %s", e, exc_info=True, extra={"session_id": session_id})
             self.finished_signal.emit(session_id, False, str(e))

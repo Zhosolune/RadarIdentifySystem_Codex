@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from core.models.pulse_batch import PulseBatch
+from core.models.pulse_batch import PulseBatch, COL_CF, COL_PW, COL_DOA, COL_PA, COL_TOA
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.preprocess import preprocess
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class ImportWorker(QThread):
@@ -60,7 +60,7 @@ class ImportWorker(QThread):
             将结果赋给 Session，并发送完成信号。
         """
         try:
-            logger.info("开始导入并预处理数据，SessionID=%s", self._session.session_id)
+            LOGGER.info("开始导入并预处理数据", extra={"session_id": self._session.session_id})
             df = pd.read_excel(self._file_path)
             data_tmp = df.values
 
@@ -71,7 +71,14 @@ class ImportWorker(QThread):
             PA = data_tmp[:, 5]
             TOA = data_tmp[:, 7] / 1e4  # 转为 ms
 
-            raw_data = np.column_stack((CF, PW, DOA, PA, TOA))
+            # 构造按照预定义顺序对齐的数组
+            raw_data = np.zeros((len(data_tmp), 5))
+            raw_data[:, COL_CF] = CF
+            raw_data[:, COL_PW] = PW
+            raw_data[:, COL_DOA] = DOA
+            raw_data[:, COL_PA] = PA
+            raw_data[:, COL_TOA] = TOA
+            
             self._session.raw_batch = PulseBatch(raw_data)
 
             # 调用 core 中的预处理纯函数
@@ -79,16 +86,17 @@ class ImportWorker(QThread):
                 data=raw_data,
                 source_path=self._file_path,
                 source_type="excel",
-                slice_length_ms=250.0  # 这里可以使用默认值或从配置读取
+                slice_length_ms=250.0,  # 这里可以使用默认值或从配置读取
+                session_id=self._session.session_id
             )
 
             # 将预处理结果写入 Session
             self._session.preprocess_result = preprocess_res
             self._session.stage = ProcessingStage.IMPORTED
 
-            logger.info("数据导入与预处理完成")
+            LOGGER.info("数据导入与预处理完成", extra={"session_id": self._session.session_id})
             self.finished_signal.emit(self._session.session_id, True, f"导入成功，共 {preprocess_res.total_pulses} 条脉冲")
 
         except Exception as e:
-            logger.error("数据导入失败: %s", str(e))
+            LOGGER.error("数据导入失败: %s", str(e), extra={"session_id": self._session.session_id})
             self.finished_signal.emit(self._session.session_id, False, f"导入失败: {str(e)}")

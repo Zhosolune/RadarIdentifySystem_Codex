@@ -1,5 +1,42 @@
 # 操作日志
 
+## 2026-04-22 09:31
+- 操作类型：修复
+- 影响文件：`runtime/threading/slice_worker.py`、`runtime/threading/import_worker.py`
+- 变更摘要：
+  1. 修复了预处理逻辑在导入和切片流程中被重复执行的问题。移除了 `slice_worker.py` 中重复调用 `preprocess` 的逻辑，直接从 `session.preprocess_result` 中读取之前导入阶段产生的数据。
+  2. 修复了导入工作流中手动硬编码组装 numpy 列索引可能错位的问题。引入 `pulse_batch.py` 中的 `COL_CF`、`COL_PW`、`COL_DOA` 等常量，通过精确的索引赋值保证了基础输入数组的物理顺序正确。
+- 原因：避免性能浪费（预处理是极重的计算）；保证列索引结构的一致性，防止因硬编码 `np.column_stack` 的顺序变化引发下游核心算法的索引越界或读取错列。
+- 测试状态：待手动测试验证
+
+## 2026-04-21 17:55
+- 操作类型：重构
+- 影响文件：`core/preprocess.py`、`core/slicing.py`、`runtime/threading/import_worker.py`、`runtime/threading/slice_worker.py`
+- 变更摘要：为 `core` 层的算法函数（如 `preprocess`、`slice_by_toa`）增加 `session_id: str = "-"` 参数，并在内部日志调用中使用该参数；在 `runtime` 层的 worker 线程调用时显式透传当前会话的 `session_id`。
+- 原因：用户要求在 `core` 中也显示真实的 `session_id`。由于仅传递字符串标识，没有引入对 `ProcessingSession` 对象的反向依赖，因此在保证严格分层的前提下，换取了全链路（从 UI 点击到底层数据切片）高一致性的日志可观测性。
+- 测试状态：已测试（诊断检查通过）
+
+## 2026-04-21 17:48
+- 操作类型：修改
+- 影响文件：`app/logger.py`、`core/preprocess.py`、`core/slicing.py`
+- 变更摘要：日志格式中的 `[file]` 字段切换为项目根相对的点分路径（示例：`runtime.threading.slice_worker`，不含 `.py`）；同时移除 `core` 模块日志消息中重复的函数名前缀（如 `slice_by_toa:`、`preprocess:`）。
+- 原因：按用户要求提升日志可读性，避免函数名在 `[function]` 与 `message` 中重复展示。
+- 测试状态：已测试（诊断检查通过）
+
+## 2026-04-21 17:44
+- 操作类型：修改
+- 影响文件：`app/logger.py`、`core/preprocess.py`、`core/slicing.py`
+- 变更摘要：开始按最新要求调整日志显示字段：`[file]` 改为项目根路径点分格式（无 `.py` 后缀），并清理 message 中重复的函数名前缀。
+- 原因：满足用户对日志可读性的一致性要求，减少冗余信息。
+- 测试状态：待测试
+
+## 2026-04-21 17:22
+- 操作类型：重构
+- 影响文件：`app/logger.py`、`runtime/threading/slice_worker.py`、`runtime/threading/import_worker.py`、`runtime/workflows/import_workflow.py`、`runtime/workflows/slice_workflow.py`、`core/preprocess.py`、`core/slicing.py`、`main.py`、`ui/interfaces/setting_interface.py`
+- 变更摘要：将日志输出统一为 `[date time] [level] [session_id] [file] [function] message`。移除了复杂的拦截式格式化逻辑，改为标准 `logging.Formatter` 固定模板，并逐条修改现有日志调用：在有会话上下文时显式传入 `extra={"session_id": xxx}`，无会话时统一传入 `extra={"session_id": "-"}`。
+- 原因：按用户要求采用“直接改日志语句”的简单方案，保持日志级别全大写，同时仅调整字段顺序并补充 `session_id` 与函数名字段，避免额外隐式拦截带来的维护复杂度。
+- 测试状态：待手动测试验证
+
 ## 2026-04-21 17:50
 - 操作类型：重构/移动
 - 影响文件：`infra/plotting/image_scaler.py` -> `ui/adapters/image_scaler.py`、`ui/components/slice_dimension_card.py`

@@ -32,15 +32,15 @@ def qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: st
         return
         
     if mode == QtMsgType.QtDebugMsg:
-        LOGGER.debug(f"[Qt] {message}")
+        LOGGER.debug(f"[Qt] {message}", extra={"session_id": "-"})
     elif mode == QtMsgType.QtInfoMsg:
-        LOGGER.info(f"[Qt] {message}")
+        LOGGER.info(f"[Qt] {message}", extra={"session_id": "-"})
     elif mode == QtMsgType.QtWarningMsg:
-        LOGGER.warning(f"[Qt] {message}")
+        LOGGER.warning(f"[Qt] {message}", extra={"session_id": "-"})
     elif mode == QtMsgType.QtCriticalMsg:
-        LOGGER.critical(f"[Qt] {message}")
+        LOGGER.critical(f"[Qt] {message}", extra={"session_id": "-"})
     elif mode == QtMsgType.QtFatalMsg:
-        LOGGER.fatal(f"[Qt] {message}")
+        LOGGER.fatal(f"[Qt] {message}", extra={"session_id": "-"})
 
 def exception_hook(exctype, value, tb):
     """
@@ -48,7 +48,7 @@ def exception_hook(exctype, value, tb):
     Logs the full traceback and shows a critical error message box if on the main thread.
     """
     error_msg = "".join(traceback.format_exception(exctype, value, tb))
-    LOGGER.critical("Uncaught exception:\n%s", error_msg)
+    LOGGER.critical("Uncaught exception:\n%s", error_msg, extra={"session_id": "-"})
 
     # Show error message to user only if we are in the main thread
     from PyQt6.QtCore import QThread
@@ -72,9 +72,9 @@ def main() -> None:
     sys.excepthook = exception_hook
     qInstallMessageHandler(qt_message_handler)
 
-    LOGGER.info("=========================================")
-    LOGGER.info("RadarIdentifySystem Starting...")
-    LOGGER.info("当前运行日志文件：%s", get_current_log_file_path())
+    LOGGER.info("=========================================", extra={"session_id": "-"})
+    LOGGER.info("RadarIdentifySystem Starting...", extra={"session_id": "-"})
+    LOGGER.info("当前运行日志文件：%s", get_current_log_file_path(), extra={"session_id": "-"})
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough

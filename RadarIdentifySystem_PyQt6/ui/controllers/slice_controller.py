@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import logging
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage, QPixmap
 from qfluentwidgets import InfoBar, InfoBarPosition
@@ -16,6 +17,7 @@ from ui.dialogs.processing_dialog import ProcessingDialog
 if TYPE_CHECKING:
     from ui.interfaces.slice_interface import SliceInterface
 
+LOGGER = logging.getLogger(__name__)
 
 class SliceController(QObject):
     """切片流程控制器。
@@ -103,7 +105,7 @@ class SliceController(QObject):
         # 也可以结合全局配置（此处暂存打印）
         from app.app_config import appConfig
         checkbox_adaptive = appConfig.autoRecognizeNextSlice.value
-        print(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {checkbox_adaptive}")
+        LOGGER.info(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {checkbox_adaptive}")
 
         # 更新按钮状态
         self.view.navigation_control_card.start_slicing_button.setEnabled(False)

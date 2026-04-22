@@ -56,7 +56,7 @@ _BAND_DEFAULT = "X波段"
 # 公开纯函数
 # -------------------------------------------------------------------
 
-def clean_pa(data: np.ndarray, pa_col: int = COL_PA) -> np.ndarray:
+def clean_pa(data: np.ndarray, pa_col: int = COL_PA, session_id: str = "-") -> np.ndarray:
     """剔除 PA 列等于 255 的无效脉冲行。
 
     功能描述：
@@ -66,6 +66,7 @@ def clean_pa(data: np.ndarray, pa_col: int = COL_PA) -> np.ndarray:
     参数说明：
         data (np.ndarray): shape=(N, 5) 的脉冲数据数组（操作在副本上进行）。
         pa_col (int): PA 列的列索引，默认 COL_PA=3。
+        session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
         np.ndarray: 剔除无效行后的新数组，shape=(M, 5)，M <= N。
@@ -83,7 +84,7 @@ def clean_pa(data: np.ndarray, pa_col: int = COL_PA) -> np.ndarray:
     cleaned = data[valid_mask]
     removed = len(data) - len(cleaned)
     if removed > 0:
-        LOGGER.info("clean_pa: 剔除 PA=255 无效脉冲 %d 条，剩余 %d 条", removed, len(cleaned))
+        LOGGER.info("剔除 PA=255 无效脉冲 %d 条，剩余 %d 条", removed, len(cleaned), extra={"session_id": session_id})
     return cleaned
 
 
@@ -91,6 +92,7 @@ def fix_toa_flip(
     data: np.ndarray,
     toa_col: int = COL_TOA,
     flip_threshold: float = _TOA_FLIP_THRESHOLD,
+    session_id: str = "-",
 ) -> tuple[np.ndarray, int]:
     """修正 TOA 时间轴翻折（计数器溢出回绕）。
 
@@ -110,6 +112,7 @@ def fix_toa_flip(
         data (np.ndarray): shape=(N, 5) 的脉冲数据数组（不修改原数组）。
         toa_col (int): TOA 列的列索引，默认 COL_TOA=4。
         flip_threshold (float): 差分阈值（ms），低于此值判定为翻折，默认 -6e4。
+        session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
         tuple[np.ndarray, int]:
@@ -134,7 +137,7 @@ def fix_toa_flip(
     flip_count = len(flip_indices)
 
     if flip_count > 0:
-        LOGGER.warning("fix_toa_flip: 检测到 %d 个时间翻折点，开始修正", flip_count)
+        LOGGER.warning("检测到 %d 个时间翻折点，开始修正", flip_count, extra={"session_id": session_id})
         for idx in flip_indices:
             # delta = 翻折前最后一个值 - 翻折后第一个值（正数，代表需要叠加的偏移量）
             delta = time_data[idx] - time_data[idx + 1]
@@ -143,13 +146,13 @@ def fix_toa_flip(
         # 时间轴归零：减去第一个脉冲的 TOA
         time_data -= time_data[0]
         result[:, toa_col] = time_data
-        LOGGER.info("fix_toa_flip: TOA 修正完成，新时间范围 [%.2f, %.2f] ms",
-                     float(time_data[0]), float(time_data[-1]))
+        LOGGER.info("TOA 修正完成，新时间范围 [%.2f, %.2f] ms",
+                     float(time_data[0]), float(time_data[-1]), extra={"session_id": session_id})
 
     return result, flip_count
 
 
-def detect_band(data: np.ndarray, cf_col: int = COL_CF) -> str | None:
+def detect_band(data: np.ndarray, cf_col: int = COL_CF, session_id: str = "-") -> str | None:
     """根据 CF 列均值推断频段名称。
 
     功能描述：
@@ -163,6 +166,7 @@ def detect_band(data: np.ndarray, cf_col: int = COL_CF) -> str | None:
     参数说明：
         data (np.ndarray): shape=(N, 5) 的脉冲数据数组。
         cf_col (int): CF 列的列索引，默认 COL_CF=0。
+        session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
         str | None: 频段名称；数据为空或 CF < 1000 时返回 None。
@@ -177,11 +181,11 @@ def detect_band(data: np.ndarray, cf_col: int = COL_CF) -> str | None:
         )
 
     if len(data) == 0:
-        LOGGER.debug("detect_band: 数据为空，返回 None")
+        LOGGER.debug("数据为空，返回 None", extra={"session_id": session_id})
         return None
 
     cf_mean = float(np.mean(data[:, cf_col]))
-    LOGGER.debug("detect_band: CF 均值 = %.2f MHz", cf_mean)
+    LOGGER.debug("CF 均值 = %.2f MHz", cf_mean, extra={"session_id": session_id})
 
     # 按升序阈值依次判断
     for threshold, band_name in _BAND_THRESHOLDS:
@@ -199,6 +203,7 @@ def preprocess(
     toa_col: int = COL_TOA,
     pa_col: int = COL_PA,
     cf_col: int = COL_CF,
+    session_id: str = "-",
 ) -> PreprocessResult:
     """组合预处理步骤，返回 PreprocessResult。
 
@@ -221,6 +226,7 @@ def preprocess(
         toa_col (int): TOA 列索引，默认 COL_TOA=4。
         pa_col (int): PA 列索引，默认 COL_PA=3。
         cf_col (int): CF 列索引，默认 COL_CF=0。
+        session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
         PreprocessResult: 预处理结果数据对象。
@@ -228,17 +234,17 @@ def preprocess(
     异常说明：
         ValueError: data 不符合 shape=(N, 5) 要求时，由内部函数抛出。
     """
-    LOGGER.info("preprocess: 开始预处理，来源=%s type=%s 行数=%d",
-                 source_path, source_type, len(data))
+    LOGGER.info("开始预处理，来源=%s type=%s 行数=%d",
+                 source_path, source_type, len(data), extra={"session_id": session_id})
 
     total_pulses = len(data)
 
     # 步骤 1: 剔除无效 PA
-    cleaned = clean_pa(data, pa_col=pa_col)
+    cleaned = clean_pa(data, pa_col=pa_col, session_id=session_id)
     filtered_pulses = total_pulses - len(cleaned)
 
     # 步骤 2: 修正 TOA 翻折
-    fixed, flip_count = fix_toa_flip(cleaned, toa_col=toa_col)
+    fixed, flip_count = fix_toa_flip(cleaned, toa_col=toa_col, session_id=session_id)
 
     # 步骤 3: 计算时间跨度与预计切片数
     if len(fixed) > 0:
@@ -252,12 +258,13 @@ def preprocess(
         estimated_slice_count = 0
 
     # 步骤 4: 推断频段
-    band = detect_band(fixed, cf_col=cf_col) if len(fixed) > 0 else None
+    band = detect_band(fixed, cf_col=cf_col, session_id=session_id) if len(fixed) > 0 else None
 
     LOGGER.info(
-        "preprocess: 完成。总数=%d 剔除=%d 翻折点=%d 时间跨度=%.2f ms 估算切片=%d 频段=%s",
+        "预处理完成。总数=%d 剔除=%d 翻折点=%d 时间跨度=%.2f ms 估算切片=%d 频段=%s",
         total_pulses, filtered_pulses, flip_count,
         time_range_ms, estimated_slice_count, band,
+        extra={"session_id": session_id},
     )
 
     return PreprocessResult(

@@ -11,7 +11,7 @@ from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from runtime.threading.import_worker import ImportWorker
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class ImportWorkflow(QObject):
@@ -50,7 +50,7 @@ class ImportWorkflow(QObject):
         if self._worker is not None and self._worker.isRunning():
             raise RuntimeError("正在导入中，无法启动新任务")
 
-        logger.info("启动导入工作流: %s", session.session_id)
+        LOGGER.info("启动导入工作流", extra={"session_id": session.session_id})
         signal_bus.stage_started.emit(session.session_id, "importing")
 
         self._worker = ImportWorker(session, file_path, parent=self)
@@ -68,7 +68,7 @@ class ImportWorkflow(QObject):
             success (bool): 是否成功。
             message (str): 结果信息。
         """
-        logger.info("导入工作流完成: %s - %s", session_id, message)
+        LOGGER.info("导入工作流完成: %s", message, extra={"session_id": session_id})
 
         if success:
             signal_bus.stage_finished.emit(session_id, "importing")

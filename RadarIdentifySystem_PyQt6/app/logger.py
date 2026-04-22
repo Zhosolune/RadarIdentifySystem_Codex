@@ -1,4 +1,4 @@
-﻿"""应用日志管理模块。"""
+"""应用日志管理模块。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,66 @@ _DEFAULT_LOG_DIR: Final[Path] = Path.home() / ".RadarIdentifySystem" / "logs"
 _RUN_TIMESTAMP: Final[str] = datetime.now().strftime("%y%m%d_%H%M%S")
 _RUN_LOG_FILE_NAME: Final[str] = f"RadarIdentifySystem_run_{_RUN_TIMESTAMP}.log"
 _CURRENT_LOG_FILE_PATH: Optional[Path] = None
-_LOGGER = logging.getLogger(__name__)
+_PROJECT_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
+LOGGER = logging.getLogger(__name__)
+
+
+def _build_module_path(file_path: str) -> str:
+    """构建点分模块路径。
+
+    功能描述：
+        将日志记录的绝对文件路径转换为“项目根相对路径 + 点分连接”的显示格式，
+        并移除 `.py` 后缀。
+
+    参数说明：
+        file_path (str): 日志记录中的源文件绝对路径。
+
+    返回值说明：
+        str: 点分模块路径字符串。
+
+    异常说明：
+        无。
+    """
+
+    # 解析当前记录文件路径
+    path = Path(file_path).resolve()
+    try:
+        # 计算项目根相对路径
+        relative_path = path.relative_to(_PROJECT_ROOT)
+    except ValueError:
+        # 回退为文件名路径
+        relative_path = Path(path.name)
+
+    # 移除 .py 后缀并转为点分表示
+    return ".".join(relative_path.with_suffix("").parts)
+
+
+class RuntimeContextFilter(logging.Filter):
+    """日志上下文补全过滤器。"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """补全日志上下文字段。
+
+        功能描述：
+            为每条日志补全 `session_id` 与 `module_path` 字段，避免格式化时报错，
+            并统一文件路径显示格式。
+
+        参数说明：
+            record (logging.LogRecord): 原始日志记录对象。
+
+        返回值说明：
+            bool: 始终返回 True，表示允许输出。
+
+        异常说明：
+            无。
+        """
+
+        # 补全缺省会话标识
+        if not hasattr(record, "session_id"):
+            record.session_id = "-"
+        # 写入点分文件路径
+        record.module_path = _build_module_path(record.pathname)
+        return True
 
 
 def get_log_dir_path(log_dir: str | Path | None = None) -> Path:
@@ -80,9 +139,10 @@ def configure_logging(log_dir: str | Path | None = None) -> Path:
 
     log_file = build_run_log_file_path(log_dir)
     formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        fmt="[%(asctime)s] [%(levelname)s] [%(session_id)s] [%(module_path)s] [%(funcName)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    context_filter = RuntimeContextFilter()
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
@@ -90,9 +150,11 @@ def configure_logging(log_dir: str | Path | None = None) -> Path:
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
+    stream_handler.addFilter(context_filter)
 
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setFormatter(formatter)
+    file_handler.addFilter(context_filter)
 
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(file_handler)
@@ -157,6 +219,6 @@ def clear_all_logs(log_dir: str | Path | None = None) -> int:
             os.remove(log_file)
             count += 1
         except Exception as e:
-            _LOGGER.error("删除日志文件失败：%s，错误：%s", log_file, e)
+            LOGGER.error("删除日志文件失败：%s，错误：%s", log_file, e, extra={"session_id": "-"})
 
     return count

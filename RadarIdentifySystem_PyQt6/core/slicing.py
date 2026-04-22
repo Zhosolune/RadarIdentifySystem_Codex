@@ -33,6 +33,7 @@ def slice_by_toa(
     data: np.ndarray,
     slice_length_ms: float = 250.0,
     toa_col: int = COL_TOA,
+    session_id: str = "-",
 ) -> SliceResult:
     """将脉冲数据按 TOA 时间窗口切片。
 
@@ -53,6 +54,7 @@ def slice_by_toa(
         data (np.ndarray): shape=(N, 5) 的预处理后脉冲数组。
         slice_length_ms (float): 时间窗口长度（ms），默认 250.0。
         toa_col (int): TOA 列的列索引，默认 COL_TOA=4。
+        session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
         SliceResult: 包含切片列表与时间范围列表的结果对象。
@@ -72,7 +74,7 @@ def slice_by_toa(
 
     # 空数据直接返回
     if len(data) == 0:
-        LOGGER.warning("slice_by_toa: 接收到空数据，返回空切片结果")
+        LOGGER.warning("接收到空数据，返回空切片结果", extra={"session_id": session_id})
         return SliceResult(slices=[], slice_length_ms=slice_length_ms)
 
     # 提取 TOA 列
@@ -81,8 +83,9 @@ def slice_by_toa(
     t_max = float(np.max(toa_values))
 
     LOGGER.info(
-        "slice_by_toa: 开始切片，时间范围 [%.2f, %.2f] ms，步长 %.1f ms",
+        "开始切片，时间范围 [%.2f, %.2f] ms，步长 %.1f ms",
         t_min, t_max, slice_length_ms,
+        extra={"session_id": session_id},
     )
 
     # 生成切片边界（包含右边 padding 以覆盖最后一条脉冲）
@@ -117,9 +120,10 @@ def slice_by_toa(
         slice_index += 1
 
     LOGGER.info(
-        "slice_by_toa: 切片完成，有效切片 %d 个（跳过空切片 %d 个）",
+        "切片完成，有效切片 %d 个（跳过空切片 %d 个）",
         len(slices),
         (len(boundaries) - 1) - len(slices),
+        extra={"session_id": session_id},
     )
 
     return SliceResult(
@@ -131,6 +135,7 @@ def slice_by_toa(
 def slice_from_preprocess(
     result: PreprocessResult,
     slice_length_ms: float = 250.0,
+    session_id: str = "-",
 ) -> SliceResult:
     """从预处理结果直接切片（便捷包装）。
 
@@ -141,6 +146,7 @@ def slice_from_preprocess(
     参数说明：
         result (PreprocessResult): preprocess() 的返回值。
         slice_length_ms (float): 时间窗口长度（ms），默认 250.0。
+        session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
         SliceResult: 切片结果。
@@ -148,4 +154,4 @@ def slice_from_preprocess(
     异常说明：
         同 slice_by_toa。
     """
-    return slice_by_toa(result.data, slice_length_ms=slice_length_ms)
+    return slice_by_toa(result.data, slice_length_ms=slice_length_ms, session_id=session_id)
