@@ -16,6 +16,9 @@ from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from runtime.workflows.slice_workflow import slice_workflow
 from runtime.workflows.render_workflow import render_workflow
+from runtime.workflows.identify_workflow import identify_workflow
+from infra.plotting.facades import render_cluster_images
+from core.models.cluster_result import ClusterState, ClusterItem
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
@@ -60,19 +63,24 @@ class SliceController(QObject):
         self._image_cache: OrderedDict[int, RenderedImageBundle] = OrderedDict[int, RenderedImageBundle]()
         self._current_slice_index = 0
         self._max_cache_size = 50
+        
+        # 聚类相关状态
+        self._current_cluster_index = 0
 
         # 绑定按钮点击事件
         self.view.navigation_control_card.start_slicing_button.clicked.connect(self.handle_slice)
+        self.view.navigation_control_card.start_recognition_button.clicked.connect(self.handle_identify)
         
         # 绑定标题旁边的透明导航按钮
         self.view.prev_slice_button.clicked.connect(self._on_prev_slice)
         self.view.next_slice_button.clicked.connect(self._on_next_slice)
-        self.view.prev_cluster_button.clicked.connect(lambda: print("上一类点击"))
-        self.view.next_cluster_button.clicked.connect(lambda: print("下一类点击"))
+        self.view.prev_cluster_button.clicked.connect(self._on_prev_cluster)
+        self.view.next_cluster_button.clicked.connect(self._on_next_cluster)
 
         # 绑定全局生命周期信号与数据就绪信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.slice_image_ready.connect(self._on_slice_image_ready)
+        signal_bus.cluster_image_ready.connect(self._on_cluster_image_ready)
 
         # 绑定重绘请求信号
         self.view.redraw_option_card.redraw_requested.connect(self._on_redraw_requested)
@@ -128,12 +136,53 @@ class SliceController(QObject):
         # 启动后台切片工作流
         slice_workflow.start_slice(self.view._test_session)
 
+    def handle_identify(self) -> None:
+        """处理识别按钮点击事件。
+
+        功能描述：
+            校验数据是否已切片，更新按钮状态并启动识别（聚类）工作流。
+        """
+        # 校验切片状态
+        if not self.view._test_session.is_sliced:
+            InfoBar.warning(
+                title="提示",
+                content="请先执行切片操作，再进行识别聚类。",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.view
+            )
+            return
+
+        # 更新按钮状态
+        self.view.navigation_control_card.start_recognition_button.setEnabled(False)
+
+        # 显示动画对话框
+        self._processing_dialog = ProcessingDialog(
+            self.view, 
+            title="聚类处理", 
+            content="正在执行雷达信号级联聚类分析，请稍候..."
+        )
+        self._processing_dialog.show()
+
+        # 获取聚类参数 (这里可以从配置获取，目前使用默认值)
+        # eps_cf = appConfig.cfEps.value etc.
+        
+        identify_workflow.start_identify(
+            self.view._test_session,
+            slice_index=self._current_slice_index,
+            eps_cf=2.0,
+            eps_pw=0.2,
+            min_pts=1,
+            min_cluster_size=8
+        )
+
     def _on_stage_finished(self, session_id: str, stage: str) -> None:
         """处理阶段完成信号。
 
         功能描述：
-            校验会话 ID 与阶段，若切片完成则恢复按钮状态。
-
+            作为中转站，根据不同阶段将处理逻辑分发到独立的方法中。
         参数说明：
             session_id (str): 会话唯一标识。
             stage (str): 阶段名称。
@@ -144,29 +193,60 @@ class SliceController(QObject):
         异常说明：
             无。
         """
-        # 校验会话与阶段
-        if session_id == self.view._test_session.session_id and stage == "slicing":
-            if self._processing_dialog:
-                self._processing_dialog.close()
-                self._processing_dialog = None
-                
-            # 恢复按钮状态
-            self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+        if session_id != self.view._test_session.session_id:
+            return
+
+        if stage == "slicing":
+            self._handle_slicing_finished()
+        elif stage == "identifying":
+            self._handle_identifying_finished()
+
+    def _handle_slicing_finished(self) -> None:
+        """处理切片完成后的逻辑。"""
+        if self._processing_dialog:
+            self._processing_dialog.close()
+            self._processing_dialog = None
             
-            # 清空缓存并加载第0片
-            self._image_cache.clear()
-            self._load_slice(0)
+        # 恢复按钮状态
+        self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+        
+        # 清空缓存并加载第0片
+        self._image_cache.clear()
+        self._load_slice(0)
+        
+        # 弹出成功提示
+        InfoBar.success(
+            title="成功",
+            content="数据切片与图像渲染完成！",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self.view
+        )
+
+    def _handle_identifying_finished(self) -> None:
+        """处理识别（聚类）完成后的逻辑。"""
+        if self._processing_dialog:
+            self._processing_dialog.close()
+            self._processing_dialog = None
             
-            # 弹出成功提示
-            InfoBar.success(
-                title="成功",
-                content="数据切片与图像渲染完成！",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=self.view
-            )
+        # 恢复按钮状态
+        self.view.navigation_control_card.start_recognition_button.setEnabled(True)
+        
+        # 聚类完成后，重置类别索引并渲染当前切片的第一个簇
+        self._current_cluster_index = 0
+        self._load_cluster_image()
+        
+        InfoBar.success(
+            title="成功",
+            content=f"第 {self._current_slice_index + 1} 切片信号聚类分析完成！",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self.view
+        )
 
     def _on_redraw_requested(self, slice_index: int) -> None:
         """处理重绘请求。
@@ -182,10 +262,24 @@ class SliceController(QObject):
     def _on_prev_slice(self) -> None:
         """处理上一片按钮点击。"""
         self._load_slice(self._current_slice_index - 1)
+        self._current_cluster_index = 0
+        self._load_cluster_image()
 
     def _on_next_slice(self) -> None:
         """处理下一片按钮点击。"""
         self._load_slice(self._current_slice_index + 1)
+        self._current_cluster_index = 0
+        self._load_cluster_image()
+
+    def _on_prev_cluster(self) -> None:
+        """处理上一类别按钮点击。"""
+        self._current_cluster_index -= 1
+        self._load_cluster_image()
+
+    def _on_next_cluster(self) -> None:
+        """处理下一类别按钮点击。"""
+        self._current_cluster_index += 1
+        self._load_cluster_image()
 
     def _update_navigation_buttons(self) -> None:
         """更新导航按钮可用状态。"""
@@ -195,6 +289,24 @@ class SliceController(QObject):
         total = session.slice_result.slice_count
         self.view.prev_slice_button.setEnabled(self._current_slice_index > 0)
         self.view.next_slice_button.setEnabled(self._current_slice_index < total - 1)
+
+    def _update_cluster_navigation_buttons(self) -> None:
+        """更新聚类类别导航按钮可用状态。"""
+        session = self.view._test_session
+        if not session or not session.is_clustered:
+            self.view.prev_cluster_button.setEnabled(False)
+            self.view.next_cluster_button.setEnabled(False)
+            return
+            
+        cluster_res = session.cluster_result.slice_results.get(self._current_slice_index)
+        if not cluster_res or not cluster_res.clusters:
+            self.view.prev_cluster_button.setEnabled(False)
+            self.view.next_cluster_button.setEnabled(False)
+            return
+            
+        total = len(cluster_res.clusters)
+        self.view.prev_cluster_button.setEnabled(self._current_cluster_index > 0)
+        self.view.next_cluster_button.setEnabled(self._current_cluster_index < total - 1)
 
     def _load_slice(self, index: int) -> None:
         """加载并展示指定索引的切片图像。"""
@@ -216,7 +328,11 @@ class SliceController(QObject):
         else:
             # 缓存未命中，启动后台渲染
             LOGGER.info(f"加载切片 {index + 1} 未命中缓存，开始后台渲染", extra={"session_id": session.session_id})
-            render_workflow.start_render(session, index)
+            render_workflow.start_render(
+                session=session, 
+                slice_index=index, 
+                is_cluster_render=False
+            )
 
     def _on_slice_image_ready(self, session_id: str, slice_index: int, bundle: RenderedImageBundle) -> None:
         """接收渲染图片结果并展示到卡片。
@@ -239,6 +355,110 @@ class SliceController(QObject):
         # 仅在回调回来的切片是当前用户正在查看的切片时，才刷新 UI
         if slice_index == self._current_slice_index:
             self._update_ui_with_bundle(bundle, slice_index)
+
+    def _load_cluster_image(self) -> None:
+        """加载并展示当前切片下指定索引的聚类结果图像。"""
+        session = self.view._test_session
+        if not session or not session.is_clustered:
+            self._clear_cluster_ui()
+            return
+            
+        cluster_res = session.cluster_result.slice_results.get(self._current_slice_index)
+        if not cluster_res or not cluster_res.clusters:
+            self._clear_cluster_ui()
+            return
+            
+        # 约束索引范围
+        if self._current_cluster_index < 0:
+            self._current_cluster_index = 0
+        elif self._current_cluster_index >= len(cluster_res.clusters):
+            self._current_cluster_index = len(cluster_res.clusters) - 1
+            
+        self._update_cluster_navigation_buttons()
+        
+        # 启动后台渲染类别图像
+        LOGGER.info(f"加载切片 {self._current_slice_index + 1} 的类别 {self._current_cluster_index + 1} 图像，启动后台渲染", extra={"session_id": session.session_id})
+        render_workflow.start_render(
+            session=session, 
+            slice_index=self._current_slice_index, 
+            cluster_index=self._current_cluster_index,
+            is_cluster_render=True
+        )
+
+    def _on_cluster_image_ready(self, session_id: str, slice_index: int, cluster_index: int, bundle: RenderedImageBundle) -> None:
+        """接收类别渲染图片结果并展示到卡片。
+
+        功能描述：
+            校验会话 ID 及当前显示的索引，将结果渲染到 UI。
+        """
+        if session_id != self.view._test_session.session_id:
+            return
+            
+        if slice_index != self._current_slice_index or cluster_index != self._current_cluster_index:
+            return
+            
+        session = self.view._test_session
+        cluster_res = session.cluster_result.slice_results.get(slice_index)
+        if not cluster_res or not cluster_res.clusters:
+            return
+            
+        current_cluster = cluster_res.clusters[cluster_index]
+        self._update_cluster_ui_with_bundle(bundle, current_cluster, len(cluster_res.clusters))
+
+    def _clear_cluster_ui(self) -> None:
+        """清空聚类结果展示区域。"""
+        if hasattr(self.view, 'cluster_title_label'):
+            self.view.cluster_title_label.setText("聚类结果暂无")
+            
+        cards = [
+            self.view.cluster_cf_card,
+            self.view.cluster_pw_card,
+            self.view.cluster_pa_card,
+            self.view.cluster_dtoa_card,
+            self.view.cluster_doa_card,
+        ]
+        
+        # 传递全黑图像清空
+        empty_image = QImage(100, 100, QImage.Format.Format_Grayscale8)
+        empty_image.fill(0)
+        for card in cards:
+            card.set_image(empty_image)
+
+    def _update_cluster_ui_with_bundle(self, bundle: RenderedImageBundle, cluster_item: ClusterItem, total_clusters: int) -> None:
+        """使用指定的聚类图像包更新聚类结果 UI。"""
+        # 更新中间标题
+        if hasattr(self.view, 'cluster_title_label'):
+            self.view.cluster_title_label.setText(
+                f"第 {self._current_cluster_index + 1} / {total_clusters} 个类别  {cluster_item.dim_name}维聚类结果"
+            )
+        
+        # 构建维度到卡片的映射字典
+        cards = {
+            "CF": self.view.cluster_cf_card,
+            "PW": self.view.cluster_pw_card,
+            "PA": self.view.cluster_pa_card,
+            "DTOA": self.view.cluster_dtoa_card,
+            "DOA": self.view.cluster_doa_card,
+        }
+
+        # 遍历图像数据并更新卡片
+        for dim_name, image_data in bundle.images.items():
+            if dim_name in cards:
+                # 获取图像尺寸
+                height, width = image_data.shape
+                bytes_per_line = width
+                
+                # 转换为 QImage
+                q_image = QImage(
+                    image_data.data,
+                    width,
+                    height,
+                    bytes_per_line,
+                    QImage.Format.Format_Grayscale8,
+                )
+                
+                # 设置图像到卡片
+                cards[dim_name].set_image(q_image)
 
     def _update_ui_with_bundle(self, bundle: RenderedImageBundle, slice_index: int) -> None:
         """使用指定的图像包更新 UI。"""

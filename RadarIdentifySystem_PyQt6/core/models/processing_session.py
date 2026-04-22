@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult, SliceResult
+from core.models.cluster_result import ClusteringResult
 
 
 # -------------------------------------------------------------------
@@ -105,8 +106,7 @@ class ProcessingSession:
     slice_result: Optional[SliceResult] = field(default=None)
 
     # ── P04：聚类产物（待 P04 完成后替换 Any 为具体类型） ────────────────
-    # TODO(P04): 替换为 ClusteringResult
-    cluster_result: Optional[Any] = field(default=None)
+    cluster_result: Optional[ClusteringResult] = field(default=None)
 
     # ── P05：识别与参数产物（待 P05 完成后替换） ──────────────────────────
     # TODO(P05): 替换为 RecognitionResult

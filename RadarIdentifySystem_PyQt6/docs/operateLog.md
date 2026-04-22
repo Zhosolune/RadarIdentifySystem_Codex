@@ -1,5 +1,34 @@
 # 操作日志
 
+## 2026-04-22 11:05
+- 操作类型：修改
+- 影响文件：`runtime/threading/render_worker.py`
+- 变更摘要：在抛出异常（如 `ValueError`、`RuntimeError`）之前，增加了 `LOGGER.error` 语句以记录带有 `session_id` 上下文的错误日志。
+- 原因：提升系统的可观测性，确保异常在导致任务中断前能被完整记录下来，方便后续排查。
+- 测试状态：无需测试
+
+## 2026-04-22 10:55
+- 操作类型：重构
+- 影响文件：`runtime/threading/render_worker.py`、`runtime/workflows/render_workflow.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：在后台渲染工作线程和工作流中，引入了 `is_cluster_render: bool` 显式标志位来控制执行路径（切片图像渲染 vs 聚类类别图像渲染），替换了原来通过隐式判断 `cluster_index == -1` 来做分支路由的“魔法数字”逻辑。
+- 原因：避免魔法数字的使用，使得代码接口的意图更加直白、安全且不易出错，提高了可维护性。
+- 测试状态：待测试
+- 操作类型：重构/修改
+- 影响文件：`app/signal_bus.py`、`runtime/threading/render_worker.py`、`runtime/workflows/render_workflow.py`、`runtime/threading/identify_worker.py`、`runtime/workflows/identify_workflow.py`、`ui/controllers/slice_controller.py`
+- 变更摘要：
+  1. 统一渲染策略：在 `RenderWorker` 与 `RenderWorkflow` 中增加了 `cluster_index` 参数支持，使单类别的聚类图像渲染也能利用后台渲染线程，从而避免在 `SliceController` 中直接在主线程调用渲染门面。
+  2. 控制器重构：将 `SliceController._on_stage_finished` 重构为一个仅负责路由的分发中心，将各阶段具体的处理逻辑提取到了如 `_handle_slicing_finished` 等专属私有方法中，防止其代码无限膨胀。
+  3. 调整识别流程：修改 `IdentifyWorker` 使其不再遍历所有切片进行聚类，而是仅接收一个特定的 `slice_index`，实现“点击一次识别仅对当前正在查看的切片执行聚类”。
+- 原因：提升 UI 线程响应性；改善控制器代码的可读性与可维护性；更符合用户交互预期（按需分片识别）。
+- 测试状态：待测试
+
+## 2026-04-22 10:25
+- 操作类型：新增/修改
+- 影响文件：`core/models/cluster_result.py`、`core/models/processing_session.py`、`core/params_extract.py`、`core/clustering.py`、`runtime/threading/identify_worker.py`、`runtime/workflows/identify_workflow.py`、`ui/controllers/slice_controller.py`、`requirements.txt`
+- 变更摘要：实现识别功能的第一阶段：级联聚类算法迁移与UI绑定。定义了聚类结果的3种状态结构（PENDING/VALID/INVALID），在 `core` 层实现了基于 DBSCAN 的 CF 和 PW 维度级联聚类与 DTOA 周期校验。在 `runtime` 层新增了识别工作流和线程，并在 `SliceController` 中绑定了“开始识别”按钮，实现了聚类结果特征图像在中间列的展示与导航。
+- 原因：根据新架构约束迁移旧项目的雷达信号聚类与特征图像展示逻辑，打通了“点击按钮 -> 聚类分析 -> 图像回显”的闭环，暂不包含深度学习识别推理。
+- 测试状态：待测试
+
 ## 2026-04-22 09:45
 - 操作类型：新增/重构
 - 影响文件：`runtime/threading/render_worker.py`（新增）、`runtime/workflows/render_workflow.py`（新增）、`ui/controllers/slice_controller.py`、`runtime/threading/slice_worker.py`

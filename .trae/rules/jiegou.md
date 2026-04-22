@@ -3,7 +3,7 @@
 ## 1. 目录基线
 
 ```text
-easyVer-style (RadarIdentifySystem_PyQt6)
+RadarIdentifySystem_PyQt6
 ├── .agents/
 │   └── rules/
 ├── app/

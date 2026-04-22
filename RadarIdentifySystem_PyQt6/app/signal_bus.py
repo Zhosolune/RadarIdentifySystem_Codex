@@ -33,5 +33,9 @@ class _SignalBus(QObject):
     # 参数：session_id, slice_index, image_bundle
     slice_image_ready = pyqtSignal(str, int, RenderedImageBundle)
 
+    # 聚类图像渲染就绪信号
+    # session_id, slice_index, cluster_index, image_bundle
+    cluster_image_ready = pyqtSignal(str, int, int, object)
+
 
 signal_bus = _SignalBus()

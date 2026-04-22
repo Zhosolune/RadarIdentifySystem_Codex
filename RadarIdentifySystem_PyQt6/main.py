@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-v2/main.py  —  EasyVer v2 程序入口
+RadarIdentifySystem_PyQt6 程序入口
 将父目录加入 sys.path，以便复用 core/db/utils 后端。
 """
 

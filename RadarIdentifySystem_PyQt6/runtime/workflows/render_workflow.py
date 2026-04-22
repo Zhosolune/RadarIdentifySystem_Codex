@@ -36,8 +36,14 @@ class RenderWorkflow(QObject):
         super().__init__(parent)
         self._worker: Optional[RenderWorker] = None
 
-    @pyqtSlot(object, int)
-    def start_render(self, session: ProcessingSession, slice_index: int) -> None:
+    @pyqtSlot(object, int, int, bool)
+    def start_render(
+        self, 
+        session: ProcessingSession, 
+        slice_index: int, 
+        cluster_index: int = 0, 
+        is_cluster_render: bool = False
+    ) -> None:
         """启动渲染工作流。
 
         如果正在运行，将停止上一次的渲染，立即开始新的渲染（保证高响应性）。
@@ -45,6 +51,8 @@ class RenderWorkflow(QObject):
         Args:
             session (ProcessingSession): 当前待处理的会话实例。
             slice_index (int): 需要渲染的切片索引。
+            cluster_index (int): 聚类类别索引。当渲染切片时该参数无意义。
+            is_cluster_render (bool): 标志位，指示是渲染原始切片（False）还是聚类类别（True）。
             
         Returns:
             None
@@ -58,7 +66,13 @@ class RenderWorkflow(QObject):
             self._worker = None
 
         # 挂载计算线程，并在线程结束时挂接回调
-        self._worker = RenderWorker(session, slice_index, parent=self)
+        self._worker = RenderWorker(
+            session=session, 
+            slice_index=slice_index, 
+            cluster_index=cluster_index, 
+            is_cluster_render=is_cluster_render,
+            parent=self
+        )
         self._worker.finished_signal.connect(self._on_worker_finished)
         self._worker.start()
 
