@@ -486,9 +486,9 @@ class SliceController(QObject):
             self.view.cluster_doa_card,
         ]
         
-        # 传递全黑图像清空
-        empty_image = QImage(100, 100, QImage.Format.Format_Grayscale8)
-        empty_image.fill(0)
+        # 创建完全透明的图像清空内容，代替黑底
+        empty_image = QImage(100, 100, QImage.Format.Format_ARGB32)
+        empty_image.fill(Qt.GlobalColor.transparent)
         for card in cards:
             card.set_image(empty_image)
 
