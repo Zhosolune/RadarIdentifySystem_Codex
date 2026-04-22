@@ -1,8 +1,11 @@
 """切片流程控制器。"""
 
+
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from collections import OrderedDict
 
 import logging
 from PyQt6.QtCore import QObject, Qt
@@ -12,6 +15,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from runtime.workflows.slice_workflow import slice_workflow
+from runtime.workflows.render_workflow import render_workflow
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
@@ -53,13 +57,16 @@ class SliceController(QObject):
         super().__init__(view)
         self.view = view
         self._processing_dialog = None
+        self._image_cache: OrderedDict[int, RenderedImageBundle] = OrderedDict[int, RenderedImageBundle]()
+        self._current_slice_index = 0
+        self._max_cache_size = 50
 
         # 绑定按钮点击事件
         self.view.navigation_control_card.start_slicing_button.clicked.connect(self.handle_slice)
         
         # 绑定标题旁边的透明导航按钮
-        self.view.prev_slice_button.clicked.connect(lambda: print("上一片点击"))
-        self.view.next_slice_button.clicked.connect(lambda: print("下一片点击"))
+        self.view.prev_slice_button.clicked.connect(self._on_prev_slice)
+        self.view.next_slice_button.clicked.connect(self._on_next_slice)
         self.view.prev_cluster_button.clicked.connect(lambda: print("上一类点击"))
         self.view.next_cluster_button.clicked.connect(lambda: print("下一类点击"))
 
@@ -146,6 +153,10 @@ class SliceController(QObject):
             # 恢复按钮状态
             self.view.navigation_control_card.start_slicing_button.setEnabled(True)
             
+            # 清空缓存并加载第0片
+            self._image_cache.clear()
+            self._load_slice(0)
+            
             # 弹出成功提示
             InfoBar.success(
                 title="成功",
@@ -163,33 +174,80 @@ class SliceController(QObject):
         参数说明：
             slice_index (int): 请求重绘的切片编号。
         """
-        # TODO: 接入重绘工作流或核心绘图能力
-        print(f"收到重绘请求，切片编号: {slice_index}")
+        # 清空缓存并重新触发绘制
+        self._image_cache.clear()
+        self._load_slice(self._current_slice_index)
+        LOGGER.info(f"收到重绘请求，已清空缓存并重新渲染切片编号: {self._current_slice_index}")
+
+    def _on_prev_slice(self) -> None:
+        """处理上一片按钮点击。"""
+        self._load_slice(self._current_slice_index - 1)
+
+    def _on_next_slice(self) -> None:
+        """处理下一片按钮点击。"""
+        self._load_slice(self._current_slice_index + 1)
+
+    def _update_navigation_buttons(self) -> None:
+        """更新导航按钮可用状态。"""
+        session = self.view._test_session
+        if not session or not session.slice_result:
+            return
+        total = session.slice_result.slice_count
+        self.view.prev_slice_button.setEnabled(self._current_slice_index > 0)
+        self.view.next_slice_button.setEnabled(self._current_slice_index < total - 1)
+
+    def _load_slice(self, index: int) -> None:
+        """加载并展示指定索引的切片图像。"""
+        session = self.view._test_session
+        if not session or not session.slice_result:
+            return
+        if index < 0 or index >= session.slice_result.slice_count:
+            return
+
+        self._current_slice_index = index
+        self._update_navigation_buttons()
+
+        # 尝试命中缓存
+        if index in self._image_cache:
+            bundle = self._image_cache.pop(index)
+            self._image_cache[index] = bundle  # 更新 LRU 顺序
+            self._update_ui_with_bundle(bundle, index)
+            LOGGER.info(f"加载切片 {index + 1} 命中缓存，当前缓存容量: {len(self._image_cache)}/{self._max_cache_size}", extra={"session_id": session.session_id})
+        else:
+            # 缓存未命中，启动后台渲染
+            LOGGER.info(f"加载切片 {index + 1} 未命中缓存，开始后台渲染", extra={"session_id": session.session_id})
+            render_workflow.start_render(session, index)
 
     def _on_slice_image_ready(self, session_id: str, slice_index: int, bundle: RenderedImageBundle) -> None:
         """接收渲染图片结果并展示到卡片。
 
         功能描述：
-            校验会话 ID，将渲染结果中的 numpy 数组转换为 QPixmap 并更新到对应的卡片组件中。
-
-        参数说明：
-            session_id (str): 会话唯一标识。
-            slice_index (int): 切片索引。
-            bundle (RenderedImageBundle): 渲染结果图像包。
-
-        返回值说明：
-            None: 无返回值。
-
-        异常说明：
-            无。
+            校验会话 ID，将渲染结果缓存，如果是当前索引则更新 UI。
         """
-        # 校验会话 ID
         if session_id != self.view._test_session.session_id:
             return
 
+        # 存入 LRU 缓存
+        if slice_index in self._image_cache:
+            self._image_cache.pop(slice_index)
+        self._image_cache[slice_index] = bundle
+
+        # 淘汰超出容量的最早数据
+        while len(self._image_cache) > self._max_cache_size:
+            self._image_cache.popitem(last=False)
+
+        # 仅在回调回来的切片是当前用户正在查看的切片时，才刷新 UI
+        if slice_index == self._current_slice_index:
+            self._update_ui_with_bundle(bundle, slice_index)
+
+    def _update_ui_with_bundle(self, bundle: RenderedImageBundle, slice_index: int) -> None:
+        """使用指定的图像包更新 UI。"""
+        session = self.view._test_session
+        total = session.slice_result.slice_count if session.slice_result else 0
+
         # 更新左侧标题
         if hasattr(self.view, 'slice_title_label'):
-            self.view.slice_title_label.setText(f"第{slice_index}个切片数据  原始图像")
+            self.view.slice_title_label.setText(f"第 {slice_index + 1} / {total} 个切片数据  原始图像")
         
         # 构建维度到卡片的映射字典
         cards = {

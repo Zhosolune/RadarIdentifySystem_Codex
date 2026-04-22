@@ -1,5 +1,12 @@
 # 操作日志
 
+## 2026-04-22 09:45
+- 操作类型：新增/重构
+- 影响文件：`runtime/threading/render_worker.py`（新增）、`runtime/workflows/render_workflow.py`（新增）、`ui/controllers/slice_controller.py`、`runtime/threading/slice_worker.py`
+- 变更摘要：实现了基于按需后台渲染与 LRU 内存缓存的切片切换（上一片/下一片）功能。在 `SliceController` 中引入了容量为 50 的 `OrderedDict` 图像缓存，并将具体的渲染任务抽离为独立的 `RenderWorkflow` 和 `RenderWorker`。
+- 原因：支持快速无缝的相邻切片回看，避免每次翻页重新耗时计算绘图。同时遵守架构约束，将渲染缓存作为视图模型保存在 UI 控制层，不污染 `core` 的业务模型。
+- 测试状态：已测试（诊断检查通过）
+
 ## 2026-04-22 09:31
 - 操作类型：修复
 - 影响文件：`runtime/threading/slice_worker.py`、`runtime/threading/import_worker.py`

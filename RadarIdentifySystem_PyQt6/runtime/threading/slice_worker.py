@@ -6,11 +6,8 @@ import logging
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession, ProcessingStage
-from core.preprocess import preprocess
 from core.slicing import slice_by_toa
-from infra.plotting import render_slice_images
 
 
 LOGGER = logging.getLogger(__name__)
@@ -85,18 +82,6 @@ class SliceWorker(QThread):
             )
             self._session.slice_result = slice_res
             self._session.stage = ProcessingStage.SLICED
-
-            # 3. 如果有切片结果，通知渲染第一张图（默认索引 0）
-            if slice_res.slice_count > 0:
-                LOGGER.info("开始渲染第 0 个切片", extra={"session_id": session_id})
-                first_slice = slice_res.slices[0]
-                
-                image_bundle = render_slice_images(
-                    first_slice.data,
-                    band=preprocess_res.band,
-                    time_range=first_slice.time_range,
-                )
-                signal_bus.slice_image_ready.emit(session_id, 0, image_bundle)
 
             self.finished_signal.emit(session_id, True, "")
 
