@@ -59,9 +59,11 @@ class RenderWorkflow(QObject):
         """
         # 若已有渲染任务，先停止/丢弃它，防止 UI 卡滞在过期的任务上
         if self._worker is not None and self._worker.isRunning():
-            self._worker.finished_signal.disconnect()
-            self._worker.terminate()
-            self._worker.wait()
+            try:
+                self._worker.finished_signal.disconnect()
+            except TypeError:
+                pass
+            self._worker.requestInterruption()
             self._worker.deleteLater()
             self._worker = None
 

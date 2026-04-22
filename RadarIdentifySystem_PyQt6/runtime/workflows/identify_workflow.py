@@ -35,6 +35,10 @@ class IdentifyWorkflow(QObject):
         super().__init__(parent)
         self._worker: Optional[IdentifyWorker] = None
 
+    def is_running(self) -> bool:
+        """返回工作流当前是否正在运行。"""
+        return self._worker is not None and self._worker.isRunning()
+
     @pyqtSlot(ProcessingSession, int, float, float, int, int)
     def start_identify(
         self, 

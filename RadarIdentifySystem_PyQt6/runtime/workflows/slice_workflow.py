@@ -35,6 +35,10 @@ class SliceWorkflow(QObject):
         super().__init__(parent)
         self._worker: Optional[SliceWorker] = None
 
+    def is_running(self) -> bool:
+        """返回工作流当前是否正在运行。"""
+        return self._worker is not None and self._worker.isRunning()
+
     @pyqtSlot(ProcessingSession)
     def start_slice(self, session: ProcessingSession) -> None:
         """启动切片工作流。

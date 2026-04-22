@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtCore import QObject, Qt, QTimer
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from qfluentwidgets import InfoBar, InfoBarPosition
 
@@ -57,6 +57,29 @@ class ImportController(QObject):
         # 绑定全局生命周期信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
+
+        # 状态自检定时器
+        self._check_timer = QTimer(self.view)
+        self._check_timer.timeout.connect(self._check_workflow_state)
+        self._check_timer.start(1000)  # 每秒检查一次
+
+    def _check_workflow_state(self) -> None:
+        """定期检查工作流状态，防止信号丢失导致 UI 卡死。"""
+        if self._processing_dialog is not None and not import_workflow.is_running():
+            # 此时表示对话框还在，但工作流已意外停止
+            self._processing_dialog.close()
+            self._processing_dialog = None
+            self.view.import_data_button.setEnabled(True)
+            self.view.import_data_button.setText("1. 从 Excel 导入数据")
+            InfoBar.warning(
+                title="警告",
+                content="检测到导入工作流异常退出，已恢复界面状态。",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.view
+            )
 
     def handle_import(self) -> None:
         """处理导入按钮点击事件。

@@ -52,10 +52,16 @@ class RenderWorker(QThread):
         """执行后台渲染任务。"""
         session_id = self._session.session_id
         try:
+            if self.isInterruptionRequested():
+                return
+                
             if not self._is_cluster_render:
                 self._render_slice(session_id)
             else:
                 self._render_cluster(session_id)
+
+            if self.isInterruptionRequested():
+                return
 
             self.finished_signal.emit(session_id, True, "")
 
@@ -72,14 +78,16 @@ class RenderWorker(QThread):
         Raises:
             ValueError: 切片数据无效或索引越界时抛出。
         """
-        slice_res = self._session.slice_result
+        with self._session.lock:
+            slice_res = self._session.slice_result
+            preprocess_res = self._session.preprocess_result
+            
         if not slice_res or self._slice_index < 0 or self._slice_index >= slice_res.slice_count:
             err_msg = f"切片索引 {self._slice_index} 无效或越界"
             LOGGER.error(err_msg, extra={"session_id": session_id})
             raise ValueError(err_msg)
 
         target_slice = slice_res.slices[self._slice_index]
-        preprocess_res = self._session.preprocess_result
 
         image_bundle = render_slice_images(
             target_slice.data,
@@ -98,12 +106,17 @@ class RenderWorker(QThread):
             RuntimeError: 尚未完成聚类时抛出。
             ValueError: 聚类结果无效或类别索引越界时抛出。
         """
-        if not self._session.is_clustered:
+        with self._session.lock:
+            is_clustered = self._session.is_clustered
+            cluster_result = self._session.cluster_result
+            band = self._session.band
+            
+        if not is_clustered:
             err_msg = "数据尚未完成聚类"
             LOGGER.error(err_msg, extra={"session_id": session_id})
             raise RuntimeError(err_msg)
             
-        cluster_res = self._session.cluster_result.slice_results.get(self._slice_index)
+        cluster_res = cluster_result.slice_results.get(self._slice_index)
         if not cluster_res or not cluster_res.clusters:
             err_msg = f"切片 {self._slice_index} 无有效聚类结果"
             LOGGER.error(err_msg, extra={"session_id": session_id})
@@ -118,7 +131,7 @@ class RenderWorker(QThread):
         
         image_bundle = render_cluster_images(
             cluster_points=target_cluster.points,
-            band=self._session.band,
+            band=band,
             time_range=target_cluster.time_ranges
         )
         signal_bus.cluster_image_ready.emit(session_id, self._slice_index, self._cluster_index, image_bundle)

@@ -80,8 +80,9 @@ class SliceWorker(QThread):
                 slice_length_ms=self._slice_length_ms,
                 session_id=session_id,
             )
-            self._session.slice_result = slice_res
-            self._session.stage = ProcessingStage.SLICED
+            with self._session.lock:
+                self._session.slice_result = slice_res
+                self._session.stage = ProcessingStage.SLICED
 
             self.finished_signal.emit(session_id, True, "")
 

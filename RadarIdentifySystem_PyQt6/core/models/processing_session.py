@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Optional
+import threading
 
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult, SliceResult
@@ -115,6 +116,9 @@ class ProcessingSession:
     # ── P06：合并产物（待 P06 完成后替换） ────────────────────────────────
     # TODO(P06): 替换为 MergeResult
     merge_result: Optional[Any] = field(default=None)
+
+    # ── 线程安全锁 ───────────────────────────────────────────────────
+    lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     # -------------------------------------------------------------------
     # 只读属性（便捷查询，不允许外部赋值）

@@ -9,6 +9,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 import logging
 
+from core.models.pulse_batch import COL_TOA
 from core.models.slice_result import SingleSlice
 from core.models.cluster_result import ClusterItem, SliceClusterResult, ClusterState
 from core.params_extract import extract_grouped_values
@@ -95,8 +96,11 @@ def process_dimension_clustering(
         
         # 计算 DTOA (us)
         # points 的第 4 列是 TOA (ms)，这里转为 us
-        dtoa = np.diff(cluster_points[:, 4], prepend=0) * 1000
-        dtoa = np.append(dtoa, 0)
+        if len(cluster_points) > 1:
+            dtoa = np.diff(cluster_points[:, COL_TOA]) * 1000
+            dtoa = np.append(dtoa, dtoa[-1])  # 补齐长度，使用最后一个 DTOA 值
+        else:
+            dtoa = np.array([0.0])
         
         # 校验 DTOA 周期性
         valid_dtoa_groups = extract_grouped_values(

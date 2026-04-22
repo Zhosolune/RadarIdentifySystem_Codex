@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from collections import OrderedDict
 
 import logging
-from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtCore import QObject, Qt, QTimer
 from PyQt6.QtGui import QImage, QPixmap
 from qfluentwidgets import InfoBar, InfoBarPosition
 
@@ -79,11 +79,45 @@ class SliceController(QObject):
 
         # 绑定全局生命周期信号与数据就绪信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
+        signal_bus.stage_failed.connect(self._on_stage_failed)
         signal_bus.slice_image_ready.connect(self._on_slice_image_ready)
         signal_bus.cluster_image_ready.connect(self._on_cluster_image_ready)
 
         # 绑定重绘请求信号
         self.view.redraw_option_card.redraw_requested.connect(self._on_redraw_requested)
+
+        # 状态自检定时器
+        self._check_timer = QTimer(self.view)
+        self._check_timer.timeout.connect(self._check_workflow_state)
+        self._check_timer.start(1000)
+
+    def _check_workflow_state(self) -> None:
+        """定期检查工作流状态，防止信号丢失导致 UI 卡死。"""
+        if self._processing_dialog is None:
+            return
+            
+        # 此时有进度条对话框正在显示
+        is_slicing = slice_workflow.is_running()
+        is_identifying = identify_workflow.is_running()
+        
+        # 如果两者都不在运行，说明出现异常导致信号丢失
+        if not is_slicing and not is_identifying:
+            self._processing_dialog.close()
+            self._processing_dialog = None
+            
+            # 恢复按钮状态
+            self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+            self.view.navigation_control_card.start_recognition_button.setEnabled(True)
+            
+            InfoBar.warning(
+                title="警告",
+                content="检测到后台任务异常退出，已恢复界面状态。",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.view
+            )
 
     def handle_slice(self) -> None:
         """处理切片按钮点击事件。
@@ -166,16 +200,21 @@ class SliceController(QObject):
         )
         self._processing_dialog.show()
 
-        # 获取聚类参数 (这里可以从配置获取，目前使用默认值)
-        # eps_cf = appConfig.cfEps.value etc.
+        # 获取聚类参数从全局配置中读取
+        from app.app_config import appConfig
+        eps_cf = appConfig.algorithmEpsilonCF.value
+        eps_pw = appConfig.algorithmEpsilonPW.value
+        min_pts = appConfig.algorithmMinPts.value
+        # min_cluster_size 暂未在配置中提供，保持默认8或从其他地方读取
+        min_cluster_size = 8
         
         identify_workflow.start_identify(
             self.view._test_session,
             slice_index=self._current_slice_index,
-            eps_cf=2.0,
-            eps_pw=0.2,
-            min_pts=1,
-            min_cluster_size=8
+            eps_cf=eps_cf,
+            eps_pw=eps_pw,
+            min_pts=min_pts,
+            min_cluster_size=min_cluster_size
         )
 
     def _on_stage_finished(self, session_id: str, stage: str) -> None:
@@ -200,6 +239,35 @@ class SliceController(QObject):
             self._handle_slicing_finished()
         elif stage == "identifying":
             self._handle_identifying_finished()
+
+    def _on_stage_failed(self, session_id: str, stage: str, error_msg: str) -> None:
+        """处理阶段失败信号。
+
+        功能描述：
+            校验会话 ID 与阶段，若匹配则恢复按钮状态并弹出错误提示。
+        """
+        if session_id != self.view._test_session.session_id:
+            return
+
+        if self._processing_dialog:
+            self._processing_dialog.close()
+            self._processing_dialog = None
+            
+        # 恢复按钮状态
+        self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+        self.view.navigation_control_card.start_recognition_button.setEnabled(True)
+        
+        # 弹出错误提示
+        stage_name = "切片处理" if stage == "slicing" else "聚类处理"
+        InfoBar.error(
+            title=f"{stage_name}失败",
+            content=f"发生错误:\n{error_msg}",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=5000,
+            parent=self.view
+        )
 
     def _handle_slicing_finished(self) -> None:
         """处理切片完成后的逻辑。"""

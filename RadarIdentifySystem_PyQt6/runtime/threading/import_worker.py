@@ -91,8 +91,10 @@ class ImportWorker(QThread):
             )
 
             # 将预处理结果写入 Session
-            self._session.preprocess_result = preprocess_res
-            self._session.stage = ProcessingStage.IMPORTED
+            with self._session.lock:
+                self._session.raw_batch = PulseBatch(raw_data)
+                self._session.preprocess_result = preprocess_res
+                self._session.stage = ProcessingStage.IMPORTED
 
             LOGGER.info("数据导入与预处理完成", extra={"session_id": self._session.session_id})
             self.finished_signal.emit(self._session.session_id, True, f"导入成功，共 {preprocess_res.total_pulses} 条脉冲")

@@ -76,8 +76,9 @@ class IdentifyWorker(QThread):
             LOGGER.info("开始聚类处理，当前切片: %d", self._slice_index, extra={"session_id": session_id})
             
             # 如果 session 中还没有 cluster_result，则初始化一个
-            if self._session.cluster_result is None:
-                self._session.cluster_result = ClusteringResult()
+            with self._session.lock:
+                if self._session.cluster_result is None:
+                    self._session.cluster_result = ClusteringResult()
 
             self.progress_signal.emit(session_id, 0, 1)
             
@@ -90,12 +91,11 @@ class IdentifyWorker(QThread):
                 min_cluster_size=self._min_cluster_size
             )
             
-            self._session.cluster_result.slice_results[self._slice_index] = slice_cluster_res
-            
-            self.progress_signal.emit(session_id, 1, 1)
-            
-            # 由于是按切片进行，只有当所有切片都处理完时，或者在此暂定当前就算 CLUSTERED
-            self._session.stage = ProcessingStage.CLUSTERED
+            with self._session.lock:
+                self._session.cluster_result.slice_results[self._slice_index] = slice_cluster_res
+                
+                # 由于是按切片进行，只有当所有切片都处理完时，或者在此暂定当前就算 CLUSTERED
+                self._session.stage = ProcessingStage.CLUSTERED
             
             LOGGER.info("切片 %d 聚类处理完成，产生 %d 个有效簇", 
                         self._slice_index, len(slice_cluster_res.clusters), extra={"session_id": session_id})

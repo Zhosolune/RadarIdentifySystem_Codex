@@ -30,6 +30,10 @@ class ImportWorkflow(QObject):
         super().__init__()
         self._worker: Optional[ImportWorker] = None
 
+    def is_running(self) -> bool:
+        """返回工作流当前是否正在运行。"""
+        return self._worker is not None and self._worker.isRunning()
+
     def start_import(self, session: ProcessingSession, file_path: str) -> None:
         """启动导入工作流。
 
