@@ -79,6 +79,8 @@ class IdentifyWorker(QThread):
             with self._session.lock:
                 if self._session.cluster_result is None:
                     self._session.cluster_result = ClusteringResult()
+                # 标记当前切片状态
+                self._session.mark_slice_cluster_running(self._slice_index)
 
             self.progress_signal.emit(session_id, 0, 1)
             
@@ -92,10 +94,16 @@ class IdentifyWorker(QThread):
             )
             
             with self._session.lock:
+                # 写入当前切片聚类结果
                 self._session.cluster_result.slice_results[self._slice_index] = slice_cluster_res
-                
-                # 由于是按切片进行，只有当所有切片都处理完时，或者在此暂定当前就算 CLUSTERED
-                self._session.stage = ProcessingStage.CLUSTERED
+                # 更新当前切片聚类状态
+                self._session.mark_slice_cluster_succeeded(self._slice_index)
+
+                # 仅在全量切片均完成后推进全局阶段
+                if self._session.are_all_slices_clustered():
+                    self._session.stage = ProcessingStage.CLUSTERED
+                else:
+                    self._session.stage = ProcessingStage.SLICED
             
             LOGGER.info("切片 %d 聚类处理完成，产生 %d 个有效簇", 
                         self._slice_index, len(slice_cluster_res.clusters), extra={"session_id": session_id})
@@ -103,5 +111,9 @@ class IdentifyWorker(QThread):
             self.finished_signal.emit(session_id, True, "")
 
         except Exception as e:
+            if self._slice_index >= 0:
+                with self._session.lock:
+                    # 记录当前切片失败状态
+                    self._session.mark_slice_cluster_failed(self._slice_index, str(e))
             LOGGER.error("聚类过程失败: %s", e, exc_info=True, extra={"session_id": session_id})
             self.finished_signal.emit(session_id, False, str(e))

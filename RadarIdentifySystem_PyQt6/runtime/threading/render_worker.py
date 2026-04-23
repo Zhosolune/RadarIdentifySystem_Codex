@@ -107,12 +107,12 @@ class RenderWorker(QThread):
             ValueError: 聚类结果无效或类别索引越界时抛出。
         """
         with self._session.lock:
-            is_clustered = self._session.is_clustered
+            is_slice_clustered = self._session.is_slice_clustered(self._slice_index)
             cluster_result = self._session.cluster_result
             band = self._session.band
             
-        if not is_clustered:
-            err_msg = "数据尚未完成聚类"
+        if not is_slice_clustered or cluster_result is None:
+            err_msg = f"切片 {self._slice_index} 尚未完成聚类"
             LOGGER.error(err_msg, extra={"session_id": session_id})
             raise RuntimeError(err_msg)
             

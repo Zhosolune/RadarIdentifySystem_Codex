@@ -81,7 +81,11 @@ class SliceWorker(QThread):
                 session_id=session_id,
             )
             with self._session.lock:
+                # 写入切片结果
                 self._session.slice_result = slice_res
+                # 重置切片级局部状态
+                self._session.reset_slice_processing_states(slice_res.slice_count)
+                # 推进全局阶段
                 self._session.stage = ProcessingStage.SLICED
 
             self.finished_signal.emit(session_id, True, "")

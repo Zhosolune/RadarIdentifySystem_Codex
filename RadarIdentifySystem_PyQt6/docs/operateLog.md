@@ -20,3 +20,17 @@
 - 变更摘要：修复了多项核心隐患：引入线程安全锁以解决 Session 并发读写问题，改为协作式终止渲染线程，修复 DTOA 首元素异常计算，增加 UI 工作流状态自检机制，改用全局配置替代硬编码聚类参数，并补充了核心切片与聚类算法单元测试。
 - 原因：技术原因（线程安全、资源泄漏、计算逻辑错误、异常恢复缺失、测试覆盖不足）。
 - 测试状态：已测试
+
+- 时间：2026-04-23 12:03
+- 操作类型：重构
+- 影响文件：
+  - `core/models/processing_session.py`
+  - `runtime/threading/import_worker.py`
+  - `runtime/threading/slice_worker.py`
+  - `runtime/threading/identify_worker.py`
+  - `runtime/threading/render_worker.py`
+  - `ui/controllers/slice_controller.py`
+  - `tests/unit/test_processing_session.py`
+- 变更摘要：将会话状态模型改为“全局阶段 + 切片级局部状态”，并同步调整聚类工作流、渲染判定与界面显示逻辑。
+- 原因：技术原因（按切片独立识别后，单一全局枚举无法准确表达局部进度）。
+- 测试状态：已测试

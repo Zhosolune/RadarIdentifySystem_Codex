@@ -280,7 +280,10 @@ class SliceController(QObject):
         
         # 清空缓存并加载第0片
         self._image_cache.clear()
+        self._current_cluster_index = 0
         self._load_slice(0)
+        self._clear_cluster_ui()
+        self._update_cluster_navigation_buttons()
         
         # 弹出成功提示
         InfoBar.success(
@@ -361,11 +364,11 @@ class SliceController(QObject):
     def _update_cluster_navigation_buttons(self) -> None:
         """更新聚类类别导航按钮可用状态。"""
         session = self.view._test_session
-        if not session or not session.is_clustered:
+        if not session or not session.is_slice_clustered(self._current_slice_index):
             self.view.prev_cluster_button.setEnabled(False)
             self.view.next_cluster_button.setEnabled(False)
             return
-            
+
         cluster_res = session.cluster_result.slice_results.get(self._current_slice_index)
         if not cluster_res or not cluster_res.clusters:
             self.view.prev_cluster_button.setEnabled(False)
@@ -427,13 +430,20 @@ class SliceController(QObject):
     def _load_cluster_image(self) -> None:
         """加载并展示当前切片下指定索引的聚类结果图像。"""
         session = self.view._test_session
-        if not session or not session.is_clustered:
+        if not session or not session.is_slice_clustered(self._current_slice_index):
             self._clear_cluster_ui()
+            self._update_cluster_navigation_buttons()
             return
-            
+
+        if session.cluster_result is None:
+            self._clear_cluster_ui()
+            self._update_cluster_navigation_buttons()
+            return
+
         cluster_res = session.cluster_result.slice_results.get(self._current_slice_index)
         if not cluster_res or not cluster_res.clusters:
             self._clear_cluster_ui()
+            self._update_cluster_navigation_buttons()
             return
             
         # 约束索引范围
@@ -466,6 +476,9 @@ class SliceController(QObject):
             return
             
         session = self.view._test_session
+        if not session.is_slice_clustered(slice_index) or session.cluster_result is None:
+            return
+
         cluster_res = session.cluster_result.slice_results.get(slice_index)
         if not cluster_res or not cluster_res.clusters:
             return
