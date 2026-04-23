@@ -16,12 +16,12 @@ class _SignalBus(QObject):
     """
 
     # -------------------------------------------------------------------
-    # 生命周期事件 (携带 session_id 等元信息)
+    # 生命周期事件 (携带 session_id、stage_name、slice_index 等元信息)
     # -------------------------------------------------------------------
     session_created = pyqtSignal(str)          # session_id
-    stage_started = pyqtSignal(str, str)         # session_id, stage_name
-    stage_finished = pyqtSignal(str, str)        # session_id, stage_name
-    stage_failed = pyqtSignal(str, str, str)     # session_id, stage_name, error_msg
+    stage_started = pyqtSignal(str, str, object)      # session_id, stage_name, slice_index|None
+    stage_finished = pyqtSignal(str, str, object)     # session_id, stage_name, slice_index|None
+    stage_failed = pyqtSignal(str, str, object, str)  # session_id, stage_name, slice_index|None, error_msg
 
     # -------------------------------------------------------------------
     # 结果数据事件

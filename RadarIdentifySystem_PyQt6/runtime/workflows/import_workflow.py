@@ -55,7 +55,7 @@ class ImportWorkflow(QObject):
             raise RuntimeError("正在导入中，无法启动新任务")
 
         LOGGER.info("启动导入工作流", extra={"session_id": session.session_id})
-        signal_bus.stage_started.emit(session.session_id, "importing")
+        signal_bus.stage_started.emit(session.session_id, "importing", None)
 
         self._worker = ImportWorker(session, file_path, parent=self)
         self._worker.finished_signal.connect(self._on_worker_finished)
@@ -75,9 +75,9 @@ class ImportWorkflow(QObject):
         LOGGER.info("导入工作流完成: %s", message, extra={"session_id": session_id})
 
         if success:
-            signal_bus.stage_finished.emit(session_id, "importing")
+            signal_bus.stage_finished.emit(session_id, "importing", None)
         else:
-            signal_bus.stage_failed.emit(session_id, "importing", message)
+            signal_bus.stage_failed.emit(session_id, "importing", None, message)
             
         if self._worker is not None:
             self._worker.deleteLater()

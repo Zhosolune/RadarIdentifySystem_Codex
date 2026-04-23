@@ -139,7 +139,7 @@ class ImportController(QObject):
                 parent=self.view
             )
 
-    def _on_stage_finished(self, session_id: str, stage: str) -> None:
+    def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:
         """处理阶段完成信号。
 
         功能描述：
@@ -148,6 +148,7 @@ class ImportController(QObject):
         参数说明：
             session_id (str): 会话唯一标识。
             stage (str): 阶段名称。
+            slice_index (int | None): 切片索引；导入阶段固定为 None。
 
         返回值说明：
             None: 无返回值。
@@ -178,7 +179,7 @@ class ImportController(QObject):
                 parent=self.view
             )
 
-    def _on_stage_failed(self, session_id: str, stage: str, error_msg: str) -> None:
+    def _on_stage_failed(self, session_id: str, stage: str, slice_index: int | None, error_msg: str) -> None:
         """处理阶段失败信号。
 
         功能描述：
@@ -187,6 +188,7 @@ class ImportController(QObject):
         参数说明：
             session_id (str): 会话唯一标识。
             stage (str): 阶段名称。
+            slice_index (int | None): 切片索引；导入阶段固定为 None。
             error_msg (str): 错误信息。
 
         返回值说明：

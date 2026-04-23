@@ -217,7 +217,7 @@ class SliceController(QObject):
             min_cluster_size=min_cluster_size
         )
 
-    def _on_stage_finished(self, session_id: str, stage: str) -> None:
+    def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:
         """处理阶段完成信号。
 
         功能描述：
@@ -225,6 +225,7 @@ class SliceController(QObject):
         参数说明：
             session_id (str): 会话唯一标识。
             stage (str): 阶段名称。
+            slice_index (int | None): 切片索引；全局流程时为 None。
 
         返回值说明：
             None: 无返回值。
@@ -238,9 +239,9 @@ class SliceController(QObject):
         if stage == "slicing":
             self._handle_slicing_finished()
         elif stage == "identifying":
-            self._handle_identifying_finished()
+            self._handle_identifying_finished(slice_index)
 
-    def _on_stage_failed(self, session_id: str, stage: str, error_msg: str) -> None:
+    def _on_stage_failed(self, session_id: str, stage: str, slice_index: int | None, error_msg: str) -> None:
         """处理阶段失败信号。
 
         功能描述：
@@ -259,8 +260,12 @@ class SliceController(QObject):
         
         # 弹出错误提示
         stage_name = "切片处理" if stage == "slicing" else "聚类处理"
+        slice_suffix = ""
+        if slice_index is not None:
+            # 拼接切片提示
+            slice_suffix = f"（第 {slice_index + 1} 片）"
         InfoBar.error(
-            title=f"{stage_name}失败",
+            title=f"{stage_name}失败{slice_suffix}",
             content=f"发生错误:\n{error_msg}",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
@@ -296,7 +301,7 @@ class SliceController(QObject):
             parent=self.view
         )
 
-    def _handle_identifying_finished(self) -> None:
+    def _handle_identifying_finished(self, slice_index: int | None) -> None:
         """处理识别（聚类）完成后的逻辑。"""
         if self._processing_dialog:
             self._processing_dialog.close()
@@ -308,10 +313,20 @@ class SliceController(QObject):
         # 聚类完成后，重置类别索引并渲染当前切片的第一个簇
         self._current_cluster_index = 0
         self._load_cluster_image()
+
+        # 记录完成事件日志
+        LOGGER.info(
+            "收到识别完成事件，当前切片: %s，界面切片: %d",
+            slice_index,
+            self._current_slice_index,
+            extra={"session_id": self.view._test_session.session_id},
+        )
+
+        target_slice_index = self._current_slice_index if slice_index is None else slice_index
         
         InfoBar.success(
             title="成功",
-            content=f"第 {self._current_slice_index + 1} 切片信号聚类分析完成！",
+            content=f"第 {target_slice_index + 1} 切片信号聚类分析完成！",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,

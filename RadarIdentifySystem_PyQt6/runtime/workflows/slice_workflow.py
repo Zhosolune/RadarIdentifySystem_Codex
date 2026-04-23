@@ -59,7 +59,7 @@ class SliceWorkflow(QObject):
             return
 
         # 发送流程开始全局信号
-        signal_bus.stage_started.emit(session.session_id, "slicing")
+        signal_bus.stage_started.emit(session.session_id, "slicing", None)
         
         # 挂载计算线程，并在线程结束时挂接回调
         self._worker = SliceWorker(session, parent=self)
@@ -83,9 +83,9 @@ class SliceWorkflow(QObject):
         """
         # 发送处理结果相关的生命周期信号
         if success:
-            signal_bus.stage_finished.emit(session_id, "slicing")
+            signal_bus.stage_finished.emit(session_id, "slicing", None)
         else:
-            signal_bus.stage_failed.emit(session_id, "slicing", error_msg)
+            signal_bus.stage_failed.emit(session_id, "slicing", None, error_msg)
         
         # 释放线程对象
         if self._worker is not None:

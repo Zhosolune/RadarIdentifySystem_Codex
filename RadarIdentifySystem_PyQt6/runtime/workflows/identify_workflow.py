@@ -34,6 +34,7 @@ class IdentifyWorkflow(QObject):
         """
         super().__init__(parent)
         self._worker: Optional[IdentifyWorker] = None
+        self._active_slice_index: int | None = None
 
     def is_running(self) -> bool:
         """返回工作流当前是否正在运行。"""
@@ -69,7 +70,12 @@ class IdentifyWorkflow(QObject):
             return
 
         # 发送流程开始全局信号
-        signal_bus.stage_started.emit(session.session_id, "identifying")
+        signal_bus.stage_started.emit(session.session_id, "identifying", slice_index)
+        LOGGER.info(
+            "发射识别开始事件，当前切片: %d",
+            slice_index,
+            extra={"session_id": session.session_id},
+        )
         
         # 挂载计算线程，并在线程结束时挂接回调
         self._worker = IdentifyWorker(
@@ -81,6 +87,7 @@ class IdentifyWorkflow(QObject):
             min_cluster_size=min_cluster_size,
             parent=self
         )
+        self._active_slice_index = slice_index
         self._worker.progress_signal.connect(self._on_worker_progress)
         self._worker.finished_signal.connect(self._on_worker_finished)
         self._worker.start()
@@ -114,14 +121,26 @@ class IdentifyWorkflow(QObject):
         """
         # 发送处理结果相关的生命周期信号
         if success:
-            signal_bus.stage_finished.emit(session_id, "identifying")
+            signal_bus.stage_finished.emit(session_id, "identifying", self._active_slice_index)
+            LOGGER.info(
+                "发射识别完成事件，当前切片: %s",
+                self._active_slice_index,
+                extra={"session_id": session_id},
+            )
         else:
-            signal_bus.stage_failed.emit(session_id, "identifying", error_msg)
+            signal_bus.stage_failed.emit(session_id, "identifying", self._active_slice_index, error_msg)
+            LOGGER.error(
+                "发射识别失败事件，当前切片: %s, 错误: %s",
+                self._active_slice_index,
+                error_msg,
+                extra={"session_id": session_id},
+            )
         
         # 释放线程对象
         if self._worker is not None:
             self._worker.deleteLater()
             self._worker = None
+        self._active_slice_index = None
 
 
 # 全局工作流实例（简化生命周期管理）
