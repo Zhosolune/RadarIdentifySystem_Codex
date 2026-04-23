@@ -1,5 +1,62 @@
 # 变更记录
 
+- 时间：2026-04-23 17:33
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/double_spin_box_setting_card.py`
+  - `ui/interfaces/params_interface.py`
+- 变更摘要：为 `DoubleSpinBoxSettingCard` 扩展了 `decimals` 和 `singleStep` 初始化参数，以控制显示精度和步长。并在 `params_interface` 实例化这些卡片时，为所有浮点参数设置了合理的精度和微调步长（如置信度等设为两位小数，步长0.05；脉宽聚类半径设为三位小数，步长0.01）。
+- 原因：提升用户体验与配置严谨性（让不同量级的浮点参数拥有合适的步进手感和显示精度）。
+- 测试状态：已测试
+
+- 时间：2026-04-23 16:52
+- 操作类型：重构与删除
+- 影响文件：
+  - `app/app_config.py`
+  - `ui/components/spin_box_setting_card.py`（新增）
+  - `ui/components/double_spin_box_setting_card.py`（新增）
+  - `ui/interfaces/params_interface.py`
+  - `ui/components/cluster_param_card.py`（删除）
+  - `ui/components/recognize_param_card.py`（删除）
+  - `ui/components/extract_param_card.py`（删除）
+  - `ui/components/merge_param_card.py`（删除）
+- 变更摘要：删除了使用 GroupHeaderCardWidget 创建的挤压布局卡片，改用更规范的 SettingCardGroup。同时新增 `SpinBoxSettingCard` 与 `DoubleSpinBoxSettingCard`，以结合 `CompactSpinBox` 系列组件，并将这些参数配置（识别、提取、合并参数）真实地添加到了全局 `app_config.py` 中。
+- 原因：用户体验与架构一致性（GroupHeaderCardWidget 视觉不佳且易受挤压，转而使用与设置界面一致的标准 SettingCard 体系，实现双向绑定与自动校验）。
+- 测试状态：已测试
+
+- 时间：2026-04-23 16:38
+- 操作类型：修复
+- 影响文件：
+  - `ui/interfaces/params_interface.py`
+  - `ui/components/cluster_param_card.py`
+  - `ui/components/recognize_param_card.py`
+  - `ui/components/extract_param_card.py`
+  - `ui/components/merge_param_card.py`
+- 变更摘要：修复 `GroupHeaderCardWidget` 挤压显示不全的问题。将 `params_interface` 的主布局从 `ExpandLayout` 更改为标准 `QVBoxLayout` 并设置顶部对齐与伸缩因子，同时移除了四个卡片组件中 `LineEdit` 错误的预设父级绑定。
+- 原因：技术原因（`ExpandLayout` 机制与 `GroupHeaderCardWidget` 的高度自动推断存在冲突，导致组件被压扁，需恢复标准的尺寸管理布局）。
+- 测试状态：待测试
+
+- 时间：2026-04-23 15:53
+- 操作类型：重构与新增
+- 影响文件：
+  - `ui/components/cluster_param_card.py`（新增）
+  - `ui/components/recognize_param_card.py`（新增）
+  - `ui/components/extract_param_card.py`（新增）
+  - `ui/components/merge_param_card.py`（新增）
+  - `ui/interfaces/params_interface.py`
+- 变更摘要：引入组件库官方 `GroupHeaderCardWidget` 布局方式，将参数配置界面的配置项重构为四个独立的卡片组件（聚类、识别、提取、合并参数），每个组件内部包含3个输入框的垂直分组布局。
+- 原因：代码规范与组件化（符合 UI 层组件分离解耦规范，提升界面可维护性与扩展性）。
+- 测试状态：已测试
+
+- 时间：2026-04-23 15:13
+- 操作类型：新增与修改
+- 影响文件：
+  - `ui/interfaces/params_interface.py`（原 config_interface.py，重命名并修改类名为 ParamsInterface）
+  - `ui/main_window.py`
+- 变更摘要：新增参数配置独立界面，在其中添加了聚类算法参数与业务控制开关；并在主窗口侧边栏底部（设置选项上方）添加其导航入口。
+- 原因：业务原因（提供一个集中的业务算法参数配置界面）。
+- 测试状态：已测试
+
 - 时间：2026-04-23 15:03
 - 操作类型：重构与删除
 - 影响文件：

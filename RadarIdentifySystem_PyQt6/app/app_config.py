@@ -1,4 +1,4 @@
-﻿"""应用配置入口。"""
+"""应用配置入口。"""
 
 from __future__ import annotations
 
@@ -44,23 +44,84 @@ class AppConfig(QConfig):
         restart=True,
     )
 
+    # 聚类参数 ─────────────────────────────────────────────────────────────────
     algorithmEpsilonCF = ConfigItem(
         group="algorithm.clustering",
         name="epsilonCF",
         default=2.0,
-        validator=RangeValidator(0.01, 1000.0),
+        validator=RangeValidator(0.01, 50.0),
     )
     algorithmEpsilonPW = ConfigItem(
         group="algorithm.clustering",
         name="epsilonPW",
         default=0.2,
-        validator=RangeValidator(0.0001, 1000.0),
+        validator=RangeValidator(0.01, 10.0),
     )
     algorithmMinPts = ConfigItem(
         group="algorithm.clustering",
         name="minPts",
         default=1,
         validator=RangeValidator(1, 9999),
+    )
+
+    # 识别参数 ─────────────────────────────────────────────────────────────────
+    recognizeTolerance = ConfigItem(
+        group="algorithm.recognize",
+        name="tolerance",
+        default=0.5,
+        validator=RangeValidator(0.01, 100.0),
+    )
+    recognizeMinConfidence = ConfigItem(
+        group="algorithm.recognize",
+        name="minConfidence",
+        default=0.8,
+        validator=RangeValidator(0.0, 1.0),
+    )
+    recognizeMaxCandidates = ConfigItem(
+        group="algorithm.recognize",
+        name="maxCandidates",
+        default=5,
+        validator=RangeValidator(1, 100),
+    )
+
+    # 提取参数 ─────────────────────────────────────────────────────────────────
+    extractStep = ConfigItem(
+        group="algorithm.extract",
+        name="step",
+        default=1,
+        validator=RangeValidator(1, 100),
+    )
+    extractSmoothWindow = ConfigItem(
+        group="algorithm.extract",
+        name="smoothWindow",
+        default=5,
+        validator=RangeValidator(1, 99),
+    )
+    extractOutlierThreshold = ConfigItem(
+        group="algorithm.extract",
+        name="outlierThreshold",
+        default=3.0,
+        validator=RangeValidator(0.1, 10.0),
+    )
+
+    # 合并参数 ─────────────────────────────────────────────────────────────────
+    mergeTimeDecay = ConfigItem(
+        group="algorithm.merge",
+        name="timeDecay",
+        default=0.9,
+        validator=RangeValidator(0.0, 1.0),
+    )
+    mergeSimThreshold = ConfigItem(
+        group="algorithm.merge",
+        name="simThreshold",
+        default=0.8,
+        validator=RangeValidator(0.0, 1.0),
+    )
+    mergeMaxExtrapolate = ConfigItem(
+        group="algorithm.merge",
+        name="maxExtrapolate",
+        default=3,
+        validator=RangeValidator(0, 100),
     )
 
     mergePriEqualDoaTolerance = ConfigItem(

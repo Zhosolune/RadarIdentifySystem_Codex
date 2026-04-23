@@ -19,6 +19,7 @@ from qfluentwidgets import (
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.setting_interface import SettingInterface
+from ui.interfaces.params_interface import ParamsInterface
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class MainWindow(FluentWindow):
         self.homeInterface = HomeInterface(self)
         self.sliceInterface = SliceInterface(self)
         self.iconInterface = SettingInterface(self)
+        self.paramsInterface = ParamsInterface(self)
 
 
         self.themeListener = SystemThemeListener(self)
@@ -105,6 +107,10 @@ class MainWindow(FluentWindow):
         )
 
         # 设置页
+        self.addSubInterface(
+            self.paramsInterface, FluentIcon.COMMAND_PROMPT, "参数配置",
+            position=NavigationItemPosition.BOTTOM,
+        )
         self.addSubInterface(
             self.iconInterface, FluentIcon.SETTING, "设置",
             position=NavigationItemPosition.BOTTOM,

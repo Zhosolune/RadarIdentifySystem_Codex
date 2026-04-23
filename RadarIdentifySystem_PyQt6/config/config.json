@@ -12,6 +12,11 @@
     "Interface": {
         "DpiScale": "Auto"
     },
+    "algorithm.extract": {
+        "outlierThreshold": 3.0,
+        "smoothWindow": 5,
+        "step": 1
+    },
     "QFluentWidgets": {
         "FontFamilies": [
             "Segoe UI",
@@ -19,10 +24,15 @@
             "PingFang SC"
         ],
         "ThemeColor": "#ff4772c3",
-        "ThemeMode": "Auto"
+        "ThemeMode": "Dark"
     },
     "System": {
         "LogDir": "C:\\Users\\lenovo\\.RadarIdentifySystem\\logs"
+    },
+    "algorithm.merge": {
+        "maxExtrapolate": 3,
+        "simThreshold": 0.8,
+        "timeDecay": 0.9
     },
     "merge.priEqual": {
         "doaTolerance": 20.0
@@ -31,5 +41,10 @@
         "onlyShowIdentified": "IDENTIFIED_ONLY",
         "order": "CF,PW,PA,DTOA,DOA",
         "scaleMode": "STRETCH"
+    },
+    "algorithm.recognize": {
+        "maxCandidates": 5,
+        "minConfidence": 1.0,
+        "tolerance": 1.5
     }
 }
