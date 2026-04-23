@@ -1,5 +1,17 @@
 # 变更记录
 
+- 时间：2026-04-23 15:03
+- 操作类型：重构与删除
+- 影响文件：
+  - `runtime/workflows/render_workflow.py`（删除）
+  - `runtime/threading/render_worker.py`（删除）
+  - `app/signal_bus.py`
+  - `ui/controllers/slice_controller.py`
+  - `ui/controllers/identify_controller.py`
+- 变更摘要：移除渲染后台工作流与 LRU 图像缓存机制，将 UI 的图像加载改为直接同步调用底层绘图门面。
+- 原因：业务/技术原因（消除过度设计，底层矩阵运算极快，同步渲染可避免线程开销与复杂的异步状态同步问题）。
+- 测试状态：已测试
+
 - 时间：2026-04-23 14:16
 - 操作类型：重构
 - 影响文件：

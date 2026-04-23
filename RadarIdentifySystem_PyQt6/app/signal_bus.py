@@ -5,7 +5,6 @@ from __future__ import annotations
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from core.models.processing_session import ProcessingSession
-from infra.plotting.types import RenderedImageBundle
 
 
 class _SignalBus(QObject):
@@ -28,14 +27,6 @@ class _SignalBus(QObject):
     # -------------------------------------------------------------------
     # 当数据导入完成后发出，携带整个 session 的最新状态供 UI 刷新摘要
     import_completed = pyqtSignal(ProcessingSession)
-
-    # 当一个切片的 5 维原始图像渲染完成后发出
-    # 参数：session_id, slice_index, image_bundle
-    slice_image_ready = pyqtSignal(str, int, RenderedImageBundle)
-
-    # 聚类图像渲染就绪信号
-    # session_id, slice_index, cluster_index, image_bundle
-    cluster_image_ready = pyqtSignal(str, int, int, object)
 
 
 signal_bus = _SignalBus()

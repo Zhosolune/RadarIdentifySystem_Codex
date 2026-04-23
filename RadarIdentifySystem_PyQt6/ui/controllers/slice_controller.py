@@ -14,8 +14,8 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
+from infra.plotting.facades import render_slice_images
 from runtime.workflows.slice_workflow import slice_workflow
-from runtime.workflows.render_workflow import render_workflow
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
@@ -62,9 +62,7 @@ class SliceController(QObject):
         super().__init__(view)
         self.view = view
         self._processing_dialog = None
-        self._image_cache: OrderedDict[int, RenderedImageBundle] = OrderedDict[int, RenderedImageBundle]()
         self._current_slice_index = 0
-        self._max_cache_size = 50
 
         # 绑定按钮点击事件
         self.view.navigation_control_card.start_slicing_button.clicked.connect(self.handle_slice)
@@ -73,10 +71,9 @@ class SliceController(QObject):
         self.view.prev_slice_button.clicked.connect(self._on_prev_slice)
         self.view.next_slice_button.clicked.connect(self._on_next_slice)
 
-        # 绑定全局生命周期信号与数据就绪信号
+        # 绑定全局生命周期信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
-        signal_bus.slice_image_ready.connect(self._on_slice_image_ready)
 
         # 绑定重绘请求信号
         self.view.redraw_option_card.redraw_requested.connect(self._on_redraw_requested)
@@ -235,8 +232,7 @@ class SliceController(QObject):
         # 恢复按钮状态
         self.view.navigation_control_card.start_slicing_button.setEnabled(True)
         
-        # 清空缓存并加载第0片
-        self._image_cache.clear()
+        # 加载第0片
         self._load_slice_image(0)
         
         # 通知聚类控制器清空旧显示
@@ -300,7 +296,7 @@ class SliceController(QObject):
         """处理切片完成后的逻辑。
 
         功能描述：
-            关闭进度对话框，恢复按钮状态，清空图片缓存，加载首个切片并通知聚类界面清空。
+            关闭进度对话框，恢复按钮状态，加载首个切片并通知聚类界面清空。
 
         Args:
             无。
@@ -318,8 +314,7 @@ class SliceController(QObject):
         # 恢复按钮状态
         self.view.navigation_control_card.start_slicing_button.setEnabled(True)
         
-        # 清空缓存并加载第0片
-        self._image_cache.clear()
+        # 加载第0片
         self._load_slice_image(0)
         
         # 通知聚类控制器清空旧显示
@@ -374,7 +369,7 @@ class SliceController(QObject):
         """处理重绘请求。
         
         功能描述：
-            响应来自视图面板的重绘操作请求，清空缓存并重新加载当前切片对应的图像。
+            响应来自视图面板的重绘操作请求，重新加载当前切片对应的图像。
 
         Args:
             slice_index (int): 请求重绘的切片编号。
@@ -385,10 +380,9 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        # 清空缓存并重新触发绘制
-        self._image_cache.clear()
+        # 重新触发绘制
         self._load_slice_image(self._current_slice_index)
-        LOGGER.info(f"收到重绘请求，已清空缓存并重新渲染切片编号: {self._current_slice_index}")
+        LOGGER.info(f"收到重绘请求，已重新渲染切片编号: {self._current_slice_index}")
 
     def _on_prev_slice(self) -> None:
         """处理上一片按钮点击。
@@ -454,8 +448,8 @@ class SliceController(QObject):
         """加载并展示指定索引的切片图像。
 
         功能描述：
-            检查索引合法性后更新当前索引和导航按钮。优先从 LRU 缓存获取渲染包，
-            若未命中，则触发渲染工作流。
+            检查索引合法性后更新当前索引和导航按钮。同步调用底层门面
+            提取切片数据完成渲染，并直接刷新 UI 界面。
 
         Args:
             index (int): 请求加载的切片索引。
@@ -475,53 +469,14 @@ class SliceController(QObject):
         self._current_slice_index = index
         self._update_navigation_buttons()
 
-        # 尝试命中缓存
-        if index in self._image_cache:
-            bundle = self._image_cache.pop(index)
-            self._image_cache[index] = bundle  # 更新 LRU 顺序
-            self._update_ui_with_bundle(bundle, index)
-            LOGGER.info(f"加载切片 {index + 1} 命中缓存，当前缓存容量: {len(self._image_cache)}/{self._max_cache_size}", extra={"session_id": session.session_id})
-        else:
-            # 缓存未命中，启动后台渲染
-            LOGGER.info(f"加载切片 {index + 1} 未命中缓存，开始后台渲染", extra={"session_id": session.session_id})
-            render_workflow.start_render(
-                session=session, 
-                slice_index=index, 
-                is_cluster_render=False
-            )
-
-    def _on_slice_image_ready(self, session_id: str, slice_index: int, bundle: RenderedImageBundle) -> None:
-        """接收渲染图片结果并展示到卡片。
-
-        功能描述：
-            校验会话 ID 后，将后台渲染回传的结果存入 LRU 缓存，若返回的切片与当前索引匹配则更新 UI。
-
-        Args:
-            session_id (str): 触发渲染的会话 ID。
-            slice_index (int): 渲染完成的切片索引。
-            bundle (RenderedImageBundle): 渲染后的各维度图像包。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
-        """
-        if session_id != self.view._test_session.session_id:
-            return
-
-        # 存入 LRU 缓存
-        if slice_index in self._image_cache:
-            self._image_cache.pop(slice_index)
-        self._image_cache[slice_index] = bundle
-
-        # 淘汰超出容量的最早数据
-        while len(self._image_cache) > self._max_cache_size:
-            self._image_cache.popitem(last=False)
-
-        # 仅在回调回来的切片是当前用户正在查看的切片时，才刷新 UI
-        if slice_index == self._current_slice_index:
-            self._update_ui_with_bundle(bundle, slice_index)
+        # 同步渲染切片数据
+        target_slice = session.slice_result.slices[index]
+        bundle = render_slice_images(
+            target_slice.data,
+            band=session.band,
+            time_range=target_slice.time_range,
+        )
+        self._update_ui_with_bundle(bundle, index)
 
     def _update_ui_with_bundle(self, bundle: RenderedImageBundle, slice_index: int) -> None:
         """使用指定的图像包更新 UI。

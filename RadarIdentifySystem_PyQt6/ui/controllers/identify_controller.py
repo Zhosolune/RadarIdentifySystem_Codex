@@ -11,8 +11,8 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
+from infra.plotting.facades import render_cluster_images
 from runtime.workflows.identify_workflow import identify_workflow
-from runtime.workflows.render_workflow import render_workflow
 from core.models.cluster_result import ClusterItem
 from ui.dialogs.processing_dialog import ProcessingDialog
 
@@ -59,10 +59,9 @@ class IdentifyController(QObject):
         self.view.prev_cluster_button.clicked.connect(self._on_prev_cluster)
         self.view.next_cluster_button.clicked.connect(self._on_next_cluster)
 
-        # 绑定全局生命周期信号与数据就绪信号
+        # 绑定全局生命周期信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
-        signal_bus.cluster_image_ready.connect(self._on_cluster_image_ready)
 
     def handle_identify(self) -> None:
         """处理识别按钮点击事件。
@@ -187,11 +186,6 @@ class IdentifyController(QObject):
             slice_index (int | None): 发生错误的切片索引。
             error_msg (str): 错误信息内容。
 
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
         """
         if session_id != self.view._test_session.session_id or stage != "identifying":
             return
@@ -224,14 +218,6 @@ class IdentifyController(QObject):
         功能描述：
             递减类别索引并刷新聚类结果图像。
 
-        Args:
-            无。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
         """
         self._current_cluster_index -= 1
         self.load_cluster_image(self.view._slice_controller.current_slice_index)
@@ -241,15 +227,6 @@ class IdentifyController(QObject):
 
         功能描述：
             递增类别索引并刷新聚类结果图像。
-
-        Args:
-            无。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
         """
         self._current_cluster_index += 1
         self.load_cluster_image(self.view._slice_controller.current_slice_index)
@@ -263,11 +240,6 @@ class IdentifyController(QObject):
         Args:
             current_slice_index (int): 正在显示的切片索引。
 
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
         """
         session = self.view._test_session
         if not session or not session.is_slice_clustered(current_slice_index):
@@ -289,18 +261,13 @@ class IdentifyController(QObject):
         """加载并展示当前切片下指定索引的聚类结果图像。
 
         功能描述：
-            校验切片与聚类结果的有效性，约束类别索引后发起渲染工作流，
+            校验切片与聚类结果的有效性，约束类别索引后同步调用门面获取渲染图像，
             若切片无效或无结果则主动清空中间显示区域。
 
         Args:
             current_slice_index (int): 需要加载图像的切片索引。
             reset_index (bool, optional): 是否重置聚类索引为0，默认False。
 
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
         """
         if reset_index:
             self._current_cluster_index = 0
@@ -330,50 +297,16 @@ class IdentifyController(QObject):
             
         self.update_cluster_navigation_buttons(current_slice_index)
         
-        # 启动后台渲染类别图像
-        LOGGER.info(f"加载切片 {current_slice_index + 1} 的类别 {self._current_cluster_index + 1} 图像，启动后台渲染", extra={"session_id": session.session_id})
-        render_workflow.start_render(
-            session=session, 
-            slice_index=current_slice_index, 
-            cluster_index=self._current_cluster_index,
-            is_cluster_render=True
+        # 同步获取聚类图像并更新界面
+        LOGGER.info(f"加载切片 {current_slice_index + 1} 的类别 {self._current_cluster_index + 1} 图像", extra={"session_id": session.session_id})
+        
+        target_cluster = cluster_res.clusters[self._current_cluster_index]
+        bundle = render_cluster_images(
+            cluster_points=target_cluster.points,
+            band=session.band,
+            time_range=target_cluster.time_ranges
         )
-
-    def _on_cluster_image_ready(self, session_id: str, slice_index: int, cluster_index: int, bundle: RenderedImageBundle) -> None:
-        """接收类别渲染图片结果并展示到卡片。
-
-        功能描述：
-            校验会话 ID 及切片、聚类索引，将渲染完成的图像数据呈现到对应的维度卡片中。
-
-        Args:
-            session_id (str): 当前所属的会话 ID。
-            slice_index (int): 所属的切片索引。
-            cluster_index (int): 正在显示的聚类索引。
-            bundle (RenderedImageBundle): 后台渲染生成的各维度聚类图像包。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
-        """
-        if session_id != self.view._test_session.session_id:
-            return
-            
-        current_slice_index = self.view._slice_controller.current_slice_index
-        if slice_index != current_slice_index or cluster_index != self._current_cluster_index:
-            return
-            
-        session = self.view._test_session
-        if not session.is_slice_clustered(slice_index) or session.cluster_result is None:
-            return
-
-        cluster_res = session.cluster_result.slice_results.get(slice_index)
-        if not cluster_res or not cluster_res.clusters:
-            return
-            
-        current_cluster = cluster_res.clusters[cluster_index]
-        self._update_cluster_ui_with_bundle(bundle, current_cluster, len(cluster_res.clusters))
+        self._update_cluster_ui_with_bundle(bundle, target_cluster, len(cluster_res.clusters))
 
     def clear_cluster_ui(self) -> None:
         """清空聚类结果展示区域。
