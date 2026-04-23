@@ -13,6 +13,7 @@ from core.models.processing_session import ProcessingSession
 from ui.components import SliceDimensionCard, NavigationControlCard, PlotOptionCard, RedrawOptionCard, ExportOptionCard, JitterFreeCardGroup
 from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
+from ui.controllers.identify_controller import IdentifyController
 
 
 class SliceInterface(QFrame):
@@ -76,6 +77,7 @@ class SliceInterface(QFrame):
         # 初始化控制器，将业务逻辑抽离
         self._import_controller = ImportController(self)
         self._slice_controller = SliceController(self)
+        self._identify_controller = IdentifyController(self)
 
     def _init_layout(self) -> None:
         """初始化三栏主布局。

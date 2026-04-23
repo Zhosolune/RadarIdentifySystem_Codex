@@ -1,5 +1,15 @@
 # 变更记录
 
+- 时间：2026-04-23 14:16
+- 操作类型：重构
+- 影响文件：
+  - `ui/controllers/identify_controller.py`（新增）
+  - `ui/controllers/slice_controller.py`
+  - `ui/interfaces/slice_interface.py`
+- 变更摘要：将识别（聚类）相关的 UI 交互逻辑与图像渲染控制从 `SliceController` 剥离，新建独立的 `IdentifyController`。
+- 原因：业务原因（遵循单一职责原则，分离切片与识别逻辑，降低控制器的耦合度）。
+- 测试状态：已测试
+
 - 时间：2026-04-23 12:28
 - 操作类型：重构
 - 影响文件：
