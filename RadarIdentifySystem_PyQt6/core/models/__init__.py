@@ -10,6 +10,7 @@ from .algorithm_params import (
     ExtractParams,
     MergeParams,
 )
+from .recognition_result import ClusterRecognition, SliceRecognitionResult, RecognitionResult
 
 __all__ = [
     "PulseBatch",
@@ -22,4 +23,7 @@ __all__ = [
     "RecognitionParams",
     "ExtractParams",
     "MergeParams",
+    "ClusterRecognition",
+    "SliceRecognitionResult",
+    "RecognitionResult",
 ]

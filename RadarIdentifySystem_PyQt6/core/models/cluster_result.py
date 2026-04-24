@@ -39,6 +39,7 @@ class ClusterItem:
     state: ClusterState = ClusterState.PENDING  # 簇当前状态
     
     # 以下为特征与识别产物，识别前可为空
+    valid_cluster_idx: int | None = None  # 仅在 state=VALID 时分配，标记其在所有有效簇中的顺序索引
     pa_label: int | None = None
     dtoa_label: int | None = None
     joint_prob: float | None = None

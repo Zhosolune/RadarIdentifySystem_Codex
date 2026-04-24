@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-04-24 14:15
+- 操作类型：新增
+- 影响文件：
+  - `core/models/recognition_result.py`
+  - `core/models/__init__.py`
+  - `core/models/processing_session.py`
+- 变更摘要：搭建识别阶段核心数据模型（`RecognitionResult`）。
+- 原因：响应新架构识别功能迁移要点，提前完成识别模型契约与依赖倒置（DI）准备。
+- 测试状态：待测试
+
+- 时间：2026-04-24 15:00
+- 操作类型：重构
+- 影响文件：
+  - `core/clustering.py`
+  - `core/recognition.py`
+- 变更摘要：
+  1. 重新创建 `core/recognition.py`，并将识别判定逻辑 `recognize_clusters` 与协议 `InferenceService` 从 `clustering.py` 剥离。
+  2. 优化 `valid_cluster_idx` 的赋值方式：在 `recognize_clusters` 函数中通过传递 `start_valid_idx` 直接在识别通过时赋值并自增，避免了事后的二次遍历分配。
+- 原因：遵循单一职责原则，减轻 `clustering.py` 代码耦合；优化自增索引分配性能。
+- 测试状态：待测试
+
 - 时间：2026-04-24 14:04
 - 操作类型：修改
 - 影响文件：

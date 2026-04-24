@@ -31,6 +31,7 @@ import threading
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult, SliceResult
 from core.models.cluster_result import ClusteringResult
+from core.models.recognition_result import RecognitionResult
 
 
 # -------------------------------------------------------------------
@@ -150,9 +151,8 @@ class ProcessingSession:
     cluster_result: Optional[ClusteringResult] = field(default=None)
     slice_processing_states: dict[int, SliceProcessingState] = field(default_factory=dict)
 
-    # ── P05：识别与参数产物（待 P05 完成后替换） ──────────────────────────
-    # TODO(P05): 替换为 RecognitionResult
-    recognition_result: Optional[Any] = field(default=None)
+    # ── P05：识别与参数产物 ──────────────────────────
+    recognition_result: Optional[RecognitionResult] = field(default=None)
 
     # ── P06：合并产物（待 P06 完成后替换） ────────────────────────────────
     # TODO(P06): 替换为 MergeResult
