@@ -260,7 +260,7 @@ def cluster_and_recognize_slice(
     invalid_recs = [r for r in all_recognitions if not r.is_valid]
 
     recognition_result = SliceRecognitionResult(
-        slice_idx=slice_data.index,
+        slice_index=slice_data.index,
         valid_clusters=valid_recs,
         invalid_clusters=invalid_recs
     )

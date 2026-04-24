@@ -10,12 +10,12 @@
 - 原因：响应新架构识别功能迁移要点，提前完成识别模型契约与依赖倒置（DI）准备。
 - 测试状态：待测试
 
-- 时间：2026-04-24 15:45
+- 时间：2026-04-24 15:50
 - 操作类型：修复
 - 影响文件：
-  - `core/models/processing_session.py`
-- 变更摘要：在 `ProcessingSession` 中补充缺失的方法 `is_slice_recognized`、`mark_slice_recognition_running`、`mark_slice_recognition_succeeded` 和 `mark_slice_recognition_failed`。
-- 原因：识别功能集成后，工作流和界面层调用了新的状态检查和标记方法，补充对应的属性访问方法以解决 `AttributeError` 报错。
+  - `core/clustering.py`
+- 变更摘要：修复在实例化 `SliceRecognitionResult` 时的传参错误，将 `slice_idx` 修正为正确的属性名 `slice_index`。
+- 原因：数据模型 `SliceRecognitionResult` 定义中的属性名为 `slice_index`，而调用方错误地使用了 `slice_idx`，导致发生 `TypeError: got an unexpected keyword argument` 异常。
 - 测试状态：待测试
 
 - 时间：2026-04-24 14:04
