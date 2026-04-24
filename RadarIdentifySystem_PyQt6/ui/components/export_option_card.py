@@ -41,7 +41,7 @@ class ExportOptionCard(ExpandGroupSettingCard):
         super().__init__(
             icon=FluentIcon.FOLDER,
             title="保存选项",
-            content=appConfig.exportDirPath.value,
+            content=qconfig.get(appConfig.exportDirPath),
             parent=parent
         )
         self.setObjectName("exportOptionCard")
@@ -56,7 +56,7 @@ class ExportOptionCard(ExpandGroupSettingCard):
             动态添加状态标签到主卡片右侧，并添加内部展开项。
         """
         # 动态添加状态标签到主卡片
-        self.auto_export_status_label = CaptionLabel("已启用自动保存" if appConfig.autoExport.value else "未启用自动保存", self)
+        self.auto_export_status_label = CaptionLabel("已启用自动保存" if qconfig.get(appConfig.autoExport) else "未启用自动保存", self)
         # self.auto_export_status_label.setStyleSheet("color: gray;")
         
         # 将标签插入到主卡片(HeaderSettingCard)的水平布局中（放在展开箭头之前）
@@ -71,7 +71,7 @@ class ExportOptionCard(ExpandGroupSettingCard):
         self.auto_export_switch = SwitchButton(parent=self, indicatorPos=IndicatorPosition.RIGHT)
         
         # 根据配置初始化状态
-        self.auto_export_switch.setChecked(appConfig.autoExport.value)
+        self.auto_export_switch.setChecked(qconfig.get(appConfig.autoExport))
         
         # 将开关绑定到全局配置并更新 UI
         appConfig.autoExport.valueChanged.connect(self.auto_export_switch.setChecked)
@@ -88,7 +88,7 @@ class ExportOptionCard(ExpandGroupSettingCard):
 
     def _on_switch_checked_changed(self, is_checked: bool) -> None:
         """处理开关状态改变事件并同步到全局配置。"""
-        if appConfig.autoExport.value != is_checked:
+        if qconfig.get(appConfig.autoExport) != is_checked:
             qconfig.set(appConfig.autoExport, is_checked)
 
     def _on_export_path_clicked(self) -> None:
@@ -97,7 +97,7 @@ class ExportOptionCard(ExpandGroupSettingCard):
         folder = QFileDialog.getExistingDirectory(
             self,
             "选择保存/导出目录",
-            appConfig.exportDirPath.value
+            qconfig.get(appConfig.exportDirPath)
         )
         if folder:
             qconfig.set(appConfig.exportDirPath, folder)

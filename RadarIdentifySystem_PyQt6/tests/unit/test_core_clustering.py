@@ -1,5 +1,6 @@
 import numpy as np
 from core.clustering import cluster_single_slice
+from core.models.algorithm_params import ClusteringParams
 from core.params_extract import extract_grouped_values
 from core.models.slice_result import SingleSlice
 
@@ -43,10 +44,12 @@ def test_cluster_single_slice():
     # 执行级联聚类
     res = cluster_single_slice(
         slice_data,
-        eps_cf=2.0,
-        eps_pw=0.2,
-        min_pts=3,
-        min_cluster_size=4
+        params=ClusteringParams(
+            eps_cf=2.0,
+            eps_pw=0.2,
+            min_pts=3,
+            min_cluster_size=4,
+        ),
     )
     
     # 应该得到 2 个簇：1个 CF 簇 (前10个点)，1个 PW 簇 (第10~14个点)

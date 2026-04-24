@@ -52,7 +52,7 @@ class NavigationControlCard(QWidget):
         # --- 导航控制区域 ---
         # self.prev_cluster_button = PushButton(CustomIcon.CHEVRON_LEFT, "上一类", self)
         # self.next_cluster_button = PushButton(CustomIcon.CHEVRON_RIGHT, "下一类", self)
-        self.reset_cur_slice_button  = PrimaryPushButton(CustomIcon.RESET, "重置当前切片", self)
+        self.reset_cur_slice_button  = PrimaryPushButton(FluentIcon.SYNC, "重置当前切片", self)
         # self.prev_slice_button = PushButton(CustomIcon.CHEVRONS_LEFT, "上一片", self)
         # self.next_slice_button = PushButton(CustomIcon.CHEVRONS_RIGHT, "下一片", self)
         

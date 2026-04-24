@@ -13,6 +13,7 @@ from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
 from runtime.workflows.identify_workflow import identify_workflow
+from runtime.algorithm_params import get_clustering_params
 from core.models.cluster_result import ClusterItem
 from ui.dialogs.processing_dialog import ProcessingDialog
 
@@ -102,12 +103,8 @@ class IdentifyController(QObject):
         )
         self._processing_dialog.show()
 
-        # 获取聚类参数从全局配置中读取
-        from app.app_config import appConfig
-        eps_cf = appConfig.algorithmEpsilonCF.value
-        eps_pw = appConfig.algorithmEpsilonPW.value
-        min_pts = appConfig.algorithmMinPts.value
-        min_cluster_size = 8  # 暂未在配置中提供，保持默认
+        # 从运行时组装器获取聚类参数。
+        clustering_params = get_clustering_params()
         
         # 从 slice_controller 获取当前正在查看的切片索引
         slice_index = self.view._slice_controller.current_slice_index
@@ -115,10 +112,7 @@ class IdentifyController(QObject):
         identify_workflow.start_identify(
             self.view._test_session,
             slice_index=slice_index,
-            eps_cf=eps_cf,
-            eps_pw=eps_pw,
-            min_pts=min_pts,
-            min_cluster_size=min_cluster_size
+            clustering_params=clustering_params,
         )
 
     def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:

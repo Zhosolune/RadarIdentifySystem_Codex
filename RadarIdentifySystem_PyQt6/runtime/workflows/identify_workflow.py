@@ -8,6 +8,7 @@ from typing import Optional
 from PyQt6.QtCore import QObject, pyqtSlot
 
 from app.signal_bus import signal_bus
+from core.models.algorithm_params import ClusteringParams
 from core.models.processing_session import ProcessingSession
 from runtime.threading.identify_worker import IdentifyWorker
 
@@ -40,15 +41,12 @@ class IdentifyWorkflow(QObject):
         """返回工作流当前是否正在运行。"""
         return self._worker is not None and self._worker.isRunning()
 
-    @pyqtSlot(ProcessingSession, int, float, float, int, int)
+    @pyqtSlot(ProcessingSession, int, ClusteringParams)
     def start_identify(
         self, 
         session: ProcessingSession,
         slice_index: int,
-        eps_cf: float = 2.0,
-        eps_pw: float = 0.2,
-        min_pts: int = 1,
-        min_cluster_size: int = 8
+        clustering_params: ClusteringParams | None = None,
     ) -> None:
         """启动识别（聚类）工作流。
 
@@ -57,10 +55,7 @@ class IdentifyWorkflow(QObject):
         Args:
             session (ProcessingSession): 当前待处理的会话实例。
             slice_index (int): 需要识别的切片索引。
-            eps_cf (float): CF维度聚类半径。
-            eps_pw (float): PW维度聚类半径。
-            min_pts (int): 聚类核心点最小数量。
-            min_cluster_size (int): 聚类最小有效点数。
+            clustering_params (ClusteringParams | None): 聚类参数对象。
             
         Returns:
             None
@@ -68,6 +63,9 @@ class IdentifyWorkflow(QObject):
         if self._worker is not None and self._worker.isRunning():
             LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session.session_id})
             return
+
+        # 兜底构建默认聚类参数。
+        clustering_params = clustering_params or ClusteringParams()
 
         # 发送流程开始全局信号
         signal_bus.stage_started.emit(session.session_id, "identifying", slice_index)
@@ -81,10 +79,7 @@ class IdentifyWorkflow(QObject):
         self._worker = IdentifyWorker(
             session=session,
             slice_index=slice_index,
-            eps_cf=eps_cf,
-            eps_pw=eps_pw,
-            min_pts=min_pts,
-            min_cluster_size=min_cluster_size,
+            clustering_params=clustering_params,
             parent=self
         )
         self._active_slice_index = slice_index

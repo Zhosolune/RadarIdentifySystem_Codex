@@ -77,7 +77,7 @@ class RoundedImageLabel(QLabel):
         from ui.adapters.image_scaler import apply_scale_mode
         from app.app_config import appConfig
         
-        mode = appConfig.plotScaleMode.value
+        mode = qconfig.get(appConfig.plotScaleMode)
         scaled_qimage = apply_scale_mode(self._source_image, self.width(), self.height(), mode)
         self._cached_pixmap = QPixmap.fromImage(scaled_qimage)
         self.update()

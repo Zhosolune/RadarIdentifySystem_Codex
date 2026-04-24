@@ -140,8 +140,8 @@ class SliceController(QObject):
         current_mode = "自适应切片" if is_adaptive else "开始切片"
         
         # 也可以结合全局配置（此处暂存打印）
-        from app.app_config import appConfig
-        checkbox_adaptive = appConfig.autoRecognizeNextSlice.value
+        from app.app_config import appConfig, qconfig
+        checkbox_adaptive = bool(qconfig.get(appConfig.autoRecognizeNextSlice))
         LOGGER.info(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {checkbox_adaptive}")
 
         # 更新按钮状态
@@ -188,21 +188,17 @@ class SliceController(QObject):
         )
         self._processing_dialog.show()
 
-        # 获取聚类参数从全局配置中读取
-        from app.app_config import appConfig
-        eps_cf = appConfig.algorithmEpsilonCF.value
-        eps_pw = appConfig.algorithmEpsilonPW.value
-        min_pts = appConfig.algorithmMinPts.value
-        # min_cluster_size 暂未在配置中提供，保持默认8或从其他地方读取
-        min_cluster_size = 8
+        # 延迟导入聚类工作流与参数组装器。
+        from runtime.workflows.identify_workflow import identify_workflow
+        from runtime.algorithm_params import get_clustering_params
+
+        # 组装聚类参数对象。
+        clustering_params = get_clustering_params()
         
         identify_workflow.start_identify(
             self.view._test_session,
             slice_index=self._current_slice_index,
-            eps_cf=eps_cf,
-            eps_pw=eps_pw,
-            min_pts=min_pts,
-            min_cluster_size=min_cluster_size
+            clustering_params=clustering_params,
         )
 
     def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:

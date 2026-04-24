@@ -12,6 +12,7 @@ import logging
 from core.models.pulse_batch import COL_TOA
 from core.models.slice_result import SingleSlice
 from core.models.cluster_result import ClusterItem, SliceClusterResult, ClusterState
+from core.models.algorithm_params import ClusteringParams
 from core.params_extract import extract_grouped_values
 
 
@@ -135,10 +136,7 @@ def process_dimension_clustering(
 
 def cluster_single_slice(
     slice_data: SingleSlice,
-    eps_cf: float = 2.0,
-    eps_pw: float = 0.2,
-    min_pts: int = 1,
-    min_cluster_size: int = 8
+    params: ClusteringParams | None = None,
 ) -> SliceClusterResult:
     """对单个切片执行级联聚类。
 
@@ -150,14 +148,13 @@ def cluster_single_slice(
 
     Args:
         slice_data (SingleSlice): 单个切片数据对象。
-        eps_cf (float): CF维度的邻域半径。
-        eps_pw (float): PW维度的邻域半径。
-        min_pts (int): DBSCAN 核心点最小点数。
-        min_cluster_size (int): 聚类有效判定最小点数。
+        params (ClusteringParams | None): 聚类参数对象；为空时使用默认参数。
 
     Returns:
         SliceClusterResult: 包含 CF簇、PW簇 和最终剩余离散点的结果集。
     """
+    # 兜底默认参数，保持 core 层独立可运行。
+    params = params or ClusteringParams()
     all_clusters: list[ClusterItem] = []
     
     # 获取切片点云
@@ -175,9 +172,9 @@ def cluster_single_slice(
         points=points,
         dim_name="CF",
         dim_idx=0,
-        epsilon=eps_cf,
-        min_pts=min_pts,
-        min_cluster_size=min_cluster_size,
+        epsilon=params.eps_cf,
+        min_pts=params.min_pts,
+        min_cluster_size=params.min_cluster_size,
         slice_idx=slice_data.index,
         time_range=slice_data.time_range,
         start_cluster_id=1
@@ -201,9 +198,9 @@ def cluster_single_slice(
         points=pw_points,
         dim_name="PW",
         dim_idx=1,
-        epsilon=eps_pw,
-        min_pts=min_pts,
-        min_cluster_size=min_cluster_size,
+        epsilon=params.eps_pw,
+        min_pts=params.min_pts,
+        min_cluster_size=params.min_cluster_size,
         slice_idx=slice_data.index,
         time_range=slice_data.time_range,
         start_cluster_id=start_pw_id

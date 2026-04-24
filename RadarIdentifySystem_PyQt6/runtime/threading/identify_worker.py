@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from core.models.algorithm_params import ClusteringParams
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.cluster_result import ClusteringResult
 from core.clustering import cluster_single_slice
@@ -31,10 +32,7 @@ class IdentifyWorker(QThread):
         self,
         session: ProcessingSession,
         slice_index: int,
-        eps_cf: float = 2.0,
-        eps_pw: float = 0.2,
-        min_pts: int = 1,
-        min_cluster_size: int = 8,
+        clustering_params: ClusteringParams | None = None,
         parent: QObject | None = None,
     ) -> None:
         """初始化识别（聚类）工作线程。
@@ -42,19 +40,14 @@ class IdentifyWorker(QThread):
         Args:
             session (ProcessingSession): 当前流程所依附的会话上下文。
             slice_index (int): 需要进行识别聚类的切片索引。
-            eps_cf (float): CF维度的 DBSCAN 邻域半径。
-            eps_pw (float): PW维度的 DBSCAN 邻域半径。
-            min_pts (int): DBSCAN 核心点最小样本数。
-            min_cluster_size (int): 簇的最小有效点数。
+            clustering_params (ClusteringParams | None): 聚类参数对象。
             parent (QObject | None): 挂载的 Qt 父节点。
         """
         super().__init__(parent)
         self._session = session
         self._slice_index = slice_index
-        self._eps_cf = eps_cf
-        self._eps_pw = eps_pw
-        self._min_pts = min_pts
-        self._min_cluster_size = min_cluster_size
+        # 保存聚类参数对象。
+        self._clustering_params = clustering_params or ClusteringParams()
 
     def run(self) -> None:
         """执行级联聚类逻辑。
@@ -87,10 +80,7 @@ class IdentifyWorker(QThread):
             # 对当前切片执行聚类
             slice_cluster_res = cluster_single_slice(
                 slice_data=target_slice,
-                eps_cf=self._eps_cf,
-                eps_pw=self._eps_pw,
-                min_pts=self._min_pts,
-                min_cluster_size=self._min_cluster_size
+                params=self._clustering_params,
             )
             
             with self._session.lock:

@@ -1,5 +1,57 @@
 # 变更记录
 
+- 时间：2026-04-24 11:39
+- 操作类型：新增与修改
+- 影响文件：
+  - `docs/算法参数对象规则.md`（新增）
+  - `docs/配置系统设计.md`
+- 变更摘要：新增“算法参数对象规则”文档，系统化约束参数对象的分层位置、命名方式、配置读取 API、调用链和禁用项，并在配置系统设计文档中补充交叉引用。
+- 原因：将新落地的参数对象方案沉淀为长期规则，避免后续识别、提取、合并流程继续回退到长签名或跨层直接读配置。
+- 测试状态：已测试（文档诊断通过）
+
+- 时间：2026-04-24 11:34
+- 操作类型：修改
+- 影响文件：
+  - `runtime/algorithm_params.py`
+  - `ui/controllers/identify_controller.py`
+  - `ui/controllers/slice_controller.py`
+- 变更摘要：将运行时参数组装函数统一重命名为 `get_clustering_params`、`get_recognition_params`、`get_extract_params`、`get_merge_params`，并同步更新调用点。
+- 原因：精简方法命名，提升调用处可读性，避免函数名过长。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-24 11:24
+- 操作类型：修改
+- 影响文件：
+  - `runtime/algorithm_params.py`
+  - `ui/controllers/slice_controller.py`
+- 变更摘要：将新增参数组装器中的配置读取方式从直接访问 `ConfigItem.value` 统一改为使用组件库 `qconfig.get(...)`，并同步修正一个业务开关读取点。
+- 原因：保持配置系统用法与组件库规范一致，避免直接读取值带来的接口风格不统一问题。
+- 测试状态：已测试（诊断通过，`py_compile` 通过）
+
+- 时间：2026-04-24 11:12
+- 操作类型：重构
+- 影响文件：
+  - `core/models/algorithm_params.py`（新增）
+  - `core/models/__init__.py`
+  - `runtime/algorithm_params.py`（新增）
+  - `core/clustering.py`
+  - `runtime/workflows/identify_workflow.py`
+  - `runtime/threading/identify_worker.py`
+  - `ui/controllers/identify_controller.py`
+  - `ui/controllers/slice_controller.py`
+  - `tests/unit/test_core_clustering.py`
+- 变更摘要：新增聚类/识别/提取/合并四类算法参数数据对象，并将聚类链路重构为“runtime 从 `appConfig` 组装 `ClusteringParams`，workflow/worker/core 统一传递单一参数对象”，收敛长函数签名且保持 `core` 不依赖应用配置层。
+- 原因：降低多阶段算法参数透传的维护复杂度，同时遵守 `core` 不反向依赖 `app` 的分层约束。
+- 测试状态：待测试（静态诊断已通过，`python -m pytest tests/unit/test_core_clustering.py` 因环境缺少 `pytest` 未执行）
+
+- 时间：2026-04-24 09:39
+- 操作类型：修改
+- 影响文件：
+  - `docs/operateLog.md`
+- 变更摘要：补充一次架构评估记录，结论为 `core` 不建议直接依赖 `app/app_config.py`；当前“UI/Workflow 读取配置后透传，core 保留默认参数”的方案在复杂度与分层之间更平衡，后续如需继续降复杂度，优先考虑在 `runtime` 增加轻量参数组装层，而不是让 `core` 反向依赖 `app`。
+- 原因：用户要求评估 `core` 直接读取全局配置的可行性，并比较不直连配置时的参数应用复杂度，需要将分析结论留痕，便于后续中断恢复。
+- 测试状态：无需测试
+
 - 时间：2026-04-23 17:33
 - 操作类型：修改
 - 影响文件：
@@ -949,4 +1001,3 @@
 - 测试状态：无需测试（文档一致性检视已完成）
 
 ---
-
