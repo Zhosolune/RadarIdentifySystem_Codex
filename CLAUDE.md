@@ -19,9 +19,6 @@ python main.py
 python -m pytest tests/unit/ -v
 python -m pytest tests/unit/test_core_clustering.py -v   # single test file
 
-# Build executable (PyInstaller)
-python build.py
-
 # Install dependencies
 pip install -r requirements.txt
 ```
@@ -67,9 +64,10 @@ infra → core
 ```
 Excel/Bin/MAT → ImportWorker → PulseBatch [CF, PW, DOA, PA, TOA]
   → preprocess (PA cleaning, TOA flip fix) → SliceWorker (time-window slicing)
-  → RenderWorker (rasterize to QImage) → IdentifyWorker (DBSCAN clustering)
-  → merge → export
+  → infra/plotting/facades (rasterize to QImage, synchronous) → IdentifyWorker (DBSCAN clustering)
+  → recognition (ONNX inference, stub) → merge (stub) → export
 ```
+Recognition and merge stages are 0-byte stubs (not yet implemented). Rendering uses synchronous facade calls (no worker thread); the render workflow/cache was intentionally removed.
 
 **PulseBatch columns** (`core/models/pulse_batch.py`): COL_CF=0, COL_PW=1, COL_DOA=2, COL_PA=3, COL_TOA=4
 
@@ -89,10 +87,19 @@ Excel/Bin/MAT → ImportWorker → PulseBatch [CF, PW, DOA, PA, TOA]
 8. **Inline comments** — required, written in Simplified Chinese, concise "verb + object" style (e.g., "获取当前目录", "发射xx信号", "创建xx线程")
 9. **signal_bus** — use for all cross-module signal communication; no direct signal wiring between UI and workers
 
+## Implementation Notes
+
+- **`runtime/events/` is planned but empty.** Current event data classes live in `app/events.py` (`ImportFinishedEvent`, `SliceReadyEvent`, `IdentifyProgressEvent`, etc.). Future work should move them to `runtime/events.py` per the architecture spec.
+- **`core/recognition.py` and `core/merge.py` are 0-byte stubs.** The pipeline currently stops at clustering + display.
+- **`core/params_extract.py`** provides `extract_grouped_values()` used by clustering to pull parameters from config.
+- **`infra/onnx/`, `infra/storage/`, `infra/packaging/`** are empty directories — ONNX inference, export, and packaging are not yet built.
+- **`openpyxl`** is a transitive dependency (pandas `.read_excel()` needs it for `.xlsx`) but is not in `requirements.txt` — install separately if Excel import fails.
+- **`.trae/rules/`** contains additional AI IDE guidance split into four files: directory baseline + constraints, code standards, AI behavior rules, and session/event contracts. Read these if modifying architecture boundaries, adding stages, or changing the event model.
+
 ## Key Dependencies
 
 - PyQt6 + PyQt6-Fluent-Widgets (UI framework, `FluentWindow` base class)
 - scikit-learn (DBSCAN clustering)
-- onnxruntime (neural network inference)
+- onnxruntime (neural network inference, not yet wired)
 - numpy, pandas (data handling)
 - matplotlib (plotting backend)

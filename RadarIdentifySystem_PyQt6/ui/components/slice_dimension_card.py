@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QPainterPath
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
-from qfluentwidgets import SimpleCardWidget
+from qfluentwidgets import SimpleCardWidget, qconfig
 
 
 class RoundedImageLabel(QLabel):

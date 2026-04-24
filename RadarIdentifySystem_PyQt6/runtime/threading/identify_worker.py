@@ -67,6 +67,16 @@ class IdentifyWorker(QThread):
             target_slice = slices[self._slice_index]
             
             LOGGER.info("开始聚类处理，当前切片: %d", self._slice_index, extra={"session_id": session_id})
+            # 记录聚类参数快照，便于问题排查与回放分析。
+            LOGGER.info(
+                "聚类参数: eps_cf=%.4f, eps_pw=%.4f, min_pts=%d, min_cluster_size=%d, slice_index=%d",
+                self._clustering_params.eps_cf,
+                self._clustering_params.eps_pw,
+                self._clustering_params.min_pts,
+                self._clustering_params.min_cluster_size,
+                self._slice_index,
+                extra={"session_id": session_id},
+            )
             
             # 如果 session 中还没有 cluster_result，则初始化一个
             with self._session.lock:

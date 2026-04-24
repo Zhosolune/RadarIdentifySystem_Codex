@@ -10,6 +10,8 @@ from qfluentwidgets import (
     ExpandLayout,
     SettingCardGroup,
     FluentIcon,
+    SpinBox,
+    DoubleSpinBox,
     SwitchSettingCard,
 )
 
@@ -36,6 +38,8 @@ class ParamsInterface(ScrollArea):
 
     # 内容区最大宽度（px），超出后左右边距自动增大实现居中
     MAX_CONTENT_WIDTH = 860
+    # 输入框统一宽度（px）
+    INPUT_BOX_WIDTH = 140
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化参数配置界面。
@@ -222,6 +226,31 @@ class ParamsInterface(ScrollArea):
 
         # 执行布局组装
         self._initLayout()
+        # 统一输入框宽度
+        self._unifyInputBoxWidth()
+
+    def _unifyInputBoxWidth(self) -> None:
+        """统一参数输入框宽度。
+
+        功能描述：
+            遍历当前参数页中的整数与浮点输入框，并设置统一固定宽度，保持视觉一致性。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        # 统一整数输入框宽度
+        for spin_box in self.settingScrollWidget.findChildren(SpinBox):
+            spin_box.setFixedWidth(self.INPUT_BOX_WIDTH)
+
+        # 统一浮点输入框宽度
+        for double_spin_box in self.settingScrollWidget.findChildren(DoubleSpinBox):
+            double_spin_box.setFixedWidth(self.INPUT_BOX_WIDTH)
 
     def _initLayout(self) -> None:
         """初始化卡片组布局。
