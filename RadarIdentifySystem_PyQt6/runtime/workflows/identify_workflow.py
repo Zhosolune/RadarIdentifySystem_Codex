@@ -7,10 +7,12 @@ from typing import Optional
 
 from PyQt6.QtCore import QObject, pyqtSlot
 
+from app.app_config import appConfig, qconfig
 from app.signal_bus import signal_bus
-from core.models.algorithm_params import ClusteringParams
+from core.models.algorithm_params import ClusteringParams, RecognitionParams
 from core.models.processing_session import ProcessingSession
 from runtime.threading.identify_worker import IdentifyWorker
+from infra.onnx_service import OnnxInferenceService
 
 
 LOGGER = logging.getLogger(__name__)
@@ -36,6 +38,7 @@ class IdentifyWorkflow(QObject):
         super().__init__(parent)
         self._worker: Optional[IdentifyWorker] = None
         self._active_slice_index: int | None = None
+        self._inference_service: Optional[OnnxInferenceService] = None
 
     def is_running(self) -> bool:
         """返回工作流当前是否正在运行。"""
@@ -47,39 +50,61 @@ class IdentifyWorkflow(QObject):
         session: ProcessingSession,
         slice_index: int,
         clustering_params: ClusteringParams | None = None,
+        recognition_params: RecognitionParams | None = None,
     ) -> None:
-        """启动识别（聚类）工作流。
+        """启动指定切片的聚类与识别任务。
 
-        检查当前是否空闲，发射启动事件，并启动后台聚类线程开始执行当前切片的聚类。
+        功能描述：
+            检查前置条件，初始化推理服务，挂载 IdentifyWorker，绑定进度与完成信号，最后启动线程。
 
         Args:
-            session (ProcessingSession): 当前待处理的会话实例。
-            slice_index (int): 需要识别的切片索引。
+            session (ProcessingSession): 目标数据会话。
+            slice_index (int): 切片索引。
             clustering_params (ClusteringParams | None): 聚类参数对象。
+            recognition_params (RecognitionParams | None): 识别参数对象。
             
         Returns:
             None
         """
-        if self._worker is not None and self._worker.isRunning():
-            LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session.session_id})
+        session_id = session.session_id
+        if not session.is_sliced:
+            LOGGER.warning("切片尚未完成，无法启动识别", extra={"session_id": session_id})
             return
+
+        if self._worker is not None and self._worker.isRunning():
+            LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session_id})
+            return
+
+        # 延迟初始化 ONNX 推理服务，避免应用启动时卡顿
+        if self._inference_service is None:
+            # 从配置中获取模型路径
+            pa_path = qconfig.get(appConfig.modelPaPath)
+            dtoa_path = qconfig.get(appConfig.modelDtoaPath)
+            temp_dir = qconfig.get(appConfig.logDir) # 暂用 logDir 作为 temp_dir
+            self._inference_service = OnnxInferenceService(
+                dtoa_model_path=dtoa_path,
+                pa_model_path=pa_path,
+                temp_dir=temp_dir
+            )
 
         # 兜底构建默认聚类参数。
         clustering_params = clustering_params or ClusteringParams()
 
         # 发送流程开始全局信号
-        signal_bus.stage_started.emit(session.session_id, "identifying", slice_index)
+        signal_bus.stage_started.emit(session_id, "identifying", slice_index)
         LOGGER.info(
             "发射识别开始事件，当前切片: %d",
             slice_index,
-            extra={"session_id": session.session_id},
+            extra={"session_id": session_id},
         )
         
         # 挂载计算线程，并在线程结束时挂接回调
         self._worker = IdentifyWorker(
             session=session,
             slice_index=slice_index,
+            inference_service=self._inference_service,
             clustering_params=clustering_params,
+            recognition_params=recognition_params,
             parent=self
         )
         self._active_slice_index = slice_index

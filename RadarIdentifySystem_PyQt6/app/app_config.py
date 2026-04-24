@@ -152,6 +152,17 @@ class AppConfig(QConfig):
     )
 
     # 业务控制 ─────────────────────────────────────────────────────────────────
+    modelPaPath = ConfigItem(
+        group="model",
+        name="paPath",
+        default=str(Path.home() / ".RadarIdentifySystem" / "models" / "pa_model.onnx"),
+    )
+    modelDtoaPath = ConfigItem(
+        group="model",
+        name="dtoaPath",
+        default=str(Path.home() / ".RadarIdentifySystem" / "models" / "dtoa_model.onnx"),
+    )
+
     autoRecognizeNextSlice = ConfigItem(
         group="business",
         name="autoRecognizeNextSlice",

@@ -10,15 +10,17 @@
 - 原因：响应新架构识别功能迁移要点，提前完成识别模型契约与依赖倒置（DI）准备。
 - 测试状态：待测试
 
-- 时间：2026-04-24 15:00
-- 操作类型：重构
+- 时间：2026-04-24 15:15
+- 操作类型：新增
 - 影响文件：
-  - `core/clustering.py`
-  - `core/recognition.py`
+  - `infra/onnx_service.py`
+  - `app/app_config.py`
+  - `runtime/workflows/identify_workflow.py`
 - 变更摘要：
-  1. 重新创建 `core/recognition.py`，并将识别判定逻辑 `recognize_clusters` 与协议 `InferenceService` 从 `clustering.py` 剥离。
-  2. 优化 `valid_cluster_idx` 的赋值方式：在 `recognize_clusters` 函数中通过传递 `start_valid_idx` 直接在识别通过时赋值并自增，避免了事后的二次遍历分配。
-- 原因：遵循单一职责原则，减轻 `clustering.py` 代码耦合；优化自增索引分配性能。
+  1. 实现基于 ONNX Runtime 的推理防腐层 `OnnxInferenceService`，封装纯内存（无边框、无文件落盘）的图片到张量的转换及模型推理。
+  2. 在 `app_config.py` 中新增 `modelPaPath` 和 `modelDtoaPath` 配置。
+  3. 在 `IdentifyWorkflow` 中延迟实例化 `OnnxInferenceService`，并在启动任务时注入到 `IdentifyWorker`。
+- 原因：补齐识别阶段最核心的 AI 推理能力；保证 `core` 层绝对纯净，通过依赖注入方式将具体的 `onnxruntime` 引擎和矩阵计算约束在 `infra` 层。
 - 测试状态：待测试
 
 - 时间：2026-04-24 14:04
