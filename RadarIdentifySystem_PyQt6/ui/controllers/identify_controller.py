@@ -15,6 +15,7 @@ from infra.plotting.facades import render_cluster_images
 from runtime.workflows.identify_workflow import identify_workflow
 from runtime.algorithm_params import get_clustering_params
 from core.models.cluster_result import ClusterItem
+from core.models.recognition_result import ClusterRecognition
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
@@ -229,33 +230,33 @@ class IdentifyController(QObject):
         """更新聚类类别导航按钮可用状态。
 
         功能描述：
-            根据当前切片的聚类结果总数和当前选择的索引，判断是否启用上一类和下一类按钮。
+            根据当前切片的有效识别结果总数和当前选择的索引，判断是否启用上一类和下一类按钮。
 
         Args:
             current_slice_index (int): 正在显示的切片索引。
 
         """
         session = self.view._test_session
-        if not session or not session.is_slice_clustered(current_slice_index):
+        if not session or not session.is_slice_recognized(current_slice_index):
             self.view.prev_cluster_button.setEnabled(False)
             self.view.next_cluster_button.setEnabled(False)
             return
 
-        cluster_res = session.cluster_result.slice_results.get(current_slice_index)
-        if not cluster_res or not cluster_res.clusters:
+        rec_res = session.recognition_result.slice_results.get(current_slice_index)
+        if not rec_res or not rec_res.valid_clusters:
             self.view.prev_cluster_button.setEnabled(False)
             self.view.next_cluster_button.setEnabled(False)
             return
             
-        total = len(cluster_res.clusters)
+        total = len(rec_res.valid_clusters)
         self.view.prev_cluster_button.setEnabled(self._current_cluster_index > 0)
         self.view.next_cluster_button.setEnabled(self._current_cluster_index < total - 1)
 
     def load_cluster_image(self, current_slice_index: int, reset_index: bool = False) -> None:
-        """加载并展示当前切片下指定索引的聚类结果图像。
+        """加载并展示当前切片下指定索引的有效识别聚类结果图像。
 
         功能描述：
-            校验切片与聚类结果的有效性，约束类别索引后同步调用门面获取渲染图像，
+            校验切片与识别结果的有效性，约束类别索引后同步调用门面获取渲染图像，
             若切片无效或无结果则主动清空中间显示区域。
 
         Args:
@@ -267,40 +268,43 @@ class IdentifyController(QObject):
             self._current_cluster_index = 0
             
         session = self.view._test_session
-        if not session or not session.is_slice_clustered(current_slice_index):
+        if not session or not session.is_slice_recognized(current_slice_index):
             self.clear_cluster_ui()
             self.update_cluster_navigation_buttons(current_slice_index)
             return
 
-        if session.cluster_result is None:
+        rec_res = session.recognition_result.slice_results.get(current_slice_index)
+        if not rec_res or not rec_res.valid_clusters:
             self.clear_cluster_ui()
             self.update_cluster_navigation_buttons(current_slice_index)
             return
-
-        cluster_res = session.cluster_result.slice_results.get(current_slice_index)
-        if not cluster_res or not cluster_res.clusters:
-            self.clear_cluster_ui()
-            self.update_cluster_navigation_buttons(current_slice_index)
-            return
+            
+        valid_clusters_info = rec_res.valid_clusters
             
         # 约束索引范围
         if self._current_cluster_index < 0:
             self._current_cluster_index = 0
-        elif self._current_cluster_index >= len(cluster_res.clusters):
-            self._current_cluster_index = len(cluster_res.clusters) - 1
+        elif self._current_cluster_index >= len(valid_clusters_info):
+            self._current_cluster_index = len(valid_clusters_info) - 1
             
         self.update_cluster_navigation_buttons(current_slice_index)
         
         # 同步获取聚类图像并更新界面
-        LOGGER.info(f"加载切片 {current_slice_index + 1} 的类别 {self._current_cluster_index + 1} 图像", extra={"session_id": session.session_id})
+        LOGGER.info(f"加载切片 {current_slice_index + 1} 的有效识别簇 {self._current_cluster_index + 1} 图像", extra={"session_id": session.session_id})
         
-        target_cluster = cluster_res.clusters[self._current_cluster_index]
+        # 拿到对应识别结果
+        target_rec = valid_clusters_info[self._current_cluster_index]
+        
+        # 去聚类结果中找到这个簇的数据点
+        cluster_res = session.cluster_result.slice_results.get(current_slice_index)
+        target_cluster = next(c for c in cluster_res.clusters if c.cluster_idx == target_rec.cluster_index)
+        
         bundle = render_cluster_images(
             cluster_points=target_cluster.points,
             band=session.band,
             time_range=target_cluster.time_ranges
         )
-        self._update_cluster_ui_with_bundle(bundle, target_cluster, len(cluster_res.clusters))
+        self._update_cluster_ui_with_bundle(bundle, target_rec, len(valid_clusters_info))
 
     def clear_cluster_ui(self) -> None:
         """清空聚类结果展示区域。
@@ -338,15 +342,16 @@ class IdentifyController(QObject):
         for card in cards:
             card.set_image(empty_image)
 
-    def _update_cluster_ui_with_bundle(self, bundle: RenderedImageBundle, cluster_item: ClusterItem, total_clusters: int) -> None:
+    def _update_cluster_ui_with_bundle(self, bundle: RenderedImageBundle, cluster_rec: ClusterRecognition, total_clusters: int) -> None:
         """使用指定的聚类图像包更新聚类结果 UI。
 
         功能描述：
             根据传入的图像数据字典，逐个将维度图像转换为 QImage 并展示到对应的图像卡片中。
+            同时在标题中展示识别标签和置信度信息。
 
         Args:
             bundle (RenderedImageBundle): 渲染后的聚类图像数据包。
-            cluster_item (ClusterItem): 正在展示的聚类簇信息模型。
+            cluster_rec (ClusterRecognition): 正在展示的有效簇的识别结果模型。
             total_clusters (int): 当前切片下的总类别数，用于更新标题显示。
 
         Returns:
@@ -355,11 +360,21 @@ class IdentifyController(QObject):
         Raises:
             无。
         """
-        # 更新中间标题文本，提示当前正在查看的类别进度
+        # 更新中间标题文本，提示当前正在查看的类别进度和识别结果
         if hasattr(self.view, 'cluster_title_label'):
-            self.view.cluster_title_label.setText(
-                f"第 {self._current_cluster_index + 1} / {total_clusters} 个类别  {cluster_item.dim_name}维聚类结果"
+            pa_label = cluster_rec.pa_label
+            dtoa_label = cluster_rec.dtoa_label
+            pa_conf = cluster_rec.pa_confidence
+            dtoa_conf = cluster_rec.dtoa_confidence
+            joint_prob = cluster_rec.joint_prob
+            
+            title_text = (
+                f"第 {self._current_cluster_index + 1} / {total_clusters} 个类别  "
+                f"{cluster_rec.dim_name}维聚类结果  |  "
+                f"PA: {pa_label}({pa_conf:.2f})  DTOA: {dtoa_label}({dtoa_conf:.2f})  "
+                f"联合概率: {joint_prob:.2f}"
             )
+            self.view.cluster_title_label.setText(title_text)
         
         # 构建维度到卡片的映射字典
         cards = {

@@ -10,17 +10,12 @@
 - 原因：响应新架构识别功能迁移要点，提前完成识别模型契约与依赖倒置（DI）准备。
 - 测试状态：待测试
 
-- 时间：2026-04-24 15:15
-- 操作类型：新增
+- 时间：2026-04-24 15:45
+- 操作类型：修复
 - 影响文件：
-  - `infra/onnx_service.py`
-  - `app/app_config.py`
-  - `runtime/workflows/identify_workflow.py`
-- 变更摘要：
-  1. 实现基于 ONNX Runtime 的推理防腐层 `OnnxInferenceService`，封装纯内存（无边框、无文件落盘）的图片到张量的转换及模型推理。
-  2. 在 `app_config.py` 中新增 `modelPaPath` 和 `modelDtoaPath` 配置。
-  3. 在 `IdentifyWorkflow` 中延迟实例化 `OnnxInferenceService`，并在启动任务时注入到 `IdentifyWorker`。
-- 原因：补齐识别阶段最核心的 AI 推理能力；保证 `core` 层绝对纯净，通过依赖注入方式将具体的 `onnxruntime` 引擎和矩阵计算约束在 `infra` 层。
+  - `core/models/processing_session.py`
+- 变更摘要：在 `ProcessingSession` 中补充缺失的方法 `is_slice_recognized`、`mark_slice_recognition_running`、`mark_slice_recognition_succeeded` 和 `mark_slice_recognition_failed`。
+- 原因：识别功能集成后，工作流和界面层调用了新的状态检查和标记方法，补充对应的属性访问方法以解决 `AttributeError` 报错。
 - 测试状态：待测试
 
 - 时间：2026-04-24 14:04

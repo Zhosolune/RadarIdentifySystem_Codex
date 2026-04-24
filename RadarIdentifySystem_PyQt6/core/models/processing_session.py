@@ -298,6 +298,23 @@ class ProcessingSession:
             == SliceProcessStatus.SUCCEEDED
         )
 
+    def is_slice_recognized(self, slice_index: int) -> bool:
+        """判断指定切片是否已完成识别。
+
+        Args:
+            slice_index (int): 切片索引。
+
+        Returns:
+            bool: 当前切片识别成功则返回 True。
+
+        Raises:
+            ValueError: 当切片索引为负数时抛出。
+        """
+        return (
+            self.get_slice_processing_state(slice_index).recognition_status
+            == SliceProcessStatus.SUCCEEDED
+        )
+
     def mark_slice_cluster_running(self, slice_index: int) -> None:
         """标记指定切片正在执行聚类。
 
@@ -352,6 +369,37 @@ class ProcessingSession:
         # 更新聚类失败状态
         slice_state.cluster_status = SliceProcessStatus.FAILED
         slice_state.last_cluster_error = error_msg
+
+    def mark_slice_recognition_running(self, slice_index: int) -> None:
+        """标记指定切片正在执行识别。
+
+        Args:
+            slice_index (int): 切片索引。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.recognition_status = SliceProcessStatus.RUNNING
+        slice_state.last_recognition_error = None
+
+    def mark_slice_recognition_succeeded(self, slice_index: int) -> None:
+        """标记指定切片识别成功。
+
+        Args:
+            slice_index (int): 切片索引。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.recognition_status = SliceProcessStatus.SUCCEEDED
+        slice_state.last_recognition_error = None
+
+    def mark_slice_recognition_failed(self, slice_index: int, error_msg: str) -> None:
+        """标记指定切片识别失败。
+
+        Args:
+            slice_index (int): 切片索引。
+            error_msg (str): 失败原因。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.recognition_status = SliceProcessStatus.FAILED
+        slice_state.last_recognition_error = error_msg
 
     def are_all_slices_clustered(self) -> bool:
         """判断全部切片是否已完成聚类。
