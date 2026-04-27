@@ -110,7 +110,7 @@ class SliceController(QObject):
                 content="检测到后台任务异常退出，已恢复界面状态。",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
-                position=InfoBarPosition.TOP,
+                position=InfoBarPosition.BOTTOM_RIGHT,
                 duration=3000,
                 parent=self.view
             )
@@ -129,7 +129,7 @@ class SliceController(QObject):
                 content="请先从 Excel 导入雷达脉冲数据，再执行切片操作。",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
-                position=InfoBarPosition.TOP,
+                position=InfoBarPosition.BOTTOM_RIGHT,
                 duration=3000,
                 parent=self.view
             )
@@ -157,49 +157,6 @@ class SliceController(QObject):
 
         # 启动后台切片工作流
         slice_workflow.start_slice(self.view._test_session)
-
-    def handle_identify(self) -> None:
-        """处理识别按钮点击事件。
-
-        功能描述：
-            校验数据是否已切片，更新按钮状态并启动识别（聚类）工作流。
-        """
-        # 校验切片状态
-        if not self.view._test_session.is_sliced:
-            InfoBar.warning(
-                title="提示",
-                content="请先执行切片操作，再进行识别聚类。",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=self.view
-            )
-            return
-
-        # 更新按钮状态
-        self.view.navigation_control_card.start_recognition_button.setEnabled(False)
-
-        # 显示动画对话框
-        self._processing_dialog = ProcessingDialog(
-            self.view, 
-            title="聚类处理", 
-            content="正在执行雷达信号级联聚类分析，请稍候..."
-        )
-        self._processing_dialog.show()
-
-        # 延迟导入聚类工作流与参数组装器。
-        from runtime.workflows.identify_workflow import identify_workflow
-        from runtime.algorithm_params import get_clustering_params
-
-        # 组装聚类参数对象。
-        clustering_params = get_clustering_params()
-        
-        identify_workflow.start_identify(
-            self.view._test_session,
-            slice_index=self._current_slice_index,
-            clustering_params=clustering_params,
-        )
 
     def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:
         """处理阶段完成信号。
@@ -241,7 +198,7 @@ class SliceController(QObject):
             content="数据切片与图像渲染完成！",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
-            position=InfoBarPosition.TOP,
+            position=InfoBarPosition.BOTTOM_RIGHT,
             duration=3000,
             parent=self.view
         )
@@ -283,7 +240,7 @@ class SliceController(QObject):
             content=f"发生错误:\n{error_msg}",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
-            position=InfoBarPosition.TOP,
+            position=InfoBarPosition.BOTTOM_RIGHT,
             duration=5000,
             parent=self.view
         )
@@ -323,40 +280,7 @@ class SliceController(QObject):
             content="数据切片与图像渲染完成！",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=3000,
-            parent=self.view
-        )
-
-    def _handle_identifying_finished(self, slice_index: int | None) -> None:
-        """处理识别（聚类）完成后的逻辑。"""
-        if self._processing_dialog:
-            self._processing_dialog.close()
-            self._processing_dialog = None
-            
-        # 恢复按钮状态
-        self.view.navigation_control_card.start_recognition_button.setEnabled(True)
-        
-        # 聚类完成后，重置类别索引并渲染当前切片的第一个簇
-        self._current_cluster_index = 0
-        self._load_cluster_image()
-
-        # 记录完成事件日志
-        LOGGER.info(
-            "收到识别完成事件，当前切片: %s，界面切片: %d",
-            slice_index,
-            self._current_slice_index,
-            extra={"session_id": self.view._test_session.session_id},
-        )
-
-        target_slice_index = self._current_slice_index if slice_index is None else slice_index
-        
-        InfoBar.success(
-            title="成功",
-            content=f"第 {target_slice_index + 1} 切片信号聚类分析完成！",
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
+            position=InfoBarPosition.BOTTOM_RIGHT,
             duration=3000,
             parent=self.view
         )

@@ -87,7 +87,7 @@ class IdentifyController(QObject):
                 content="请先执行切片操作，再进行识别聚类。",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
-                position=InfoBarPosition.TOP,
+                position=InfoBarPosition.BOTTOM_RIGHT,
                 duration=3000,
                 parent=self.view
             )
@@ -164,7 +164,7 @@ class IdentifyController(QObject):
             content=f"第 {target_slice_index + 1} 切片信号聚类分析完成！",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
-            position=InfoBarPosition.TOP,
+            position=InfoBarPosition.BOTTOM_RIGHT,
             duration=3000,
             parent=self.view
         )
@@ -202,7 +202,7 @@ class IdentifyController(QObject):
             content=f"发生错误:\n{error_msg}",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
-            position=InfoBarPosition.TOP,
+            position=InfoBarPosition.BOTTOM_RIGHT,
             duration=5000,
             parent=self.view
         )

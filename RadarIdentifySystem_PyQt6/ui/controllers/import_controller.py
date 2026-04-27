@@ -76,7 +76,7 @@ class ImportController(QObject):
                 content="检测到导入工作流异常退出，已恢复界面状态。",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
-                position=InfoBarPosition.TOP,
+                position=InfoBarPosition.BOTTOM_RIGHT,
                 duration=3000,
                 parent=self.view
             )
@@ -134,7 +134,7 @@ class ImportController(QObject):
                 content=f"启动工作流失败:\n{str(e)}",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
-                position=InfoBarPosition.TOP,
+                position=InfoBarPosition.BOTTOM_RIGHT,
                 duration=5000,
                 parent=self.view
             )
@@ -174,7 +174,7 @@ class ImportController(QObject):
                 content=f"已成功读取并预处理 {pulses} 条脉冲数据！",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
-                position=InfoBarPosition.TOP,
+                position=InfoBarPosition.BOTTOM_RIGHT,
                 duration=3000,
                 parent=self.view
             )
