@@ -17,6 +17,7 @@ class StyleSheet(StyleSheetBase, Enum):
     HOME_INTERFACE = "home_interface"
     SLICE_INTERFACE = "slice_interface"
     SETTING_INTERFACE = "setting_interface"
+    MODEL_MANAGER_INTERFACE = "model_manager_interface"
     JITTER_FREE_CONTAINER = "jitter_free_container"
 
 

@@ -1,5 +1,6 @@
 # 本地 AI 行为约束
 
+- 积极使用context7的MCP服务或联网搜索，学习PyQt6-Fluent-Widgets组件库的正确用法
 - 核心业务逻辑禁止写入 ui 层
 - 使用 signal_bus 统一管理跨模块信号
 - 对于组件组合而成的复杂 UI 结构，必须抽离为 `ui/components` 下的独立组件，页面层禁止直接内联拼装结构

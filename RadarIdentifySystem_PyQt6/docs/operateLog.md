@@ -1,5 +1,111 @@
 # 变更记录
 
+- 时间：2026-04-27 17:18
+- 操作类型：重构
+- 影响文件：
+  - `ui/components/model_item_card.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/dialogs/delete_model_dialog.py`
+- 变更摘要：将重命名与删除弹窗触发逻辑从卡片组件迁移到控制器，弹窗父对象统一为模型管理子界面，并新增删除确认对话框。
+- 原因：修复弹窗仅在卡片区域显示的问题，落实“交互由控制器统一编排”的分层约束。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-27 17:12
+- 操作类型：重构
+- 影响文件：
+  - `ui/components/model_item_card.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/dialogs/rename_model_dialog.py`
+- 变更摘要：修复模型卡片均分布局问题；新增基于 `MessageBoxBase` 的重命名对话框并支持回车确认；增强删除逻辑对 Windows 只读权限异常的兜底处理。
+- 原因：满足模型管理交互一致性要求并修复删除模型时的“拒绝访问”问题。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-27 16:59
+- 操作类型：重构
+- 影响文件：
+  - `ui/components/model_item_card.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：清理模型项卡片内联样式，改为对象名与动态属性驱动的 QSS 样式，并补齐明暗主题下名称、路径与类型徽标配色。
+- 原因：遵循“禁止内联样式”规范，并确保同一组件在浅色/深色主题下均有完整样式定义。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-27 16:51
+- 操作类型：修改
+- 影响文件：
+  - `ui/controllers/model_manager_controller.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：移除模型空状态文案的内联样式，改为对象名 + QSS 统一管理，并保留顶部留白。
+- 原因：遵循“禁止内联样式”的项目规则，避免控制器中混入样式实现细节。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-27 16:33
+- 操作类型：新增
+- 影响文件：
+  - `app/style_sheet.py`
+  - `ui/interfaces/model_manager_interface.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：新增模型管理页面专用样式表入口与明暗主题 QSS 文件，并将模型列表滚动区域背景设置为透明。
+- 原因：按界面样式隔离要求为模型管理页提供独立样式能力，避免复用设置页样式造成耦合。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-27 16:26
+- 操作类型：修改
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/controllers/model_manager_controller.py`
+- 变更摘要：删除模型管理页刷新按钮及其控制器绑定逻辑，保留分段切换和导入后自动刷新模型列表。
+- 原因：刷新按钮已无实际业务价值，简化交互入口并减少冗余控制逻辑。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-27 16:21
+- 操作类型：重构
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+- 变更摘要：在用户当前改动基础上修复模型管理页面结构，恢复为“先初始化组件，再 `_initWidget()`，并在 `_initWidget()` 内统一执行 `_initLayout()` 与 `_connectSignalToSlot()`”的组织方式。
+- 原因：修复页面结构混乱导致的布局不完整问题，并与 `setting_interface.py` 的初始化组织风格保持一致。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-27 15:45
+- 操作类型：重构
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+- 变更摘要：重构模型管理页面布局为“整页不滚动 + 列表区域独立滚动”，并使用 `SettingCardGroup` + `PrimaryPushSettingCard` 承载导入模型入口，同时缩小模型卡片间距。
+- 原因：按最新交互要求统一设置页风格，避免整页滚动带来的操作区域位移问题，提升模型列表浏览体验。
+- 测试状态：待测试
+
+- 时间：2026-04-27 15:00
+- 操作类型：重构与修复
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `utils/model_registry.py`
+- 变更摘要：移除模型管理界面的 `FolderListSettingCard` 多目录配置，改为直接固定读取并写入 `resources/models/PA` 和 `resources/models/DTOA` 目录；修复 `model_registry.py` 中 `meta.json` 保存路径层级错误的问题。
+- 原因：简化模型管理逻辑，响应用户对“为什么选中目录后还不等点击刷新按钮模型列表就已经出来”及“逻辑混乱”的反馈；修正资源路径使其准确落在 `RadarIdentifySystem_PyQt6/resources` 目录下。
+- 测试状态：待测试
+
+- 时间：2026-04-27 14:40
+- 操作类型：重构
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/controllers/model_manager_controller.py` (新增)
+- 变更摘要：根据职责独立原则，将 `ModelManagerInterface` 中的业务逻辑和事件槽函数抽离至新创建的 `ModelManagerController` 中。
+- 原因：遵循 MVP 模式的 Controller 架构约束，UI 界面代码（View）只负责布局、组件拼装和渲染，Controller 负责处理模型加载、导入、删除及重命名等核心交互逻辑。
+- 测试状态：待测试
+
+- 时间：2026-04-27 14:30
+- 操作类型：重构与新增
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/components/model_item_card.py`
+  - `ui/dialogs/import_model_dialog.py` (新增)
+  - `utils/model_registry.py` (新增)
+- 变更摘要：调整模型管理逻辑，PA和DTOA目录配置卡片不再隐藏；新增导入对话框并将模型统一存入 `resources/models` 对应目录；引入 `ModelRegistry` 实现模型虚拟重命名。
+- 原因：根据用户需求，使配置卡片常驻显示，优化模型导入的 UI 交互，并通过元数据映射表管理重命名，避免直接修改物理源文件。
+- 测试状态：待测试
+
 - 时间：2026-04-27 14:15
 - 操作类型：修改
 - 影响文件：

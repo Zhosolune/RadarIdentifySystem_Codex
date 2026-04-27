@@ -39,11 +39,11 @@
     },
     "model": {
         "dtoaDirs": [],
-        "dtoaPath": "E:/myProjects_Trae/RadarIdentifySystem_Codex/RadarIdentifySystem_PyQt6/resources/models/02.09_ResNet_CA_Transformer_DTOA-final-73-accuracy1.00-val_accuracy0.99.onnx",
+        "dtoaPath": "C:\\Users\\lenovo\\.RadarIdentifySystem\\models\\dtoa\\dtoa_model.onnx",
         "paDirs": [
             "E:/competition/参赛模型"
         ],
-        "paPath": "E:/myProjects_Trae/RadarIdentifySystem_Codex/RadarIdentifySystem_PyQt6/resources/models/03.16_SparseMorphNet_PA-checkpoint-19-f10.98-val_f11.00.onnx"
+        "paPath": "C:\\Users\\lenovo\\.RadarIdentifySystem\\models\\pa\\pa_model.onnx"
     },
     "plot": {
         "onlyShowIdentified": "IDENTIFIED_ONLY",

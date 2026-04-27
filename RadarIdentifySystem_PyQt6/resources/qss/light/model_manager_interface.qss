@@ -1,0 +1,47 @@
+QWidget#modelManagerInterface {
+    background: transparent;
+}
+
+QWidget#modelContentWidget {
+    background: transparent;
+}
+
+QScrollArea#modelListScrollArea {
+    background: transparent;
+    border: none;
+}
+
+QWidget#modelListViewport {
+    background: transparent;
+}
+
+QWidget#modelListWidget {
+    background: transparent;
+}
+
+#modelEmptyLabel {
+    color: #8a8a8a;
+}
+
+#modelItemCard #modelNameLabel {
+    font-weight: 700;
+}
+
+#modelItemCard #modelPathLabel {
+    color: #8a8a8a;
+}
+
+#modelItemCard #modelTypeBadge {
+    border-radius: 4px;
+    font-weight: 700;
+}
+
+#modelItemCard #modelTypeBadge[modelType="PA"] {
+    background-color: #e6f0ff;
+    color: #0055ff;
+}
+
+#modelItemCard #modelTypeBadge[modelType="DTOA"] {
+    background-color: #ffe6e6;
+    color: #ff0000;
+}
