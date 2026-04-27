@@ -100,7 +100,7 @@ class IdentifyController(QObject):
         self._processing_dialog = ProcessingDialog(
             self.view, 
             title="聚类处理", 
-            content="正在执行雷达信号级联聚类分析，请稍候..."
+            content="正在执行雷达信号聚类分析，请稍候..."
         )
         self._processing_dialog.show()
 

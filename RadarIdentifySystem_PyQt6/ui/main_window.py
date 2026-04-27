@@ -18,6 +18,7 @@ from qfluentwidgets import (
 
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
+from ui.interfaces.model_manager_interface import ModelManagerInterface
 from ui.interfaces.setting_interface import SettingInterface
 from ui.interfaces.params_interface import ParamsInterface
 
@@ -33,6 +34,7 @@ class MainWindow(FluentWindow):
         # 创建子页面
         self.homeInterface = HomeInterface(self)
         self.sliceInterface = SliceInterface(self)
+        self.modelManagerInterface = ModelManagerInterface(self)
         self.iconInterface = SettingInterface(self)
         self.paramsInterface = ParamsInterface(self)
 
@@ -107,6 +109,10 @@ class MainWindow(FluentWindow):
         )
 
         # 设置页
+        self.addSubInterface(
+            self.modelManagerInterface, FluentIcon.SETTING, "模型管理",
+            position=NavigationItemPosition.BOTTOM,
+        )
         self.addSubInterface(
             self.paramsInterface, FluentIcon.COMMAND_PROMPT, "参数配置",
             position=NavigationItemPosition.BOTTOM,

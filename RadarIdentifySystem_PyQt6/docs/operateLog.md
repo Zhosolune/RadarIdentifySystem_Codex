@@ -1,5 +1,41 @@
 # 变更记录
 
+- 时间：2026-04-27 14:15
+- 操作类型：修改
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+- 变更摘要：补充 ModelManagerInterface 类及其所有方法的规范文档注释。
+- 原因：遵循项目代码规范，确保方法具备 Google 风格的 docstring，增强代码可读性与可维护性。
+- 测试状态：无需测试
+
+- 时间：2026-04-27 13:58
+- 操作类型：修复
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+- 变更摘要：修复 `ModelManagerInterface` 初始化时由于 `SegmentedWidget` 未指定默认选中项而导致的 `AttributeError: 'NoneType' object has no attribute 'routeKey'` 崩溃问题。
+- 原因：`qfluentwidgets` 中的 `SegmentedWidget` 默认情况下 `currentItem()` 可能为空，需要调用 `setCurrentItem` 或使用安全的 `currentRouteKey()` 并在为空时给定默认值。
+- 测试状态：已测试
+
+- 时间：2026-04-27 13:45
+- 操作类型：重构与修改
+- 影响文件：
+  - `app/app_config.py`
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/components/model_item_card.py` (新增)
+- 变更摘要：将模型卡片提取为独立组件`ModelItemCard`存入`ui/components`，并为模型管理引入支持多目录的`FolderListSettingCard`以替换单目录卡片。
+- 原因：修复之前违背组件需单独建文件并放置于`ui/components`约束的问题；响应用户对选取和管理多个模型目录的真实意图。
+- 测试状态：待测试
+
+- 时间：2026-04-27 13:32
+- 操作类型：新增与修改
+- 影响文件：
+  - `app/app_config.py`
+  - `ui/interfaces/model_manager_interface.py` (新增)
+  - `ui/main_window.py`
+- 变更摘要：新增模型管理页面，负责 PA 和 DTOA 模型的目录选择、列表展示与重命名、删除功能。
+- 原因：支持多模型架构下的独立模型管理能力，提供可视化的模型文件管理。
+- 测试状态：待测试
+
 - 时间：2026-04-24 14:15
 - 操作类型：新增
 - 影响文件：

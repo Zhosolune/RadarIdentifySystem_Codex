@@ -137,6 +137,7 @@ def configure_logging(log_dir: str | Path | None = None) -> Path:
 
     global _CURRENT_LOG_FILE_PATH
 
+    # 获取日志文件路径（内部会自动创建日志目录）
     log_file = build_run_log_file_path(log_dir)
     formatter = logging.Formatter(
         fmt="[%(asctime)s] [%(levelname)s] [%(session_id)s] [%(module_path)s] [%(funcName)s] %(message)s",
