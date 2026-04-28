@@ -39,11 +39,11 @@
     },
     "model": {
         "dtoaDirs": [],
-        "dtoaPath": "C:\\Users\\lenovo\\.RadarIdentifySystem\\models\\dtoa\\dtoa_model.onnx",
+        "dtoaPath": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\DTOA\\2.onnx",
         "paDirs": [
             "E:/competition/参赛模型"
         ],
-        "paPath": "C:\\Users\\lenovo\\.RadarIdentifySystem\\models\\pa\\pa_model.onnx"
+        "paPath": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\PA\\3.onnx"
     },
     "plot": {
         "onlyShowIdentified": "IDENTIFIED_ONLY",

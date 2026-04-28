@@ -7,8 +7,9 @@ import logging
 
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage
-from qfluentwidgets import InfoBar, InfoBarPosition
+from qfluentwidgets import InfoBar, InfoBarPosition, qconfig
 
+from app.app_config import appConfig
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
@@ -17,6 +18,7 @@ from runtime.algorithm_params import get_clustering_params
 from core.models.cluster_result import ClusterItem
 from core.models.recognition_result import ClusterRecognition
 from ui.dialogs.processing_dialog import ProcessingDialog
+from utils.model_registry import ModelRegistry
 
 if TYPE_CHECKING:
     from ui.interfaces.slice_interface import SliceInterface
@@ -93,6 +95,10 @@ class IdentifyController(QObject):
             )
             return
 
+        # 校验识别模型启用状态
+        if not self._validate_enabled_models():
+            return
+
         # 更新按钮状态
         self.view.navigation_control_card.start_recognition_button.setEnabled(False)
 
@@ -115,6 +121,37 @@ class IdentifyController(QObject):
             slice_index=slice_index,
             clustering_params=clustering_params,
         )
+
+    def _validate_enabled_models(self) -> bool:
+        """校验 PA/DTOA 启用模型是否完整可用。
+
+        Args:
+            无。
+
+        Returns:
+            bool: 校验通过返回 True，否则返回 False。
+
+        Raises:
+            无。
+        """
+        pa_path = ModelRegistry.get_enabled_model("PA")
+        dtoa_path = ModelRegistry.get_enabled_model("DTOA")
+        if not pa_path or not dtoa_path:
+            InfoBar.warning(
+                title="模型未就绪",
+                content="请先在模型管理中分别启用一个 PA 模型和一个 DTOA 模型。",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.BOTTOM_RIGHT,
+                duration=3500,
+                parent=self.view,
+            )
+            return False
+
+        # 同步启用路径到运行配置，供识别工作流读取
+        qconfig.set(appConfig.modelPaPath, pa_path)
+        qconfig.set(appConfig.modelDtoaPath, dtoa_path)
+        return True
 
     def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:
         """处理阶段完成信号。

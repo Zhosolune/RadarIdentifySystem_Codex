@@ -120,7 +120,7 @@ class ModelManagerInterface(QWidget):
 
         # 配置列表容器
         self.listLayout.setContentsMargins(0, 0, 0, 0)
-        self.listLayout.setSpacing(6)
+        self.listLayout.setSpacing(4)
         self.list_scroll_area.setWidget(self.listWidget)
 
         # 组装列表区域布局

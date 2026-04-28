@@ -1,5 +1,10 @@
 {
-    "E:\\competition\\参赛模型\\02.09_ResNet_CA_Transformer_DTOA-final-73-accuracy1.00-val_accuracy0.99.onnx": "888",
-    "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\PA\\3.onnx": "ddd",
-    "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\PA\\2.onnx": "hiuhihi"
+    "names": {
+        "E:\\competition\\参赛模型\\02.09_ResNet_CA_Transformer_DTOA-final-73-accuracy1.00-val_accuracy0.99.onnx": "888",
+        "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\PA\\3.onnx": "ddd"
+    },
+    "enabled": {
+        "PA": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\PA\\3.onnx",
+        "DTOA": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\DTOA\\2.onnx"
+    }
 }

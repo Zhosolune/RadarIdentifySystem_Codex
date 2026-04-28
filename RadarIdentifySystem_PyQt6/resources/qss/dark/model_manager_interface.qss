@@ -45,3 +45,11 @@ QWidget#modelListWidget {
     background-color: #4a2727;
     color: #ff9a9a;
 }
+
+#modelItemCard #modelEnableButton {
+    min-width: 30px;
+}
+
+#modelItemCard #modelCommandBar {
+    background: transparent;
+}

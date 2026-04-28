@@ -1,5 +1,55 @@
 # 变更记录
 
+- 时间：2026-04-28 11:55
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：修复单选按钮与后续内容间距过大问题，收紧主布局和左侧子布局间距，并将 `modelEnableButton` 的主题最小宽度从 58px 调整为 16px。
+- 原因：定位到间距异常由主题 QSS 的最小宽度与布局间距叠加导致，单改控件固定宽度无法生效。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-28 11:43
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+- 变更摘要：移除模型启用开关组件并改为 `RadioButton`，同时将启用控件布局位置调整到卡片最左侧。
+- 原因：按最新交互要求简化启用控件样式并强化“单选启用”语义。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-28 11:36
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+- 变更摘要：修正启用开关仍显示文字问题（清空 on/off 文案并固定宽度），并新增命令栏占位容器以保证命令栏隐藏时仍保留布局位置。
+- 原因：修复模型卡片视觉细节偏差，确保交互状态与布局稳定性符合预期。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-28 11:26
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：将模型启用控件由 `TogglePushButton` 调整为无文字 `SwitchButton`，开关改为常显；命令栏保留悬浮显示；移除命令栏悬浮变红效果与模型卡片启用态高亮样式。
+- 原因：优化交互可读性与视觉克制性，按最新反馈简化卡片状态表达。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-28 10:41
+- 操作类型：重构
+- 影响文件：
+  - `ui/components/model_item_card.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `utils/model_registry.py`
+  - `ui/controllers/identify_controller.py`
+  - `runtime/workflows/identify_workflow.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：新增模型启用开关与悬浮显隐交互，增加启用态卡片样式与主题适配，落地“PA/DTOA 各仅一个启用模型”约束，并在开始识别前增加启用完整性校验与右下角提示。
+- 原因：满足模型管理交互升级需求，并保证识别流程使用明确且一致的启用模型配置。
+- 测试状态：已测试（诊断通过）
+
 - 时间：2026-04-27 17:18
 - 操作类型：重构
 - 影响文件：

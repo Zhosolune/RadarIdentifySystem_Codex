@@ -39,6 +39,8 @@ class IdentifyWorkflow(QObject):
         self._worker: Optional[IdentifyWorker] = None
         self._active_slice_index: int | None = None
         self._inference_service: Optional[OnnxInferenceService] = None
+        self._loaded_pa_path: str | None = None
+        self._loaded_dtoa_path: str | None = None
 
     def is_running(self) -> bool:
         """返回工作流当前是否正在运行。"""
@@ -75,17 +77,24 @@ class IdentifyWorkflow(QObject):
             LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session_id})
             return
 
-        # 延迟初始化 ONNX 推理服务，避免应用启动时卡顿
-        if self._inference_service is None:
-            # 从配置中获取模型路径
-            pa_path = qconfig.get(appConfig.modelPaPath)
-            dtoa_path = qconfig.get(appConfig.modelDtoaPath)
-            temp_dir = qconfig.get(appConfig.logDir) # 暂用 logDir 作为 temp_dir
+        # 从配置中获取模型路径
+        pa_path = qconfig.get(appConfig.modelPaPath)
+        dtoa_path = qconfig.get(appConfig.modelDtoaPath)
+        temp_dir = qconfig.get(appConfig.logDir) # 暂用 logDir 作为 temp_dir
+        # 当模型路径变化时重建推理服务，确保启用切换立即生效
+        should_reload_inference = (
+            self._inference_service is None
+            or self._loaded_pa_path != pa_path
+            or self._loaded_dtoa_path != dtoa_path
+        )
+        if should_reload_inference:
             self._inference_service = OnnxInferenceService(
                 dtoa_model_path=dtoa_path,
                 pa_model_path=pa_path,
                 temp_dir=temp_dir
             )
+            self._loaded_pa_path = pa_path
+            self._loaded_dtoa_path = dtoa_path
 
         # 兜底构建默认聚类参数。
         clustering_params = clustering_params or ClusteringParams()
