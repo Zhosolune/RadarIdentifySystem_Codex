@@ -15,7 +15,7 @@ from ui.dialogs.import_model_dialog import ImportModelDialog
 from ui.dialogs.rename_model_dialog import RenameModelDialog
 from ui.dialogs.delete_model_dialog import DeleteModelDialog
 from ui.components.model_item_card import ModelItemCard
-from utils.model_registry import ModelRegistry
+from infra.model_registry import ModelRegistry
 
 LOGGER = logging.getLogger(__name__)
 

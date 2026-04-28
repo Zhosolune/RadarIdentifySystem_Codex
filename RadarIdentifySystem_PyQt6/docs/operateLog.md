@@ -1,5 +1,15 @@
 # 变更记录
 
+- 时间：2026-04-28 16:28
+- 操作类型：重构
+- 影响文件：
+  - `infra/model_registry.py` (由 `utils/model_registry.py` 移动)
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/controllers/identify_controller.py`
+- 变更摘要：将模型元数据注册表 `model_registry.py` 从 `utils` 目录移动到 `infra` 目录，并更新相关引用。
+- 原因：根据项目架构规范，`utils` 仅存放无业务语义的通用工具，而 `model_registry.py` 负责 PA/DTOA 模型状态及别名的持久化（文件读写与业务语义强绑定），属于存储与适配层，故归入 `infra`。
+- 测试状态：已测试（通过静态引用检查）
+
 - 时间：2026-04-28 11:55
 - 操作类型：修改
 - 影响文件：

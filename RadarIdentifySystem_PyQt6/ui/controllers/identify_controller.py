@@ -18,7 +18,7 @@ from runtime.algorithm_params import get_clustering_params
 from core.models.cluster_result import ClusterItem
 from core.models.recognition_result import ClusterRecognition
 from ui.dialogs.processing_dialog import ProcessingDialog
-from utils.model_registry import ModelRegistry
+from infra.model_registry import ModelRegistry
 
 if TYPE_CHECKING:
     from ui.interfaces.slice_interface import SliceInterface
