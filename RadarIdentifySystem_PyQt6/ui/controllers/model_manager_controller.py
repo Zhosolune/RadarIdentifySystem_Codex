@@ -8,12 +8,22 @@ from pathlib import Path
 import logging
 
 from PyQt6.QtCore import QObject, Qt
-from qfluentwidgets import InfoBar, InfoBarPosition, BodyLabel, qconfig
+from qfluentwidgets import InfoBar, InfoBarPosition, BodyLabel
 
-from app.app_config import appConfig
+from app.model_bootstrap import (
+    collect_available_model_files,
+    ensure_user_model_dir,
+    get_builtin_model_dir,
+    get_display_name,
+    get_user_model_dir,
+    is_builtin_model,
+    resolve_enabled_model,
+    set_enabled_model_path,
+)
 from ui.dialogs.import_model_dialog import ImportModelDialog
 from ui.dialogs.rename_model_dialog import RenameModelDialog
 from ui.dialogs.delete_model_dialog import DeleteModelDialog
+from ui.dialogs.edit_model_remark_dialog import EditModelRemarkDialog
 from ui.components.model_item_card import ModelItemCard
 from infra.model_registry import ModelRegistry
 
@@ -43,7 +53,7 @@ class ModelManagerController(QObject):
         self.view.import_model_card.button.clicked.connect(self.handle_import_model)
         self.view.segmentedWidget.currentItemChanged.connect(self._on_segment_changed)
 
-        # 初始化加载
+        # 加载当前分页列表
         self.load_models()
 
     def _on_segment_changed(self, item_key: str):
@@ -68,55 +78,13 @@ class ModelManagerController(QObject):
         current_route = self.view.segmentedWidget.currentRouteKey()
         current_type = current_route if current_route else "PA"
 
-        # 模型固定存放在 resources/models/PA 或 resources/models/DTOA
-        model_dir = self._get_model_dir(current_type)
-
-        # 确保目录存在
-        if not model_dir.exists():
-            try:
-                model_dir.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                LOGGER.warning(f"无法创建模型目录 {model_dir}: {e}")
-
         try:
-            files_found = False
-            if model_dir.exists():
-                files = [
-                    f for f in os.listdir(model_dir)
-                    if f.endswith((".onnx", ".pkl", ".pt", ".pth"))
-                ]
+            model_files = self._collect_model_files(current_type)
+            enabled_path = self._ensure_enabled_model_for_type(current_type)
 
-                model_files: list[str] = []
-                for file_name in files:
-                    files_found = True
-                    file_path = os.path.join(model_dir, file_name)
-                    model_files.append(file_path)
-
-                # 仅读取当前启用模型，不执行自动修正（切换列表只是查看，避免不必要的状态变更）
-                enabled_path = ModelRegistry.get_enabled_model(current_type)
-                # 检查启用模型是否在当前列表中，若不在则忽略该启用状态
-                norm_files = [os.path.normpath(p) for p in model_files]
-                if enabled_path and enabled_path not in norm_files:
-                    enabled_path = None
-
-                for file_path in model_files:
-                    display_name = ModelRegistry.get_name(file_path)
-                    card = ModelItemCard(
-                        current_type,
-                        file_path,
-                        display_name,
-                        is_enabled=ModelRegistry.is_enabled(current_type, file_path),
-                        parent=self.view,
-                    )
-                    # 绑定卡片请求信号，由控制器统一管理弹窗交互
-                    card.deleteRequested.connect(self.request_delete_model)
-                    card.renameRequested.connect(self.request_rename_model)
-                    card.enabledToggled.connect(self.handle_enable_toggled)
-                    self.view.listLayout.addWidget(card)
-
-            if not files_found:
+            if not model_files:
                 emptyLabel = BodyLabel(
-                    "配置的模型目录为空，请先导入模型文件或添加模型目录。"
+                    "当前类型暂无可用模型，请先导入模型文件。"
                 )
                 # 设置空状态标签对象名，供样式表统一管理
                 emptyLabel.setObjectName("modelEmptyLabel")
@@ -124,47 +92,149 @@ class ModelManagerController(QObject):
                 emptyLabel.setContentsMargins(0, 40, 0, 0)
                 emptyLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.view.listLayout.addWidget(emptyLabel)
+            else:
+                for file_path in model_files:
+                    is_system_default = self._is_builtin_model(file_path, current_type)
+                    display_name = self._get_display_name(file_path, current_type)
+                    remark_text = ModelRegistry.get_remark(file_path)
+                    card = ModelItemCard(
+                        current_type,
+                        file_path,
+                        display_name,
+                        remark_text=remark_text,
+                        is_enabled=os.path.normpath(file_path) == enabled_path,
+                        is_system_default=is_system_default,
+                        parent=self.view,
+                    )
+                    # 绑定卡片请求信号
+                    card.deleteRequested.connect(self.request_delete_model)
+                    card.renameRequested.connect(self.request_rename_model)
+                    card.remarkRequested.connect(self.request_edit_remark)
+                    card.enabledToggled.connect(self.handle_enable_toggled)
+                    self.view.listLayout.addWidget(card)
 
             # 添加底部弹性空间，确保卡片从顶部开始排列
             self.view.listLayout.addStretch(1)
-            # 同步识别流程使用的模型路径配置
-            self._sync_model_paths_to_config()
 
         except Exception as e:
             LOGGER.error(f"加载模型列表失败: {e}")
 
-    def _get_model_dir(self, model_type: str) -> Path:
-        """获取指定模型类型的目录路径。
+    def _get_builtin_model_dir(self, model_type: str) -> Path:
+        """获取系统内置模型目录路径。
 
         Args:
             model_type (str): 模型类型，支持 ``PA`` 或 ``DTOA``。
 
         Returns:
-            Path: 模型目录绝对路径。
+            Path: 系统内置模型目录绝对路径。
 
         Raises:
             ValueError: 不支持的模型类型会抛出异常。
         """
-        if model_type not in ("PA", "DTOA"):
-            raise ValueError(f"不支持的模型类型: {model_type}")
-        # 返回模型目录路径
-        return Path(__file__).parent.parent.parent / "resources" / "models" / model_type
+        return get_builtin_model_dir(model_type)
 
-    def _sync_model_paths_to_config(self) -> None:
-        """同步启用模型路径到全局配置。"""
-        # 同步 PA 启用模型路径
-        pa_enabled = ModelRegistry.get_enabled_model("PA")
-        if pa_enabled:
-            qconfig.set(appConfig.modelPaPath, pa_enabled)
-        # 同步 DTOA 启用模型路径
-        dtoa_enabled = ModelRegistry.get_enabled_model("DTOA")
-        if dtoa_enabled:
-            qconfig.set(appConfig.modelDtoaPath, dtoa_enabled)
+    def _get_user_model_dir(self, model_type: str) -> Path:
+        """获取用户导入模型目录路径。
+
+        Args:
+            model_type (str): 模型类型，支持 ``PA`` 或 ``DTOA``。
+
+        Returns:
+            Path: 用户模型目录绝对路径。
+
+        Raises:
+            ValueError: 不支持的模型类型会抛出异常。
+        """
+        return get_user_model_dir(model_type)
+
+    def _is_builtin_model(self, file_path: str, model_type: str) -> bool:
+        """判断模型是否属于系统内置目录。
+
+        Args:
+            file_path (str): 模型文件绝对路径。
+            model_type (str): 模型类型。
+
+        Returns:
+            bool: 属于系统内置目录返回 True，否则返回 False。
+
+        Raises:
+            无。
+        """
+        return is_builtin_model(file_path, model_type)
+
+    def _collect_model_files(self, model_type: str) -> list[str]:
+        """收集指定类型的可用模型文件。
+
+        Args:
+            model_type (str): 模型类型，支持 ``PA`` 或 ``DTOA``。
+
+        Returns:
+            list[str]: 系统目录与用户目录合并后的模型路径列表。
+
+        Raises:
+            ValueError: 不支持的模型类型会抛出异常。
+        """
+        return collect_available_model_files(model_type)
+
+    def _infer_model_type(self, file_path: str) -> str:
+        """根据模型路径推断模型类型。
+
+        Args:
+            file_path (str): 模型文件绝对路径。
+
+        Returns:
+            str: 推断出的模型类型，返回 ``PA`` 或 ``DTOA``。
+
+        Raises:
+            ValueError: 路径不在已知模型目录下时抛出异常。
+        """
+        normalized = os.path.normpath(file_path)
+        for model_type in ("PA", "DTOA"):
+            # 匹配系统内置目录
+            builtin_dir = os.path.normpath(str(self._get_builtin_model_dir(model_type)))
+            if normalized.startswith(f"{builtin_dir}{os.sep}"):
+                return model_type
+            # 匹配用户导入目录
+            user_dir = os.path.normpath(str(self._get_user_model_dir(model_type)))
+            if normalized.startswith(f"{user_dir}{os.sep}"):
+                return model_type
+        raise ValueError(f"无法根据路径推断模型类型: {file_path}")
+
+    def _get_display_name(self, file_path: str, model_type: str | None = None) -> str:
+        """获取模型展示名称。
+
+        Args:
+            file_path (str): 模型文件绝对路径。
+            model_type (str | None): 模型类型，未传入时自动推断。
+
+        Returns:
+            str: 展示名称。
+
+        Raises:
+            ValueError: 路径无法推断类型时抛出异常。
+        """
+        resolved_type = model_type or self._infer_model_type(file_path)
+        return get_display_name(file_path, resolved_type)
+
+    def _ensure_enabled_model_for_type(self, model_type: str) -> str | None:
+        """确保指定类型存在有效启用模型。
+
+        Args:
+            model_type (str): 模型类型。
+
+        Returns:
+            str | None: 生效的启用模型路径，无可用模型时返回 None。
+
+        Raises:
+            ValueError: 模型类型不支持时抛出异常。
+        """
+        model_files = self._collect_model_files(model_type)
+        return resolve_enabled_model(model_type, model_files=model_files)
 
     def handle_import_model(self):
         """处理导入模型事件。
 
-        弹出自定义导入对话框，将选中的模型文件复制到 resources/models 的对应目录下。
+        弹出自定义导入对话框，将选中的模型文件复制到用户模型目录。
         若指定了自定义名称，则更新到元数据中。
         """
         current_route = self.view.segmentedWidget.currentRouteKey()
@@ -172,7 +242,7 @@ class ModelManagerController(QObject):
 
         dialog = ImportModelDialog(default_type, self.view)
         if dialog.exec():
-            model_type, src_path, custom_name = dialog.getModelInfo()
+            model_type, src_path, custom_name, remark_text = dialog.getModelInfo()
 
             if not src_path or not os.path.exists(src_path):
                 InfoBar.error(
@@ -186,9 +256,8 @@ class ModelManagerController(QObject):
                 )
                 return
 
-            # 保存到指定的模型目录下
-            dest_dir = Path(__file__).parent.parent.parent / "resources" / "models" / model_type
-            dest_dir.mkdir(parents=True, exist_ok=True)
+            # 保存到用户模型目录，避免写入安装目录
+            dest_dir = ensure_user_model_dir(model_type)
             
             file_name = os.path.basename(src_path)
             dest_path = dest_dir / file_name
@@ -199,6 +268,9 @@ class ModelManagerController(QObject):
                 # 如果输入了自定义名称，则保存到注册表
                 if custom_name:
                     ModelRegistry.set_name(str(dest_path), custom_name)
+                if remark_text:
+                    # 保存导入时填写的备注
+                    ModelRegistry.set_remark(str(dest_path), remark_text)
 
                 InfoBar.success(
                     title="导入成功",
@@ -209,12 +281,11 @@ class ModelManagerController(QObject):
                     duration=2000,
                     parent=self.view,
                 )
-                # 导入后自动修正并同步启用状态
-                model_files = [
-                    str(dest_dir / f) for f in os.listdir(dest_dir)
-                    if f.endswith((".onnx", ".pkl", ".pt", ".pth"))
-                ]
-                ModelRegistry.ensure_enabled_model(model_type, model_files)
+                # 导入后刷新该类型启用状态
+                resolve_enabled_model(
+                    model_type,
+                    model_files=self._collect_model_files(model_type),
+                )
                 self.load_models()
             except Exception as e:
                 LOGGER.error(f"导入模型失败 {src_path}: {e}")
@@ -241,6 +312,19 @@ class ModelManagerController(QObject):
         Raises:
             无: 当前方法不主动抛出异常。
         """
+        model_type = self._infer_model_type(file_path)
+        if self._is_builtin_model(file_path, model_type):
+            InfoBar.warning(
+                title="操作受限",
+                content="系统默认模型不支持重命名",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self.view,
+            )
+            return
+
         # 使用子界面作为父对象，确保弹窗在页面级展示
         dialog = RenameModelDialog(current_name, self.view)
         if not dialog.exec():
@@ -266,6 +350,19 @@ class ModelManagerController(QObject):
         Raises:
             无: 当前方法不主动抛出异常。
         """
+        model_type = self._infer_model_type(file_path)
+        if self._is_builtin_model(file_path, model_type):
+            InfoBar.warning(
+                title="操作受限",
+                content="系统默认模型不支持删除",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self.view,
+            )
+            return
+
         # 使用子界面作为父对象，确保弹窗在页面级展示
         dialog = DeleteModelDialog(display_name, self.view)
         if not dialog.exec():
@@ -273,6 +370,31 @@ class ModelManagerController(QObject):
 
         # 执行删除业务
         self.handle_delete_model(file_path)
+
+    def request_edit_remark(self, file_path: str, current_remark: str) -> None:
+        """处理备注编辑弹窗请求。
+
+        Args:
+            file_path (str): 模型文件绝对路径。
+            current_remark (str): 当前备注文本。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        # 使用子界面作为父对象，确保弹窗在页面级展示
+        dialog = EditModelRemarkDialog(current_remark, self.view)
+        if not dialog.exec():
+            return
+
+        # 获取并清理用户输入
+        new_remark = dialog.get_remark().strip()
+        if new_remark == current_remark.strip():
+            return
+        # 执行备注保存业务
+        self.handle_edit_remark(file_path, new_remark)
 
     def handle_enable_toggled(self, file_path: str, model_type: str, checked: bool) -> None:
         """处理模型启用状态切换。
@@ -294,18 +416,17 @@ class ModelManagerController(QObject):
             return
 
         try:
-            # 设置当前类型启用模型，天然覆盖旧启用项
-            ModelRegistry.set_enabled_model(model_type, file_path)
+            # 写入当前类型启用模型路径
+            set_enabled_model_path(model_type, file_path)
             LOGGER.info(
-                "模型启用状态已变更: type=%s, enabled=%s",
+                "模型启用状态已变更: type=%s, name=%s, enabled=%s",
                 model_type,
+                self._get_display_name(file_path, model_type),
                 file_path,
             )
-            # 同步配置路径
-            self._sync_model_paths_to_config()
             InfoBar.success(
                 title="启用成功",
-                content=f"已启用 {model_type} 模型: {Path(file_path).name}",
+                content=f"已启用 {model_type} 模型: {self._get_display_name(file_path, model_type)}",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
@@ -334,6 +455,20 @@ class ModelManagerController(QObject):
         Args:
             file_path (str): 待删除模型文件的绝对路径。
         """
+        model_type = self._infer_model_type(file_path)
+        if self._is_builtin_model(file_path, model_type):
+            # 拦截系统默认模型删除请求
+            InfoBar.warning(
+                title="操作受限",
+                content="系统默认模型不支持删除",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self.view,
+            )
+            return
+
         try:
             # 删除模型文件（先按普通权限尝试）
             os.remove(file_path)
@@ -356,15 +491,12 @@ class ModelManagerController(QObject):
 
         try:
             # 清理模型元数据映射
-            model_type = Path(file_path).parent.name.upper()
             ModelRegistry.remove_name(file_path)
-            # 删除后自动修正该类型启用项
-            model_dir = self._get_model_dir(model_type)
-            model_files = [
-                str(model_dir / f) for f in os.listdir(model_dir)
-                if f.endswith((".onnx", ".pkl", ".pt", ".pth"))
-            ] if model_dir.exists() else []
-            ModelRegistry.ensure_enabled_model(model_type, model_files)
+            # 删除后重新解析该类型启用项
+            resolve_enabled_model(
+                model_type,
+                model_files=self._collect_model_files(model_type),
+            )
             InfoBar.success(
                 title="删除成功",
                 content=f"已删除模型: {os.path.basename(file_path)}",
@@ -396,6 +528,20 @@ class ModelManagerController(QObject):
             file_path (str): 原模型文件的绝对路径。
             new_name (str): 新的模型名称。
         """
+        model_type = self._infer_model_type(file_path)
+        if self._is_builtin_model(file_path, model_type):
+            # 拦截系统默认模型重命名请求
+            InfoBar.warning(
+                title="操作受限",
+                content="系统默认模型不支持重命名",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self.view,
+            )
+            return
+
         try:
             ModelRegistry.set_name(file_path, new_name)
             InfoBar.success(
@@ -412,6 +558,44 @@ class ModelManagerController(QObject):
             LOGGER.error(f"重命名模型失败: {e}")
             InfoBar.error(
                 title="重命名失败",
+                content=str(e),
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self.view,
+            )
+
+    def handle_edit_remark(self, file_path: str, remark_text: str) -> None:
+        """处理模型备注编辑事件。
+
+        Args:
+            file_path (str): 模型文件绝对路径。
+            remark_text (str): 新的备注文本。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        try:
+            # 保存模型备注
+            ModelRegistry.set_remark(file_path, remark_text)
+            InfoBar.success(
+                title="保存成功",
+                content="模型备注已更新",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self.view,
+            )
+            self.load_models()
+        except Exception as e:
+            LOGGER.error(f"保存模型备注失败: {e}")
+            InfoBar.error(
+                title="保存失败",
                 content=str(e),
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,

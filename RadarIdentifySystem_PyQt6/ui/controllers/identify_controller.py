@@ -4,22 +4,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 import logging
+from pathlib import Path
 
 from PyQt6.QtCore import QObject, Qt
-from PyQt6.QtGui import QImage
+from qfluentwidgets import InfoBar, InfoBarPosition
 from qfluentwidgets import InfoBar, InfoBarPosition, qconfig
-
+from app.model_bootstrap import get_enabled_model_path
 from app.app_config import appConfig
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
 from runtime.workflows.identify_workflow import identify_workflow
-from runtime.algorithm_params import get_clustering_params
 from core.models.cluster_result import ClusterItem
 from core.models.recognition_result import ClusterRecognition
 from ui.dialogs.processing_dialog import ProcessingDialog
-from infra.model_registry import ModelRegistry
-
 if TYPE_CHECKING:
     from ui.interfaces.slice_interface import SliceInterface
 
@@ -134,9 +132,14 @@ class IdentifyController(QObject):
         Raises:
             无。
         """
-        pa_path = ModelRegistry.get_enabled_model("PA")
-        dtoa_path = ModelRegistry.get_enabled_model("DTOA")
-        if not pa_path or not dtoa_path:
+        pa_path = get_enabled_model_path("PA")
+        dtoa_path = get_enabled_model_path("DTOA")
+        if (
+            not pa_path
+            or not dtoa_path
+            or not Path(pa_path).exists()
+            or not Path(dtoa_path).exists()
+        ):
             InfoBar.warning(
                 title="模型未就绪",
                 content="请先在模型管理中分别启用一个 PA 模型和一个 DTOA 模型。",
@@ -147,10 +150,6 @@ class IdentifyController(QObject):
                 parent=self.view,
             )
             return False
-
-        # 同步启用路径到运行配置，供识别工作流读取
-        qconfig.set(appConfig.modelPaPath, pa_path)
-        qconfig.set(appConfig.modelDtoaPath, dtoa_path)
         return True
 
     def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:

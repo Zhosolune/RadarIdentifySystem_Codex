@@ -39,11 +39,11 @@
     },
     "model": {
         "dtoaDirs": [],
-        "dtoaPath": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\DTOA\\2.onnx",
-        "paDirs": [
-            "E:/competition/参赛模型"
-        ],
-        "paPath": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\RadarIdentifySystem_PyQt6\\resources\\models\\PA\\3.onnx"
+        "dtoaEnabledPath": "",
+        "dtoaPath": "",
+        "paDirs": [],
+        "paEnabledPath": "",
+        "paPath": ""
     },
     "plot": {
         "onlyShowIdentified": "IDENTIFIED_ONLY",

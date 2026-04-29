@@ -2,14 +2,14 @@
 """导入模型对话框。"""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QFileDialog
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QFileDialog, QTextEdit
 from qfluentwidgets import (
     MessageBoxBase, SubtitleLabel, ComboBox, LineEdit, 
     BodyLabel, ToolButton, FluentIcon
 )
 
 class ImportModelDialog(MessageBoxBase):
-    """导入模型对话框"""
+    """导入模型对话框。"""
 
     def __init__(self, default_type: str = "PA", parent=None):
         """初始化导入模型对话框。
@@ -48,6 +48,12 @@ class ImportModelDialog(MessageBoxBase):
         self.nameLineEdit = LineEdit()
         self.nameLineEdit.setPlaceholderText("留空则自动从文件名提取")
 
+        # 模型备注
+        self.remarkLabel = BodyLabel("备注信息 (可选)")
+        self.remarkTextEdit = QTextEdit()
+        self.remarkTextEdit.setPlaceholderText("可填写模型用途、来源或适用说明")
+        self.remarkTextEdit.setFixedHeight(88)
+
         # 将组件添加到布局
         self.viewLayout.addWidget(self.titleLabel)
         self.viewLayout.addSpacing(16)
@@ -62,6 +68,10 @@ class ImportModelDialog(MessageBoxBase):
         self.viewLayout.addWidget(self.nameLabel)
         self.viewLayout.addSpacing(4)
         self.viewLayout.addWidget(self.nameLineEdit)
+        self.viewLayout.addSpacing(16)
+        self.viewLayout.addWidget(self.remarkLabel)
+        self.viewLayout.addSpacing(4)
+        self.viewLayout.addWidget(self.remarkTextEdit)
 
         # 设置对话框最小宽度
         self.widget.setMinimumWidth(380)
@@ -78,13 +88,14 @@ class ImportModelDialog(MessageBoxBase):
         if path:
             self.pathLineEdit.setText(path)
 
-    def getModelInfo(self) -> tuple[str, str, str]:
+    def getModelInfo(self) -> tuple[str, str, str, str]:
         """获取对话框输入的信息。
 
         Returns:
-            tuple: (模型类型, 模型文件路径, 自定义模型名称)
+            tuple[str, str, str, str]: 模型类型、模型文件路径、自定义模型名称、备注信息。
         """
         model_type = "PA" if self.typeCombo.currentIndex() == 0 else "DTOA"
         file_path = self.pathLineEdit.text().strip()
         model_name = self.nameLineEdit.text().strip()
-        return model_type, file_path, model_name
+        remark = self.remarkTextEdit.toPlainText().strip()
+        return model_type, file_path, model_name, remark

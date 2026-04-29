@@ -27,7 +27,8 @@ QWidget#modelListWidget {
     font-weight: 700;
 }
 
-#modelItemCard #modelPathLabel {
+#modelItemCard #modelPathLabel,
+#modelItemCard #modelRemarkLabel {
     color: #8a8a8a;
 }
 

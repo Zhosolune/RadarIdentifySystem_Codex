@@ -174,6 +174,16 @@ class AppConfig(QConfig):
         name="dtoaPath",
         default=str(Path.home() / ".RadarIdentifySystem" / "models" / "dtoa" / "dtoa_model.onnx"),
     )
+    modelPaEnabledPath = ConfigItem(
+        group="model",
+        name="paEnabledPath",
+        default="",
+    )
+    modelDtoaEnabledPath = ConfigItem(
+        group="model",
+        name="dtoaEnabledPath",
+        default="",
+    )
 
     autoRecognizeNextSlice = ConfigItem(
         group="business",

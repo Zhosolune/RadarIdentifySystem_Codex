@@ -9,6 +9,7 @@ from .plot_option_card import PlotOptionCard
 from .redraw_option_card import RedrawOptionCard
 from .export_option_card import ExportOptionCard
 from .jitter_free_container import JitterFreeCardGroup
+from .scrolling_name_label import ScrollingNameLabel
 
 __all__ = [
     "ActionButtonCard",
@@ -17,5 +18,6 @@ __all__ = [
     "PlotOptionCard",
     "RedrawOptionCard",
     "ExportOptionCard",
-    "JitterFreeCardGroup"
+    "JitterFreeCardGroup",
+    "ScrollingNameLabel",
 ]

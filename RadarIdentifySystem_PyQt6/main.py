@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
 from qfluentwidgets import FluentTranslator
 from app.app_config import appConfig
+from app.model_bootstrap import initialize_model_runtime
 from ui.main_window import MainWindow
 from app.logger import configure_logging, get_current_log_file_path
 from app import resource_rc
@@ -92,6 +93,8 @@ def main() -> None:
     translator = FluentTranslator(QLocale(QLocale.Language.Chinese, QLocale.Country.China))
     app.installTranslator(translator)
 
+    # 初始化模型启用配置
+    initialize_model_runtime(write_log=True)
 
     window = MainWindow()
     window.show()

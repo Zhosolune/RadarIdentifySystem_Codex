@@ -1,5 +1,65 @@
 # 变更记录
 
+- 时间：2026-04-29 09:38
+- 操作类型：重构
+- 影响文件：
+  - `infra/model_registry.py`
+  - `app/model_bootstrap.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/components/model_item_card.py`
+  - `ui/components/scrolling_name_label.py`
+  - `ui/components/__init__.py`
+  - `config/meta.json`
+- 变更摘要：移除模型元数据中的旧启用状态结构并清理历史数据；将滚动名称标签抽离为独立组件；删除控制器中的重复初始化逻辑。
+- 原因：按当前架构收敛职责边界，避免启用状态双源维护，并将可复用 UI 能力下沉到独立组件。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-29 09:25
+- 操作类型：重构
+- 影响文件：
+  - `main.py`
+  - `app/app_config.py`
+  - `app/model_bootstrap.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/controllers/identify_controller.py`
+  - `ui/components/model_item_card.py`
+- 变更摘要：修复模型卡片名称不显示问题；将启用模型状态收敛到配置系统管理，并在启动阶段完成初始化与运行时路径同步。
+- 原因：避免名称组件因缺少尺寸提示导致不可见，并消除模型启用状态在配置与注册表之间双源维护的复杂度。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-29 09:03
+- 操作类型：修改
+- 影响文件：
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/components/model_item_card.py`
+- 变更摘要：模型启用日志补充展示名称并在启动后记录当前启用模型快照；模型名称区域增加最大宽度限制，超长时自动滚动显示。
+- 原因：提升模型启用日志可读性，并优化长名称模型在卡片中的展示效果。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-29 08:52
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/dialogs/import_model_dialog.py`
+  - `ui/dialogs/edit_model_remark_dialog.py`
+  - `infra/model_registry.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：模型卡片第二行改为显示可编辑备注；导入模型时支持填写备注；命令栏新增“编辑备注”按钮并持久化保存备注信息。
+- 原因：按交互需求移除文件路径展示，改为承载用户可维护的模型说明信息，提升模型管理可读性。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-28 17:28
+- 操作类型：重构
+- 影响文件：
+  - `infra/model_registry.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/components/model_item_card.py`
+- 变更摘要：将模型元数据文件迁移至 `config/meta.json` 并兼容旧路径；模型列表改为“系统内置目录 + 用户目录”联合加载；系统内置模型固定显示“系统默认”且禁止重命名/删除；导入模型改为写入用户目录。
+- 原因：满足“系统默认模型只读、默认启用、打包后用户模型可写”的部署与交互要求，避免向安装目录写入数据。
+- 测试状态：已测试（诊断通过）
+
 - 时间：2026-04-28 16:28
 - 操作类型：重构
 - 影响文件：
