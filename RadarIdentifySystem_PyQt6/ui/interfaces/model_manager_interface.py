@@ -2,13 +2,14 @@
 """模型管理界面。"""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
+from PyQt6.QtWidgets import QLabel, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 
 from qfluentwidgets import (
     SettingCardGroup,
     PushSettingCard,
     FluentIcon,
     SegmentedWidget,
+    setFont
 )
 
 from app.style_sheet import StyleSheet
@@ -60,6 +61,9 @@ class ModelManagerInterface(QWidget):
             self.manage_group,
         )
 
+        # 创建模型列表标签
+        self.model_list_label = QLabel("模型列表", self.content_widget)
+        setFont(self.model_list_label, 20)
         # 创建模型类型切换
         self.segmentedWidget = SegmentedWidget(self.content_widget)
         # 创建堆叠页面容器
@@ -106,7 +110,7 @@ class ModelManagerInterface(QWidget):
 
         # 设置内容边距
         self.content_layout.setContentsMargins(36, 10, 36, 0)
-        self.content_layout.setSpacing(16)
+        self.content_layout.setSpacing(28)
 
         # 添加设置卡
         self.manage_group.addSettingCard(self.import_model_card)
@@ -123,14 +127,15 @@ class ModelManagerInterface(QWidget):
         self.segmentedWidget.setCurrentItem("PA")
 
         # 创建分段切换布局
-        self.segment_layout = QHBoxLayout()
+        self.segment_layout = QVBoxLayout()
         self.segment_layout.setContentsMargins(0, 0, 0, 0)
-        self.segment_layout.addWidget(self.segmentedWidget)
-        self.segment_layout.addStretch(1)
-        self.content_layout.addLayout(self.segment_layout)
+        self.segment_layout.setSpacing(12)
+        self.segment_layout.addWidget(self.model_list_label)
+        self.segment_layout.addWidget(self.segmentedWidget, 0, Qt.AlignmentFlag.AlignLeft)
+        self.segment_layout.addWidget(self.stackedWidget)
 
-        # 添加堆叠页面容器
-        self.content_layout.addWidget(self.stackedWidget, 1)
+        # 添加分段切换布局
+        self.content_layout.addLayout(self.segment_layout, 1)
 
     def _connectSignalToSlot(self) -> None:
         """连接界面内部信号。
