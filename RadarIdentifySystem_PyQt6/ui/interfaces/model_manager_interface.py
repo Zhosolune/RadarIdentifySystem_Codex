@@ -2,18 +2,17 @@
 """模型管理界面。"""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 
 from qfluentwidgets import (
     SettingCardGroup,
-    PrimaryPushSettingCard,
+    PushSettingCard,
     FluentIcon,
     SegmentedWidget,
-    TitleLabel,
-    CaptionLabel,
 )
 
 from app.style_sheet import StyleSheet
+from ui.components.model_list_page import ModelListPage
 from ui.controllers.model_manager_controller import ModelManagerController
 
 
@@ -41,34 +40,39 @@ class ModelManagerInterface(QWidget):
         self.content_layout = QVBoxLayout(self.content_widget)
 
         # 创建分组
-        self.action_group = SettingCardGroup("导入模型", self.content_widget)
+        self.manage_group = SettingCardGroup("模型管理", self.content_widget)
 
         # 创建导入模型设置卡
-        self.import_model_card = PrimaryPushSettingCard(
-            "导入",
+        self.import_model_card = PushSettingCard(
+            "选择模型",
             FluentIcon.DOWNLOAD,
             "导入模型",
-            "导入 PA 或 DTOA 模型到系统目录",
-            self.action_group,
+            "导入 PA 或 DTOA 模型到用户模型目录",
+            self.manage_group,
+        )
+
+        # 创建用户模型目录设置卡
+        self.user_model_root_card = PushSettingCard(
+            "选择目录",
+            FluentIcon.FOLDER,
+            "用户模型目录",
+            "目录占位",    # 初始化结束后会自动更新为实际路径，若不占位卡片高度会异常
+            self.manage_group,
         )
 
         # 创建模型类型切换
         self.segmentedWidget = SegmentedWidget(self.content_widget)
-        self.segmentedWidget.addItem("PA", "PA 模型")
-        self.segmentedWidget.addItem("DTOA", "DTOA 模型")
-        self.segmentedWidget.setCurrentItem("PA")
-
-        # 创建列表滚动容器（仅列表区域滚动）
-        self.list_scroll_area = QScrollArea(self.content_widget)
-        self.list_scroll_area.setWidgetResizable(True)
-        self.list_scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.list_scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-
-        # 创建列表内容容器
-        self.listWidget = QWidget()
-        self.listLayout = QVBoxLayout(self.listWidget)
+        # 创建堆叠页面容器
+        self.stackedWidget = QStackedWidget(self.content_widget)
+        # 创建 PA 列表页
+        self.pa_model_page = ModelListPage("PA", self.stackedWidget)
+        # 创建 DTOA 列表页
+        self.dtoa_model_page = ModelListPage("DTOA", self.stackedWidget)
+        # 缓存模型页面映射
+        self.model_pages = {
+            "PA": self.pa_model_page,
+            "DTOA": self.dtoa_model_page,
+        }
 
         # 装配界面模块
         self._initWidget()
@@ -88,9 +92,7 @@ class ModelManagerInterface(QWidget):
         # 设置对象名
         self.setObjectName("modelManagerInterface")
         self.content_widget.setObjectName("modelContentWidget")
-        self.list_scroll_area.setObjectName("modelListScrollArea")
-        self.list_scroll_area.viewport().setObjectName("modelListViewport")
-        self.listWidget.setObjectName("modelListWidget")
+        self.stackedWidget.setObjectName("modelStackedWidget")
 
         # 初始化样式
         StyleSheet.MODEL_MANAGER_INTERFACE.apply(self)
@@ -101,15 +103,24 @@ class ModelManagerInterface(QWidget):
 
     def _initLayout(self):
         """初始化界面布局。"""
-        # 添加导入卡片
-        self.action_group.addSettingCard(self.import_model_card)
 
         # 设置内容边距
         self.content_layout.setContentsMargins(36, 10, 36, 0)
         self.content_layout.setSpacing(16)
 
-        # 添加操作分组
-        self.content_layout.addWidget(self.action_group)
+        # 添加设置卡
+        self.manage_group.addSettingCard(self.import_model_card)
+        self.manage_group.addSettingCard(self.user_model_root_card)
+
+        # 添加模型管理分组
+        self.content_layout.addWidget(self.manage_group)
+
+        # 注册分段页面项
+        self._add_sub_interface(self.pa_model_page, "PA", "PA 模型")
+        self._add_sub_interface(self.dtoa_model_page, "DTOA", "DTOA 模型")
+        # 初始化默认页面
+        self.stackedWidget.setCurrentWidget(self.pa_model_page)
+        self.segmentedWidget.setCurrentItem("PA")
 
         # 创建分段切换布局
         self.segment_layout = QHBoxLayout()
@@ -118,27 +129,147 @@ class ModelManagerInterface(QWidget):
         self.segment_layout.addStretch(1)
         self.content_layout.addLayout(self.segment_layout)
 
-        # 配置列表容器
-        self.listLayout.setContentsMargins(0, 0, 0, 0)
-        self.listLayout.setSpacing(4)
-        self.list_scroll_area.setWidget(self.listWidget)
-
-        # 组装列表区域布局
-        list_area_layout = QVBoxLayout()
-        list_area_layout.setContentsMargins(0, 0, 0, 0)
-        list_area_layout.setSpacing(0)
-        list_area_layout.addWidget(self.list_scroll_area, 1)
-        self.content_layout.addLayout(list_area_layout, 1)
+        # 添加堆叠页面容器
+        self.content_layout.addWidget(self.stackedWidget, 1)
 
     def _connectSignalToSlot(self) -> None:
         """连接界面内部信号。
 
-        说明：
-            当前界面交互信号统一在控制器中绑定，
-            该方法保留用于与 `SettingInterface` 结构保持一致。
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
         """
-        # 预留信号连接入口
-        return
+        # 绑定分段切换事件
+        self.segmentedWidget.currentItemChanged.connect(self._on_segmented_item_changed)
+        # 绑定堆叠页切换事件
+        self.stackedWidget.currentChanged.connect(self._on_stacked_widget_changed)
+
+    def _add_sub_interface(
+        self,
+        widget: ModelListPage,
+        route_key: str,
+        text: str,
+    ) -> None:
+        """注册模型列表子页面。
+
+        Args:
+            widget (ModelListPage): 待注册的列表页面。
+            route_key (str): 分段路由键。
+            text (str): 分段展示文本。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 路由键为空时抛出异常。
+        """
+        if not route_key:
+            raise ValueError("route_key 不能为空")
+
+        # 绑定页面对象名
+        widget.setObjectName(route_key)
+        # 注册堆叠页面
+        self.stackedWidget.addWidget(widget)
+        # 注册分段项点击行为
+        self.segmentedWidget.addItem(
+            routeKey=route_key,
+            text=text,
+            onClick=lambda: self.stackedWidget.setCurrentWidget(widget),
+        )
+
+    def _on_segmented_item_changed(self, item_key: str) -> None:
+        """处理分段切换事件。
+
+        Args:
+            item_key (str): 当前选中的分段路由键。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        current_page = self.model_pages.get(item_key)
+        if current_page is None:
+            return
+        if self.stackedWidget.currentWidget() is current_page:
+            return
+
+        # 同步切换堆叠页面
+        self.stackedWidget.setCurrentWidget(current_page)
+
+    def _on_stacked_widget_changed(self, index: int) -> None:
+        """处理堆叠页面切换事件。
+
+        Args:
+            index (int): 当前页面索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        current_page = self.stackedWidget.widget(index)
+        if current_page is None:
+            return
+
+        route_key = current_page.objectName()
+        if self.segmentedWidget.currentRouteKey() == route_key:
+            return
+
+        # 同步分段选中状态
+        self.segmentedWidget.setCurrentItem(route_key)
+
+    def get_model_page(self, model_type: str) -> ModelListPage:
+        """获取指定模型类型对应的列表页面。
+
+        Args:
+            model_type (str): 模型类型。
+
+        Returns:
+            ModelListPage: 模型列表页面组件。
+
+        Raises:
+            KeyError: 模型类型不存在时抛出异常。
+        """
+        return self.model_pages[model_type]
+
+    def current_model_type(self) -> str:
+        """获取当前激活的模型类型。
+
+        Args:
+            无。
+
+        Returns:
+            str: 当前激活的模型类型。
+
+        Raises:
+            无。
+        """
+        current_route = self.segmentedWidget.currentRouteKey()
+        return current_route if current_route else "PA"
+
+    def set_user_model_root_path(self, path: str) -> None:
+        """更新用户模型目录卡片内容。
+
+        Args:
+            path (str): 用户模型根目录路径。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        # 同步展示用户模型根目录
+        self.user_model_root_card.setContent(path)
+
     def resizeEvent(self, event):
         """处理界面大小变化事件。
 

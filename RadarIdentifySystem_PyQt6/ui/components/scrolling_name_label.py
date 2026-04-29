@@ -6,7 +6,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QSize, QTimer
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
-from qfluentwidgets import BodyLabel
+from qfluentwidgets import BodyLabel, ToolTipFilter, ToolTipPosition
 
 
 class ScrollingNameLabel(QWidget):
@@ -80,6 +80,9 @@ class ScrollingNameLabel(QWidget):
         self.primary_label.setText(text)
         self.secondary_label.setText(text)
         self.setToolTip(text)
+        self.installEventFilter(
+            ToolTipFilter(self, 500, ToolTipPosition.BOTTOM)
+        )
         self._update_scroll_state()
 
     def resizeEvent(self, event) -> None:

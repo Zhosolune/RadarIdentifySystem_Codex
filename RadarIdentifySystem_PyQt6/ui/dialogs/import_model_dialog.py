@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QFileDialog, QTextEdit
 from qfluentwidgets import (
     MessageBoxBase, SubtitleLabel, ComboBox, LineEdit, 
-    BodyLabel, ToolButton, FluentIcon
+    BodyLabel, FluentIcon, PushButton
 )
 
 class ImportModelDialog(MessageBoxBase):
@@ -35,9 +35,9 @@ class ImportModelDialog(MessageBoxBase):
         self.pathLayout.setSpacing(8)
         
         self.pathLineEdit = LineEdit()
-        self.pathLineEdit.setPlaceholderText("例如：/models/pa/v2/model.pkl")
+        self.pathLineEdit.setPlaceholderText("例如：/models/pa/v2/model.onnx")
         
-        self.browseBtn = ToolButton(FluentIcon.FOLDER)
+        self.browseBtn = PushButton(text = "浏览", icon = FluentIcon.FOLDER)
         self.browseBtn.clicked.connect(self._onBrowse)
         
         self.pathLayout.addWidget(self.pathLineEdit)

@@ -8,6 +8,7 @@ from typing import Optional
 from PyQt6.QtCore import QObject, pyqtSlot
 
 from app.app_config import appConfig, qconfig
+from app.model_bootstrap import get_enabled_model_path
 from app.signal_bus import signal_bus
 from core.models.algorithm_params import ClusteringParams, RecognitionParams
 from core.models.processing_session import ProcessingSession
@@ -77,9 +78,9 @@ class IdentifyWorkflow(QObject):
             LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session_id})
             return
 
-        # 从配置中获取模型路径
-        pa_path = qconfig.get(appConfig.modelPaPath)
-        dtoa_path = qconfig.get(appConfig.modelDtoaPath)
+        # 读取当前启用模型路径
+        pa_path = get_enabled_model_path("PA")
+        dtoa_path = get_enabled_model_path("DTOA")
         temp_dir = qconfig.get(appConfig.logDir) # 暂用 logDir 作为 temp_dir
         # 当模型路径变化时重建推理服务，确保启用切换立即生效
         should_reload_inference = (

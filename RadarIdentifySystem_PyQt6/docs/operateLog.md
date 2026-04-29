@@ -1,5 +1,73 @@
 # 变更记录
 
+- 时间：2026-04-29 11:43
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+- 变更摘要：将模型卡片备注预览改为单行显示，换行和多余空白统一压平成空格，tooltip 继续保留原始多段文本格式。
+- 原因：修复短多行备注在卡片中显示为“一行半”且被截断的问题，同时保留省略号提示与完整备注浏览能力。
+- 测试状态：已测试（诊断通过，`python -m py_compile` 通过）
+
+- 时间：2026-04-29 11:14
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+- 变更摘要：将模型卡片备注标签的悬浮提示切换为组件库 `ToolTipFilter + ToolTipPosition.TOP` 方案。
+- 原因：统一备注提示的 Fluent 风格，避免继续显示 Qt 原生系统提示样式。
+- 测试状态：已测试（诊断通过，`python -m py_compile` 通过）
+
+- 时间：2026-04-29 11:12
+- 操作类型：修改
+- 影响文件：
+  - `ui/components/model_item_card.py`
+- 变更摘要：计划将模型卡片备注标签的原生 `setToolTip()` 用法替换为组件库提示方案。
+- 原因：统一备注悬浮提示的视觉风格，避免继续使用 Qt 原生提示样式。
+- 测试状态：待测试
+
+- 时间：2026-04-29 10:57
+- 操作类型：重构
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/components/model_list_page.py`
+  - `ui/components/__init__.py`
+  - `resources/qss/light/model_manager_interface.qss`
+  - `resources/qss/dark/model_manager_interface.qss`
+- 变更摘要：将模型管理页重构为 `SegmentedWidget + QStackedWidget` 结构，新增 PA/DTOA 独立列表页组件，并让控制器按页面分别渲染模型列表。
+- 原因：对齐组件库官方推荐的顶部导航切页模式，降低界面层与列表容器的耦合度，为后续独立扩展两类模型页面预留结构。
+- 测试状态：已测试（诊断通过，`python -m py_compile` 通过）
+
+- 时间：2026-04-29 10:52
+- 操作类型：重构
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/controllers/model_manager_controller.py`
+  - `ui/components/__init__.py`
+  - `ui/components/model_list_page.py`
+- 变更摘要：计划将模型管理页重构为 `SegmentedWidget + QStackedWidget` 结构，并抽离 PA/DTOA 独立列表页组件。
+- 原因：对齐组件库官方推荐的顶部导航切页模式，消除当前“分段控件仅作为筛选开关”的结构偏差。
+- 测试状态：待测试
+
+- 时间：2026-04-29 10:14
+- 操作类型：修改
+- 影响文件：
+  - `ui/interfaces/model_manager_interface.py`
+  - `ui/controllers/model_manager_controller.py`
+- 变更摘要：在模型管理页新增用户模型目录设置卡，并确保系统默认模型卡片在列表中始终置顶显示。
+- 原因：补齐用户模型根目录的页面入口，形成目录配置闭环，同时强化系统默认模型的展示优先级。
+- 测试状态：已测试（诊断通过）
+
+- 时间：2026-04-29 10:09
+- 操作类型：重构
+- 影响文件：
+  - `app/app_config.py`
+  - `app/model_bootstrap.py`
+  - `runtime/workflows/identify_workflow.py`
+  - `config/config.json`
+- 变更摘要：将模型配置收敛为“用户模型根目录 + 两个启用模型路径”，删除多目录与运行时重复路径配置。
+- 原因：按单根目录闭环模型管理，避免目录列表与运行时路径双份状态，统一由根目录推导 `PA`/`DTOA` 子目录。
+- 测试状态：已测试（诊断通过）
+
 - 时间：2026-04-29 09:38
 - 操作类型：重构
 - 影响文件：

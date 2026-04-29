@@ -60,12 +60,24 @@ def _get_enabled_path_config_item(model_type: str):
     return appConfig.modelDtoaEnabledPath
 
 
-def _get_runtime_path_config_item(model_type: str):
-    """获取运行时模型路径配置项。"""
-    normalized_type = _normalize_model_type(model_type)
-    if normalized_type == "PA":
-        return appConfig.modelPaPath
-    return appConfig.modelDtoaPath
+def get_user_model_root_dir() -> Path:
+    """获取用户模型根目录。
+
+    Args:
+        无。
+
+    Returns:
+        Path: 用户模型根目录。
+
+    Raises:
+        无。
+    """
+    configured_root = qconfig.get(appConfig.userModelRootDir)
+    default_root = Path.home() / ".RadarIdentifySystem" / "models"
+    normalized_root = str(configured_root).strip() if configured_root else ""
+    if not normalized_root:
+        return default_root
+    return Path(normalized_root)
 
 
 def get_builtin_model_dir(model_type: str) -> Path:
@@ -98,15 +110,8 @@ def get_user_model_dir(model_type: str) -> Path:
         ValueError: 模型类型不受支持时抛出异常。
     """
     normalized_type = _normalize_model_type(model_type)
-    if normalized_type == "PA":
-        # 读取 PA 模型目录配置
-        model_dirs = qconfig.get(appConfig.modelPaDirs)
-        default_dir = Path.home() / ".RadarIdentifySystem" / "models" / "pa"
-    else:
-        # 读取 DTOA 模型目录配置
-        model_dirs = qconfig.get(appConfig.modelDtoaDirs)
-        default_dir = Path.home() / ".RadarIdentifySystem" / "models" / "dtoa"
-    return Path(model_dirs[0]) if model_dirs else default_dir
+    # 基于根目录推导模型类型子目录
+    return get_user_model_root_dir() / normalized_type
 
 
 def ensure_user_model_dir(model_type: str) -> Path:
@@ -204,7 +209,7 @@ def get_enabled_model_path(model_type: str) -> str | None:
 
 
 def set_enabled_model_path(model_type: str, file_path: str | None) -> None:
-    """写入当前启用模型路径并同步运行时配置。
+    """写入当前启用模型路径。
 
     Args:
         model_type (str): 模型类型。
@@ -218,11 +223,8 @@ def set_enabled_model_path(model_type: str, file_path: str | None) -> None:
     """
     normalized_path = _normalize_path(file_path)
     enabled_item = _get_enabled_path_config_item(model_type)
-    runtime_item = _get_runtime_path_config_item(model_type)
     # 写入启用模型路径
     qconfig.set(enabled_item, normalized_path or "")
-    # 同步运行时识别模型路径
-    qconfig.set(runtime_item, normalized_path or "")
 
 
 def resolve_enabled_model(

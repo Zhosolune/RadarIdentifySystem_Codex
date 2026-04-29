@@ -8,14 +8,18 @@ from pathlib import Path
 import logging
 
 from PyQt6.QtCore import QObject, Qt
-from qfluentwidgets import InfoBar, InfoBarPosition, BodyLabel
+from PyQt6.QtWidgets import QFileDialog
+from qfluentwidgets import InfoBar, InfoBarPosition
+from qfluentwidgets import qconfig
 
+from app.app_config import appConfig
 from app.model_bootstrap import (
     collect_available_model_files,
     ensure_user_model_dir,
     get_builtin_model_dir,
     get_display_name,
     get_user_model_dir,
+    get_user_model_root_dir,
     is_builtin_model,
     resolve_enabled_model,
     set_enabled_model_path,
@@ -50,74 +54,101 @@ class ModelManagerController(QObject):
         self.view = view
 
         # 绑定视图交互信号
+        self.view.user_model_root_card.button.clicked.connect(self.handle_change_user_model_root)
         self.view.import_model_card.button.clicked.connect(self.handle_import_model)
-        self.view.segmentedWidget.currentItemChanged.connect(self._on_segment_changed)
 
-        # 加载当前分页列表
+        # 初始化目录卡片内容
+        self.view.set_user_model_root_path(str(get_user_model_root_dir()))
+        # 加载全部分页列表
         self.load_models()
 
-    def _on_segment_changed(self, item_key: str):
-        """处理分段组件切换事件。
+    def load_models(self) -> None:
+        """加载并渲染全部模型列表页面。
 
         Args:
-            item_key (str): 切换的目标项路由标识（如 "PA" 或 "DTOA"）。
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
         """
-        self.load_models()
+        for model_type in ("PA", "DTOA"):
+            # 依次刷新两类模型页面
+            self._load_model_page(model_type)
 
-    def load_models(self):
-        """加载并渲染模型列表。
+    def _load_model_page(self, model_type: str) -> None:
+        """加载并渲染单个模型列表页面。
 
-        清空当前列表容器，扫描目标目录下的模型文件，并生成卡片项添加到视图布局中。
+        Args:
+            model_type (str): 目标模型类型。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
         """
-        # 清空当前列表
-        while self.view.listLayout.count():
-            item = self.view.listLayout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        current_route = self.view.segmentedWidget.currentRouteKey()
-        current_type = current_route if current_route else "PA"
+        page = self.view.get_model_page(model_type)
+        # 清空旧列表项
+        page.clear_items()
 
         try:
-            model_files = self._collect_model_files(current_type)
-            enabled_path = self._ensure_enabled_model_for_type(current_type)
+            model_files = self._sorted_model_files(model_type)
+            enabled_path = self._ensure_enabled_model_for_type(model_type)
 
             if not model_files:
-                emptyLabel = BodyLabel(
-                    "当前类型暂无可用模型，请先导入模型文件。"
-                )
-                # 设置空状态标签对象名，供样式表统一管理
-                emptyLabel.setObjectName("modelEmptyLabel")
-                # 设置空状态标签上边距，避免与顶部区域贴近
-                emptyLabel.setContentsMargins(0, 40, 0, 0)
-                emptyLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.view.listLayout.addWidget(emptyLabel)
+                # 显示当前页面空状态
+                page.show_empty_state("当前类型暂无可用模型，请先导入模型文件。")
             else:
                 for file_path in model_files:
-                    is_system_default = self._is_builtin_model(file_path, current_type)
-                    display_name = self._get_display_name(file_path, current_type)
+                    is_system_default = self._is_builtin_model(file_path, model_type)
+                    display_name = self._get_display_name(file_path, model_type)
                     remark_text = ModelRegistry.get_remark(file_path)
                     card = ModelItemCard(
-                        current_type,
+                        model_type,
                         file_path,
                         display_name,
                         remark_text=remark_text,
                         is_enabled=os.path.normpath(file_path) == enabled_path,
                         is_system_default=is_system_default,
-                        parent=self.view,
+                        parent=page,
                     )
                     # 绑定卡片请求信号
                     card.deleteRequested.connect(self.request_delete_model)
                     card.renameRequested.connect(self.request_rename_model)
                     card.remarkRequested.connect(self.request_edit_remark)
                     card.enabledToggled.connect(self.handle_enable_toggled)
-                    self.view.listLayout.addWidget(card)
+                    page.add_item(card)
 
             # 添加底部弹性空间，确保卡片从顶部开始排列
-            self.view.listLayout.addStretch(1)
+            page.add_bottom_stretch()
 
         except Exception as e:
-            LOGGER.error(f"加载模型列表失败: {e}")
+            LOGGER.error("加载模型列表失败: type=%s, error=%s", model_type, e)
+
+    def _sorted_model_files(self, model_type: str) -> list[str]:
+        """返回按展示优先级排序后的模型列表。
+
+        Args:
+            model_type (str): 模型类型。
+
+        Returns:
+            list[str]: 排序后的模型路径列表。
+
+        Raises:
+            ValueError: 模型类型不支持时抛出异常。
+        """
+        model_files = self._collect_model_files(model_type)
+        # 让系统默认模型始终置顶，其余模型按文件名排序
+        return sorted(
+            model_files,
+            key=lambda file_path: (
+                0 if self._is_builtin_model(file_path, model_type) else 1,
+                os.path.basename(file_path).lower(),
+            ),
+        )
 
     def _get_builtin_model_dir(self, model_type: str) -> Path:
         """获取系统内置模型目录路径。
@@ -237,8 +268,7 @@ class ModelManagerController(QObject):
         弹出自定义导入对话框，将选中的模型文件复制到用户模型目录。
         若指定了自定义名称，则更新到元数据中。
         """
-        current_route = self.view.segmentedWidget.currentRouteKey()
-        default_type = current_route if current_route else "PA"
+        default_type = self.view.current_model_type()
 
         dialog = ImportModelDialog(default_type, self.view)
         if dialog.exec():
@@ -298,6 +328,65 @@ class ModelManagerController(QObject):
                     duration=3000,
                     parent=self.view,
                 )
+
+    def handle_change_user_model_root(self) -> None:
+        """处理用户模型根目录修改事件。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        current_root = str(get_user_model_root_dir())
+        # 打开目录选择对话框
+        selected_root = QFileDialog.getExistingDirectory(
+            self.view,
+            "选择用户模型根目录",
+            current_root,
+        )
+        if not selected_root:
+            return
+
+        normalized_root = os.path.normpath(selected_root)
+        try:
+            # 写入新的用户模型根目录
+            qconfig.set(appConfig.userModelRootDir, normalized_root)
+            # 创建 PA 用户模型目录
+            ensure_user_model_dir("PA")
+            # 创建 DTOA 用户模型目录
+            ensure_user_model_dir("DTOA")
+            # 刷新两类模型启用状态
+            for model_type in ("PA", "DTOA"):
+                resolve_enabled_model(model_type)
+            # 更新目录卡片内容
+            self.view.set_user_model_root_path(normalized_root)
+            # 刷新当前模型列表
+            self.load_models()
+            LOGGER.info("用户模型根目录已更新: root=%s", normalized_root)
+            InfoBar.success(
+                title="设置成功",
+                content="用户模型目录已更新，并已自动创建 PA 与 DTOA 子目录",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+                parent=self.view,
+            )
+        except Exception as e:
+            LOGGER.error("更新用户模型根目录失败: %s", e)
+            InfoBar.error(
+                title="设置失败",
+                content=str(e),
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.view,
+            )
 
     def request_rename_model(self, file_path: str, current_name: str) -> None:
         """处理重命名弹窗请求。

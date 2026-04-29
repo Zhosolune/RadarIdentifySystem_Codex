@@ -6,7 +6,7 @@ from pathlib import Path
 
 from qfluentwidgets import (
     BoolValidator, ConfigItem, OptionsConfigItem, OptionsValidator, RangeValidator,
-    FolderListValidator, QConfig, qconfig, Theme, setTheme, setThemeColor,
+    QConfig, qconfig, Theme, setTheme, setThemeColor,
 )
 
 from utils.paths import get_config_file_path
@@ -152,27 +152,10 @@ class AppConfig(QConfig):
     )
 
     # 业务控制 ─────────────────────────────────────────────────────────────────
-    modelPaDirs = ConfigItem(
+    userModelRootDir = ConfigItem(
         group="model",
-        name="paDirs",
-        default=[str(Path.home() / ".RadarIdentifySystem" / "models" / "pa")],
-        validator=FolderListValidator(),
-    )
-    modelDtoaDirs = ConfigItem(
-        group="model",
-        name="dtoaDirs",
-        default=[str(Path.home() / ".RadarIdentifySystem" / "models" / "dtoa")],
-        validator=FolderListValidator(),
-    )
-    modelPaPath = ConfigItem(
-        group="model",
-        name="paPath",
-        default=str(Path.home() / ".RadarIdentifySystem" / "models" / "pa" / "pa_model.onnx"),
-    )
-    modelDtoaPath = ConfigItem(
-        group="model",
-        name="dtoaPath",
-        default=str(Path.home() / ".RadarIdentifySystem" / "models" / "dtoa" / "dtoa_model.onnx"),
+        name="userModelRootDir",
+        default=str(Path.home() / ".RadarIdentifySystem" / "models"),
     )
     modelPaEnabledPath = ConfigItem(
         group="model",

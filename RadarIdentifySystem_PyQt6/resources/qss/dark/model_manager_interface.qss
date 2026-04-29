@@ -6,6 +6,10 @@ QWidget#modelContentWidget {
     background: transparent;
 }
 
+QStackedWidget#modelStackedWidget {
+    background: transparent;
+}
+
 QScrollArea#modelListScrollArea {
     background: transparent;
     border: none;

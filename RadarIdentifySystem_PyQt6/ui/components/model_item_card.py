@@ -12,6 +12,8 @@ from qfluentwidgets import (
     CaptionLabel,
     FluentIcon,
     RadioButton,
+    ToolTipFilter,
+    ToolTipPosition,
 )
 from ui.components.scrolling_name_label import ScrollingNameLabel
 
@@ -99,7 +101,7 @@ class ModelItemCard(CardWidget):
         self.textLayout.setContentsMargins(0, 14, 0, 14)
         self.textLayout.setSpacing(2)
         
-        self.nameLabel = ScrollingNameLabel(self.display_name, max_width=260, parent=self)
+        self.nameLabel = ScrollingNameLabel(self.display_name, max_width=400, parent=self)
         
         self.textLayout.addWidget(self.nameLabel)
         if self.has_remark:
@@ -107,7 +109,14 @@ class ModelItemCard(CardWidget):
             self.remarkLabel = CaptionLabel(self._build_remark_text())
             # 设置备注对象名，供 QSS 统一管理样式
             self.remarkLabel.setObjectName("modelRemarkLabel")
+            # 禁止备注预览自动换行
+            self.remarkLabel.setWordWrap(False)
+            # 设置备注悬浮提示文本
             self.remarkLabel.setToolTip(self.remark_text.strip())
+            # 安装备注明细提示过滤器
+            self.remarkLabel.installEventFilter(
+                ToolTipFilter(self.remarkLabel, 500, ToolTipPosition.BOTTOM)
+            )
             self.textLayout.addWidget(self.remarkLabel)
         
         # 命令栏
@@ -116,15 +125,15 @@ class ModelItemCard(CardWidget):
         self.commandBar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         
         # 仅为可编辑模型创建命令动作
-        self.remarkAction = Action(FluentIcon.EDIT, "编辑备注")
         self.renameAction = Action(FluentIcon.EDIT, "重命名")
+        self.remarkAction = Action(FluentIcon.EDIT, "编辑备注")
         self.deleteAction = Action(FluentIcon.DELETE, "删除")
         self.deleteAction.setProperty("danger", True)
 
         # 创建命令栏占位容器，确保隐藏命令栏时保留布局位置
         self.commandBarContainer = QWidget(self)
         self.commandBarContainer.setObjectName("modelCommandBarContainer")
-        self.commandBarContainer.setFixedWidth(100)
+        self.commandBarContainer.setFixedWidth(160)
         self.commandBarLayout = QHBoxLayout(self.commandBarContainer)
         self.commandBarLayout.setContentsMargins(0, 0, 0, 0)
         self.commandBarLayout.setSpacing(0)
@@ -133,14 +142,14 @@ class ModelItemCard(CardWidget):
         self.commandBar.setVisible(False)
         
         self.enableBtn.toggled.connect(self._onEnableToggled)
-        self.remarkAction.triggered.connect(self._onEditRemark)
-        self.commandBar.addAction(self.remarkAction)
 
         if not self.is_system_default:
             # 绑定可编辑模型的动作信号
             self.renameAction.triggered.connect(self._onRename)
+            self.remarkAction.triggered.connect(self._onEditRemark)
             self.deleteAction.triggered.connect(self._onDelete)
             self.commandBar.addAction(self.renameAction)
+            self.commandBar.addAction(self.remarkAction)
             self.commandBar.addAction(self.deleteAction)
         
         # 组装
@@ -255,9 +264,11 @@ class ModelItemCard(CardWidget):
         Raises:
             无。
         """
-        remark = self.remark_text.strip()
+        # 压平多行备注为空格分隔的单行预览
+        remark = " ".join(self.remark_text.split())
         if len(remark) <= 40:
             return remark
+        # 截断超长备注并追加省略号
         return f"{remark[:37]}..."
 
     def enterEvent(self, event) -> None:
