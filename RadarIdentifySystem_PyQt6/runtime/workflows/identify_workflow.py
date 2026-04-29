@@ -77,6 +77,9 @@ class IdentifyWorkflow(QObject):
         # 读取当前启用模型路径
         pa_path = get_enabled_model_path("PA")
         dtoa_path = get_enabled_model_path("DTOA")
+        LOGGER.info("启用模型路径: PA=%s, DTOA=%s", pa_path, dtoa_path)
+        if not pa_path or not dtoa_path:
+            LOGGER.warning("启用模型路径为空，推理将无法执行！请在模型管理中启用 PA 和 DTOA 模型。")
         temp_dir = qconfig.get(appConfig.logDir) # 暂用 logDir 作为 temp_dir
         # 当模型路径变化时重建推理服务，确保启用切换立即生效
         should_reload_inference = (

@@ -102,6 +102,8 @@ class IdentifyWorker(QThread):
                 cluster_params=clustering_params,
                 recognize_params=recognition_params,
             )
+            LOGGER.info("切片 %d 聚类完成，产生 %d 个簇", 
+                        self._slice_index, len(slice_cluster_res.clusters), extra={"session_id": session_id})
             
             with self._session.lock:
                 # 写入当前切片聚类和识别结果

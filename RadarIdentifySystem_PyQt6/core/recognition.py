@@ -4,14 +4,25 @@
     对聚类结果进行 PA 与 DTOA 维度的特征预测，计算联合概率，
     并判定簇的有效性。本模块为纯业务逻辑，不直接依赖 ONNX 或绘图库，
     通过依赖注入（回调或接口）调用外部推理能力。
+
+标签体系（严格遵循旧版定义）：
+    PA  (6 类): 0=完整包络, 1=残缺包络, 2=部分包络, 3=相扫, 4=旁瓣, 5=非雷达信号
+    DTOA(6 类): 0=常规, 1=脉间参差, 2=脉组参差, 3=脉间脉组参差, 4=组变脉间, 5=非雷达信号
+
+DTOA 长短类别合并规则（模型输出 7+ 类 → 6 类）：
+    原始: 0=常规_短, 1=常规_长, 2=脉间参差, 3=脉组参差_短, 4=脉组参差_长, 5=脉间脉组参差, 6=组变脉间, 7+=非雷达信号
+    合并: 0←0+1, 1←2, 2←3+4, 3←5, 4←6, 5←sum(7:)
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Protocol
 from core.models.algorithm_params import RecognitionParams
 from core.models.cluster_result import ClusterItem, ClusterState
 from core.models.recognition_result import ClusterRecognition
+
+LOGGER = logging.getLogger(__name__)
 
 
 class InferenceService(Protocol):
@@ -62,16 +73,22 @@ def recognize_clusters(
         pa_label, pa_conf, pa_conf_dict = inference_service.predict_pa(cluster)
         dtoa_label, dtoa_conf, dtoa_conf_dict = inference_service.predict_dtoa(cluster)
 
+        LOGGER.info(
+            "簇 %d (%s) 预测结果: PA=%d(%.4f), DTOA=%d(%.4f)",
+            cluster.cluster_idx, cluster.dim_name,
+            pa_label, pa_conf, dtoa_label, dtoa_conf,
+        )
+
         joint_prob = pa_conf * pa_weight + dtoa_conf * dtoa_weight
 
         is_valid = False
-        if (
-            pa_conf >= params.tolerance and 
-            dtoa_conf >= params.tolerance and 
-            joint_prob >= params.min_confidence
-        ):
-            if pa_label != 5 and dtoa_label != 5:
-                is_valid = True
+        # if (
+        #     pa_conf >= params.tolerance and 
+        #     dtoa_conf >= params.tolerance and 
+        #     joint_prob >= params.min_confidence
+        # ):
+        if pa_label != 5 or dtoa_label != 5:
+            is_valid = True
 
         valid_cluster_idx = None
         if is_valid:

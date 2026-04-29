@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-04-29 17:17
+- 操作类型：重构 + 新增
+- 影响文件：
+  - `core/models/algorithm_params.py`
+  - `infra/onnx_service.py`
+- 变更摘要：将模型推理图像参数收敛到 `core/models/algorithm_params.py` 统一管理（`ModelImageConfig` + `PA_IMAGE_CONFIG` / `DTOA_IMAGE_CONFIG` + DTOA 动态 y_max 阈值常量）；`onnx_service.py` 改为引用参数常量而非硬编码；新增原始 ONNX logits、全类 Softmax 概率、单次推理耗时日志；新增临时功能——将每次推理的 PA/DTOA 二值输入图像保存到项目根目录 `tmp/`。
+- 原因：消除硬编码分散维护风险；补齐排障所需的完整推理链路日志；支持推理图像视觉校验。
+- 测试状态：已测试（`python -m py_compile` 通过）
+
+- 时间：2026-04-29 16:10
+- 操作类型：修改
+- 影响文件：
+  - `core/recognition.py`
+  - `infra/onnx_service.py`
+- 变更摘要：补全 `InferenceService` 协议实现——严格对齐旧版 PA/DTOA 标签定义与长短类别合并规则；补回旧版中保留的 `th_pa`/`th_dtoa` 阈值属性；修正 `conf_dict` 过滤条件为 `np.round(c, 4) > 0` 以匹配旧版行为。
+- 原因：确保新旧两版识别逻辑完全一致，标签语义无偏差，避免模型输出后处理出现隐蔽差异。
+- 测试状态：已测试（`python -m py_compile` 通过）
+
 - 时间：2026-04-29 15:06
 - 操作类型：重构
 - 影响文件：

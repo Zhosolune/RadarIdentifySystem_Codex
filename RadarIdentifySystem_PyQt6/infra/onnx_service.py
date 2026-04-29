@@ -8,18 +8,25 @@
 
 import os
 import logging
-from typing import Optional, Tuple
+import time
+from typing import Optional, Tuple, Any
 import numpy as np
-from PIL import Image
 
 try:
     import onnxruntime as ort
 except ImportError:
     ort = None
 
-from core.clustering import InferenceService
+from core.recognition import InferenceService
 from core.models.cluster_result import ClusterItem
 from core.models.pulse_batch import COL_TOA, COL_PA
+from core.models.algorithm_params import (
+    PA_IMAGE_CONFIG,
+    DTOA_IMAGE_CONFIG,
+    DTOA_YMAX_UPSCALE_UPPER,
+    DTOA_YMAX_UPSCALE_COUNT_MIN,
+    DTOA_YMAX_UPSCALE_RATIO,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -36,9 +43,14 @@ class OnnxInferenceService(InferenceService):
             pa_model_path: PA 模型的文件绝对路径。
             temp_dir: 用于存放临时中间图片的目录（如果使用文件系统转换）。
         """
+        LOGGER.info("正在初始化 ONNX 推理服务: PA=%s, DTOA=%s", pa_model_path, dtoa_model_path)
         self._dtoa_model_path = dtoa_model_path
         self._pa_model_path = pa_model_path
         self._temp_dir = temp_dir
+
+        # 预测阈值（旧版保留，当前不参与标签判定，供后续扩展使用）
+        self.th_pa = 0.9
+        self.th_dtoa = 0.91
 
         self._dtoa_model: Optional[Any] = None
         self._pa_model: Optional[Any] = None
@@ -84,6 +96,7 @@ class OnnxInferenceService(InferenceService):
             (类别标签, 置信度, 各类别置信度字典)
         """
         if self._pa_model is None:
+            LOGGER.warning("PA 模型未加载，跳过预测")
             return -1, 0.0, {}
 
         try:
@@ -94,22 +107,34 @@ class OnnxInferenceService(InferenceService):
 
             slice_start, slice_end = cluster.time_ranges
 
-            # 2. 生成 400x80 的二进制图像张量
-            # 配置：y_min=40, y_max=120, height=80, width=400
+            # 2. 生成二值图像张量（参数来自统一契约 PA_IMAGE_CONFIG）
+            img_cfg = PA_IMAGE_CONFIG
             img_tensor = self._generate_binary_tensor(
-                xdata=toa, ydata=pa, 
+                xdata=toa, ydata=pa,
                 x_min=slice_start, x_max=slice_end,
-                y_min=40, y_max=120, 
-                width=400, height=80
+                y_min=img_cfg.y_min, y_max=img_cfg.y_max,
+                width=img_cfg.width, height=img_cfg.height,
             )
 
             # 3. ONNX 推理
             input_name = self._pa_model.get_inputs()[0].name
-            output = self._pa_model.run(None, {input_name: img_tensor})[0]
+            t0 = time.perf_counter()
+            raw_output = self._pa_model.run(None, {input_name: img_tensor})[0]
+            t1 = time.perf_counter()
+
+            LOGGER.info(
+                "PA ONNX 原始输出 (logits): [%s]",
+                ", ".join(f"{v:.4f}" for v in raw_output[0]),
+            )
 
             # 4. Softmax 与后处理
-            pred = np.exp(output) / np.sum(np.exp(output), axis=1, keepdims=True)
-            
+            pred = np.exp(raw_output) / np.sum(np.exp(raw_output), axis=1, keepdims=True)
+
+            LOGGER.info(
+                "PA Softmax 概率: [%s]",
+                ", ".join(f"{p:.4f}" for p in pred[0]),
+            )
+
             # 合并负样本 (5, 6, 7, 8 -> 5)
             if pred.shape[1] > 6:
                 pred[0, 5] = np.sum(pred[0, 5:])
@@ -130,7 +155,14 @@ class OnnxInferenceService(InferenceService):
                     label = 0 if pred[0, 0] >= pred[0, 4] else 4
                     conf = float(prob_comb_0_4)
 
-            conf_dict = {i: float(c) for i, c in enumerate(pred[0, :6]) if c > 0}
+            conf_dict = {i: float(c) for i, c in enumerate(pred[0, :6]) if np.round(c, 4) > 0}
+
+            LOGGER.info(
+                "PA 预测完成: label=%d, conf=%.4f, 各类别概率=%s, 耗时=%.1fms",
+                label, conf,
+                ", ".join(f"{k}={v:.4f}" for k, v in sorted(conf_dict.items())),
+                (t1 - t0) * 1000,
+            )
             return label, conf, conf_dict
 
         except Exception as e:
@@ -140,6 +172,7 @@ class OnnxInferenceService(InferenceService):
     def predict_dtoa(self, cluster: ClusterItem) -> tuple[int, float, dict[int, float]]:
         """预测 DTOA 特征。"""
         if self._dtoa_model is None:
+            LOGGER.warning("DTOA 模型未加载，跳过预测")
             return -1, 0.0, {}
 
         try:
@@ -154,26 +187,43 @@ class OnnxInferenceService(InferenceService):
             else:
                 dtoa = np.array([0.0])
 
-            # 动态调整 y_max
-            y_max = 3000
-            count_high = np.sum((dtoa >= 3000) & (dtoa <= 4000))
-            if count_high > min(10, 0.2 * len(dtoa)):
-                y_max = 4000
+            # 动态调整 y_max（参数阈值来自统一契约）
+            img_cfg = DTOA_IMAGE_CONFIG
+            y_max = img_cfg.y_max
+            count_high = np.sum((dtoa >= img_cfg.y_max) & (dtoa <= DTOA_YMAX_UPSCALE_UPPER))
+            if count_high > min(DTOA_YMAX_UPSCALE_COUNT_MIN, DTOA_YMAX_UPSCALE_RATIO * len(dtoa)):
+                y_max = DTOA_YMAX_UPSCALE_UPPER
+                LOGGER.info(
+                    "DTOA y_max 动态升级: %d -> %d (count_high=%d, total=%d)",
+                    img_cfg.y_max, y_max, count_high, len(dtoa),
+                )
 
-            # 生成 500x250 的二进制图像张量
+            # 生成二值图像张量（参数来自统一契约）
             img_tensor = self._generate_binary_tensor(
-                xdata=toa, ydata=dtoa, 
+                xdata=toa, ydata=dtoa,
                 x_min=slice_start, x_max=slice_end,
-                y_min=0, y_max=y_max, 
-                width=500, height=250
+                y_min=img_cfg.y_min, y_max=y_max,
+                width=img_cfg.width, height=img_cfg.height,
             )
 
             # ONNX 推理
             input_name = self._dtoa_model.get_inputs()[0].name
-            output = self._dtoa_model.run(None, {input_name: img_tensor})[0]
+            t0 = time.perf_counter()
+            raw_output = self._dtoa_model.run(None, {input_name: img_tensor})[0]
+            t1 = time.perf_counter()
+
+            LOGGER.info(
+                "DTOA ONNX 原始输出 (logits): [%s]",
+                ", ".join(f"{v:.4f}" for v in raw_output[0]),
+            )
 
             # Softmax 与后处理
-            pred = np.exp(output) / np.sum(np.exp(output), axis=1, keepdims=True)
+            pred = np.exp(raw_output) / np.sum(np.exp(raw_output), axis=1, keepdims=True)
+
+            LOGGER.info(
+                "DTOA Softmax 概率: [%s]",
+                ", ".join(f"{p:.4f}" for p in pred[0]),
+            )
 
             if pred.shape[1] > 6:
                 pred[0, 0] = pred[0, 0] + pred[0, 1]
@@ -187,7 +237,14 @@ class OnnxInferenceService(InferenceService):
             label = int(np.argmax(pred[0, :6]))
             conf = float(pred[0, label])
 
-            conf_dict = {i: float(c) for i, c in enumerate(pred[0, :6]) if c > 0}
+            conf_dict = {i: float(c) for i, c in enumerate(pred[0, :6]) if np.round(c, 4) > 0}
+
+            LOGGER.info(
+                "DTOA 预测完成: label=%d, conf=%.4f, 各类别概率=%s, 耗时=%.1fms",
+                label, conf,
+                ", ".join(f"{k}={v:.4f}" for k, v in sorted(conf_dict.items())),
+                (t1 - t0) * 1000,
+            )
             return label, conf, conf_dict
 
         except Exception as e:
