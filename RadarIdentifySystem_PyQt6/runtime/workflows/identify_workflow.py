@@ -10,7 +10,6 @@ from PyQt6.QtCore import QObject, pyqtSlot
 from app.app_config import appConfig, qconfig
 from app.model_bootstrap import get_enabled_model_path
 from app.signal_bus import signal_bus
-from core.models.algorithm_params import ClusteringParams, RecognitionParams
 from core.models.processing_session import ProcessingSession
 from runtime.threading.identify_worker import IdentifyWorker
 from infra.onnx_service import OnnxInferenceService
@@ -47,24 +46,21 @@ class IdentifyWorkflow(QObject):
         """返回工作流当前是否正在运行。"""
         return self._worker is not None and self._worker.isRunning()
 
-    @pyqtSlot(ProcessingSession, int, ClusteringParams)
+    @pyqtSlot(ProcessingSession, int)
     def start_identify(
         self, 
         session: ProcessingSession,
         slice_index: int,
-        clustering_params: ClusteringParams | None = None,
-        recognition_params: RecognitionParams | None = None,
     ) -> None:
         """启动指定切片的聚类与识别任务。
 
         功能描述：
             检查前置条件，初始化推理服务，挂载 IdentifyWorker，绑定进度与完成信号，最后启动线程。
+            聚类与识别参数由 Worker 内部自行获取，无需外部透传。
 
         Args:
             session (ProcessingSession): 目标数据会话。
             slice_index (int): 切片索引。
-            clustering_params (ClusteringParams | None): 聚类参数对象。
-            recognition_params (RecognitionParams | None): 识别参数对象。
             
         Returns:
             None
@@ -97,9 +93,6 @@ class IdentifyWorkflow(QObject):
             self._loaded_pa_path = pa_path
             self._loaded_dtoa_path = dtoa_path
 
-        # 兜底构建默认聚类参数。
-        clustering_params = clustering_params or ClusteringParams()
-
         # 发送流程开始全局信号
         signal_bus.stage_started.emit(session_id, "identifying", slice_index)
         LOGGER.info(
@@ -113,8 +106,6 @@ class IdentifyWorkflow(QObject):
             session=session,
             slice_index=slice_index,
             inference_service=self._inference_service,
-            clustering_params=clustering_params,
-            recognition_params=recognition_params,
             parent=self
         )
         self._active_slice_index = slice_index

@@ -7,15 +7,14 @@ import logging
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtGui import QImage
 from qfluentwidgets import InfoBar, InfoBarPosition
-from qfluentwidgets import InfoBar, InfoBarPosition, qconfig
+from qfluentwidgets import InfoBar, InfoBarPosition
 from app.model_bootstrap import get_enabled_model_path
-from app.app_config import appConfig
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
 from runtime.workflows.identify_workflow import identify_workflow
-from core.models.cluster_result import ClusterItem
 from core.models.recognition_result import ClusterRecognition
 from ui.dialogs.processing_dialog import ProcessingDialog
 if TYPE_CHECKING:
@@ -108,16 +107,13 @@ class IdentifyController(QObject):
         )
         self._processing_dialog.show()
 
-        # 从运行时组装器获取聚类参数。
-        clustering_params = get_clustering_params()
-        
         # 从 slice_controller 获取当前正在查看的切片索引
         slice_index = self.view._slice_controller.current_slice_index
         
+        # 启动识别工作流，参数由 runtime 层内部自行获取
         identify_workflow.start_identify(
             self.view._test_session,
             slice_index=slice_index,
-            clustering_params=clustering_params,
         )
 
     def _validate_enabled_models(self) -> bool:

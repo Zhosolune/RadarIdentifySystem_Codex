@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-04-29 15:06
+- 操作类型：重构
+- 影响文件：
+  - `ui/controllers/identify_controller.py`
+  - `runtime/workflows/identify_workflow.py`
+  - `runtime/threading/identify_worker.py`
+- 变更摘要：消除参数透传链——控制器不再从 runtime 获取参数再回传给 workflow，改为 IdentifyWorker 内部自行调用 `get_clustering_params()`/`get_recognition_params()` 获取运行参数。
+- 原因：UI 层不应关心 runtime 参数组装，消除无效透传让 workflow/worker 入口更简洁，职责更内聚。
+- 测试状态：已测试（`python -m py_compile` 通过）
+
+- 时间：2026-04-29 14:45
+- 操作类型：重构
+- 影响文件：
+  - `core/clustering.py`
+  - `runtime/threading/identify_worker.py`
+- 变更摘要：将跨维度聚类-识别编排函数从 `core/clustering.py` 迁移至 `runtime/threading/identify_worker.py` 中的私有方法 `_cluster_and_recognize_slice`，`core` 仅保留单维度纯算法。
+- 原因：编排逻辑（CF→识别→PW→识别→组装）属于业务调度职责，不适合放在 `core` 纯算法层，应归入 `runtime` 执行层。
+- 测试状态：已测试（诊断通过，`python -m py_compile` 通过）
+
 - 时间：2026-04-29 11:43
 - 操作类型：修改
 - 影响文件：
