@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 from qfluentwidgets import qconfig
 
@@ -15,6 +16,10 @@ LOGGER = logging.getLogger(__name__)
 SYSTEM_DEFAULT_NAME = "系统默认"
 SUPPORTED_MODEL_TYPES = ("PA", "DTOA")
 VALID_MODEL_SUFFIXES = (".onnx", ".pkl", ".pt", ".pth")
+
+_cached_inference_service: Optional["OnnxInferenceService"] = None
+_cached_pa_path: str | None = None
+_cached_dtoa_path: str | None = None
 
 
 def _normalize_model_type(model_type: str) -> str:
@@ -269,8 +274,53 @@ def resolve_enabled_model(
     return normalized_files[0]
 
 
+def get_cached_inference_service(
+    pa_path: str,
+    dtoa_path: str,
+    temp_dir: str,
+) -> "OnnxInferenceService":
+    """获取或创建缓存的推理服务实例。
+
+    若缓存的实例与请求的模型路径一致则直接返回，否则重建。
+    此函数由 runtime 层在识别启动时调用。
+
+    Args:
+        pa_path (str): PA 模型路径。
+        dtoa_path (str): DTOA 模型路径。
+        temp_dir (str): 临时目录。
+
+    Returns:
+        OnnxInferenceService: 推理服务实例。
+
+    Raises:
+        无。
+    """
+    global _cached_inference_service, _cached_pa_path, _cached_dtoa_path
+    if (
+        _cached_inference_service is not None
+        and _cached_pa_path == pa_path
+        and _cached_dtoa_path == dtoa_path
+    ):
+        return _cached_inference_service
+
+    from infra.onnx_service import OnnxInferenceService
+
+    LOGGER.info("创建推理服务实例: PA=%s, DTOA=%s", pa_path, dtoa_path)
+    _cached_inference_service = OnnxInferenceService(
+        dtoa_model_path=dtoa_path,
+        pa_model_path=pa_path,
+        temp_dir=temp_dir,
+    )
+    _cached_pa_path = pa_path
+    _cached_dtoa_path = dtoa_path
+    return _cached_inference_service
+
+
 def initialize_model_runtime(write_log: bool = True) -> dict[str, str | None]:
-    """初始化全部模型类型的启用配置。
+    """初始化全部模型类型的启用配置并预热推理服务。
+
+    在应用启动阶段调用，完成模型配置解析与 ONNX 模型预加载，
+    避免首次识别时主线程阻塞导致加载动画延迟。
 
     Args:
         write_log (bool): 是否输出初始化日志。
@@ -281,6 +331,11 @@ def initialize_model_runtime(write_log: bool = True) -> dict[str, str | None]:
     Raises:
         ValueError: 模型类型不受支持时抛出异常。
     """
+    from infra.onnx_service import OnnxInferenceService
+    from app.app_config import qconfig
+
+    global _cached_inference_service, _cached_pa_path, _cached_dtoa_path
+
     enabled_mapping: dict[str, str | None] = {}
     for model_type in SUPPORTED_MODEL_TYPES:
         model_files = collect_available_model_files(model_type)
@@ -302,4 +357,22 @@ def initialize_model_runtime(write_log: bool = True) -> dict[str, str | None]:
                 "未启用",
                 "",
             )
+
+    # 预加载推理服务，避免首次识别时主线程阻塞
+    pa_path = enabled_mapping.get("PA")
+    dtoa_path = enabled_mapping.get("DTOA")
+    temp_dir = str(qconfig.get(appConfig.logDir))
+    if pa_path and dtoa_path:
+        LOGGER.info("开始预热推理服务...")
+        _cached_inference_service = OnnxInferenceService(
+            dtoa_model_path=dtoa_path,
+            pa_model_path=pa_path,
+            temp_dir=temp_dir,
+        )
+        _cached_pa_path = pa_path
+        _cached_dtoa_path = dtoa_path
+        LOGGER.info("推理服务预热完成")
+    else:
+        LOGGER.warning("预热跳过：启用模型路径为空")
+
     return enabled_mapping

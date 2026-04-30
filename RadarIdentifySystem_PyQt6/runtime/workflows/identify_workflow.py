@@ -8,11 +8,10 @@ from typing import Optional
 from PyQt6.QtCore import QObject, pyqtSlot
 
 from app.app_config import appConfig, qconfig
-from app.model_bootstrap import get_enabled_model_path
+from app.model_bootstrap import get_enabled_model_path, get_cached_inference_service
 from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession
 from runtime.threading.identify_worker import IdentifyWorker
-from infra.onnx_service import OnnxInferenceService
 
 
 LOGGER = logging.getLogger(__name__)
@@ -38,9 +37,7 @@ class IdentifyWorkflow(QObject):
         super().__init__(parent)
         self._worker: Optional[IdentifyWorker] = None
         self._active_slice_index: int | None = None
-        self._inference_service: Optional[OnnxInferenceService] = None
-        self._loaded_pa_path: str | None = None
-        self._loaded_dtoa_path: str | None = None
+        self._inference_service: Optional[object] = None
 
     def is_running(self) -> bool:
         """返回工作流当前是否正在运行。"""
@@ -80,21 +77,13 @@ class IdentifyWorkflow(QObject):
         LOGGER.info("启用模型路径: PA=%s, DTOA=%s", pa_path, dtoa_path)
         if not pa_path or not dtoa_path:
             LOGGER.warning("启用模型路径为空，推理将无法执行！请在模型管理中启用 PA 和 DTOA 模型。")
-        temp_dir = qconfig.get(appConfig.logDir) # 暂用 logDir 作为 temp_dir
-        # 当模型路径变化时重建推理服务，确保启用切换立即生效
-        should_reload_inference = (
-            self._inference_service is None
-            or self._loaded_pa_path != pa_path
-            or self._loaded_dtoa_path != dtoa_path
+            return
+
+        temp_dir = qconfig.get(appConfig.logDir)
+        # 从 model_bootstrap 获取缓存的推理服务，内部自动处理复用或重建
+        self._inference_service = get_cached_inference_service(
+            pa_path=pa_path, dtoa_path=dtoa_path, temp_dir=temp_dir
         )
-        if should_reload_inference:
-            self._inference_service = OnnxInferenceService(
-                dtoa_model_path=dtoa_path,
-                pa_model_path=pa_path,
-                temp_dir=temp_dir
-            )
-            self._loaded_pa_path = pa_path
-            self._loaded_dtoa_path = dtoa_path
 
         # 发送流程开始全局信号
         signal_bus.stage_started.emit(session_id, "identifying", slice_index)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage
-from qfluentwidgets import InfoBar, InfoBarPosition
+from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import InfoBar, InfoBarPosition
 from app.model_bootstrap import get_enabled_model_path
 from app.signal_bus import signal_bus

@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-05-01 17:45
+- 操作类型：重构
+- 影响文件：
+  - `app/model_bootstrap.py`
+  - `runtime/workflows/identify_workflow.py`
+  - `main.py`
+  - `docs/operateLog.md`
+- 变更摘要：将 ONNX 推理服务预加载收口到 `model_bootstrap.py`——新增 `get_cached_inference_service()` 缓存函数和 `initialize_model_runtime()` 的预热逻辑；`IdentifyWorkflow` 删除 `warm_up()` 和 `_loaded_*` 路径追踪字段，改为调用 `get_cached_inference_service()` 获取服务；`main.py` 恢复干净，不引用 workflow。
+- 原因：上一版预热方案让 `main.py` 直接 import `identify_workflow` 并调用 `warm_up()`，入口层跨越到 runtime 层，违反架构约束。回归到 `app → infra` 单向依赖。
+- 测试状态：已测试（`python -m py_compile` 通过）
+
+- 时间：2026-05-01 17:30
+- 操作类型：修复
+- 影响文件：
+  - `runtime/workflows/identify_workflow.py`
+  - `main.py`
+- 变更摘要：新增 `IdentifyWorkflow.warm_up()` 预热方法，在应用启动阶段预加载 ONNX 模型；`main.py` 在 `initialize_model_runtime()` 之后、窗口创建之前调用预热。
+- 原因：首次识别时 `OnnxInferenceService` 的模型加载阻塞主线程 ~1s，导致加载动画迟迟不出现。`processEvents()` 无法规避主线程同步阻塞。改为启动时预热后，首次识别时推理服务已缓存，`start_identify` 不再阻塞。
+- 测试状态：已测试（`python -m py_compile` 通过）
+
 - 时间：2026-05-01 10:50
 - 操作类型：修复
 - 影响文件：

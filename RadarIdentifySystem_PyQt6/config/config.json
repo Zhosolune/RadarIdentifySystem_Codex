@@ -45,7 +45,7 @@
     "plot": {
         "onlyShowIdentified": "ALL",
         "order": "CF,PW,PA,DTOA,DOA",
-        "scaleMode": "STRETCH_NEAREST_PRESERVE"
+        "scaleMode": "STRETCH"
     },
     "algorithm.recognize": {
         "maxCandidates": 5,

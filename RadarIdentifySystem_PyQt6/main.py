@@ -97,7 +97,7 @@ def main() -> None:
     translator = FluentTranslator(QLocale(QLocale.Language.Chinese, QLocale.Country.China))
     app.installTranslator(translator)
 
-    # 初始化模型启用配置
+    # 初始化模型启用配置（内部完成 ONNX 模型预加载）
     initialize_model_runtime(write_log=True)
 
     window = MainWindow()
