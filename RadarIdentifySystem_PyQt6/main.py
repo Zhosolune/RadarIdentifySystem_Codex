@@ -89,6 +89,10 @@ def main() -> None:
     app.setApplicationName("RadarIdentifySystem")
     app.setOrganizationName("RadarIdentifySystem")
 
+    # 对于PyQt6 6.8+ 版本
+    # 强制使用 Fusion 风格，避免 Windows 11 原生 QStyle 给 qfluentwidgets 弹出层组件（ToolTip/ComboBox/Menu）套上灰色粗边框
+    app.setStyle("Fusion")
+
     # 设置组件库中文
     translator = FluentTranslator(QLocale(QLocale.Language.Chinese, QLocale.Country.China))
     app.installTranslator(translator)

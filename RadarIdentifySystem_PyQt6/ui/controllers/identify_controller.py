@@ -92,13 +92,6 @@ class IdentifyController(QObject):
             )
             return
 
-        # 校验识别模型启用状态
-        if not self._validate_enabled_models():
-            return
-
-        # 更新按钮状态
-        self.view.navigation_control_card.start_recognition_button.setEnabled(False)
-
         # 显示动画对话框
         self._processing_dialog = ProcessingDialog(
             self.view, 
@@ -106,6 +99,13 @@ class IdentifyController(QObject):
             content="正在执行雷达信号聚类分析，请稍候..."
         )
         self._processing_dialog.show()
+
+        # 校验识别模型启用状态
+        if not self._validate_enabled_models():
+            return
+
+        # 更新按钮状态
+        self.view.navigation_control_card.start_recognition_button.setEnabled(False)
 
         # 从 slice_controller 获取当前正在查看的切片索引
         slice_index = self.view._slice_controller.current_slice_index
@@ -336,7 +336,9 @@ class IdentifyController(QObject):
             band=session.band,
             time_range=target_cluster.time_ranges
         )
-        self._update_cluster_ui_with_bundle(bundle, target_rec, len(valid_clusters_info))
+        self._update_cluster_ui_with_bundle(
+            bundle, target_rec, len(valid_clusters_info), len(cluster_res.clusters)
+        )
 
     def clear_cluster_ui(self) -> None:
         """清空聚类结果展示区域。
@@ -374,17 +376,24 @@ class IdentifyController(QObject):
         for card in cards:
             card.set_image(empty_image)
 
-    def _update_cluster_ui_with_bundle(self, bundle: RenderedImageBundle, cluster_rec: ClusterRecognition, total_clusters: int) -> None:
+    def _update_cluster_ui_with_bundle(
+        self,
+        bundle: RenderedImageBundle,
+        cluster_rec: ClusterRecognition,
+        total_valid: int,
+        total_all: int,
+    ) -> None:
         """使用指定的聚类图像包更新聚类结果 UI。
 
         功能描述：
             根据传入的图像数据字典，逐个将维度图像转换为 QImage 并展示到对应的图像卡片中。
-            同时在标题中展示识别标签和置信度信息。
+            同时在标题中展示维度、有效类别索引与全局聚类索引。
 
         Args:
             bundle (RenderedImageBundle): 渲染后的聚类图像数据包。
             cluster_rec (ClusterRecognition): 正在展示的有效簇的识别结果模型。
-            total_clusters (int): 当前切片下的总类别数，用于更新标题显示。
+            total_valid (int): 当前切片通过识别的有效簇总数。
+            total_all (int): 当前切片聚类产生的全部簇总数。
 
         Returns:
             None: 无返回值。
@@ -392,19 +401,13 @@ class IdentifyController(QObject):
         Raises:
             无。
         """
-        # 更新中间标题文本，提示当前正在查看的类别进度和识别结果
+        # 更新中间标题文本
         if hasattr(self.view, 'cluster_title_label'):
-            pa_label = cluster_rec.pa_label
-            dtoa_label = cluster_rec.dtoa_label
-            pa_conf = cluster_rec.pa_confidence
-            dtoa_conf = cluster_rec.dtoa_confidence
-            joint_prob = cluster_rec.joint_prob
-            
+            valid_idx = (cluster_rec.valid_cluster_index or 0) + 1
             title_text = (
-                f"第 {self._current_cluster_index + 1} / {total_clusters} 个类别  "
-                f"{cluster_rec.dim_name}维聚类结果  |  "
-                f"PA: {pa_label}({pa_conf:.2f})  DTOA: {dtoa_label}({dtoa_conf:.2f})  "
-                f"联合概率: {joint_prob:.2f}"
+                f"{cluster_rec.dim_name}维聚类结果  "
+                f"第{valid_idx}/{total_valid}类  "
+                f"总第{cluster_rec.cluster_index}/{total_all}类"
             )
             self.view.cluster_title_label.setText(title_text)
         

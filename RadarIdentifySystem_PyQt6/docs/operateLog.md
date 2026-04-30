@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-05-01 10:50
+- 操作类型：修复
+- 影响文件：
+  - `main.py`
+  - `requirements.txt`
+- 变更摘要：在 `main.py` 中增加 `app.setStyle("Fusion")` 强制使用 Fusion 风格，并锁定 `requirements.txt` 中 PyQt6 版本上限为 `<6.8`。
+- 原因：Windows 11 原生 QStyle 会给 qfluentwidgets 弹出层组件（ToolTip/ComboBox/Menu）套上灰色粗边框，与 Fluent Design 渲染冲突。
+- 测试状态：待测试（需重启应用确认）
+
+- 时间：2026-05-01 10:45
+- 操作类型：重构
+- 影响文件：
+  - `core/models/algorithm_params.py`
+  - `infra/onnx_service.py`
+- 变更摘要：消除 `onnx_service.py` 与 `infra/plotting/` 的重复实现——删除自定义 `_generate_binary_tensor`、DTOA 计算与 y_max 动态调整逻辑，改为复用 `rasterize_dimension`、`build_dtoa_series`、`resolve_dtoa_spec`；移除 `core/models/algorithm_params.py` 中冗余的 `ModelImageConfig` 与相关常量，图像参数统一归口 `infra/plotting/utils.py` 的 `_BASE_SPECS`。
+- 原因：避免同一段栅格化逻辑在两个模块中以不同参数结构重复维护，降低未来修改遗漏风险。
+- 测试状态：已测试（`python -m py_compile` 通过）
+
 - 时间：2026-04-29 17:17
 - 操作类型：重构 + 新增
 - 影响文件：

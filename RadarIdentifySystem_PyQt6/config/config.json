@@ -6,7 +6,7 @@
     },
     "business": {
         "autoExport": false,
-        "autoRecognizeNextSlice": true,
+        "autoRecognizeNextSlice": false,
         "exportDirPath": "C:\\Users\\lenovo\\Desktop"
     },
     "Interface": {
@@ -43,9 +43,9 @@
         "userModelRootDir": "C:\\Users\\lenovo\\.RadarIdentifySystem\\models"
     },
     "plot": {
-        "onlyShowIdentified": "IDENTIFIED_ONLY",
+        "onlyShowIdentified": "ALL",
         "order": "CF,PW,PA,DTOA,DOA",
-        "scaleMode": "STRETCH"
+        "scaleMode": "STRETCH_NEAREST_PRESERVE"
     },
     "algorithm.recognize": {
         "maxCandidates": 5,

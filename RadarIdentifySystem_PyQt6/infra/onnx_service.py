@@ -20,13 +20,8 @@ except ImportError:
 from core.recognition import InferenceService
 from core.models.cluster_result import ClusterItem
 from core.models.pulse_batch import COL_TOA, COL_PA
-from core.models.algorithm_params import (
-    PA_IMAGE_CONFIG,
-    DTOA_IMAGE_CONFIG,
-    DTOA_YMAX_UPSCALE_UPPER,
-    DTOA_YMAX_UPSCALE_COUNT_MIN,
-    DTOA_YMAX_UPSCALE_RATIO,
-)
+from infra.plotting.engine import rasterize_dimension
+from infra.plotting.utils import _BASE_SPECS, build_dtoa_series, resolve_dtoa_spec
 
 
 LOGGER = logging.getLogger(__name__)
@@ -104,16 +99,13 @@ class OnnxInferenceService(InferenceService):
             points = cluster.points
             toa = points[:, COL_TOA]
             pa = points[:, COL_PA]
-
             slice_start, slice_end = cluster.time_ranges
 
-            # 2. 生成二值图像张量（参数来自统一契约 PA_IMAGE_CONFIG）
-            img_cfg = PA_IMAGE_CONFIG
-            img_tensor = self._generate_binary_tensor(
-                xdata=toa, ydata=pa,
-                x_min=slice_start, x_max=slice_end,
-                y_min=img_cfg.y_min, y_max=img_cfg.y_max,
-                width=img_cfg.width, height=img_cfg.height,
+            # 2. 使用绘图引擎栅格化为二值图像
+            spec = _BASE_SPECS["PA"]
+            raw_img = rasterize_dimension(toa, pa, spec, (slice_start, slice_end))
+            img_tensor = np.expand_dims(
+                raw_img.astype(np.float32) / 255.0, axis=(0, 1)
             )
 
             # 3. ONNX 推理
@@ -180,30 +172,14 @@ class OnnxInferenceService(InferenceService):
             toa = points[:, COL_TOA]
             slice_start, slice_end = cluster.time_ranges
 
-            # 计算 DTOA (us)
-            if len(toa) > 1:
-                dtoa = np.diff(toa) * 1000
-                dtoa = np.append(dtoa, dtoa[-1])
-            else:
-                dtoa = np.array([0.0])
+            # 使用绘图模块已有方法计算 DTOA 并解析规格
+            dtoa = build_dtoa_series(toa)
+            spec = resolve_dtoa_spec(_BASE_SPECS["DTOA"], dtoa)
 
-            # 动态调整 y_max（参数阈值来自统一契约）
-            img_cfg = DTOA_IMAGE_CONFIG
-            y_max = img_cfg.y_max
-            count_high = np.sum((dtoa >= img_cfg.y_max) & (dtoa <= DTOA_YMAX_UPSCALE_UPPER))
-            if count_high > min(DTOA_YMAX_UPSCALE_COUNT_MIN, DTOA_YMAX_UPSCALE_RATIO * len(dtoa)):
-                y_max = DTOA_YMAX_UPSCALE_UPPER
-                LOGGER.info(
-                    "DTOA y_max 动态升级: %d -> %d (count_high=%d, total=%d)",
-                    img_cfg.y_max, y_max, count_high, len(dtoa),
-                )
-
-            # 生成二值图像张量（参数来自统一契约）
-            img_tensor = self._generate_binary_tensor(
-                xdata=toa, ydata=dtoa,
-                x_min=slice_start, x_max=slice_end,
-                y_min=img_cfg.y_min, y_max=y_max,
-                width=img_cfg.width, height=img_cfg.height,
+            # 使用绘图引擎栅格化为二值图像
+            raw_img = rasterize_dimension(toa, dtoa, spec, (slice_start, slice_end))
+            img_tensor = np.expand_dims(
+                raw_img.astype(np.float32) / 255.0, axis=(0, 1)
             )
 
             # ONNX 推理
@@ -250,41 +226,3 @@ class OnnxInferenceService(InferenceService):
         except Exception as e:
             LOGGER.error(f"DTOA 预测异常: {e}", exc_info=True)
             return -1, 0.0, {}
-
-    def _generate_binary_tensor(
-        self, xdata: np.ndarray, ydata: np.ndarray,
-        x_min: float, x_max: float,
-        y_min: float, y_max: float,
-        width: int, height: int
-    ) -> np.ndarray:
-        """纯内存计算生成无边框散点二值图像张量。
-        
-        完全等效于旧版的 `_plot_dimension` 保存图片后再 `_preprocess_image` 读取，
-        但全程在内存矩阵中进行，速度极大提升且无需临时文件清理。
-        """
-        # 兜底长度
-        if x_max == x_min:
-            x_max = x_min + 250
-
-        # 缩放 Y 轴并反转（原点在左上角）
-        scaled_y = height - np.round(
-            (ydata - y_min) / (y_max - y_min) * (height - 1)
-        ).astype(np.int32)
-        
-        # 缩放 X 轴
-        scaled_x = np.round(
-            (xdata - x_min) / (x_max - x_min) * (width - 1)
-        ).astype(np.int32) + 1
-        
-        # 创建空白矩阵 (Height, Width)
-        binary_image = np.zeros((height, width), dtype=np.float32)
-        
-        # 过滤有效点并填入矩阵 (值为 1.0)
-        valid_mask = (scaled_x > 0) & (scaled_x <= width) & (scaled_y > 0) & (scaled_y <= height)
-        valid_x = scaled_x[valid_mask] - 1
-        valid_y = scaled_y[valid_mask] - 1
-        binary_image[valid_y, valid_x] = 1.0
-
-        # 扩展为模型需要的 (Batch, Channel, H, W) -> (1, 1, H, W)
-        tensor = np.expand_dims(binary_image, axis=(0, 1))
-        return tensor
