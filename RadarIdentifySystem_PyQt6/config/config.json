@@ -6,7 +6,7 @@
     },
     "business": {
         "autoExport": false,
-        "autoRecognizeNextSlice": false,
+        "autoRecognizeNextSlice": true,
         "exportDirPath": "C:\\Users\\lenovo\\Desktop"
     },
     "Interface": {

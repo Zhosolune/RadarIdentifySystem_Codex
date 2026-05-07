@@ -285,13 +285,14 @@ class SliceController(QObject):
         )
 
     def _on_redraw_requested(self, slice_index: int) -> None:
-        """处理重绘请求。
-        
+        """处理指定切片绘制请求。
+
         功能描述：
-            响应来自视图面板的重绘操作请求，重新加载当前切片对应的图像。
+            将用户输入的 1-based 切片编号转为内部索引，加载对应切片图像，
+            同步更新聚类结果显示，并根据自动识别开关决定是否触发识别。
 
         Args:
-            slice_index (int): 请求重绘的切片编号。
+            slice_index (int): 用户输入的切片编号（1-based）。
 
         Returns:
             None: 无返回值。
@@ -299,9 +300,41 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        # 重新触发绘制
-        self._load_slice_image(self._current_slice_index)
-        LOGGER.info(f"收到重绘请求，已重新渲染切片编号: {self._current_slice_index}")
+        LOGGER.info("收到指定切片绘制请求，目标切片编号: %d", slice_index)
+
+        session = self.view._test_session
+        if not session or not session.slice_result:
+            LOGGER.warning("指定切片绘制失败：无有效会话或切片结果为空")
+            InfoBar.warning(
+                title="提示",
+                content="请先执行切片操作，再指定切片编号。",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.BOTTOM_RIGHT,
+                duration=3000,
+                parent=self.view,
+            )
+            return
+
+        total = session.slice_result.slice_count
+        if slice_index < 1 or slice_index > total:
+            LOGGER.warning("指定切片绘制失败：切片编号 %d 超出有效范围 [1, %d]", slice_index, total)
+            InfoBar.warning(
+                title="提示",
+                content=f"切片编号超出范围，请输入 1 到 {total} 之间的编号。",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.BOTTOM_RIGHT,
+                duration=3000,
+                parent=self.view,
+            )
+            return
+
+        target_index = slice_index - 1
+        self._load_slice_image(target_index)
+        if hasattr(self.view, '_identify_controller'):
+            self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
+            self._maybe_auto_recognize()
 
     def _on_prev_slice(self) -> None:
         """处理上一片按钮点击。
@@ -322,6 +355,38 @@ class SliceController(QObject):
         if hasattr(self.view, '_identify_controller'):
             self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
 
+    def _maybe_auto_recognize(self) -> None:
+        """根据自动识别开关判断是否需要触发识别工作流。
+
+        功能描述：
+            读取全局自动识别配置，若开关已启用且当前切片未识别、工作流未运行，
+            则调用识别控制器启动识别流程。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        if not qconfig.get(appConfig.autoRecognizeNextSlice):
+            LOGGER.debug("自动识别开关已关闭，跳过自动识别")
+            return
+        session = self.view._test_session
+        if not session:
+            LOGGER.debug("无有效会话，跳过自动识别")
+            return
+        if identify_workflow.is_running():
+            LOGGER.info("识别工作流正在运行，跳过本次自动识别")
+            return
+        if session.is_slice_recognized(self._current_slice_index):
+            LOGGER.info("切片 %d 已完成识别，跳过自动识别", self._current_slice_index + 1)
+            return
+        LOGGER.info("自动识别开关已启用，触发切片 %d 的识别工作流", self._current_slice_index + 1)
+        self.view._identify_controller.handle_identify()
+
     def _on_next_slice(self) -> None:
         """处理下一片按钮点击。
 
@@ -341,11 +406,7 @@ class SliceController(QObject):
         self._load_slice_image(self._current_slice_index + 1)
         if hasattr(self.view, '_identify_controller'):
             self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
-            # 自动识别：切换切片后自动触发识别工作流
-            if qconfig.get(appConfig.autoRecognizeNextSlice):
-                session = self.view._test_session
-                if session and not identify_workflow.is_running() and not session.is_slice_recognized(self._current_slice_index):
-                    self.view._identify_controller.handle_identify()
+            self._maybe_auto_recognize()
 
     def _update_navigation_buttons(self) -> None:
         """更新导航按钮可用状态。
@@ -387,8 +448,10 @@ class SliceController(QObject):
         """
         session = self.view._test_session
         if not session or not session.slice_result:
+            LOGGER.debug("_load_slice_image: 无有效会话或切片结果为空，跳过加载")
             return
         if index < 0 or index >= session.slice_result.slice_count:
+            LOGGER.debug("_load_slice_image: 索引 %d 超出有效范围 [0, %d)，跳过加载", index, session.slice_result.slice_count)
             return
 
         self._current_slice_index = index

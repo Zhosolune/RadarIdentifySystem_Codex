@@ -62,7 +62,7 @@ class RedrawOptionCard(SettingCard):
         self.slice_input.setValidator(QIntValidator(1, 999999, self))
         self.slice_input.setFixedWidth(140)
 
-        self.redraw_button = PrimaryPushButton("重绘", self)
+        self.redraw_button = PrimaryPushButton("绘制", self)
         self.redraw_button.setFixedWidth(80)
 
         # 添加到 SettingCard 内部自带的 hBoxLayout
@@ -74,6 +74,7 @@ class RedrawOptionCard(SettingCard):
     def _connect_signals(self) -> None:
         """连接信号与槽函数。"""
         self.redraw_button.clicked.connect(self._on_redraw_clicked)
+        self.slice_input.returnPressed.connect(self._on_redraw_clicked)
 
     def _on_redraw_clicked(self) -> None:
         """处理重绘按钮点击事件。
