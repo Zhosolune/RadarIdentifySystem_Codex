@@ -15,7 +15,9 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_slice_images
+from app.app_config import appConfig, qconfig
 from runtime.workflows.slice_workflow import slice_workflow
+from runtime.workflows.identify_workflow import identify_workflow
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
@@ -139,10 +141,7 @@ class SliceController(QObject):
         is_adaptive = self.view.navigation_control_card.adaptive_slicing_checkbox.isChecked()
         current_mode = "自适应切片" if is_adaptive else "开始切片"
         
-        # 也可以结合全局配置（此处暂存打印）
-        from app.app_config import appConfig, qconfig
-        checkbox_adaptive = bool(qconfig.get(appConfig.autoRecognizeNextSlice))
-        LOGGER.info(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {checkbox_adaptive}")
+        LOGGER.info(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {bool(qconfig.get(appConfig.autoRecognizeNextSlice))}")
 
         # 更新按钮状态
         self.view.navigation_control_card.start_slicing_button.setEnabled(False)
@@ -328,6 +327,7 @@ class SliceController(QObject):
 
         功能描述：
             将切片索引递增并触发该切片的图像加载和聚类结果更新。
+            若自动识别开关已启用，则在切片切换后自动启动识别工作流。
 
         Args:
             无。
@@ -341,6 +341,11 @@ class SliceController(QObject):
         self._load_slice_image(self._current_slice_index + 1)
         if hasattr(self.view, '_identify_controller'):
             self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
+            # 自动识别：切换切片后自动触发识别工作流
+            if qconfig.get(appConfig.autoRecognizeNextSlice):
+                session = self.view._test_session
+                if session and not identify_workflow.is_running() and not session.is_slice_recognized(self._current_slice_index):
+                    self.view._identify_controller.handle_identify()
 
     def _update_navigation_buttons(self) -> None:
         """更新导航按钮可用状态。
