@@ -18,7 +18,7 @@ COL_CF = 0   # 载频 (MHz)
 COL_PW = 1   # 脉宽 (us)
 COL_DOA = 2  # 到达角 (度)
 COL_PA = 3   # 脉冲幅度 (dB)
-COL_TOA = 4  # 到达时间 (ms)
+COL_TOA = 4  # 到达时间 (0.1us)
 
 
 @dataclass
@@ -31,7 +31,7 @@ class PulseBatch:
 
     属性：
         data (np.ndarray): shape=(N, 5)，列顺序为
-            [CF(MHz), PW(us), DOA(度), PA(dB), TOA(ms)]。
+            [CF(MHz), PW(us), DOA(度), PA(dB), TOA(0.1us)]。
         source_path (str): 数据来源文件路径，用于日志与审计追踪。
         source_type (str): 数据来源类型，如 "excel" / "bin" / "mat"。
         total_pulses (int): 归一化前的脉冲总数（含无效脉冲）。

@@ -36,10 +36,10 @@ def test_cluster_single_slice():
     pw = np.array([1.0] * 10 + [5.0] * 5 + [10.0 + i for i in range(5)])
     doa = np.full(n, 90.0)
     pa = np.full(n, 100.0)
-    toa = np.arange(n) * 1.0  # 保证 TOA 递增，产生 1000us 的 DTOA，使得其具有周期性
+    toa = np.arange(n) * 10_000  # TOA 以 0.1us 递增，diff=10000(0.1us)×0.1=1000us，DTOA 具周期性
     
     data = np.column_stack([cf, pw, doa, pa, toa])
-    slice_data = SingleSlice(index=0, data=data, time_range=(0.0, 20.0))
+    slice_data = SingleSlice(index=0, data=data, time_range=(0.0, 200_000.0))
     
     # 执行级联聚类
     res = cluster_single_slice(

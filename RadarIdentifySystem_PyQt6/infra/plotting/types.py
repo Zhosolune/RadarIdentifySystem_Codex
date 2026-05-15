@@ -8,7 +8,7 @@ from typing import Final
 import numpy as np
 
 # 默认切片长度
-_DEFAULT_SLICE_LENGTH_MS: Final[float] = 250.0
+_DEFAULT_SLICE_LENGTH: Final[float] = 2_500_000  # 250ms = 2,500,000 × 0.1us
 _DIMENSION_ORDER: Final[tuple[str, ...]] = ("CF", "PW", "PA", "DTOA", "DOA")
 
 
@@ -41,11 +41,11 @@ class PlotProfile:
 
     Attributes:
         specs (dict[str, PlotSpec]): 各个目标维度名称与其绘图规格的映射字典。
-        slice_length_ms (float): 整个集合预设的缺省 X 轴时间基准跨度（微秒）。
+        slice_length (float): 整个集合预设的缺省 X 轴时间基准跨度（0.1us）。
     """
 
     specs: dict[str, PlotSpec]
-    slice_length_ms: float = _DEFAULT_SLICE_LENGTH_MS
+    slice_length: float = _DEFAULT_SLICE_LENGTH
 
     def get_spec(self, dim_name: str) -> PlotSpec:
         """获取指定维度绘图规格。

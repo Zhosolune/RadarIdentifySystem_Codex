@@ -102,7 +102,7 @@ def test_fix_toa_flip_no_flip():
 def test_fix_toa_flip_single_flip():
     """单翻折点：修正后 TOA 应单调不减。"""
     # 构造：0, 1, 2, 3（翻折）, -1e5, 0, 1 → 翻折后需平移
-    toa = np.array([0.0, 10.0, 20.0, 30.0, -100000.0, -99990.0, -99980.0])
+    toa = np.array([0, 100_000, 200_000, 300_000, -1_000_000_000, -999_900_000, -999_800_000])
     n = len(toa)
     data = np.column_stack([
         np.full(n, 5000.0),  # CF
@@ -121,11 +121,11 @@ def test_fix_toa_flip_single_flip():
 def test_fix_toa_flip_multiple_flips():
     """多翻折点：修正后 TOA 仍单调不减。"""
     # 第一段 0~30, 翻折到 -1e5, 再从 -1e5 到 -1e5+30, 再翻折
-    seg1 = np.arange(4) * 10.0               # 0, 10, 20, 30
-    flip1 = -100000.0
-    seg2 = flip1 + np.arange(4) * 10.0       # -1e5, -99990, -99980, -99970
-    flip2 = -200000.0
-    seg3 = flip2 + np.arange(3) * 10.0       # -2e5, -199990, -199980
+    seg1 = np.arange(4) * 100_000                # 0, 100000, 200000, 300000
+    flip1 = -1_000_000_000
+    seg2 = flip1 + np.arange(4) * 100_000        # -1e9, -999900000, -999800000, -999700000
+    flip2 = -2_000_000_000
+    seg3 = flip2 + np.arange(3) * 100_000        # -2e9, -1999900000, -1999800000
     toa = np.concatenate([seg1, seg2, seg3])
     n = len(toa)
     data = np.column_stack([
@@ -206,7 +206,7 @@ def test_preprocess_basic_flow():
     assert result.total_pulses == 100
     assert result.filtered_pulses == 0
     assert result.toa_flip_count == 0
-    assert result.time_range_ms > 0
+    assert result.time_range > 0
     assert result.band == "C波段"
     assert result.remaining_pulses == 100
 
@@ -235,7 +235,7 @@ def test_preprocess_estimated_slice_count():
         np.full(n, 100.0),
         toa,
     ])
-    result = preprocess(data, slice_length_ms=250.0)
+    result = preprocess(data, slice_length=2_500_000)
     assert result.estimated_slice_count == 2, (
         f"500ms / 250ms=2片，实际={result.estimated_slice_count}"
     )
@@ -249,7 +249,7 @@ def test_preprocess_empty_data():
     assert result.filtered_pulses == 0
     assert result.remaining_pulses == 0
     assert result.band is None
-    assert result.time_range_ms == 0.0
+    assert result.time_range == 0.0
 
 
 # -------------------------------------------------------------------

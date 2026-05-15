@@ -69,7 +69,7 @@ class ImportWorker(QThread):
             PW = data_tmp[:, 2]
             DOA = data_tmp[:, 4]
             PA = data_tmp[:, 5]
-            TOA = data_tmp[:, 7] / 1e4  # 转为 ms
+            TOA = data_tmp[:, 7]  # 保持原始单位 0.1us，不转换
 
             # 构造按照预定义顺序对齐的数组
             raw_data = np.zeros((len(data_tmp), 5))
@@ -86,7 +86,7 @@ class ImportWorker(QThread):
                 data=raw_data,
                 source_path=self._file_path,
                 source_type="excel",
-                slice_length_ms=250.0,  # 这里可以使用默认值或从配置读取
+                slice_length=2_500_000,  # 250ms = 2,500,000 × 0.1us
                 session_id=self._session.session_id
             )
 

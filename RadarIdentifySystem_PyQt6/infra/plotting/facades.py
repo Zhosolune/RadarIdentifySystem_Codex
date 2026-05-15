@@ -51,7 +51,7 @@ def render_slice_images(
     target_time_range = resolve_time_range(
         toa=toa,
         time_range=time_range,
-        slice_length_ms=profile_obj.slice_length_ms,
+        slice_length=profile_obj.slice_length,
     )
     
     # 计算DTOA派生序列
@@ -141,7 +141,7 @@ def render_predict_images(
     target_time_range = resolve_time_range(
         toa=toa,
         time_range=time_range,
-        slice_length_ms=profile_obj.slice_length_ms,
+        slice_length=profile_obj.slice_length,
     )
     
     # 动态派生 DTOA 差分序列
@@ -200,7 +200,7 @@ def render_merge_images(
     target_time_range = resolve_time_range(
         toa=all_toa,
         time_range=time_range,
-        slice_length_ms=profile_obj.slice_length_ms,
+        slice_length=profile_obj.slice_length,
     )
     
     # 逐维度绘制颜色索引图并转换为 RGB 图

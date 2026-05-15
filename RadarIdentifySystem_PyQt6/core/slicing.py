@@ -31,14 +31,14 @@ LOGGER = logging.getLogger(__name__)
 
 def slice_by_toa(
     data: np.ndarray,
-    slice_length_ms: float = 250.0,
+    slice_length: float = 2_500_000,
     toa_col: int = COL_TOA,
     session_id: str = "-",
 ) -> SliceResult:
     """将脉冲数据按 TOA 时间窗口切片。
 
     功能描述：
-        根据 TOA 列的最小值与最大值，以 slice_length_ms 为步长生成等宽
+        根据 TOA 列的最小值与最大值，以 slice_length 为步长生成等宽
         时间窗口，将落入各窗口的脉冲行提取为独立子数组。
         空切片（该窗口内无脉冲）自动跳过，不进入结果列表。
         SliceResult.slices 与 SliceResult.time_ranges 严格按索引对应。
@@ -52,7 +52,7 @@ def slice_by_toa(
 
     参数说明：
         data (np.ndarray): shape=(N, 5) 的预处理后脉冲数组。
-        slice_length_ms (float): 时间窗口长度（ms），默认 250.0。
+        slice_length (float): 时间窗口长度（0.1us），默认 2_500_000（250ms）。
         toa_col (int): TOA 列的列索引，默认 COL_TOA=4。
         session_id (str): 会话标识，用于日志追踪。
 
@@ -62,20 +62,20 @@ def slice_by_toa(
 
     异常说明：
         ValueError: data.ndim != 2 或列数不足时抛出。
-        ValueError: slice_length_ms <= 0 时抛出。
+        ValueError: slice_length <= 0 时抛出。
     """
     if data.ndim != 2 or data.shape[1] <= toa_col:
         raise ValueError(
             f"slice_by_toa: data 必须为至少 {toa_col + 1} 列的二维数组，"
             f"实际 shape={data.shape}"
         )
-    if slice_length_ms <= 0:
-        raise ValueError(f"slice_length_ms 必须 > 0，实际值={slice_length_ms}")
+    if slice_length <= 0:
+        raise ValueError(f"slice_length 必须 > 0，实际值={slice_length}")
 
     # 空数据直接返回
     if len(data) == 0:
         LOGGER.warning("接收到空数据，返回空切片结果", extra={"session_id": session_id})
-        return SliceResult(slices=[], slice_length_ms=slice_length_ms)
+        return SliceResult(slices=[], slice_length=slice_length)
 
     # 提取 TOA 列
     toa_values = data[:, toa_col]
@@ -84,7 +84,7 @@ def slice_by_toa(
 
     LOGGER.info(
         "开始切片，时间范围 [%.2f, %.2f] ms，步长 %.1f ms",
-        t_min, t_max, slice_length_ms,
+        t_min / 1e4, t_max / 1e4, slice_length / 1e4,
         extra={"session_id": session_id},
     )
 
@@ -92,20 +92,20 @@ def slice_by_toa(
     # 边界情况：当 t_min == t_max（单条脉冲或所有脉冲 TOA 完全相同）时，
     # arange 仅生成单点 [t_min]，无法形成任何窗口。
     # 此时手动构造 [t_min, t_min + step] 两点边界，确保生成 1 个窗口。
-    boundaries = np.arange(t_min, t_max + slice_length_ms, slice_length_ms)
+    boundaries = np.arange(t_min, t_max + slice_length, slice_length)
     if len(boundaries) < 2:
-        boundaries = np.array([t_min, t_min + slice_length_ms])
+        boundaries = np.array([t_min, t_min + slice_length])
 
     slices: list[SingleSlice] = []
     slice_index = 0
 
     # 遍历相邻边界对，提取各窗口内的脉冲
     for i in range(len(boundaries) - 1):
-        start_ms = float(boundaries[i])
-        end_ms = float(boundaries[i + 1])
+        start = float(boundaries[i])
+        end = float(boundaries[i + 1])
 
         # 掩码：左闭右开区间 [start, end)
-        mask = (toa_values >= start_ms) & (toa_values < end_ms)
+        mask = (toa_values >= start) & (toa_values < end)
         current_slice = data[mask]
 
         # 跳过空切片（与旧版行为一致）
@@ -115,7 +115,7 @@ def slice_by_toa(
         slices.append(SingleSlice(
             index=slice_index,
             data=current_slice,
-            time_range=(start_ms, end_ms)
+            time_range=(start, end)
         ))
         slice_index += 1
 
@@ -128,24 +128,24 @@ def slice_by_toa(
 
     return SliceResult(
         slices=slices,
-        slice_length_ms=slice_length_ms,
+        slice_length=slice_length,
     )
 
 
 def slice_from_preprocess(
     result: PreprocessResult,
-    slice_length_ms: float = 250.0,
+    slice_length: float = 2_500_000,
     session_id: str = "-",
 ) -> SliceResult:
     """从预处理结果直接切片（便捷包装）。
 
     功能描述：
-        等同于 slice_by_toa(result.data, slice_length_ms)，
+        等同于 slice_by_toa(result.data, slice_length)，
         让调用方可以直接将 preprocess() 返回值传入。
 
     参数说明：
         result (PreprocessResult): preprocess() 的返回值。
-        slice_length_ms (float): 时间窗口长度（ms），默认 250.0。
+        slice_length (float): 时间窗口长度（0.1us），默认 2_500_000（250ms）。
         session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
@@ -154,4 +154,4 @@ def slice_from_preprocess(
     异常说明：
         同 slice_by_toa。
     """
-    return slice_by_toa(result.data, slice_length_ms=slice_length_ms, session_id=session_id)
+    return slice_by_toa(result.data, slice_length=slice_length, session_id=session_id)

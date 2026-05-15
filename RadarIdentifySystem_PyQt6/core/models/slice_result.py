@@ -25,7 +25,7 @@ class PreprocessResult:
         total_pulses (int): 预处理前的脉冲总数。
         filtered_pulses (int): 因 PA=255 被剔除的脉冲数量。
         toa_flip_count (int): 检测到的时间翻折点数量。
-        time_range_ms (float): 有效 TOA 的时间跨度（ms）。
+        time_range (float): 有效 TOA 的时间跨度（0.1us）。
         estimated_slice_count (int): 按默认 250ms 估算的切片数量。
         band (str | None): 根据 CF 均值推断的频段名称；<1000MHz 时为 None。
     """
@@ -34,7 +34,7 @@ class PreprocessResult:
     total_pulses: int = 0
     filtered_pulses: int = 0
     toa_flip_count: int = 0
-    time_range_ms: float = 0.0
+    time_range: float = 0.0
     estimated_slice_count: int = 0
     band: str | None = None
 
@@ -58,7 +58,7 @@ class SingleSlice:
     属性：
         index (int): 切片在全局切片序列中的索引下标。
         data (np.ndarray): 本切片包含的脉冲数据，shape=(K, 5)。
-        time_range (tuple[float, float]): 本切片的时间跨度 (start_ms, end_ms)。
+        time_range (tuple[float, float]): 本切片的时间跨度 (start, end)，单位 0.1us。
     """
 
     index: int
@@ -85,11 +85,11 @@ class SliceResult:
 
     属性：
         slices (list[SingleSlice]): 切片对象列表。
-        slice_length_ms (float): 本次切片所用的时间窗口长度（ms）。
+        slice_length (float): 本次切片所用的时间窗口长度（0.1us）。
     """
 
     slices: list[SingleSlice] = field(default_factory=list)
-    slice_length_ms: float = 250.0
+    slice_length: float = 2_500_000  # 250ms = 2,500,000 × 0.1us
 
     @property
     def slice_count(self) -> int:

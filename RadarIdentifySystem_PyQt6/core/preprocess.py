@@ -39,8 +39,9 @@ LOGGER = logging.getLogger(__name__)
 _INVALID_PA: int = 255
 """PA 无效值标记，等于 255 的脉冲将被剔除。"""
 
-_TOA_FLIP_THRESHOLD: float = -6e4
-"""TOA 差分小于该值（ms）时判定为时间翻折。与旧版 data_processor 一致。"""
+_TOA_FLIP_THRESHOLD: float = -6e8
+"""TOA 差分小于该值（0.1us）时判定为时间翻折。
+旧版 -6e4 ms = -6e4 × 10000 = -6e8 (0.1us)。"""
 
 # 频段 CF 均值边界（MHz）
 _BAND_THRESHOLDS: list[tuple[float, str]] = [
@@ -98,7 +99,7 @@ def fix_toa_flip(
 
     功能描述：
         雷达前端计数器在达到最大值后会从头计数（溢出回绕），表现为 TOA
-        序列出现大幅下跌（diff < flip_threshold ms）。本函数通过检测下跌点，
+        序列出现大幅下跌（diff < flip_threshold 0.1us）。本函数通过检测下跌点，
         将后续段的 TOA 值平移修正，使时间轴单调递增，最终归零（以第一个
         脉冲时间为基准）。
 
@@ -111,7 +112,7 @@ def fix_toa_flip(
     参数说明：
         data (np.ndarray): shape=(N, 5) 的脉冲数据数组（不修改原数组）。
         toa_col (int): TOA 列的列索引，默认 COL_TOA=4。
-        flip_threshold (float): 差分阈值（ms），低于此值判定为翻折，默认 -6e4。
+        flip_threshold (float): 差分阈值（0.1us），低于此值判定为翻折，默认 -6e8。
         session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
@@ -147,7 +148,7 @@ def fix_toa_flip(
         time_data -= time_data[0]
         result[:, toa_col] = time_data
         LOGGER.info("TOA 修正完成，新时间范围 [%.2f, %.2f] ms",
-                     float(time_data[0]), float(time_data[-1]), extra={"session_id": session_id})
+                     float(time_data[0]) / 1e4, float(time_data[-1]) / 1e4, extra={"session_id": session_id})
 
     return result, flip_count
 
@@ -199,7 +200,7 @@ def preprocess(
     data: np.ndarray,
     source_path: str = "",
     source_type: str = "unknown",
-    slice_length_ms: float = 250.0,
+    slice_length: float = 2_500_000,
     toa_col: int = COL_TOA,
     pa_col: int = COL_PA,
     cf_col: int = COL_CF,
@@ -222,7 +223,7 @@ def preprocess(
         data (np.ndarray): shape=(N, 5) 的原始脉冲数组。
         source_path (str): 数据来源路径，用于日志，默认空串。
         source_type (str): 数据来源类型，默认 "unknown"。
-        slice_length_ms (float): 估算切片数的时间窗口，默认 250.0 ms。
+        slice_length (float): 估算切片数的时间窗口，默认 2_500_000（0.1us，即 250ms）。
         toa_col (int): TOA 列索引，默认 COL_TOA=4。
         pa_col (int): PA 列索引，默认 COL_PA=3。
         cf_col (int): CF 列索引，默认 COL_CF=0。
@@ -249,12 +250,12 @@ def preprocess(
     # 步骤 3: 计算时间跨度与预计切片数
     if len(fixed) > 0:
         toa_values = fixed[:, toa_col]
-        time_range_ms = float(np.max(toa_values) - np.min(toa_values))
+        time_range = float(np.max(toa_values) - np.min(toa_values))
         estimated_slice_count = (
-            int(np.ceil(time_range_ms / slice_length_ms)) if time_range_ms > 0 else 0
+            int(np.ceil(time_range / slice_length)) if time_range > 0 else 0
         )
     else:
-        time_range_ms = 0.0
+        time_range = 0.0
         estimated_slice_count = 0
 
     # 步骤 4: 推断频段
@@ -263,7 +264,7 @@ def preprocess(
     LOGGER.info(
         "预处理完成。总数=%d 剔除=%d 翻折点=%d 时间跨度=%.2f ms 估算切片=%d 频段=%s",
         total_pulses, filtered_pulses, flip_count,
-        time_range_ms, estimated_slice_count, band,
+        time_range / 1e4, estimated_slice_count, band,
         extra={"session_id": session_id},
     )
 
@@ -272,7 +273,7 @@ def preprocess(
         total_pulses=total_pulses,
         filtered_pulses=filtered_pulses,
         toa_flip_count=flip_count,
-        time_range_ms=time_range_ms,
+        time_range=time_range,
         estimated_slice_count=estimated_slice_count,
         band=band,
     )

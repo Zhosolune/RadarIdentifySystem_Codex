@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-05-15 16:23
+- 操作类型：重构
+- 影响文件：
+  - `core/models/pulse_batch.py` — `COL_TOA` 注释改为 0.1us
+  - `core/models/slice_result.py` — `time_range_ms`→`time_range`，`slice_length_ms`→`slice_length`，默认值 250.0→2_500_000
+  - `core/models/cluster_result.py` — `time_ranges` 注释更新
+  - `core/preprocess.py` — 翻折阈值 -6e4→-6e8；参数/字段重命名；日志输出转 ms
+  - `core/slicing.py` — `slice_length_ms`→`slice_length`（2_500_000）；日志输出转 ms
+  - `core/clustering.py` — DTOA 计算 `×1000`→`×0.1`
+  - `runtime/threading/import_worker.py` — 移除 `/ 1e4` 转换，TOA 保持原始 0.1us
+  - `runtime/threading/slice_worker.py` — `slice_length_ms`→`slice_length`
+  - `infra/plotting/types.py` — `PlotProfile.slice_length_ms`→`slice_length`，默认值 2_500_000
+  - `infra/plotting/utils.py` — `build_dtoa_series` 转换因子 `×1000`→`×0.1`；`resolve_time_range` 参数重命名
+  - `infra/plotting/facades.py` — 所有 `slice_length_ms` 引用→`slice_length`
+  - `tests/unit/test_core_slicing.py` — 测试 TOA 值、时间窗从 ms→0.1us
+  - `tests/unit/test_core_preprocess.py` — 测试 TOA 值、字段名、翻折阈值同步
+  - `tests/unit/test_core_clustering.py` — 测试 TOA 值、时间窗从 ms→0.1us
+- 变更摘要：TOA 存储单位从 ms 改为原始 0.1us，消除导入时的精度损失（÷10000）。DTOA 派生时 ×0.1 转 us，切片长度 250ms→2,500,000（0.1us），翻折阈值 -6e4→-6e8。日志输出仍按 ms 显示。
+- 原因：原方案在导入时除以 10000 转为 ms，丢失亚微秒级精度。改为保持原始 0.1us 存储，在各使用场景按需转换。
+- 测试状态：待测试
+
 - 时间：2026-05-01 17:45
 - 操作类型：重构
 - 影响文件：

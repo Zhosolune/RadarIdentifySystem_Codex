@@ -35,7 +35,7 @@ class ClusterItem:
     points: np.ndarray               # 簇内点云数据，shape=(N, 5)
     points_indices: np.ndarray       # 簇内点在当前维度处理前的数据数组中的索引
     slice_idx: int                   # 所属切片索引
-    time_ranges: tuple[float, float] # 该簇所处的时间范围 (start_ms, end_ms)
+    time_ranges: tuple[float, float] # 该簇所处的时间范围 (start, end)，单位 0.1us
     state: ClusterState = ClusterState.PENDING  # 簇当前状态
     
     # 以下为特征与识别产物，识别前可为空

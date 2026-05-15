@@ -29,7 +29,7 @@ class SliceWorker(QThread):
     def __init__(
         self,
         session: ProcessingSession,
-        slice_length_ms: float = 250.0,
+        slice_length: float = 2_500_000,
         parent: QObject | None = None,
     ) -> None:
         """初始化切片工作线程。
@@ -38,12 +38,12 @@ class SliceWorker(QThread):
 
         Args:
             session (ProcessingSession): 当前流程所依附的会话上下文。
-            slice_length_ms (float, optional): 数据切分默认时长(ms)，默认为 250.0。
+            slice_length (float, optional): 数据切分默认时长（0.1us），默认 2_500_000（250ms）。
             parent (QObject | None, optional): 挂载的 Qt 父节点。
         """
         super().__init__(parent)
         self._session = session
-        self._slice_length_ms = slice_length_ms
+        self._slice_length = slice_length
 
     def run(self) -> None:
         """执行切片逻辑。
@@ -77,7 +77,7 @@ class SliceWorker(QThread):
             LOGGER.info("开始切片", extra={"session_id": session_id})
             slice_res = slice_by_toa(
                 preprocess_res.data,
-                slice_length_ms=self._slice_length_ms,
+                slice_length=self._slice_length,
                 session_id=session_id,
             )
             with self._session.lock:

@@ -43,14 +43,14 @@ _DEFAULT_MERGE_PALETTE: Final[MergePalette] = MergePalette(
 )
 
 
-def build_plot_profile(band: str | None, slice_length_ms: float = _DEFAULT_SLICE_LENGTH_MS) -> PlotProfile:
+def build_plot_profile(band: str | None, slice_length: float = _DEFAULT_SLICE_LENGTH) -> PlotProfile:
     """构建绘图规格集合。
 
     根据传入的频段标识构造全维度的绘图规格集合。如果是特定波段（如X波段），则自动应用局部覆盖。
 
     Args:
         band (str | None): 当前数据集所属的频段字符串（如 "X波段"），若为空则使用默认配置。
-        slice_length_ms (float, optional): 绘图时默认使用的时间切片长度跨度，默认为 250.0。
+        slice_length (float, optional): 绘图时默认使用的时间切片长度跨度，默认 2_500_000(0.1us, 即250ms)。
 
     Returns:
         PlotProfile: 封装好的当前配置全维度规格对象。
@@ -75,7 +75,7 @@ def build_plot_profile(band: str | None, slice_length_ms: float = _DEFAULT_SLICE
             img_height=specs["DTOA"].img_height,
             img_width=specs["DTOA"].img_width,
         )
-    return PlotProfile(specs=specs, slice_length_ms=slice_length_ms)
+    return PlotProfile(specs=specs, slice_length=slice_length)
 
 
 def build_dtoa_series(toa: np.ndarray) -> np.ndarray:
@@ -85,10 +85,10 @@ def build_dtoa_series(toa: np.ndarray) -> np.ndarray:
     最后一位使用末尾差值做补齐填充以保证长度一致。
 
     Args:
-        toa (np.ndarray): 一维的到达时间数组（单位：毫秒）。
+        toa (np.ndarray): 一维的到达时间数组（单位：0.1us）。
 
     Returns:
-        np.ndarray: 一维的差分时间数组（单位：微秒），与输入等长。
+        np.ndarray: 一维的差分时间数组（单位：us），与输入等长。
 
     Raises:
         ValueError: 当传入的不是一维数组时抛出。
@@ -104,8 +104,8 @@ def build_dtoa_series(toa: np.ndarray) -> np.ndarray:
     if len(toa_array) == 0:
         return np.array([], dtype=np.float64)
         
-    # 计算相邻TOA的差值并转为微秒
-    dtoa = np.diff(toa_array) * 1000.0
+    # 计算相邻TOA的差值并转为微秒：TOA(0.1us) × 0.1 = DTOA(us)
+    dtoa = np.diff(toa_array) * 0.1
     # 复制最后一个差值填充长度
     fill_value = float(dtoa[-1]) if len(dtoa) > 0 else 0.0
     return np.append(dtoa, fill_value).astype(np.float64)
@@ -143,7 +143,7 @@ def validate_points(points: np.ndarray) -> np.ndarray:
 def resolve_time_range(
     toa: np.ndarray,
     time_range: tuple[float, float] | None,
-    slice_length_ms: float,
+    slice_length: float,
 ) -> tuple[float, float]:
     """解析绘图时间范围。
 
@@ -152,9 +152,9 @@ def resolve_time_range(
     并应用防除零等兜底机制。
 
     Args:
-        toa (np.ndarray): 包含时间数据的一维数组。
+        toa (np.ndarray): 包含时间数据的一维数组（单位：0.1us）。
         time_range (tuple[float, float] | None): 外部设定的目标时间区间 (min, max)。
-        slice_length_ms (float): 时间跨度容差参数，当区间为零时用以向外扩展宽度。
+        slice_length (float): 时间跨度容差参数（0.1us），当区间为零时用以向外扩展宽度。
 
     Returns:
         tuple[float, float]: 可靠的起始与结束时间基准，保证起始小于结束。
@@ -171,7 +171,7 @@ def resolve_time_range(
     # 转为浮点数组计算实际时间界限
     toa_array = np.asarray(toa, dtype=np.float64)
     if len(toa_array) == 0:
-        return 0.0, max(slice_length_ms, 1.0)
+        return 0.0, max(slice_length, 1.0)
         
     # 获取起始与结束时间点
     start = float(np.min(toa_array))
@@ -179,7 +179,7 @@ def resolve_time_range(
     
     # 防止极窄区间导致除零错
     if end <= start:
-        end = start + max(slice_length_ms, 1.0)
+        end = start + max(slice_length, 1.0)
     return start, end
 
 

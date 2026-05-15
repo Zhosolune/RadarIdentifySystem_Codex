@@ -94,9 +94,9 @@ def process_dimension_clustering(
         cluster_points = points[mask]
         
         # 计算 DTOA (us)
-        # points 的第 4 列是 TOA (ms)，这里转为 us
+        # TOA 以 0.1us 存储，×0.1 转为 us
         if len(cluster_points) > 1:
-            dtoa = np.diff(cluster_points[:, COL_TOA]) * 1000
+            dtoa = np.diff(cluster_points[:, COL_TOA]) * 0.1
             dtoa = np.append(dtoa, dtoa[-1])  # 补齐长度，使用最后一个 DTOA 值
         else:
             dtoa = np.array([0.0])
