@@ -7,7 +7,7 @@ from typing import Final
 import numpy as np
 
 from core.models.pulse_batch import COL_CF, COL_DOA, COL_PA, COL_PW, COL_TOA
-from .types import MergePalette, PlotProfile, PlotSpec, _DEFAULT_SLICE_LENGTH_MS
+from .types import MergePalette, PlotProfile, PlotSpec, _DEFAULT_SLICE_LENGTH
 
 
 _BASE_SPECS: Final[dict[str, PlotSpec]] = {
