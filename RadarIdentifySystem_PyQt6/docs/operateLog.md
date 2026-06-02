@@ -1,5 +1,14 @@
 # 变更记录
 
+- 时间：2026-06-01 17:22
+- 操作类型：新增与修改
+- 影响文件：
+  - `app/app_config.py` — 新增 `importDataDirs` 配置项（`List[str]`，group=business）
+  - `ui/interfaces/home_interface.py` — 重写：右侧面板改为带 ScrollArea 的 FolderListSettingCard，持久化管理导入数据目录列表
+- 变更摘要：在主页右侧面板引入 `FolderListSettingCard`，接入配置系统，实现导入数据目录的持久化保存；使用 qfluentwidgets 的 `ScrollArea` 包裹卡片，保证展开顺滑。
+- 原因：用户需求：用 `FolderListSettingCard` 替换旧版 UI 的导入数据目录卡片，并将其添加到主页右侧面板，接入配置系统。
+- 测试状态：待测试
+
 - 时间：2026-05-15 16:23
 - 操作类型：重构
 - 影响文件：

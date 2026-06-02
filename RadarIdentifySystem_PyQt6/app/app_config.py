@@ -188,6 +188,13 @@ class AppConfig(QConfig):
         validator=BoolValidator(),
     )
 
+    # 导入数据目录列表（主页面右侧面板中展示）──────────────────────────────────────
+    importDataDirs = ConfigItem(
+        group="business",
+        name="importDataDirs",
+        default=[],
+    )
+
 
 appConfig = AppConfig()
 

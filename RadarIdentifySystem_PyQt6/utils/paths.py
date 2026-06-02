@@ -1,4 +1,4 @@
-﻿"""路径工具模块。"""
+"""路径工具模块。"""
 
 from __future__ import annotations
 
