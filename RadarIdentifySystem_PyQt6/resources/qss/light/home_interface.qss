@@ -1,12 +1,31 @@
-﻿/* style/home_interface.qss */
+/* style/home_interface.qss — light */
+
 QFrame#homeInterface {
     background-color: transparent;
     border: none;
 }
 
-QFrame#leftColumn,
-QFrame#rightColumn {
+/* 左侧占位栏 */
+QFrame#homeLeftColumn {
     background-color: transparent;
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 10px;
+}
+
+/* 右侧列容器本身透明，无边框 */
+QWidget#homeRightColumn {
+    background-color: transparent;
+    border: none;
+}
+
+/* ScrollArea 及其内部 QWidget 视口全部透明 */
+QScrollArea#homeRightScrollArea,
+QScrollArea#homeRightScrollArea > QWidget {
+    background: transparent;
+    border: none;
+}
+
+/* 滚动内容容器透明 */
+QWidget#homeRightScrollContent {
+    background: transparent;
 }

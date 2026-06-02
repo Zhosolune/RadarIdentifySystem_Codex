@@ -140,7 +140,6 @@ class HomeInterface(QFrame):
         scroll_area.setWidgetResizable(True)
         # 关闭水平滚动条，保持面板整洁
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.enableTransparentBackground()
 
         # ---------- 滚动内容容器 ----------
         scroll_content = QWidget()
