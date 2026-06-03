@@ -12,6 +12,7 @@ from qfluentwidgets import (
 )
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
+from ui.components.import_data_panel import ImportDataPanel
 
 
 class HomeInterface(QFrame):
@@ -153,7 +154,7 @@ class HomeInterface(QFrame):
         data_dir_group = SettingCardGroup("导入数据目录", scroll_content)
 
         # FolderListSettingCard：自动从 appConfig.importDataDirs 读写
-        # directory 参数指定"添加文件夹"对话框的初始目录（桌面）
+        # directory 参数指定"添加文件夹"对话框的初始目录
         import os
         default_dir = os.path.expanduser("~")
         self.import_dir_card = FolderListSettingCard(
@@ -163,11 +164,17 @@ class HomeInterface(QFrame):
             directory=default_dir,
             parent=data_dir_group,
         )
-
         data_dir_group.addSettingCard(self.import_dir_card)
-
-        # 将分组添加到内容布局，底部加弹性空间避免卡片被拉伸
         content_layout.addWidget(data_dir_group)
+
+        # ---------- 导入数据面板（标签栏 + 文件列表） ----------
+        # 放置在导入目录卡片下方，提供 Excel/Bin/MAT 三种格式的文件管理界面
+        self.import_panel = ImportDataPanel(scroll_content)
+        # 固定高度，保证标签栏和文件列表有足够的展示空间
+        self.import_panel.setFixedHeight(420)
+        content_layout.addWidget(self.import_panel)
+
+        # 底部弹性空间（面板撑满后不再拉伸）
         content_layout.addStretch(1)
 
         # 将内容容器注入 ScrollArea

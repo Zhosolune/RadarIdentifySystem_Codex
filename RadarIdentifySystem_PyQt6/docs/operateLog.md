@@ -1,5 +1,28 @@
 # 变更记录
 
+- 时间：2026-06-03 08:30
+- 操作类型：重构与修改
+- 影响文件：
+  - `ui/components/import_data_panel.py`
+  - `ui/components/styled_tab_bar.py` (新增)
+  - `ui/components/file_item.py` (新增)
+  - `ui/components/file_list_page.py` (新增)
+- 变更摘要：根据功能和结构，将 `import_data_panel.py` 中耦合的三个子组件（`StyledTabBar`、`FileItem`、`FileListPage`）分别拆分到独立的同名 Python 文件中，使主文件仅保留 `ImportDataPanel` 核心卡片逻辑，以符合 UI 组件解耦和职责单一的架构规范。
+- 原因：原文件由于堆砌了多个不同层级的子组件而过于庞大，拆分后能极大提升代码的可读性、可维护性和复用性。
+- 测试状态：待测试
+
+- 时间：2026-06-02 17:37
+- 操作类型：重构与修改
+- 影响文件：
+  - `ui/components/import_data_panel.py`
+- 变更摘要：
+  1. 重构了 `ImportDataPanel` 内部结构，为 `CommandBar` 外层包裹了 `QHBoxLayout` 容器并设置间距 `(8, 8, 8, 8)`，使命令栏与卡片边框分离。
+  2. 根据 `code.md` 规范全面更新了文件头部、类及方法的 Google 风格 docstring，并补充了完整的类型提示。
+  3. 将命令栏操作还原为 "刷新" (`refresh_action`)、"移除" (`remove_action`)、"排序" (`sort_action`)，并为这三个操作更新了相应的提示文档。
+  4. 为 `CommandBar` 内部的 `CommandButton` 统一安装了组件库原生的 `ToolTipFilter`，以展现符合 Fluent Design 风格的悬浮提示。
+- 原因：代码架构需遵守规范及美观的 UI 边距调整，响应用户最新需求的变量与文本修正要求，统一应用内部组件的视觉语言（包括原生的 Fluent 风格悬浮提示）。
+- 测试状态：待测试
+
 - 时间：2026-06-01 17:22
 - 操作类型：新增与修改
 - 影响文件：
