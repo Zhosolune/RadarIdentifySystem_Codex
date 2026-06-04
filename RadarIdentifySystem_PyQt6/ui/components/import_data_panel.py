@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from qfluentwidgets import (
     Action,
-    CardWidget,
+    SimpleCardWidget,
     CommandBar,
     ToolTipFilter,
     ToolTipPosition,
@@ -23,7 +23,7 @@ from ui.components.edge_tab_view import EdgeTabWidget
 from ui.components.file_list_page import FileListPage
 
 
-class ImportDataPanel(CardWidget):
+class ImportDataPanel(SimpleCardWidget):
     """导入数据面板。
 
     以 CardWidget 为卡片基底，内部自上而下依次排列：
@@ -103,7 +103,7 @@ class ImportDataPanel(CardWidget):
         # ── 2. 仿 Edge 标签页容器 ──────────────────────────────────────
         self.tab_widget = EdgeTabWidget(self)
         self.tab_widget.setObjectName("importEdgeTab")
-        self.tab_widget.setTabMaximumWidth(150)
+        self.tab_widget.setTabMaximumWidth(200)
 
         for route_key, text, icon in self._TABS:
             page = FileListPage(self.tab_widget)

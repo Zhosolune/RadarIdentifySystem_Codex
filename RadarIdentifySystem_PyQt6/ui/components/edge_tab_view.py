@@ -62,7 +62,7 @@ class EdgeTabItem(QWidget):
 
     # 绘制参数
     _TOP_RADIUS = 8         # 上圆角半径
-    _CONCAVE_RADIUS = 8     # 底部反向圆角半径
+    _CONCAVE_RADIUS = 6     # 底部反向圆角半径
     _OVERLAP = 10           # 反向圆角的水平延伸宽度
     _TOP_MARGIN = 4         # 标签顶部留白
     _HEIGHT = 36            # 标签固定高度
@@ -156,13 +156,25 @@ class EdgeTabItem(QWidget):
     # ── 尺寸提示 ──────────────────────────────────────────────────────
 
     def sizeHint(self) -> QSize:
-        """计算理想宽度（仅内容宽度，不含外扩圆角区域）。"""
+        """计算理想宽度（仅内容宽度，不含外扩圆角区域）。
+
+        Args:
+            无。
+
+        Returns:
+            QSize: 受当前最小宽度和最大宽度约束后的标签尺寸。
+
+        Raises:
+            无。
+        """
         fm = QFontMetrics(self.font())
         text_w = fm.horizontalAdvance(self._text)
         icon_w = 22 if self._icon else 0
         # 仅为内容区预留空间，外扩圆角在父级容器统一绘制
         w = self._PADDING_H * 2 + icon_w + text_w
-        return QSize(min(max(w, 64), self.maximumWidth()), self._HEIGHT)
+        min_w = self.minimumWidth()
+        max_w = max(min_w, self.maximumWidth())
+        return QSize(max(min(w, max_w), min_w), self._HEIGHT)
 
     # ── 绘制 ──────────────────────────────────────────────────────────
 
@@ -235,12 +247,14 @@ class EdgeTabBar(QWidget):
         super().__init__(parent)
         self.items: list[EdgeTabItem] = []
         self._currentIndex: int = -1
+        self._tabMinimumWidth: int = 64
+        self._tabMaximumWidth: int = 200
 
         self.setAutoFillBackground(False)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedHeight(EdgeTabItem._HEIGHT + 4)  # 标签高度 + 上下留白
         self._hLayout = QHBoxLayout(self)
-        self._hLayout.setContentsMargins(16, 0, 0, 0)  # 左移半圆角，对齐内容区圆角
+        self._hLayout.setContentsMargins(12, 0, 0, 0)  # 左移半圆角，对齐内容区圆角
         # 标签的逻辑宽度彼此贴紧，外扩圆角由父级容器统一绘制
         self._hLayout.setSpacing(0)
         self._hLayout.setAlignment(
@@ -267,6 +281,8 @@ class EdgeTabBar(QWidget):
         """
         item = EdgeTabItem(text, self, icon)
         item.setRouteKey(routeKey)
+        item.setMinimumWidth(self._tabMinimumWidth)
+        item.setMaximumWidth(max(self._tabMinimumWidth, self._tabMaximumWidth))
         item.clicked.connect(lambda: self._onItemClicked(item))
 
         index = len(self.items)
@@ -306,14 +322,61 @@ class EdgeTabBar(QWidget):
         return self._currentIndex
 
     def setTabMaximumWidth(self, width: int) -> None:
-        """设置标签最大宽度。"""
+        """设置标签最大宽度，并应用到当前和后续新增标签。
+
+        Args:
+            width: 标签最大宽度，单位为像素。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
+        self._tabMaximumWidth = max(1, width)
         for item in self.items:
-            item.setMaximumWidth(width)
+            item.setMaximumWidth(max(item.minimumWidth(), self._tabMaximumWidth))
+            item.updateGeometry()
+        self._refreshTabGeometry()
 
     def setTabMinimumWidth(self, width: int) -> None:
-        """设置标签最小宽度。"""
+        """设置标签最小宽度，并应用到当前和后续新增标签。
+
+        Args:
+            width: 标签最小宽度，单位为像素。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
+        self._tabMinimumWidth = max(1, width)
         for item in self.items:
-            item.setMinimumWidth(width)
+            item.setMinimumWidth(self._tabMinimumWidth)
+            item.setMaximumWidth(max(self._tabMinimumWidth, self._tabMaximumWidth))
+            item.updateGeometry()
+        self._refreshTabGeometry()
+
+    def _refreshTabGeometry(self) -> None:
+        """刷新标签栏布局和父级一体化轮廓。
+
+        Args:
+            无。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
+        self._hLayout.invalidate()
+        self._hLayout.activate()
+        self.updateGeometry()
+        self.update()
+        parent = self.parentWidget()
+        if parent is not None:
+            parent.update()
 
     def count(self) -> int:
         """返回标签数量。"""
@@ -361,7 +424,8 @@ class EdgeTabBar(QWidget):
         """绘制悬浮标签背景。"""
         dark = isDarkTheme()
         rect = QRectF(item.geometry())
-        radius = float(EdgeTabItem._TOP_RADIUS)
+        radius_top = float(EdgeTabItem._TOP_RADIUS)
+        radius_concave = float(EdgeTabItem._CONCAVE_RADIUS)
         if item.isPressed:
             color = QColor(255, 255, 255, 12) if dark else QColor(0, 0, 0, 7)
         else:
@@ -369,7 +433,7 @@ class EdgeTabBar(QWidget):
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(color)
-        painter.drawRoundedRect(rect.adjusted(0, 2, 0, -2), radius, radius)
+        painter.drawRoundedRect(rect.adjusted(0, 0, 0, 0), radius_top, radius_concave)
 
     # ── 内部方法 ──────────────────────────────────────────────────────
 

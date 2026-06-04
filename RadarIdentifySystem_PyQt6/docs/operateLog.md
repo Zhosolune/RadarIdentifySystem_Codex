@@ -1,5 +1,13 @@
 # 变更记录
 
+- 时间：2026-06-04 15:45
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：修复自定义 `EdgeTabWidget.setTabMaximumWidth` 在新增标签前调用不生效的问题，并同步修复 `setTabMinimumWidth` 的同类配置时序问题。
+- 原因：原实现只更新已存在标签，未保存最大/最小宽度配置，导致后续 `addTab` 仍使用默认宽度约束。
+- 测试状态：已测试（AST 语法解析通过；当前环境缺少 PyQt6，无法实例化 UI 验证）
+
 - 时间：2026-06-04 15:31
 - 操作类型：修改
 - 影响文件：
