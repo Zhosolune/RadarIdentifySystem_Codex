@@ -1,5 +1,72 @@
 # 变更记录
 
+- 时间：2026-06-04 15:31
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：收敛首尾标签反向圆角与内容区圆角相邻时的一体化路径端点。
+- 原因：避免第一个标签左下圆角压到内容区左上圆角描边，形成视觉上的深色重合线。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
+- 时间：2026-06-04 15:22
+- 操作类型：重构
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：将 Edge 标签激活态与内容区背景/轮廓改为由 `EdgeTabWidget` 一体式路径绘制，`EdgeTabBar` 仅保留未选中标签悬浮态绘制，`EdgeTabContentStack` 改为透明内容承载层。
+- 原因：消除标签和内容区分属不同控件绘制导致的抗锯齿接缝、线头和坐标微调问题，同时保持内容区 `addWidget` 承载能力不变。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
+- 时间：2026-06-04 15:05
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：恢复内容区顶部轮廓到控件内可见位置，并恢复标签底部反向圆角的原始外扩弧长。
+- 原因：修复内容区上边框被裁剪不可见、标签下圆角弧度因外扩限制而变小的问题。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
+- 时间：2026-06-04 14:58
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：将 Edge 标签内容区轮廓的顶部绘制基线整体上移 1px。
+- 原因：让内容区上边框与标签底部圆角在当前视觉效果下更紧密衔接。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
+- 时间：2026-06-04 14:53
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：统一 Edge 风格标签底部反向圆角与内容区顶部缺口的衔接端点。
+- 原因：修复标签下圆角和内容区开口线条过长导致的轮廓线头外露问题。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
+- 时间：2026-06-04 13:55
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\debug-edge-tab-crash.md`
+- 变更摘要：清理启动期调试插桩与调试记录文件；改为由 `EdgeTabContentStack` 按轮廓 path 自行填充背景和描边，避免矩形背景覆盖卡片圆角；同时给 `ImportDataPanel` 中的标签页容器增加卡片内边距，避免内容区贴边截断卡片边框。
+- 原因：启动崩溃已定位并修复，需要清理调试痕迹；当前新的视觉问题来自内容区矩形背景覆盖卡片边界，以及标签页容器缺少卡片内部留白。
+- 测试状态：待测试
+
+- 时间：2026-06-04 12:21
+- 操作类型：重构
+- 影响文件：
+  - `ui/components/edge_tab_view.py`
+- 变更摘要：新增 `EdgeTabContentStack` 负责在内容区自身内部手绘边框轮廓，并将标签轮廓底边与内容区顶部衔接坐标对齐，修复标签与内容区之间的 1px 视觉缝隙，以及父级绘制内容区边框导致的卡片越界问题。
+- 原因：内容区边框此前绘制在 `EdgeTabWidget.paintEvent()` 中，不受 `QStackedWidget` 子控件边界裁剪，且标签轮廓底边使用 `TabBar.height()` 坐标，和内容区顶部线条存在 1px 错位。
+- 测试状态：待测试
+
+- 时间：2026-06-04 12:14
+- 操作类型：重构
+- 影响文件：
+  - `ui/components/edge_tab_view.py`
+  - `ui/components/import_data_panel.py`
+- 变更摘要：将仿 Edge 标签组件从“每个标签自绘轮廓”重构为“`EdgeTabBar` 统一绘制标签轮廓 + `EdgeTabItem` 仅负责内容渲染”，同时用 `EdgeTabWidget.paintEvent()` 手绘内容区边框，使标签逻辑宽度贴紧、底部反向圆角向外扩展，并与内容区上边框连续衔接。
+- 原因：原方案把外扩圆角计入了每个标签子控件宽度，导致标签之间出现不可消除的额外留白；改为父级统一绘制后，才能复刻旧版 `QTabBar` 的几何与视觉模型。
+- 测试状态：待测试
+
 - 时间：2026-06-03 08:30
 - 操作类型：重构与修改
 - 影响文件：

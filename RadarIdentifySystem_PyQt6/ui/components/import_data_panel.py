@@ -2,25 +2,24 @@
 """导入数据面板组件。
 
 以 CardWidget 为卡片基底，内部依次排列
-CommandBar → StyledTabBar → QStackedWidget 三层结构。
+CommandBar → EdgeTabWidget 两层结构。
 """
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget, QStackedWidget
+from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from qfluentwidgets import (
     Action,
     CardWidget,
-    TabBar,
     CommandBar,
     ToolTipFilter,
     ToolTipPosition,
-    FluentIcon, TabCloseButtonDisplayMode
+    FluentIcon,
 )
 
-# from ui.components.styled_tab_bar import StyledTabBar
+from ui.components.edge_tab_view import EdgeTabWidget
 from ui.components.file_list_page import FileListPage
 
 
@@ -29,14 +28,12 @@ class ImportDataPanel(CardWidget):
 
     以 CardWidget 为卡片基底，内部自上而下依次排列：
       1. CommandBar  ── 提供"添加文件/目录""清除"等操作按钮。
-      2. StyledTabBar ── Excel / Bin / MAT 三格式标签（Win11 风格，不可关闭）。
-      3. QStackedWidget ── 对应每个标签页的 FileListPage 内容区。
+      2. EdgeTabWidget ── 仿 Edge 风格标签页，含 Excel / Bin / MAT 三标签。
 
     Attributes:
         file_pages: routeKey → 文件列表页映射字典。
         command_bar: 顶部命令栏。
-        tab_bar: 格式标签栏，监听 currentChanged 信号。
-        stack: 内容堆叠页，与标签栏索引对应。
+        tab_widget: 仿 Edge 标签页容器，整合标签栏与内容堆叠区。
         refresh_action: 刷新动作。
         remove_action: 移除动作。
         sort_action: 排序动作。
@@ -60,7 +57,7 @@ class ImportDataPanel(CardWidget):
         self._init_ui()
 
     def _init_ui(self) -> None:
-        """构建 CommandBar → StyledTabBar → StackedWidget 三层 UI 结构。
+        """构建 CommandBar → EdgeTabWidget 两层 UI 结构。
 
         Returns:
             None: 无返回值。
@@ -103,32 +100,20 @@ class ImportDataPanel(CardWidget):
         cmd_layout.addStretch()
         root_layout.addLayout(cmd_layout)
 
-        # ── 2. Win11 风格自定义标签栏 ──────────────────────────────────
-        self.tab_bar = TabBar(self)
-        self.tab_bar.setObjectName("importTabBar")
-        self.tab_bar.setScrollable(False)
-        self.tab_bar.setCloseButtonDisplayMode(TabCloseButtonDisplayMode.NEVER)
-        self.tab_bar.setAddButtonVisible(False)
-        self.tab_bar.setTabMaximumWidth(100)
+        # ── 2. 仿 Edge 标签页容器 ──────────────────────────────────────
+        self.tab_widget = EdgeTabWidget(self)
+        self.tab_widget.setObjectName("importEdgeTab")
+        self.tab_widget.setTabMaximumWidth(150)
 
         for route_key, text, icon in self._TABS:
-            self.tab_bar.addTab(routeKey=route_key, text=text, icon=icon)
-
-        root_layout.addWidget(self.tab_bar)
-
-        # ── 3. 内容堆叠区 ──────────────────────────────────────────────
-        self.stack = QStackedWidget(self)
-        self.stack.setObjectName("importTabStack")
-
-        for route_key, _, _ in self._TABS:
-            page = FileListPage(self.stack)
+            page = FileListPage(self.tab_widget)
             self.file_pages[route_key] = page
-            self.stack.addWidget(page)
+            self.tab_widget.addTab(page, text, icon, route_key)
 
-        root_layout.addWidget(self.stack, 1)
+        tab_layout = QHBoxLayout()
+        tab_layout.setContentsMargins(8, 0, 8, 8)
+        tab_layout.addWidget(self.tab_widget, 1)
+        root_layout.addLayout(tab_layout, 1)
 
-        # ── 初始选中第一个标签 ─────────────────────────────────────────
-        self.tab_bar.setCurrentIndex(0)
-        self.stack.setCurrentIndex(0)
-        # 标签切换联动内容区
-        self.tab_bar.currentChanged.connect(self.stack.setCurrentIndex)
+        # 初始选中第一个标签
+        self.tab_widget.setCurrentIndex(0)
