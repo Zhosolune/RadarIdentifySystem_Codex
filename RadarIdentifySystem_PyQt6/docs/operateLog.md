@@ -1,5 +1,16 @@
 # 变更记录
 
+- 时间：2026-06-05 09:28
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\resources\qss\light\home_interface.qss`
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\resources\qss\dark\home_interface.qss`
+- 变更摘要：为导入数据卡片内 EdgeTab 增加 tabBar/内容区分割线，改用 QSS 设置激活标签与内容区背景色，并移除 SimpleCardWidget 手绘外边框。
+- 原因：统一浅/深主题样式入口，修复卡片外围由 `SimpleCardWidget.paintEvent()` 绘制的矩形边框无法通过 QSS `border: none` 清除的问题。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
 - 时间：2026-06-05 09:14
 - 操作类型：修改
 - 影响文件：

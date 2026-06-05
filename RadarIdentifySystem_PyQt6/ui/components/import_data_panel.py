@@ -7,7 +7,8 @@ CommandBar → EdgeTabWidget 两层结构。
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QRectF, pyqtProperty
+from PyQt6.QtGui import QColor, QPainter, QPainterPath
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from qfluentwidgets import (
@@ -17,6 +18,7 @@ from qfluentwidgets import (
     ToolTipFilter,
     ToolTipPosition,
     FluentIcon,
+    isDarkTheme,
 )
 
 from ui.components.edge_tab_view import EdgeTabWidget
@@ -99,6 +101,12 @@ class ImportDataPanel(SimpleCardWidget):
         cmd_layout.addWidget(self.command_bar)
         cmd_layout.addStretch()
         root_layout.addLayout(cmd_layout)
+        
+        self.separator = QWidget(self)
+        self.separator.setObjectName("edgeTabSeparator")
+        self.separator.setFixedHeight(1)
+        self.separator.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        root_layout.addWidget(self.separator, 0)
 
         # ── 2. 仿 Edge 标签页容器 ──────────────────────────────────────
         self.tab_widget = EdgeTabWidget(self)

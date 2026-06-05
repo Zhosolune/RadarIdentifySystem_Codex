@@ -29,3 +29,12 @@ QScrollArea#homeRightScrollArea > QWidget {
 QWidget#homeRightScrollContent {
     background: transparent;
 }
+
+#importEdgeTab {
+    qproperty-panelColor: rgba(0, 0, 0, 0.1795);
+}
+
+QWidget#edgeTabSeparator {
+    background-color: rgba(255, 255, 255, 0.10);
+    border: none;
+}

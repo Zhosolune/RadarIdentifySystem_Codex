@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QRectF, QRect, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QRectF, QRect, QSize, pyqtSignal, pyqtProperty
 from PyQt6.QtGui import (
     QPainter, QPainterPath, QColor, QPen, QIcon,
     QMouseEvent
@@ -581,9 +581,39 @@ class EdgeTabWidget(QWidget):
         self.tabBar = EdgeTabBar(self)
         self.stackedWidget = EdgeTabContentStack(self)
         self.stackedWidget.setObjectName("edgeTabContent")
+        self._panelColor = QColor(45, 45, 45) if isDarkTheme() else QColor(255, 255, 255)
 
         self._initLayout()
         self._connectSignals()
+
+    def getPanelColor(self) -> QColor:
+        """返回激活标签和内容区的一体化背景色。
+
+        Args:
+            无。
+
+        Returns:
+            QColor: 当前背景色。
+
+        Raises:
+            无。
+        """
+        return QColor(self._panelColor)
+
+    def setPanelColor(self, color: QColor) -> None:
+        """设置激活标签和内容区的一体化背景色。
+
+        Args:
+            color: QSS 传入的背景色。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
+        self._panelColor = QColor(color)
+        self.update()
 
     def _initLayout(self) -> None:
         """构建垂直布局，标签条与内容区重叠 1px。"""
@@ -655,13 +685,12 @@ class EdgeTabWidget(QWidget):
             return
 
         dark = isDarkTheme()
-        fill_color = QColor(45, 45, 45) if dark else QColor(255, 255, 255)
         border_color = QColor(255, 255, 255, 25) if dark else QColor(0, 0, 0, 20)
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(fill_color)
+        painter.setBrush(self._panelColor)
         painter.drawPath(path)
         painter.setPen(QPen(border_color, 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -932,3 +961,5 @@ class EdgeTabWidget(QWidget):
         """
         super().resizeEvent(event)
         self.update()
+
+    panelColor = pyqtProperty(QColor, getPanelColor, setPanelColor)
