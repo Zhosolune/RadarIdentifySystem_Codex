@@ -8,23 +8,12 @@ CommandBar → EdgeTabWidget 两层结构。
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QHeaderView,
-    QHBoxLayout,
-    QVBoxLayout,
-    QWidget,
-    QTableWidgetItem,
-)
+from PyQt6.QtGui import QActionGroup
+from PyQt6.QtWidgets import (QHeaderView, QHBoxLayout, QVBoxLayout, QWidget, QTableWidgetItem)
 
-from qfluentwidgets import (
-    Action,
-    SimpleCardWidget,
-    CommandBar,
-    ToolTipFilter,
-    ToolTipPosition,
-    FluentIcon,
-    TableWidget,
-)
+from qfluentwidgets import (Action, SimpleCardWidget, CommandBar, ToolTipFilter, ToolTipPosition,
+                            FluentIcon, TableWidget, TransparentDropDownPushButton, CheckableMenu, 
+                            MenuIndicatorType, TransparentPushButton, setFont)
 
 from ui.components.edge_tab_view import EdgeTabWidget
 
@@ -173,6 +162,37 @@ class ImportDataPanel(SimpleCardWidget):
         super().__init__(parent)
         self.setObjectName("importDataPanel")
         self.file_pages: dict[str, _FileTableWidget] = {}
+
+        # 实例化动作
+        self.refresh_action = Action(FluentIcon.SYNC, "刷新")
+        self.remove_action = Action(FluentIcon.DELETE, "移除")
+
+        self.nameAction = Action(FluentIcon.FONT, "名称", checkable=True)
+        self.sizeAction = Action(FluentIcon.FOLDER, "文件大小", checkable=True)
+        self.dateAction = Action(FluentIcon.EDIT, "修改日期", checkable=True)
+        self.actionGroup1 = QActionGroup(self)
+        self.actionGroup1.addAction(self.nameAction)
+        self.actionGroup1.addAction(self.sizeAction)
+        self.actionGroup1.addAction(self.dateAction)
+
+        self.ascendAction = Action(FluentIcon.UP, "升序", checkable=True)
+        self.descendAction = Action(FluentIcon.DOWN, "降序", checkable=True)
+        self.actionGroup2 = QActionGroup(self)
+        self.actionGroup2.addAction(self.ascendAction)
+        self.actionGroup2.addAction(self.descendAction)
+
+        self.oldFormatAction = Action(FluentIcon.EDIT, "使用旧格式", checkable=True)
+        self.newFormatAction = Action(FluentIcon.EDIT, "使用新格式", checkable=True)
+        self.actionGroup3 = QActionGroup(self)
+        self.actionGroup3.addAction(self.oldFormatAction)
+        self.actionGroup3.addAction(self.newFormatAction)
+
+        self.nameAction.setChecked(True)
+        self.ascendAction.setChecked(True)
+        self.oldFormatAction.setChecked(True)
+
+        self.parseButton = TransparentPushButton("解析",self, FluentIcon.EDIT)
+
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -191,34 +211,34 @@ class ImportDataPanel(SimpleCardWidget):
         self.command_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.command_bar.setButtonTight(True)
 
-        # 实例化动作
-        self.refresh_action = Action(FluentIcon.ADD,         "刷新")
-        self.remove_action  = Action(FluentIcon.FOLDER_ADD,  "移除")
-        self.sort_action    = Action(FluentIcon.DELETE,       "排序")
+        # 自定义动作
+        self.sort_button = TransparentDropDownPushButton("排序",self, FluentIcon.SCROLL)
+        self.option_button = TransparentDropDownPushButton("选项",self, FluentIcon.MORE)
+        self.sort_button.setMenu(self.createSortCheckableMenu())
+        self.option_button.setMenu(self.createOptionCheckableMenu())
+        self.sort_button.setFixedHeight(34)
+        self.option_button.setFixedHeight(34)
+        setFont(self.sort_button, 12)
+        setFont(self.option_button, 12)
 
-        self.refresh_action.setToolTip("刷新当前文件列表")
-        self.remove_action.setToolTip("移除选中的文件")
-        self.sort_action.setToolTip("对文件列表进行排序")
-
+        # 添加命令栏按钮
         self.command_bar.addActions([self.refresh_action, self.remove_action])
+        self.command_bar.addWidget(self.sort_button)
         self.command_bar.addSeparator()
-        self.command_bar.addAction(self.sort_action)
+        self.command_bar.addWidget(self.option_button)
 
         # 禁用溢出菜单，所有按钮常驻可见
         self.command_bar.setMenuDropDown(False)
         self.command_bar.resizeToSuitableWidth()
-
-        # 为命令栏按钮安装 Fluent 风格悬浮提示
-        for btn in self.command_bar.commandButtons:
-            btn.installEventFilter(ToolTipFilter(btn, 500, ToolTipPosition.BOTTOM))
 
         # 添加命令栏的外层布局，以实现与边框的间距
         cmd_layout = QHBoxLayout()
         cmd_layout.setContentsMargins(8, 8, 8, 8)
         cmd_layout.addWidget(self.command_bar)
         cmd_layout.addStretch()
+        cmd_layout.addWidget(self.parseButton)
         root_layout.addLayout(cmd_layout)
-        
+
         self.separator = QWidget(self)
         self.separator.setObjectName("edgeTabSeparator")
         self.separator.setFixedHeight(1)
@@ -228,7 +248,7 @@ class ImportDataPanel(SimpleCardWidget):
         # ── 2. 仿 Edge 标签页容器 ──────────────────────────────────────
         self.tab_widget = EdgeTabWidget(self)
         self.tab_widget.setObjectName("importEdgeTab")
-        self.tab_widget.setTabMaximumWidth(200)
+        self.tab_widget.setTabMaximumWidth(150)
 
         for route_key, text, icon in self._TABS:
             table = _FileTableWidget(self.tab_widget)
@@ -244,6 +264,38 @@ class ImportDataPanel(SimpleCardWidget):
 
         # 初始选中第一个标签
         self.tab_widget.setCurrentIndex(0)
+
+    def createSortCheckableMenu(self, pos=None) -> QMenu:
+        """创建可选菜单。
+
+        Returns:
+            QMenu: 可选菜单实例。
+        """
+        menu = CheckableMenu(parent=self, indicatorType=MenuIndicatorType.RADIO)
+
+        menu.addActions([self.nameAction, self.sizeAction, self.dateAction])
+        menu.addSeparator()
+        menu.addActions([self.ascendAction, self.descendAction])
+
+        if pos is not None:
+            menu.exec(pos, ani=True)
+
+        return menu
+
+    def createOptionCheckableMenu(self, pos=None) -> QMenu:
+        """创建可选菜单。
+
+        Returns:
+            QMenu: 可选菜单实例。
+        """
+        menu = CheckableMenu(parent=self, indicatorType=MenuIndicatorType.RADIO)
+
+        menu.addActions([self.oldFormatAction, self.newFormatAction])
+
+        if pos is not None:
+            menu.exec(pos, ani=True)
+
+        return menu
 
     def _build_sample_files(self, tab_name: str) -> list[tuple[str, str, str]]:
         """生成当前标签页的示例文件列表。
