@@ -10,7 +10,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QRectF, QRect, QSize, pyqtSignal
 from PyQt6.QtGui import (
     QPainter, QPainterPath, QColor, QPen, QIcon,
-    QMouseEvent, QFontMetrics
+    QMouseEvent
 )
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QSizePolicy
@@ -156,25 +156,18 @@ class EdgeTabItem(QWidget):
     # ── 尺寸提示 ──────────────────────────────────────────────────────
 
     def sizeHint(self) -> QSize:
-        """计算理想宽度（仅内容宽度，不含外扩圆角区域）。
+        """返回标签布局目标尺寸。
 
         Args:
             无。
 
         Returns:
-            QSize: 受当前最小宽度和最大宽度约束后的标签尺寸。
+            QSize: 以当前最大宽度为目标的标签尺寸。
 
         Raises:
             无。
         """
-        fm = QFontMetrics(self.font())
-        text_w = fm.horizontalAdvance(self._text)
-        icon_w = 22 if self._icon else 0
-        # 仅为内容区预留空间，外扩圆角在父级容器统一绘制
-        w = self._PADDING_H * 2 + icon_w + text_w
-        min_w = self.minimumWidth()
-        max_w = max(min_w, self.maximumWidth())
-        return QSize(max(min(w, max_w), min_w), self._HEIGHT)
+        return QSize(max(1, self.maximumWidth()), self._HEIGHT)
 
     # ── 绘制 ──────────────────────────────────────────────────────────
 
@@ -281,8 +274,7 @@ class EdgeTabBar(QWidget):
         """
         item = EdgeTabItem(text, self, icon)
         item.setRouteKey(routeKey)
-        item.setMinimumWidth(self._tabMinimumWidth)
-        item.setMaximumWidth(max(self._tabMinimumWidth, self._tabMaximumWidth))
+        self._applyTabWidthPolicy(item)
         item.clicked.connect(lambda: self._onItemClicked(item))
 
         index = len(self.items)
@@ -335,8 +327,7 @@ class EdgeTabBar(QWidget):
         """
         self._tabMaximumWidth = max(1, width)
         for item in self.items:
-            item.setMaximumWidth(max(item.minimumWidth(), self._tabMaximumWidth))
-            item.updateGeometry()
+            self._applyTabWidthPolicy(item)
         self._refreshTabGeometry()
 
     def setTabMinimumWidth(self, width: int) -> None:
@@ -353,10 +344,66 @@ class EdgeTabBar(QWidget):
         """
         self._tabMinimumWidth = max(1, width)
         for item in self.items:
-            item.setMinimumWidth(self._tabMinimumWidth)
-            item.setMaximumWidth(max(self._tabMinimumWidth, self._tabMaximumWidth))
-            item.updateGeometry()
+            self._applyTabWidthPolicy(item)
         self._refreshTabGeometry()
+
+    def tabMaximumWidth(self) -> int:
+        """返回标签最大宽度配置。
+
+        Args:
+            无。
+
+        Returns:
+            int: 当前标签最大宽度，单位为像素。
+
+        Raises:
+            无。
+        """
+        return self._tabMaximumWidth
+
+    def tabMinimumWidth(self) -> int:
+        """返回标签最小宽度配置。
+
+        Args:
+            无。
+
+        Returns:
+            int: 当前标签最小宽度，单位为像素。
+
+        Raises:
+            无。
+        """
+        return self._tabMinimumWidth
+
+    def _effectiveTabMinimumWidth(self) -> int:
+        """计算不超过最大宽度的实际最小宽度。
+
+        Args:
+            无。
+
+        Returns:
+            int: 应用到标签控件上的最小宽度。
+
+        Raises:
+            无。
+        """
+        return min(self._tabMinimumWidth, self._tabMaximumWidth)
+
+    def _applyTabWidthPolicy(self, item: EdgeTabItem) -> None:
+        """将当前宽度策略应用到单个标签。
+
+        Args:
+            item: 需要更新宽度约束的标签项。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
+        item.setMinimumWidth(self._effectiveTabMinimumWidth())
+        item.setMaximumWidth(self._tabMaximumWidth)
+        item.updateGeometry()
 
     def _refreshTabGeometry(self) -> None:
         """刷新标签栏布局和父级一体化轮廓。
@@ -421,11 +468,19 @@ class EdgeTabBar(QWidget):
         painter.end()
 
     def _drawHoverTabBackground(self, painter: QPainter, item: EdgeTabItem) -> None:
-        """绘制悬浮标签背景。"""
+        """绘制悬浮标签背景。
+
+        Args:
+            painter: 当前标签栏绘制器。
+            item: 需要绘制悬浮态的标签项。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
         dark = isDarkTheme()
-        rect = QRectF(item.geometry())
-        radius_top = float(EdgeTabItem._TOP_RADIUS)
-        radius_concave = float(EdgeTabItem._CONCAVE_RADIUS)
         if item.isPressed:
             color = QColor(255, 255, 255, 12) if dark else QColor(0, 0, 0, 7)
         else:
@@ -433,7 +488,68 @@ class EdgeTabBar(QWidget):
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(color)
-        painter.drawRoundedRect(rect.adjusted(0, 0, 0, 0), radius_top, radius_concave)
+        painter.drawPath(self._buildHoverTabPath(item))
+
+    def _buildHoverTabPath(self, item: EdgeTabItem) -> QPainterPath:
+        """构建未选中标签的悬浮态轮廓路径。
+
+        Args:
+            item: 需要构建路径的标签项。
+
+        Returns:
+            QPainterPath: 根据标签与激活标签相对位置生成的悬浮背景路径。
+
+        Raises:
+            无。
+        """
+        rect = QRectF(item.geometry())
+        top = rect.top()
+        bottom = rect.bottom()
+        inner_left = rect.left()
+        inner_right = rect.right()
+        top_radius = float(EdgeTabItem._TOP_RADIUS)
+        concave_radius = float(EdgeTabItem._CONCAVE_RADIUS)
+        overlap = float(EdgeTabItem._OVERLAP)
+        current_index = self.currentIndex()
+        item_index = self.items.index(item)
+
+        draw_left_concave = current_index < 0 or item_index != current_index + 1
+        draw_right_concave = current_index < 0 or item_index != current_index - 1
+
+        path = QPainterPath()
+        path.moveTo(inner_left - overlap if draw_left_concave else inner_left, bottom)
+        if draw_left_concave:
+            path.cubicTo(
+                inner_left - overlap / 2,
+                bottom,
+                inner_left,
+                bottom,
+                inner_left,
+                bottom - concave_radius,
+            )
+        else:
+            path.lineTo(inner_left, bottom)
+
+        path.lineTo(inner_left, top + top_radius)
+        path.quadTo(inner_left, top, inner_left + top_radius, top)
+        path.lineTo(inner_right - top_radius, top)
+        path.quadTo(inner_right, top, inner_right, top + top_radius)
+
+        if draw_right_concave:
+            path.lineTo(inner_right, bottom - concave_radius)
+            path.cubicTo(
+                inner_right,
+                bottom,
+                inner_right + overlap / 2,
+                bottom,
+                inner_right + overlap,
+                bottom,
+            )
+        else:
+            path.lineTo(inner_right, bottom)
+
+        path.closeSubpath()
+        return path
 
     # ── 内部方法 ──────────────────────────────────────────────────────
 
@@ -737,12 +853,60 @@ class EdgeTabWidget(QWidget):
         return self.stackedWidget.count()
 
     def setTabMaximumWidth(self, width: int) -> None:
-        """设置标签最大宽度。"""
+        """设置标签最大宽度。
+
+        Args:
+            width: 标签最大宽度，单位为像素。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
         self.tabBar.setTabMaximumWidth(width)
 
     def setTabMinimumWidth(self, width: int) -> None:
-        """设置标签最小宽度。"""
+        """设置标签最小宽度。
+
+        Args:
+            width: 标签最小宽度，单位为像素。
+
+        Returns:
+            None。
+
+        Raises:
+            无。
+        """
         self.tabBar.setTabMinimumWidth(width)
+
+    def tabMaximumWidth(self) -> int:
+        """返回标签最大宽度配置。
+
+        Args:
+            无。
+
+        Returns:
+            int: 当前标签最大宽度，单位为像素。
+
+        Raises:
+            无。
+        """
+        return self.tabBar.tabMaximumWidth()
+
+    def tabMinimumWidth(self) -> int:
+        """返回标签最小宽度配置。
+
+        Args:
+            无。
+
+        Returns:
+            int: 当前标签最小宽度，单位为像素。
+
+        Raises:
+            无。
+        """
+        return self.tabBar.tabMinimumWidth()
 
     # ── 内部槽函数 ────────────────────────────────────────────────────
 

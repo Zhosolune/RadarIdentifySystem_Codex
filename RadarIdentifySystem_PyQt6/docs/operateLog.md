@@ -1,5 +1,29 @@
 # 变更记录
 
+- 时间：2026-06-05 09:14
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：修正未选中标签 hover 底部反圆角规则，仅与激活标签相邻时收起靠激活标签一侧圆角。
+- 原因：非相邻 hover 标签不应受激活标签影响，需要完整显示两侧底部反圆角。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
+- 时间：2026-06-05 09:08
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：将未选中标签悬浮态由圆角矩形改为 Edge 式路径绘制，并按其相对激活标签的位置只绘制外侧底部反圆角。
+- 原因：让 hover 标签也具备底部反圆角，同时避免靠近激活标签的一侧与激活轮廓发生重叠。
+- 测试状态：已测试（AST 语法解析通过；界面像素效果待目测）
+
+- 时间：2026-06-05 08:56
+- 操作类型：修改
+- 影响文件：
+  - `e:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+- 变更摘要：按本地 qfluentwidgets 官方 `TabItem.sizeHint()` 语义修正自定义 Edge 标签宽度策略，使 `setTabMaximumWidth` 成为标签布局目标宽度，并补齐最大/最小宽度 getter。
+- 原因：上一版只保存最大宽度配置但 `sizeHint()` 仍按文字内容自适应，短标签不会随 `setTabMaximumWidth` 调整视觉宽度。
+- 测试状态：已测试（AST 语法解析通过；当前环境缺少 PyQt6，无法实例化 UI 验证）
+
 - 时间：2026-06-04 15:45
 - 操作类型：修改
 - 影响文件：
