@@ -1,5 +1,14 @@
 # 变更记录
 
+- 时间：2026-06-05 17:28
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\edge_tab_view.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修复与激活标签相邻的 hover 标签底部靠激活侧被绘制成直角的问题，改为绘制正圆角。
+- 原因：原路径在相邻侧跳过反圆角时直接使用直线连接，导致视觉上出现直角拐点。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/edge_tab_view.py`）
+
 - 时间：2026-06-05 09:28
 - 操作类型：修改
 - 影响文件：

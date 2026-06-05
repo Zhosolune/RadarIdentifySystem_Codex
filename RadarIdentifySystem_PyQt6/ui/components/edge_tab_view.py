@@ -509,6 +509,7 @@ class EdgeTabBar(QWidget):
         inner_right = rect.right()
         top_radius = float(EdgeTabItem._TOP_RADIUS)
         concave_radius = float(EdgeTabItem._CONCAVE_RADIUS)
+        bottom_radius = float(EdgeTabItem._CONCAVE_RADIUS)
         overlap = float(EdgeTabItem._OVERLAP)
         current_index = self.currentIndex()
         item_index = self.items.index(item)
@@ -517,7 +518,11 @@ class EdgeTabBar(QWidget):
         draw_right_concave = current_index < 0 or item_index != current_index - 1
 
         path = QPainterPath()
-        path.moveTo(inner_left - overlap if draw_left_concave else inner_left, bottom)
+        if draw_left_concave:
+            path.moveTo(inner_left - overlap, bottom)
+        else:
+            path.moveTo(inner_left + bottom_radius, bottom)
+
         if draw_left_concave:
             path.cubicTo(
                 inner_left - overlap / 2,
@@ -528,7 +533,8 @@ class EdgeTabBar(QWidget):
                 bottom - concave_radius,
             )
         else:
-            path.lineTo(inner_left, bottom)
+            # 与激活标签相邻时，靠激活标签一侧绘制普通正圆角。
+            path.quadTo(inner_left, bottom, inner_left, bottom - bottom_radius)
 
         path.lineTo(inner_left, top + top_radius)
         path.quadTo(inner_left, top, inner_left + top_radius, top)
@@ -546,7 +552,9 @@ class EdgeTabBar(QWidget):
                 bottom,
             )
         else:
-            path.lineTo(inner_right, bottom)
+            # 与激活标签相邻时，靠激活标签一侧绘制普通正圆角。
+            path.lineTo(inner_right, bottom - bottom_radius)
+            path.quadTo(inner_right, bottom, inner_right - bottom_radius, bottom)
 
         path.closeSubpath()
         return path
