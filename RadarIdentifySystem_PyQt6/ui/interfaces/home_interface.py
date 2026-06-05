@@ -12,7 +12,7 @@ from qfluentwidgets import (
 )
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
-from ui.components.import_data_panel import ImportDataPanel
+from ui.components import ImportDataPanel, JitterFreeCardGroup
 
 
 class HomeInterface(QFrame):
@@ -147,11 +147,11 @@ class HomeInterface(QFrame):
         scroll_content.setObjectName("homeRightScrollContent")
 
         content_layout = QVBoxLayout(scroll_content)
-        content_layout.setContentsMargins(12, 12, 12, 12)
+        content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(12)
 
-        # ---------- SettingCardGroup：数据目录 ----------
-        data_dir_group = SettingCardGroup("导入数据目录", scroll_content)
+        # ---------- JitterFreeCardGroup ----------
+        data_dir_group = JitterFreeCardGroup(scroll_content)
 
         # FolderListSettingCard：自动从 appConfig.importDataDirs 读写
         # directory 参数指定"添加文件夹"对话框的初始目录

@@ -1579,6 +1579,72 @@
 
 ---
 
+## 2026-06-05 15:31
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：删除导入数据表格页的零边距包装布局，直接将 `_FileTableWidget` 添加到 `EdgeTabWidget` 内容区。
+- 原因：当前不再需要额外布局控制表格与内容区的内边距，直接挂载表格即可满足 UI 要求。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`）
+
+---
+
+## 2026-06-05 15:27
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将导入数据表格表头水平内边距调整为 16px，使表头文本与组件库默认单元格文本起点一致。
+- 原因：组件库默认单元格左内边距为 16px，表头左内边距为 5px，导致同为左对齐但视觉起点不一致。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`）
+
+---
+
+## 2026-06-05 15:23
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：移除导入数据表格主体的自定义 QSS 覆盖，恢复 `TableWidget` 组件库默认行样式，仅保留表头边框的局部调整。
+- 原因：此前直接覆盖 `TableWidget` 样式导致选中态、行背景和内边距偏离组件库默认表现。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`）
+
+---
+
+## 2026-06-05 15:19
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：为导入数据表格的 Excel、Bin、MAT 标签页各填充 10 条临时示例文件数据，用于预览表格显示效果。
+- 原因：用户需要查看表格视觉效果。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`）
+
+---
+
+## 2026-06-05 15:09
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：隐藏导入数据表格外框和单元格框线，仅保留表头与内容区分隔线，并为表格页增加左右内间距。
+- 原因：满足导入数据表格视觉细节调整需求。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`）
+
+---
+
+## 2026-06-05 14:59
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将导入数据面板中 `EdgeTabWidget` 的标签页内容替换为组件库 `TableWidget` 表格，表头为文件名、修改日期、大小，并按 4:3:1 设置列宽。
+- 原因：满足导入数据内容区改用组件库表格控件的 UI 要求。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`）
+
+---
+
 ## 2026-04-02 16:10
 - 操作类型：重构
 - 影响文件：
