@@ -16,6 +16,7 @@ from qfluentwidgets import (Action, SimpleCardWidget, CommandBar, ToolTipFilter,
                             MenuIndicatorType, TransparentPushButton, setFont)
 
 from ui.components.edge_tab_view import EdgeTabWidget
+from app.custom_icon import CustomIcon
 
 
 class _FileTableWidget(TableWidget):
@@ -137,9 +138,9 @@ class ImportDataPanel(SimpleCardWidget):
 
     # 三个标签的路由键、显示文字、图标
     _TABS: list[tuple[str, str, FluentIcon]] = [
-        ("excel", "Excel", FluentIcon.DOCUMENT),
-        ("bin",   "Bin",   FluentIcon.ZIP_FOLDER),
-        ("mat",   "MAT",   FluentIcon.LAYOUT),
+        ("excel", "Excel", CustomIcon.EXCELFILE),
+        ("bin",   "Bin",   CustomIcon.BINARYFILE),
+        ("mat",   "MAT",   CustomIcon.MATRIXFILE),
     ]
     _SAMPLE_FILES: list[tuple[str, str, str]] = [
         ("radar_echo_001.xlsx", "2026-06-05 09:12", "2.4 MB"),
@@ -191,7 +192,7 @@ class ImportDataPanel(SimpleCardWidget):
         self.ascendAction.setChecked(True)
         self.oldFormatAction.setChecked(True)
 
-        self.parseButton = TransparentPushButton("解析",self, FluentIcon.EDIT)
+        self.parseButton = TransparentPushButton("解析",self, FluentIcon.LABEL)
 
         self._init_ui()
 
@@ -248,7 +249,7 @@ class ImportDataPanel(SimpleCardWidget):
         # ── 2. 仿 Edge 标签页容器 ──────────────────────────────────────
         self.tab_widget = EdgeTabWidget(self)
         self.tab_widget.setObjectName("importEdgeTab")
-        self.tab_widget.setTabMaximumWidth(150)
+        self.tab_widget.setTabMaximumWidth(100)
 
         for route_key, text, icon in self._TABS:
             table = _FileTableWidget(self.tab_widget)

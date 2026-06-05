@@ -19,6 +19,9 @@ class CustomIcon(FluentIconBase, Enum):
     CHEVRON_RIGHT = "ChevronRight"
     CHEVRONS_LEFT = "ChevronsLeft"
     CHEVRONS_RIGHT = "ChevronsRight"
+    EXCELFILE = "ExcelFile"
+    BINARYFILE = "BinaryFile"
+    MATRIXFILE = "MatrixFile"
 
     def path(self, theme=Theme.AUTO) -> str:
         """获取图标的 QRC 资源路径。
