@@ -52,7 +52,10 @@ class IdentifyController(QObject):
         self.view = view
         self._processing_dialog = None
         self._current_cluster_index = 0
+        self._connect_signals()
 
+    def _connect_signals(self) -> None:
+        """连接识别相关按钮点击事件。"""
         # 绑定按钮点击事件
         self.view.navigation_control_card.start_recognition_button.clicked.connect(self.handle_identify)
         
