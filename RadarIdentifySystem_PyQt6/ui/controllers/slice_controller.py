@@ -65,7 +65,16 @@ class SliceController(QObject):
         self.view = view
         self._processing_dialog = None
         self._current_slice_index = 0
+        self._connect_signals()
 
+        # 状态自检定时器
+        self._check_timer = QTimer(self.view)
+        self._check_timer.timeout.connect(self._check_workflow_state)
+        self._check_timer.start(1000)
+
+    def _connect_signals(self) -> None:
+        """连接切片相关按钮点击事件。"""
+        
         # 绑定按钮点击事件
         self.view.navigation_control_card.start_slicing_button.clicked.connect(self.handle_slice)
         
@@ -79,11 +88,6 @@ class SliceController(QObject):
 
         # 绑定重绘请求信号
         self.view.redraw_option_card.redraw_requested.connect(self._on_redraw_requested)
-
-        # 状态自检定时器
-        self._check_timer = QTimer(self.view)
-        self._check_timer.timeout.connect(self._check_workflow_state)
-        self._check_timer.start(1000)
 
     def _check_workflow_state(self) -> None:
         """定期检查工作流状态，防止信号丢失导致 UI 卡死。
