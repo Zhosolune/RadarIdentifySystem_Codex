@@ -13,6 +13,7 @@ from qfluentwidgets import (
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
 from ui.components import ImportDataPanel, JitterFreeCardGroup
+from ui.controllers.home_controller import HomeController
 
 
 class HomeInterface(QFrame):
@@ -54,6 +55,7 @@ class HomeInterface(QFrame):
         self.setObjectName("homeInterface")
         self._init_layout()
         StyleSheet.HOME_INTERFACE.apply(self)
+        self._home_controller = HomeController(self)
 
     def _init_layout(self) -> None:
         """初始化两栏布局。

@@ -1,5 +1,27 @@
 # 变更记录
 
+- 时间：2026-06-09 09:44
+- 操作类型：重构与修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\import_file_scanner.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将导入文件扫描能力封装为 `ImportFileScanner` 类，并取消导入目录列表变化时的自动刷新。
+- 原因：用户要求目录变化不触发扫描刷新，同时让扫描功能以类形式组织。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/infra/import_file_scanner.py RadarIdentifySystem_PyQt6/ui/controllers/home_controller.py`；`ImportFileScanner` 临时目录分类验证通过）
+
+- 时间：2026-06-09 09:08
+- 操作类型：新增与修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\import_file_scanner.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：实现首页导入目录直属文件扫描功能，将 Excel、Bin、MAT 文件分类填充到导入数据面板对应标签页，并接入目录变化与刷新按钮。
+- 原因：用户要求根据首页右侧导入目录列表扫描对应格式文件，并遵守 UI 控制器与 infra 适配层分离的项目约束。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/infra/import_file_scanner.py RadarIdentifySystem_PyQt6/ui/controllers/home_controller.py RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py RadarIdentifySystem_PyQt6/ui/interfaces/home_interface.py`；临时目录扫描分类验证通过）
+
 - 时间：2026-06-05 17:28
 - 操作类型：修改
 - 影响文件：

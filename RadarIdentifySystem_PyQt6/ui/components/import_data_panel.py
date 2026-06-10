@@ -142,19 +142,6 @@ class ImportDataPanel(SimpleCardWidget):
         ("bin",   "Bin",   CustomIcon.BINARYFILE),
         ("mat",   "MAT",   CustomIcon.MATRIXFILE),
     ]
-    _SAMPLE_FILES: list[tuple[str, str, str]] = [
-        ("radar_echo_001.xlsx", "2026-06-05 09:12", "2.4 MB"),
-        ("radar_echo_002.xlsx", "2026-06-05 09:35", "3.1 MB"),
-        ("pulse_train_alpha.xlsx", "2026-06-05 10:08", "856 KB"),
-        ("pulse_train_beta.xlsx", "2026-06-05 10:42", "1.7 MB"),
-        ("signal_feature_set.xlsx", "2026-06-05 11:03", "4.6 MB"),
-        ("target_profile_a.xlsx", "2026-06-05 11:28", "938 KB"),
-        ("target_profile_b.xlsx", "2026-06-05 13:16", "1.2 MB"),
-        ("frequency_scan_01.xlsx", "2026-06-05 13:44", "5.8 MB"),
-        ("frequency_scan_02.xlsx", "2026-06-05 14:05", "6.3 MB"),
-        ("识别样本预览.xlsx", "2026-06-05 14:37", "742 KB"),
-    ]
-
     def __init__(self, parent: QWidget | None = None) -> None:
         """
         Args:
@@ -254,8 +241,7 @@ class ImportDataPanel(SimpleCardWidget):
         for route_key, text, icon in self._TABS:
             table = _FileTableWidget(self.tab_widget)
             self.file_pages[route_key] = table
-            # 临时填充示例数据，便于检查表格视觉效果。
-            table.set_files(self._build_sample_files(text))
+            table.set_files([])
             self.tab_widget.addTab(table, text, icon, route_key)
 
         tab_layout = QHBoxLayout()
@@ -265,6 +251,24 @@ class ImportDataPanel(SimpleCardWidget):
 
         # 初始选中第一个标签
         self.tab_widget.setCurrentIndex(0)
+
+    def set_files_by_type(self, files_by_type: dict[str, list[tuple[str, str, str]]]) -> None:
+        """按文件格式刷新各标签页表格。
+
+        Args:
+            files_by_type: 文件格式到表格行的映射，键为 ``excel``、``bin``、``mat``；
+                每行依次为文件名、修改日期、大小。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常；未知格式键会被忽略。
+
+        """
+        for route_key, table in self.file_pages.items():
+            # 未提供的格式按空列表处理，避免保留旧扫描结果。
+            table.set_files(files_by_type.get(route_key, []))
 
     def createSortCheckableMenu(self, pos=None) -> QMenu:
         """创建可选菜单。
@@ -297,19 +301,3 @@ class ImportDataPanel(SimpleCardWidget):
             menu.exec(pos, ani=True)
 
         return menu
-
-    def _build_sample_files(self, tab_name: str) -> list[tuple[str, str, str]]:
-        """生成当前标签页的示例文件列表。
-
-        Args:
-            tab_name: 当前标签页显示名称。
-
-        Returns:
-            示例文件信息列表，每项依次为文件名、修改日期、大小。
-        """
-        suffix_map = {"Excel": "xlsx", "Bin": "bin", "MAT": "mat"}
-        suffix = suffix_map.get(tab_name, tab_name.lower())
-        return [
-            (name.replace(".xlsx", f".{suffix}"), modified_time, size)
-            for name, modified_time, size in self._SAMPLE_FILES
-        ]
