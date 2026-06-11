@@ -1,5 +1,31 @@
 # 变更记录
 
+- 时间：2026-06-10 16:27
+- 操作类型：重构与修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\utils\paths.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\app\app_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\import_file_list_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\config\config.json`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增导入文件列表 JSON 持久化，并统一开发/打包阶段配置与日志目录路径策略。
+- 原因：用户要求文件列表操作结果持久化保存，且开发阶段文件落在项目目录，打包发布后落在用户目录。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/utils/paths.py RadarIdentifySystem_PyQt6/app/app_config.py RadarIdentifySystem_PyQt6/app/logger.py RadarIdentifySystem_PyQt6/infra/import_file_list_store.py RadarIdentifySystem_PyQt6/infra/import_file_list_manager.py RadarIdentifySystem_PyQt6/ui/controllers/home_controller.py`；源码运行路径验证指向项目内 config/logs；临时 JSON 验证扫描合并、排序保存、移除忽略与重新加载通过）
+
+- 时间：2026-06-10 15:30
+- 操作类型：重构与修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\import_file_scanner.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将导入文件类重命名为 `ImportFileListManager`，并接入命令栏移除、按名称/大小/修改日期排序与升降序排序功能。
+- 原因：用户要求封装类承担移除和排序逻辑，类名不再局限于扫描职责。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/infra/import_file_list_manager.py RadarIdentifySystem_PyQt6/ui/controllers/home_controller.py RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`；临时目录验证扫描、排序、移除通过）
+
 - 时间：2026-06-09 09:44
 - 操作类型：重构与修改
 - 影响文件：

@@ -9,7 +9,7 @@ from qfluentwidgets import (
     QConfig, qconfig, Theme, setTheme, setThemeColor,
 )
 
-from utils.paths import get_config_file_path
+from utils.paths import get_config_file_path, get_log_dir
 
 
 class AppConfig(QConfig):
@@ -32,7 +32,7 @@ class AppConfig(QConfig):
     logDir = ConfigItem(
         "System",
         "LogDir",
-        str(Path.home() / ".RadarIdentifySystem" / "logs"),
+        str(get_log_dir()),
     )
 
     # 界面缩放 ─────────────────────────────────────────────────────────────────

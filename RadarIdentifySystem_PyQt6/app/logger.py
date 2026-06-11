@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Final
 from typing import Optional
 
+from utils.paths import get_log_dir
 
-_DEFAULT_LOG_DIR: Final[Path] = Path.home() / ".RadarIdentifySystem" / "logs"
+
+_DEFAULT_LOG_DIR: Final[Path] = get_log_dir()
 _RUN_TIMESTAMP: Final[str] = datetime.now().strftime("%y%m%d_%H%M%S")
 _RUN_LOG_FILE_NAME: Final[str] = f"RadarIdentifySystem_run_{_RUN_TIMESTAMP}.log"
 _CURRENT_LOG_FILE_PATH: Optional[Path] = None

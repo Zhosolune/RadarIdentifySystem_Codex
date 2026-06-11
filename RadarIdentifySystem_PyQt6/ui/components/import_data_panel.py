@@ -43,6 +43,7 @@ class _FileTableWidget(TableWidget):
         self.setBorderVisible(False)
         self.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
         self.setSelectionMode(TableWidget.SelectionMode.SingleSelection)
+        self.setSelectionBehavior(TableWidget.SelectionBehavior.SelectRows)
 
         header = self.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
@@ -269,6 +270,77 @@ class ImportDataPanel(SimpleCardWidget):
         for route_key, table in self.file_pages.items():
             # 未提供的格式按空列表处理，避免保留旧扫描结果。
             table.set_files(files_by_type.get(route_key, []))
+
+    def current_format_key(self) -> str:
+        """返回当前激活标签页对应的格式键。
+
+        Args:
+            无。
+
+        Returns:
+            当前格式键，可能为 ``excel``、``bin``、``mat``；索引异常时返回空字符串。
+
+        Raises:
+            无显式抛出异常。
+        """
+        current_index = self.tab_widget.currentIndex()
+        if not (0 <= current_index < len(self._TABS)):
+            return ""
+        return self._TABS[current_index][0]
+
+    def current_selected_row(self) -> int:
+        """返回当前标签页选中的表格行索引。
+
+        Args:
+            无。
+
+        Returns:
+            选中行索引；没有选中行时返回 -1。
+
+        Raises:
+            无显式抛出异常。
+        """
+        format_key = self.current_format_key()
+        table = self.file_pages.get(format_key)
+        if table is None:
+            return -1
+
+        selected_ranges = table.selectedRanges()
+        if not selected_ranges:
+            return -1
+        return selected_ranges[0].topRow()
+
+    def current_sort_key(self) -> str:
+        """返回当前选择的排序字段。
+
+        Args:
+            无。
+
+        Returns:
+            排序字段，取值为 ``name``、``size``、``date``。
+
+        Raises:
+            无显式抛出异常。
+        """
+        if self.sizeAction.isChecked():
+            return "size"
+        if self.dateAction.isChecked():
+            return "date"
+        return "name"
+
+    def is_sort_ascending(self) -> bool:
+        """返回当前是否为升序排序。
+
+        Args:
+            无。
+
+        Returns:
+            True 表示升序，False 表示降序。
+
+        Raises:
+            无显式抛出异常。
+        """
+        return not self.descendAction.isChecked()
 
     def createSortCheckableMenu(self, pos=None) -> QMenu:
         """创建可选菜单。
