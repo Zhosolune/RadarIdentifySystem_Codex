@@ -246,6 +246,29 @@ class ImportFileListManager:
             for format_key, entries in self.files_by_type.items()
         }
 
+    def get_entry_at(self, format_key: str, row_index: int) -> ImportFileEntry | None:
+        """获取指定格式与表格行对应的文件条目。
+
+        Args:
+            format_key: 文件格式键，取值通常为 ``excel``、``bin`` 或 ``mat``。
+            row_index: 当前表格中的行索引，必须大于或等于 0。
+
+        Returns:
+            匹配到的文件条目；格式键不存在或行号越界时返回 None。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> manager = ImportFileListManager()
+            >>> manager.get_entry_at("excel", -1) is None
+            True
+        """
+        rows = self.files_by_type.get(format_key)
+        if rows is None or not (0 <= row_index < len(rows)):
+            return None
+        return rows[row_index]
+
     def _entries_from_state(self, state: dict[str, Any]) -> dict[str, list[ImportFileEntry]]:
         """从 JSON 状态构建文件条目分组。"""
         entries_by_type = self._empty_entries()

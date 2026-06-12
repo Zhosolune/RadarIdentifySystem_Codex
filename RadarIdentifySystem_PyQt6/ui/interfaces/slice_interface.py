@@ -5,13 +5,13 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from PyQt6.QtGui import QColor
-from qfluentwidgets import  TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, PushButton, SimpleCardWidget, ScrollArea, qconfig
+from qfluentwidgets import  TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, SimpleCardWidget, ScrollArea, qconfig
 
 from app.custom_icon import CustomIcon
+from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession
 from ui.components import SliceDimensionCard, NavigationControlCard, PlotOptionCard, RedrawOptionCard, ExportOptionCard, JitterFreeCardGroup
-from ui.controllers.import_controller import ImportController
 from ui.controllers.slice_controller import SliceController
 from ui.controllers.identify_controller import IdentifyController
 
@@ -71,13 +71,32 @@ class SliceInterface(QFrame):
         from app.app_config import appConfig
         appConfig.plotScaleMode.valueChanged.connect(self._on_plot_scale_mode_changed)
         
-        # 为了测试新架构，界面持有一个测试用的 Session 引用
+        # 当前处理会话由首页解析流程通过 signal_bus 注入。
         self._test_session = ProcessingSession()
-        
+        signal_bus.import_completed.connect(self._on_import_completed)
+
         # 初始化控制器，将业务逻辑抽离
-        self._import_controller = ImportController(self)
         self._slice_controller = SliceController(self)
         self._identify_controller = IdentifyController(self)
+
+    def _on_import_completed(self, session: ProcessingSession) -> None:
+        """接收导入完成会话并作为切片页当前会话。
+
+        Args:
+            session: 首页解析流程完成后广播的处理会话。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> from core.models.processing_session import ProcessingSession
+            >>> isinstance(ProcessingSession(), ProcessingSession)
+            True
+        """
+        self._test_session = session
 
     def _init_layout(self) -> None:
         """初始化三栏主布局。
@@ -297,8 +316,6 @@ class SliceInterface(QFrame):
         control_panel_layout.setContentsMargins(12, 12, 12, 12)
         control_panel_layout.setSpacing(5)
         
-        self.import_data_button = PushButton("从 Excel 导入数据", self.right_panel_card)
-
         # 所有的卡片组件用 JitterFreeCardGroup 包裹，放入右侧面板
         cards_group = JitterFreeCardGroup(self.right_panel_card)
         
@@ -319,7 +336,6 @@ class SliceInterface(QFrame):
         cards_group.addSettingCard(self.redraw_option_card)
         cards_group.addSettingCard(self.export_path_card)
         
-        control_panel_layout.addWidget(self.import_data_button)
         control_panel_layout.addWidget(cards_group)
 
         self.panel_area_layout.addWidget(self.right_panel_card)

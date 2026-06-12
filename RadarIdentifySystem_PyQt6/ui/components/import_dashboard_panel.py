@@ -26,6 +26,33 @@ from qfluentwidgets import (
 from ui.components.edge_tab_view import EdgeTabWidget
 
 
+def format_dashboard_duration(duration: float) -> str:
+    """格式化仪表盘持续时间。
+
+    Args:
+        duration: 持续时间，单位为 0.1us，必须大于或等于 0。
+
+    Returns:
+        适合仪表盘展示的持续时间文本；不超过 1000ms 时使用 ms，超过
+        1000ms 时使用 s，超过 60s 时使用 min。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> format_dashboard_duration(10_000)
+        '1.00 ms'
+        >>> format_dashboard_duration(10_010_000)
+        '1.00 s'
+    """
+    milliseconds = max(float(duration), 0.0) / 10_000
+    if milliseconds > 60_000:
+        return f"{milliseconds / 60_000:.2f} min"
+    if milliseconds > 1_000:
+        return f"{milliseconds / 1_000:.2f} s"
+    return f"{milliseconds:.2f} ms"
+
+
 @dataclass(frozen=True)
 class DashboardMetric:
     """仪表盘指标项。

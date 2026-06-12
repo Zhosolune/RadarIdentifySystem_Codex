@@ -1,5 +1,39 @@
 # 变更记录
 
+- 时间：2026-06-13 09:45
+- 操作类型：重构
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_dashboard_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始将仪表盘持续时间格式化函数从首页控制器迁移到仪表盘组件模块。
+- 原因：持续时间单位切换属于仪表盘展示格式规则，不应沉淀在负责流程编排的 controller 中。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\import_dashboard_panel.py RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py` 通过；`git diff --check` 通过，仅有 Git 换行提示）
+
+- 时间：2026-06-13 09:20
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始为首页 Excel 解析流程添加处理蒙版动画，并调整仪表盘持续时间单位格式化规则。
+- 原因：解析过程需要与识别流程一致的阻塞式处理反馈；持续时间卡片需要按 ms/s/min 自动选择更合适的显示单位。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_core_dashboard_info.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py` 通过）
+
+- 时间：2026-06-12 20:05
+- 操作类型：新增、修改与删除
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\import_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始将 Excel 解析入口收敛到首页文件列表选中项与解析按钮，并删除切片页临时导入按钮及控制器逻辑。
+- 原因：用户确认正常流程应从首页 Excel 文件列表触发解析，切片界面临时导入按钮后续废弃，统一使用 session 驱动流程。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_import_file_list_manager.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_core_dashboard_info.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\import_file_list_manager.py RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py RadarIdentifySystem_PyQt6\tests\unit\test_import_file_list_manager.py` 通过；残留检查确认切片页临时数据导入按钮与 ImportController 引用已删除）
+
 - 时间：2026-06-12 19:20
 - 操作类型：新增与修改
 - 影响文件：
