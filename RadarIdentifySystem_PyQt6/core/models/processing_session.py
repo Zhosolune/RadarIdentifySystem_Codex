@@ -30,6 +30,7 @@ import threading
 
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult, SliceResult
+from core.models.dashboard_info import FileDashboardInfo
 from core.models.cluster_result import ClusteringResult
 from core.models.recognition_result import RecognitionResult
 
@@ -116,6 +117,7 @@ class ProcessingSession:
         stage (ProcessingStage): 当前已完成的最高阶段。
         raw_batch (PulseBatch | None): 导入并归一化列顺序后的原始脉冲数据。
         preprocess_result (PreprocessResult | None): PA 清洗 + TOA 翻折修复结果。
+        dashboard_info (FileDashboardInfo | None): 文件仪表盘摘要信息。
         slice_result (SliceResult | None): TOA 时间切片结果。
         cluster_result (Any | None): CF/PW 聚类结果（P04 落地后替换为具体类型）。
         slice_processing_states (dict[int, SliceProcessingState]): 切片级局部状态映射。
@@ -145,6 +147,7 @@ class ProcessingSession:
     # ── P03：导入与预处理产物 ─────────────────────────────────────────
     raw_batch: Optional[PulseBatch] = field(default=None)
     preprocess_result: Optional[PreprocessResult] = field(default=None)
+    dashboard_info: Optional[FileDashboardInfo] = field(default=None)
     slice_result: Optional[SliceResult] = field(default=None)
 
     # ── P04：聚类产物（待 P04 完成后替换 Any 为具体类型） ────────────────

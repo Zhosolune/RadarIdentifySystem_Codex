@@ -27,6 +27,7 @@ from typing import Optional
 
 import numpy as np
 
+from core.dashboard_info import DashboardInfoManager
 from core.models.pulse_batch import COL_CF, COL_PA, COL_TOA
 from core.models.slice_result import PreprocessResult
 
@@ -268,7 +269,7 @@ def preprocess(
         extra={"session_id": session_id},
     )
 
-    return PreprocessResult(
+    result = PreprocessResult(
         data=fixed,
         total_pulses=total_pulses,
         filtered_pulses=filtered_pulses,
@@ -277,3 +278,10 @@ def preprocess(
         estimated_slice_count=estimated_slice_count,
         band=band,
     )
+    # 预处理阶段统一生成轻量摘要，供 UI 仪表盘只读展示。
+    result.dashboard_info = DashboardInfoManager().build(
+        source_type,
+        result,
+        slice_length=slice_length,
+    )
+    return result

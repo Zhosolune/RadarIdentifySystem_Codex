@@ -217,9 +217,7 @@ class HomeInterface(QFrame):
         metrics = [
             DashboardMetric("总脉冲", "--"),
             DashboardMetric("剔除脉冲", "--"),
-            DashboardMetric("F26丢弃", "--"),
             DashboardMetric("幅度丢弃", "--"),
-            DashboardMetric("剩余脉冲", "--"),
             DashboardMetric("持续时间", "--"),
             DashboardMetric("波段", "--"),
             DashboardMetric("预计切片数", "--"),

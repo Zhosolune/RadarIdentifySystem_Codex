@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from core.models.dashboard_info import FileDashboardInfo
+
 
 @dataclass
 class PreprocessResult:
@@ -28,6 +30,7 @@ class PreprocessResult:
         time_range (float): 有效 TOA 的时间跨度（0.1us）。
         estimated_slice_count (int): 按默认 250ms 估算的切片数量。
         band (str | None): 根据 CF 均值推断的频段名称；<1000MHz 时为 None。
+        dashboard_info (FileDashboardInfo | None): 预处理完成后生成的仪表盘摘要信息。
     """
 
     data: np.ndarray
@@ -37,6 +40,7 @@ class PreprocessResult:
     time_range: float = 0.0
     estimated_slice_count: int = 0
     band: str | None = None
+    dashboard_info: FileDashboardInfo | None = None
 
     @property
     def remaining_pulses(self) -> int:

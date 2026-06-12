@@ -7,8 +7,12 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import QObject, QTimer
 from qfluentwidgets import qconfig
 
+from app.signal_bus import signal_bus
 from app.app_config import appConfig
+from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.processing_session import ProcessingSession
 from infra.import_file_list_manager import ImportFileListManager
+from ui.components import DashboardMetric, DashboardPage
 
 if TYPE_CHECKING:
     from ui.interfaces.home_interface import HomeInterface
@@ -129,6 +133,46 @@ class HomeController(QObject):
             self.view.import_panel.descendAction,
         ):
             action.triggered.connect(lambda _checked=False: self.apply_sort())
+        signal_bus.import_completed.connect(self.render_import_dashboard)
+
+    def render_import_dashboard(self, session: ProcessingSession) -> None:
+        """根据导入会话刷新仪表盘摘要。
+
+        Args:
+            session: 已完成导入和预处理的处理会话。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> from core.models.processing_session import ProcessingSession
+            >>> isinstance(ProcessingSession(), ProcessingSession)
+            True
+        """
+        dashboard_info = session.dashboard_info
+        if not isinstance(dashboard_info, ExcelDashboardInfo):
+            return
+
+        metrics = [
+            DashboardMetric("总脉冲", str(dashboard_info.total_pulses)),
+            DashboardMetric("剔除脉冲", str(dashboard_info.removed_pulses)),
+            DashboardMetric("幅度丢弃", str(dashboard_info.amplitude_dropped_pulses)),
+            DashboardMetric("持续时间", self._format_duration(dashboard_info.duration)),
+            DashboardMetric("波段", dashboard_info.band or "--"),
+            DashboardMetric("预计切片数", str(dashboard_info.estimated_slice_count)),
+        ]
+        self.view.dashboard_panel.set_dashboard_pages(
+            [
+                DashboardPage(
+                    route_key="excel_info",
+                    title="文件信息",
+                    metrics=metrics,
+                )
+            ]
+        )
 
     def _get_import_directories(self) -> list[str]:
         """读取当前持久化的导入目录列表。"""
@@ -136,3 +180,7 @@ class HomeController(QObject):
         if not isinstance(configured_dirs, list):
             return []
         return [directory for directory in configured_dirs if isinstance(directory, str)]
+
+    def _format_duration(self, duration: float) -> str:
+        """将 0.1us 持续时间格式化为仪表盘显示文本。"""
+        return f"{duration / 10_000:.2f} ms"

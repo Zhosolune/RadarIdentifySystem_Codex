@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import logging
 
-import numpy as np
-import pandas as pd
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from core.models.pulse_batch import PulseBatch, COL_CF, COL_PW, COL_DOA, COL_PA, COL_TOA
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.preprocess import preprocess
+from infra.parsers import ExcelPulseParser
 
 LOGGER = logging.getLogger(__name__)
 
@@ -19,9 +17,9 @@ class ImportWorker(QThread):
     """Excel数据导入与预处理后台线程。
 
     功能描述：
-        在子线程中读取 Excel 文件，提取指定列数据并组合为 Numpy 数组。
-        随后调用 core/preprocess.py 中的纯函数进行数据清洗与修正，
-        并将结果装配到指定的 Session 对象中。
+        在子线程中调用 infra 解析器读取 Excel 文件，随后调用
+        core/preprocess.py 中的纯函数进行数据清洗与修正，并将结果装配到
+        指定的 Session 对象中。
 
     参数说明：
         session (ProcessingSession): 需要写入数据的会话对象。
@@ -51,39 +49,42 @@ class ImportWorker(QThread):
         self._session = session
         self._file_path = file_path
 
+    @property
+    def session(self) -> ProcessingSession:
+        """返回当前线程写入的处理会话。
+
+        Args:
+            无。
+
+        Returns:
+            当前导入线程持有的处理会话对象。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> from core.models.processing_session import ProcessingSession
+            >>> worker = ImportWorker(ProcessingSession(), "demo.xlsx")
+            >>> worker.session is not None
+            True
+        """
+        return self._session
+
     def run(self) -> None:
         """执行导入与预处理任务。
 
         功能描述：
-            读取 Excel，提取 CF/PW/DOA/PA/TOA 列数据，转换 TOA 单位为 ms。
+            调用 ExcelPulseParser 读取并归一化 Excel 数据。
             调用 preprocess() 获取清洗后的 PreprocessResult。
             将结果赋给 Session，并发送完成信号。
         """
         try:
             LOGGER.info("开始导入并预处理数据", extra={"session_id": self._session.session_id})
-            df = pd.read_excel(self._file_path)
-            data_tmp = df.values
-
-            # 提取需要的列 (与旧版保持一致：CF, PW, DOA, PA, TOA)
-            CF = data_tmp[:, 1]
-            PW = data_tmp[:, 2]
-            DOA = data_tmp[:, 4]
-            PA = data_tmp[:, 5]
-            TOA = data_tmp[:, 7]  # 保持原始单位 0.1us，不转换
-
-            # 构造按照预定义顺序对齐的数组
-            raw_data = np.zeros((len(data_tmp), 5))
-            raw_data[:, COL_CF] = CF
-            raw_data[:, COL_PW] = PW
-            raw_data[:, COL_DOA] = DOA
-            raw_data[:, COL_PA] = PA
-            raw_data[:, COL_TOA] = TOA
-            
-            self._session.raw_batch = PulseBatch(raw_data)
+            batch = ExcelPulseParser().parse(self._file_path)
 
             # 调用 core 中的预处理纯函数
             preprocess_res = preprocess(
-                data=raw_data,
+                data=batch.data,
                 source_path=self._file_path,
                 source_type="excel",
                 slice_length=2_500_000,  # 250ms = 2,500,000 × 0.1us
@@ -92,8 +93,9 @@ class ImportWorker(QThread):
 
             # 将预处理结果写入 Session
             with self._session.lock:
-                self._session.raw_batch = PulseBatch(raw_data)
+                self._session.raw_batch = batch
                 self._session.preprocess_result = preprocess_res
+                self._session.dashboard_info = preprocess_res.dashboard_info
                 # 推进全局阶段
                 self._session.stage = ProcessingStage.PREPROCESSED
 

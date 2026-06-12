@@ -256,7 +256,7 @@ class SliceInterface(QFrame):
         return column
 
     def _create_right_column(self) -> QWidget:
-        """创建右侧空白业务列。
+        """创建右侧业务列。
 
         构建右侧占位区域，添加测试用按钮来驱动 workflow。
 

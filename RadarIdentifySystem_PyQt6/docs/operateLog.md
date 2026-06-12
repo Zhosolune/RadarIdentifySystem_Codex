@@ -1,5 +1,32 @@
 # 变更记录
 
+- 时间：2026-06-12 19:20
+- 操作类型：新增与修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\core\models\dashboard_info.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\core\dashboard_info.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\threading\import_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_core_dashboard_info.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始实现 Excel 解析完成后的仪表盘摘要信息链路，先补充核心测试，再接入 runtime 与首页展示。
+- 原因：用户要求仪表盘展示 Excel 预处理结果中的关键指标，并预留后续 bin/mat 类型的统一处理入口。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_core_dashboard_info.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\core\dashboard_info.py RadarIdentifySystem_PyQt6\core\models\dashboard_info.py RadarIdentifySystem_PyQt6\core\models\slice_result.py RadarIdentifySystem_PyQt6\core\models\processing_session.py RadarIdentifySystem_PyQt6\core\models\__init__.py RadarIdentifySystem_PyQt6\core\preprocess.py RadarIdentifySystem_PyQt6\runtime\threading\import_worker.py RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_core_dashboard_info.py` 通过；`pyqt6` 环境未安装 pytest，既有 `test_core_preprocess.py` 仍引用旧路径 `core.data.preprocess`，未作为本次通过依据）
+
+- 时间：2026-06-12 15:30
+- 操作类型：重构与新增
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\parsers.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\threading\import_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_infra_parsers.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将 Excel 固定列读取与 PulseBatch 构造从 ImportWorker 下沉到 infra 解析器，并补充解析器单元测试。
+- 原因：遵守 `ui -> runtime -> infra/core` 分层约束，让 runtime 只负责编排线程与会话写入。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/infra/parsers.py RadarIdentifySystem_PyQt6/runtime/threading/import_worker.py RadarIdentifySystem_PyQt6/tests/unit/test_infra_parsers.py`；使用 Codex Python 直接加载 `infra/parsers.py` 验证 Excel 列映射与 TOA 原始单位通过；当前默认 Python 缺 pandas，Codex Python 缺 matplotlib 且 `infra/__init__.py` 会预加载 plotting，未能直接运行完整单元测试文件）
+
 - 时间：2026-06-12 14:14
 - 操作类型：修改
 - 影响文件：
