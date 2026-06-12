@@ -12,7 +12,13 @@ from qfluentwidgets import (
 )
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
-from ui.components import ImportDataPanel, JitterFreeCardGroup
+from ui.components import (
+    DashboardMetric,
+    DashboardPage,
+    ImportDashboardPanel,
+    ImportDataPanel,
+    JitterFreeCardGroup,
+)
 from ui.controllers.home_controller import HomeController
 
 
@@ -176,6 +182,12 @@ class HomeInterface(QFrame):
         self.import_panel.setFixedHeight(420)
         content_layout.addWidget(self.import_panel)
 
+        # ---------- 仪表盘面板（动态标签页 + 流式指标卡） ----------
+        self.dashboard_panel = ImportDashboardPanel(scroll_content)
+        self.dashboard_panel.setFixedHeight(245)
+        self.dashboard_panel.set_dashboard_pages(self._build_default_dashboard_pages())
+        content_layout.addWidget(self.dashboard_panel)
+
         # 底部弹性空间（面板撑满后不再拉伸）
         content_layout.addStretch(1)
 
@@ -184,3 +196,38 @@ class HomeInterface(QFrame):
 
         column_layout.addWidget(scroll_area)
         return column
+
+    def _build_default_dashboard_pages(self) -> list[DashboardPage]:
+        """创建仪表盘占位页数据。
+
+        功能描述：
+            当前阶段尚未接入真实文件解析结果，先通过动态数据接口创建一个占位页。
+            后续可由控制器根据选中文件实际情况传入两个或三个标签页。
+
+        参数说明：
+            无。
+
+        返回值说明：
+            list[DashboardPage]: 仪表盘标签页数据列表。
+
+        异常说明：
+            无。
+        """
+
+        metrics = [
+            DashboardMetric("总脉冲", "--"),
+            DashboardMetric("剔除脉冲", "--"),
+            DashboardMetric("F26丢弃", "--"),
+            DashboardMetric("幅度丢弃", "--"),
+            DashboardMetric("剩余脉冲", "--"),
+            DashboardMetric("持续时间", "--"),
+            DashboardMetric("波段", "--"),
+            DashboardMetric("预计切片数", "--"),
+        ]
+        return [
+            DashboardPage(
+                route_key="file_info",
+                title="文件信息",
+                metrics=metrics,
+            )
+        ]

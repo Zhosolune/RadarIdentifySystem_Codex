@@ -12,6 +12,7 @@ from .jitter_free_container import JitterFreeCardGroup
 from .model_list_page import ModelListPage
 from .scrolling_name_label import ScrollingNameLabel
 from .import_data_panel import ImportDataPanel
+from .import_dashboard_panel import DashboardCard, DashboardMetric, DashboardPage, ImportDashboardPanel
 from .file_list_page import FileListPage
 from .file_item import FileItem
 
@@ -26,6 +27,10 @@ __all__ = [
     "ModelListPage",
     "ScrollingNameLabel",
     "ImportDataPanel",
+    "DashboardMetric",
+    "DashboardPage",
+    "DashboardCard",
+    "ImportDashboardPanel",
     "FileListPage",
     "FileItem",
 ]

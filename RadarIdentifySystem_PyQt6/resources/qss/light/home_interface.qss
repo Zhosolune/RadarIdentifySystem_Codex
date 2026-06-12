@@ -34,7 +34,31 @@ QWidget#homeRightScrollContent {
     qproperty-panelColor: rgba(0, 0, 0, 0.024);
 }
 
+#dashboardEdgeTab {
+    qproperty-panelColor: rgba(0, 0, 0, 0.024);
+}
+
 QWidget#edgeTabSeparator {
     background-color: rgba(0, 0, 0, 0.08);
     border: none;
+}
+
+QWidget#dashboardSeparator {
+    background-color: rgba(0, 0, 0, 0.08);
+    border: none;
+}
+
+BodyLabel#dashboardTitleLabel {
+    color: --ThemeColorPrimary;
+}
+
+#dashboardCard {
+    background-color: rgba(255, 255, 255, 0.88);
+    border: none;
+    border-radius: 8px;
+}
+
+#dashboardMetricValue,
+#dashboardMetricName {
+    color: --ThemeColorPrimary;
 }

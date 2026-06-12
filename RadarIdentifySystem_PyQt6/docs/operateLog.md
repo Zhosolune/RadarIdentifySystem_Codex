@@ -1,5 +1,38 @@
 # 变更记录
 
+- 时间：2026-06-12 11:38
+- 操作类型：重构与修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_dashboard_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将仪表盘指标卡改为基于 QFrame 的无边框 DashboardCard，并调整右下阴影参数和主题样式。
+- 原因：组件库卡片自带边框强制覆盖后视觉不佳，需要使用更轻量的自定义卡片承载指标。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_dashboard_panel.py RadarIdentifySystem_PyQt6/ui/components/__init__.py`）
+
+- 时间：2026-06-12 11:09
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_dashboard_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：为仪表盘指标卡片增加右下方向阴影效果。
+- 原因：还原参考图中指标卡片的立体视觉效果。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_dashboard_panel.py`）
+
+- 时间：2026-06-12 09:46
+- 操作类型：新增与修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_dashboard_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：在文件列表卡片下方新增独立仪表盘卡片组件，使用普通水平标题栏、自定义圆角标签页与流式指标卡布局，并预留动态标签页数据接口。
+- 原因：用户要求按照参考图新增仪表盘卡片，并预留按实际数据动态创建标签页的方法。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_dashboard_panel.py RadarIdentifySystem_PyQt6/ui/components/edge_tab_view.py RadarIdentifySystem_PyQt6/ui/components/__init__.py RadarIdentifySystem_PyQt6/ui/interfaces/home_interface.py`；当前 shell 环境缺少 PyQt6，未能执行 offscreen 实例化验证，界面效果待应用运行环境目测）
+
 - 时间：2026-06-10 16:27
 - 操作类型：重构与修改
 - 影响文件：

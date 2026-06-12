@@ -181,6 +181,7 @@ class ImportDataPanel(SimpleCardWidget):
         self.oldFormatAction.setChecked(True)
 
         self.parseButton = TransparentPushButton("解析",self, FluentIcon.LABEL)
+        self.parseButton.setFixedHeight(34)
 
         self._init_ui()
 
@@ -222,7 +223,7 @@ class ImportDataPanel(SimpleCardWidget):
 
         # 添加命令栏的外层布局，以实现与边框的间距
         cmd_layout = QHBoxLayout()
-        cmd_layout.setContentsMargins(8, 8, 8, 8)
+        cmd_layout.setContentsMargins(8, 8, 8, 7)
         cmd_layout.addWidget(self.command_bar)
         cmd_layout.addStretch()
         cmd_layout.addWidget(self.parseButton)

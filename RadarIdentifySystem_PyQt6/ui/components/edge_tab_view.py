@@ -889,6 +889,32 @@ class EdgeTabWidget(QWidget):
         """返回标签页数量。"""
         return self.stackedWidget.count()
 
+    def clearTabs(self) -> None:
+        """清空所有标签页。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        while self.stackedWidget.count() > 0:
+            widget = self.stackedWidget.widget(0)
+            self.stackedWidget.removeWidget(widget)
+            widget.deleteLater()
+
+        while self.tabBar.items:
+            item = self.tabBar.items.pop(0)
+            self.tabBar._hLayout.removeWidget(item)
+            item.deleteLater()
+
+        self.tabBar._currentIndex = -1
+        self.tabBar.update()
+        self.update()
+
     def setTabMaximumWidth(self, width: int) -> None:
         """设置标签最大宽度。
 
