@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import (QHeaderView, QHBoxLayout, QVBoxLayout, QWidget, QTa
 
 from qfluentwidgets import (Action, SimpleCardWidget, CommandBar, ToolTipFilter, ToolTipPosition,
                             FluentIcon, TableWidget, TransparentDropDownPushButton, CheckableMenu, 
-                            MenuIndicatorType, TransparentPushButton, setFont)
+                            MenuIndicatorType, TransparentPushButton, setFont,
+                            InfoBar, InfoBarPosition)
 
 from ui.components.edge_tab_view import EdgeTabWidget
 from app.custom_icon import CustomIcon
@@ -184,6 +185,7 @@ class ImportDataPanel(SimpleCardWidget):
         self.parseButton.setFixedHeight(34)
 
         self._init_ui()
+        self._connect_menu_feedback()
 
     def _init_ui(self) -> None:
         """构建 CommandBar → EdgeTabWidget 两层 UI 结构。
@@ -342,6 +344,60 @@ class ImportDataPanel(SimpleCardWidget):
             无显式抛出异常。
         """
         return not self.descendAction.isChecked()
+
+    def _connect_menu_feedback(self) -> None:
+        """连接可选中菜单项的状态提示信号。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        action_messages = (
+            (self.nameAction, "排序字段", "名称"),
+            (self.sizeAction, "排序字段", "文件大小"),
+            (self.dateAction, "排序字段", "修改日期"),
+            (self.ascendAction, "排序方向", "升序"),
+            (self.descendAction, "排序方向", "降序"),
+            (self.oldFormatAction, "格式选项", "使用旧格式"),
+            (self.newFormatAction, "格式选项", "使用新格式"),
+        )
+        for action, title, value in action_messages:
+            action.triggered.connect(
+                lambda checked=False, current_action=action, current_title=title, current_value=value:
+                self._show_menu_selection_info(current_action, current_title, current_value)
+            )
+
+    def _show_menu_selection_info(self, action: Action, title: str, value: str) -> None:
+        """显示菜单选中状态提示。
+
+        Args:
+            action: 被触发的可选中菜单动作。
+            title: 提示标题。
+            value: 当前选中的值。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        if action.isCheckable() and not action.isChecked():
+            return
+
+        InfoBar.info(
+            title=title,
+            content=f"已选择：{value}",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=1800,
+            parent=self.window() or self,
+        )
 
     def createSortCheckableMenu(self, pos=None) -> QMenu:
         """创建可选菜单。

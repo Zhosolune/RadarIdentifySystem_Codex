@@ -1,5 +1,14 @@
 # 变更记录
 
+- 时间：2026-06-12 14:14
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：为导入数据面板排序和选项下拉菜单的选中项添加顶部居中 InfoBar 提示。
+- 原因：用户需要在选择可选中菜单项时明确看到当前选中状态。
+- 测试状态：已测试（`python -m compileall RadarIdentifySystem_PyQt6/ui/components/import_data_panel.py`）
+
 - 时间：2026-06-12 11:38
 - 操作类型：重构与修改
 - 影响文件：

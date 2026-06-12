@@ -131,7 +131,7 @@ class _DashboardPageWidget(QWidget):
     def _init_ui(self, metrics: list[DashboardMetric]) -> None:
         """构建流式指标卡布局。"""
         flow_layout = FlowLayout(self, needAni=False, isTight=True)
-        flow_layout.setContentsMargins(12, 12, 12, 12)
+        flow_layout.setContentsMargins(10, 8, 10, 8)
         flow_layout.setHorizontalSpacing(10)
         flow_layout.setVerticalSpacing(10)
 
