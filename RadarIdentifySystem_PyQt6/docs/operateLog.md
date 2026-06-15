@@ -1,5 +1,16 @@
 # 变更记录
 
+- 时间：2026-06-15 12:18
+- 操作类型：新增
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始实现独立抽屉组件，支持四方向展开、自由内容布局、按钮隐藏、信号/槽控制和深浅两色主题样式。
+- 原因：需要沉淀可复用的组件库风格抽屉能力，避免后续业务页面重复实现展开面板逻辑。
+- 测试状态：已测试（新增测试先因缺少 `ui.components.sliding_drawer` 失败；`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\ui\components\__init__.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过）
+
 - 时间：2026-06-15 11:30
 - 操作类型：修改
 - 影响文件：

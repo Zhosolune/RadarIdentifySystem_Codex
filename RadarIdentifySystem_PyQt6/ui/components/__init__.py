@@ -15,6 +15,7 @@ from .import_data_panel import ImportDataPanel
 from .import_dashboard_panel import DashboardCard, DashboardMetric, DashboardPage, ImportDashboardPanel
 from .file_list_page import FileListPage
 from .file_item import FileItem
+from .sliding_drawer import DrawerPosition, SlidingDrawer
 
 __all__ = [
     "ActionButtonCard",
@@ -33,4 +34,6 @@ __all__ = [
     "ImportDashboardPanel",
     "FileListPage",
     "FileItem",
+    "DrawerPosition",
+    "SlidingDrawer",
 ]
