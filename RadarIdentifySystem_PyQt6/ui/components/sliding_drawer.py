@@ -55,7 +55,8 @@ class SlidingDrawer(QWidget):
     _EDGE_SHADOW_WIDTH = 36
     _SHADOW_SOURCE = "qfluentwidgets/components/widgets/flyout.py: Flyout.setShadowEffect"
     _PANEL_BG_SOURCE = "qfluentwidgets/_rc/qss/{theme}/navigation_interface.qss: NavigationPanel[menu=true]"
-    _LIGHT_PANEL_BG = "rgb(243, 243, 243)"
+    # _LIGHT_PANEL_BG = "rgb(243, 243, 243)"
+    _LIGHT_PANEL_BG = "rgb(255, 255, 255)"
     _DARK_PANEL_BG = "rgb(32, 32, 32)"
     _LIGHT_PANEL_BORDER = "rgb(229, 229, 229)"
     _DARK_PANEL_BORDER = "rgb(57, 57, 57)"

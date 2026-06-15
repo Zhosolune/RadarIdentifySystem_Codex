@@ -83,7 +83,7 @@ class IdentifyController(QObject):
             无。
         """
         # 校验切片状态
-        if not self.view._test_session.is_sliced:
+        if not self.view._session.is_sliced:
             InfoBar.warning(
                 title="提示",
                 content="请先执行切片操作，再进行识别聚类。",
@@ -115,7 +115,7 @@ class IdentifyController(QObject):
         
         # 启动识别工作流，参数由 runtime 层内部自行获取
         identify_workflow.start_identify(
-            self.view._test_session,
+            self.view._session,
             slice_index=slice_index,
         )
 
@@ -168,7 +168,7 @@ class IdentifyController(QObject):
         Raises:
             无。
         """
-        if session_id != self.view._test_session.session_id or stage != "identifying":
+        if session_id != self.view._session.session_id or stage != "identifying":
             return
 
         if self._processing_dialog:
@@ -217,7 +217,7 @@ class IdentifyController(QObject):
             error_msg (str): 错误信息内容。
 
         """
-        if session_id != self.view._test_session.session_id or stage != "identifying":
+        if session_id != self.view._session.session_id or stage != "identifying":
             return
 
         if self._processing_dialog:
@@ -271,7 +271,7 @@ class IdentifyController(QObject):
             current_slice_index (int): 正在显示的切片索引。
 
         """
-        session = self.view._test_session
+        session = self.view._session
         if not session or not session.is_slice_recognized(current_slice_index):
             self.view.prev_cluster_button.setEnabled(False)
             self.view.next_cluster_button.setEnabled(False)
@@ -302,7 +302,7 @@ class IdentifyController(QObject):
         if reset_index:
             self._current_cluster_index = 0
             
-        session = self.view._test_session
+        session = self.view._session
         if not session or not session.is_slice_recognized(current_slice_index):
             self.clear_cluster_ui()
             self.update_cluster_navigation_buttons(current_slice_index)

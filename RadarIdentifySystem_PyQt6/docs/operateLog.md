@@ -1,5 +1,15 @@
 # 变更记录
 
+- 时间：2026-06-15 17:02
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将切片页右侧抽屉改名为参数配置抽屉，并让宽度与右侧栏一致。
+- 原因：抽屉不应继续使用演示命名和固定 320 宽度，参数配置抽屉需要与 `right_column` 保持同宽。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；轻量实例化输出 `580 580 False`）
+
 - 时间：2026-06-15 16:31
 - 操作类型：修改
 - 影响文件：

@@ -42,6 +42,8 @@ class SliceInterface(QFrame):
         无。
     """
 
+    RIGHT_COLUMN_WIDTH = 580
+
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化切片处理子页面。
 
@@ -81,7 +83,7 @@ class SliceInterface(QFrame):
         appConfig.plotScaleMode.valueChanged.connect(self._on_plot_scale_mode_changed)
         
         # 当前处理会话由首页解析流程通过 signal_bus 注入。
-        self._test_session = ProcessingSession()
+        self._session = ProcessingSession()
         signal_bus.import_completed.connect(self._on_import_completed)
 
         # 初始化控制器，将业务逻辑抽离
@@ -105,7 +107,7 @@ class SliceInterface(QFrame):
             >>> isinstance(ProcessingSession(), ProcessingSession)
             True
         """
-        self._test_session = session
+        self._session = session
 
     def _init_layout(self) -> None:
         """初始化三栏主布局。
@@ -129,15 +131,15 @@ class SliceInterface(QFrame):
 
         left_column = self._create_left_column()
         middle_column = self._create_middle_column()
-        right_column = self._create_right_column()
+        self.right_column = self._create_right_column()
 
         # 添加三列控件
         root_layout.addWidget(left_column, 2)
         root_layout.addWidget(middle_column, 2)
-        root_layout.addWidget(right_column, 3)
+        root_layout.addWidget(self.right_column, 3)
 
         # 限制右侧面板最大宽度
-        right_column.setFixedWidth(580)
+        self.right_column.setFixedWidth(self.RIGHT_COLUMN_WIDTH)
 
     def _update_icon_colors(self) -> None:
         """当主题切换时，重新获取当前正确的 themeColor 并应用"""
@@ -362,17 +364,17 @@ class SliceInterface(QFrame):
         self.panel_area_layout.addStretch(1)
         self.right_panel_scroll_area.setWidget(self.scroll_content_widget)
         
-        self.slice_demo_drawer = SlidingDrawer(DrawerPosition.RIGHT, 320, self)
-        self.slice_demo_drawer.setObjectName("sliceDemoDrawer")
-        self.slice_demo_drawer.setTitle("标题")
-        self.slice_demo_drawer.setToggleButtonVisible(False)
-        self.slice_demo_drawer.setTriggerWidget(self.drawer_demo_button)
-        self.slice_demo_drawer.contentLayout().addStretch(1)
-        drawer_empty_label = QLabel("没有更多通知", self.slice_demo_drawer)
+        self.slice_param_config = SlidingDrawer(DrawerPosition.RIGHT, self.RIGHT_COLUMN_WIDTH, self)
+        self.slice_param_config.setObjectName("sliceParamConfig")
+        self.slice_param_config.setTitle("标题")
+        self.slice_param_config.setToggleButtonVisible(False)
+        self.slice_param_config.setTriggerWidget(self.drawer_demo_button)
+        self.slice_param_config.contentLayout().addStretch(1)
+        drawer_empty_label = QLabel("没有更多通知", self.slice_param_config)
         drawer_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.slice_demo_drawer.contentLayout().addWidget(drawer_empty_label)
-        self.slice_demo_drawer.contentLayout().addStretch(1)
-        self.drawer_demo_button.clicked.connect(self.slice_demo_drawer.toggle)
+        self.slice_param_config.contentLayout().addWidget(drawer_empty_label)
+        self.slice_param_config.contentLayout().addStretch(1)
+        self.drawer_demo_button.clicked.connect(self.slice_param_config.toggle)
 
         header_layout.addWidget(self.slice_info_label, 1)
         header_layout.addWidget(self.drawer_demo_button)

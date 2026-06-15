@@ -129,7 +129,7 @@ class SliceController(QObject):
 
         """
         # 校验数据导入状态
-        if not self.view._test_session.is_imported:
+        if not self.view._session.is_imported:
             InfoBar.warning(
                 title="提示",
                 content="请先从 Excel 导入雷达脉冲数据，再执行切片操作。",
@@ -159,7 +159,7 @@ class SliceController(QObject):
         self._processing_dialog.show()
 
         # 启动后台切片工作流
-        slice_workflow.start_slice(self.view._test_session)
+        slice_workflow.start_slice(self.view._session)
 
     def _on_stage_finished(self, session_id: str, stage: str, slice_index: int | None) -> None:
         """处理阶段完成信号。
@@ -178,7 +178,7 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        if session_id != self.view._test_session.session_id or stage != "slicing":
+        if session_id != self.view._session.session_id or stage != "slicing":
             return
 
         if self._processing_dialog:
@@ -224,7 +224,7 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        if session_id != self.view._test_session.session_id:
+        if session_id != self.view._session.session_id:
             return
 
         if stage != "slicing":
@@ -306,7 +306,7 @@ class SliceController(QObject):
         """
         LOGGER.info("收到指定切片绘制请求，目标切片编号: %d", slice_index)
 
-        session = self.view._test_session
+        session = self.view._session
         if not session or not session.slice_result:
             LOGGER.warning("指定切片绘制失败：无有效会话或切片结果为空")
             InfoBar.warning(
@@ -378,7 +378,7 @@ class SliceController(QObject):
         if not qconfig.get(appConfig.autoRecognizeNextSlice):
             LOGGER.debug("自动识别开关已关闭，跳过自动识别")
             return
-        session = self.view._test_session
+        session = self.view._session
         if not session:
             LOGGER.debug("无有效会话，跳过自动识别")
             return
@@ -427,7 +427,7 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        session = self.view._test_session
+        session = self.view._session
         if not session or not session.slice_result:
             return
         total = session.slice_result.slice_count
@@ -450,7 +450,7 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        session = self.view._test_session
+        session = self.view._session
         if not session or not session.slice_result:
             LOGGER.debug("_load_slice_image: 无有效会话或切片结果为空，跳过加载")
             return
@@ -486,7 +486,7 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        session = self.view._test_session
+        session = self.view._session
         total = session.slice_result.slice_count if session.slice_result else 0
 
         # 更新左侧标题文本
