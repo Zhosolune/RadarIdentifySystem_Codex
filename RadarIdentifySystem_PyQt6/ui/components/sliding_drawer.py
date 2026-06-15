@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-from PyQt6.QtCore import QEvent, QRect, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QColor, QLinearGradient, QPaintEvent, QPainter
-from PyQt6.QtWidgets import QBoxLayout, QFrame, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QColor, QLinearGradient, QMouseEvent, QPaintEvent, QPainter
+from PyQt6.QtWidgets import QApplication, QBoxLayout, QFrame, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, TransparentToolButton, isDarkTheme
 
 
@@ -68,10 +68,16 @@ class SlidingDrawer(QWidget):
         self._expanded = False
         self._toggle_button_visible = True
         self._root_layout: QBoxLayout | None = None
+        self._trigger_widget: QWidget | None = None
 
         self._panel = QFrame(self)
         self._panel.setObjectName("slidingDrawerPanel")
         self._panel.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        self._close_button = TransparentToolButton(FluentIcon.CLOSE, self._panel)
+        self._close_button.setObjectName("slidingDrawerCloseButton")
+        self._close_button.setFixedSize(28, 28)
+        self._close_button.clicked.connect(self.close)
 
         self._content_widget = QWidget(self._panel)
         self._content_widget.setObjectName("slidingDrawerContent")
@@ -80,14 +86,21 @@ class SlidingDrawer(QWidget):
         self._content_layout.setSpacing(8)
 
         panel_layout = QVBoxLayout(self._panel)
-        panel_layout.setContentsMargins(0, 0, 0, 0)
-        panel_layout.setSpacing(0)
+        panel_layout.setContentsMargins(8, 8, 8, 8)
+        panel_layout.setSpacing(4)
+        close_layout = QHBoxLayout()
+        close_layout.setContentsMargins(0, 0, 0, 0)
+        close_layout.setSpacing(0)
+        close_layout.addStretch(1)
+        close_layout.addWidget(self._close_button)
+        panel_layout.addLayout(close_layout)
         panel_layout.addWidget(self._content_widget)
 
         self._toggle_button = TransparentToolButton(self)
         self._toggle_button.setObjectName("slidingDrawerToggleButton")
         self._toggle_button.setFixedSize(self._BUTTON_SIZE, self._BUTTON_SIZE)
         self._toggle_button.clicked.connect(self.toggle)
+        self._close_button.setVisible(False)
 
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._rebuild_layout()
@@ -130,6 +143,63 @@ class SlidingDrawer(QWidget):
             True
         """
         return self._toggle_button
+
+    def closeButton(self) -> TransparentToolButton:
+        """返回面板右上角关闭按钮。
+
+        Args:
+            无。
+
+        Returns:
+            TransparentToolButton: 组件库透明工具按钮，点击后关闭抽屉。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> SlidingDrawer().closeButton() is not None
+            True
+        """
+        return self._close_button
+
+    def setTriggerWidget(self, widget: QWidget | None) -> None:
+        """设置外部唤起按钮。
+
+        全局点击关闭启用后，点击该控件不会被当作抽屉外部点击处理，
+        适合外部按钮连接到 drawer.toggle 的场景。
+
+        Args:
+            widget (QWidget | None): 外部唤起控件；传入 None 时清空外部唤起控件。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> drawer = SlidingDrawer()
+            >>> drawer.setTriggerWidget(None)
+        """
+        self._trigger_widget = widget
+
+    def triggerWidget(self) -> QWidget | None:
+        """返回外部唤起按钮。
+
+        Args:
+            无。
+
+        Returns:
+            QWidget | None: 当前注册的外部唤起控件。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> SlidingDrawer().triggerWidget() is None
+            True
+        """
+        return self._trigger_widget
 
     def contentWidget(self) -> QWidget:
         """返回当前内容组件。
@@ -395,6 +465,7 @@ class SlidingDrawer(QWidget):
         if self._expanded == expanded:
             return
         self._expanded = expanded
+        self._sync_global_event_filter()
         self._sync_panel_constraints()
         self._sync_toggle_icon()
         self.expandedChanged.emit(self._expanded)
@@ -402,6 +473,7 @@ class SlidingDrawer(QWidget):
             self.opened.emit()
         else:
             self.closed.emit()
+        self._close_button.setVisible(self._expanded)
         self.update()
 
     def setToggleButtonVisible(self, visible: bool) -> None:
@@ -462,6 +534,48 @@ class SlidingDrawer(QWidget):
         ):
             self._apply_theme()
         return super().event(event)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """过滤全局鼠标点击事件。
+
+        Args:
+            watched (QObject): 被过滤事件的对象。
+            event (QEvent): Qt 事件对象。
+
+        Returns:
+            bool: 本组件不截断事件，始终返回 False。
+
+        Raises:
+            无显式抛出异常。
+        """
+        if (
+            self._expanded
+            and event.type() == QEvent.Type.MouseButtonPress
+            and isinstance(event, QMouseEvent)
+            and self._is_global_outside_click(event.globalPosition().toPoint())
+        ):
+            self.close()
+        return False
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """处理鼠标点击关闭行为。
+
+        展开状态下点击抽屉面板外区域时关闭抽屉；点击面板或展开按钮时保留原行为。
+
+        Args:
+            event (QMouseEvent): Qt 鼠标事件。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        if self._expanded and self._is_overlay_click(event.position().toPoint()):
+            self.close()
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         """绘制展开状态下的主题遮罩。
@@ -563,6 +677,17 @@ class SlidingDrawer(QWidget):
                 background: {content_bg};
                 border: none;
             }}
+            TransparentToolButton#slidingDrawerCloseButton {{
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+            }}
+            TransparentToolButton#slidingDrawerCloseButton:hover {{
+                background: {hover};
+            }}
+            TransparentToolButton#slidingDrawerCloseButton:pressed {{
+                background: {pressed};
+            }}
             TransparentToolButton#slidingDrawerToggleButton {{
                 border: none;
                 border-radius: 6px;
@@ -575,6 +700,35 @@ class SlidingDrawer(QWidget):
                 background: {pressed};
             }}
         """)
+
+    def _is_overlay_click(self, position: QPoint) -> bool:
+        """判断鼠标位置是否位于抽屉遮罩区域。"""
+        if self._panel.geometry().contains(position):
+            return False
+        if self._toggle_button.isVisible() and self._toggle_button.geometry().contains(position):
+            return False
+        return True
+
+    def _is_global_outside_click(self, global_position: QPoint) -> bool:
+        """判断全局鼠标位置是否位于抽屉和触发控件外。"""
+        for widget in (self._panel, self._toggle_button, self._close_button, self._trigger_widget):
+            if widget is None:
+                continue
+            if widget is not self._trigger_widget and not widget.isVisible():
+                continue
+            local_pos = widget.mapFromGlobal(global_position)
+            if widget.rect().contains(local_pos):
+                return False
+        return True
+
+    def _sync_global_event_filter(self) -> None:
+        """根据展开状态同步全局鼠标事件过滤器。"""
+        app = QApplication.instance()
+        if app is None:
+            return
+        app.removeEventFilter(self)
+        if self._expanded:
+            app.installEventFilter(self)
 
     def _shadow_rect(self) -> QRect:
         """返回当前方向的遮罩矩形。"""

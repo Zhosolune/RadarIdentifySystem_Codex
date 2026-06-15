@@ -6,8 +6,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QLabel
+from PyQt6.QtCore import QPointF, Qt, QObject, pyqtSignal
+from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -109,6 +110,95 @@ def test_drawer_can_hide_toggle_button() -> None:
     assert drawer.toggleButton().isVisible() is False
 
 
+def test_drawer_closes_when_close_button_clicked() -> None:
+    """点击抽屉右上角关闭按钮时应关闭抽屉。"""
+    _app()
+    drawer = SlidingDrawer()
+
+    drawer.open()
+    drawer.closeButton().click()
+
+    assert drawer.isExpanded() is False
+
+
+def test_drawer_closes_when_overlay_area_clicked() -> None:
+    """展开后点击抽屉面板外区域时应关闭抽屉。"""
+    _app()
+    drawer = SlidingDrawer(position=DrawerPosition.RIGHT, drawer_size=120)
+    drawer.resize(260, 120)
+    drawer.open()
+
+    event = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(220, 10),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    drawer.mousePressEvent(event)
+
+    assert drawer.isExpanded() is False
+
+
+def test_drawer_closes_when_global_outside_area_clicked() -> None:
+    """展开后点击组件外区域时应通过全局事件过滤关闭抽屉。"""
+    _app()
+    host = QWidget()
+    drawer = SlidingDrawer(parent=host)
+
+    host.resize(400, 200)
+    drawer.resize(180, 120)
+    drawer.open()
+    event = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(360, 80),
+        QPointF(360, 80),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+
+    drawer.eventFilter(host, event)
+
+    assert drawer.isExpanded() is False
+
+
+def test_global_outside_close_ignores_registered_trigger_widget() -> None:
+    """全局外部点击关闭应忽略注册的外部唤起按钮。"""
+    _app()
+    host = QWidget()
+    drawer = SlidingDrawer(parent=host)
+    trigger = QLabel("trigger", host)
+
+    host.resize(400, 200)
+    trigger.setGeometry(320, 20, 60, 30)
+    drawer.setTriggerWidget(trigger)
+    drawer.open()
+    event = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(330, 25),
+        QPointF(330, 25),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+
+    drawer.eventFilter(host, event)
+
+    assert drawer.isExpanded() is True
+
+
+def test_visible_toggle_button_click_closes_expanded_drawer() -> None:
+    """唤起按钮可见时，再次点击该按钮应关闭抽屉。"""
+    _app()
+    drawer = SlidingDrawer()
+
+    drawer.open()
+    drawer.toggleButton().click()
+
+    assert drawer.isExpanded() is False
+
+
 def test_drawer_accepts_custom_content_widget() -> None:
     """抽屉内容区应允许替换为任意 QWidget。"""
     _app()
@@ -153,6 +243,11 @@ if __name__ == "__main__":
         test_drawer_expanded_state_and_signals,
         test_drawer_accepts_external_signal_connections,
         test_drawer_can_hide_toggle_button,
+        test_drawer_closes_when_close_button_clicked,
+        test_drawer_closes_when_overlay_area_clicked,
+        test_drawer_closes_when_global_outside_area_clicked,
+        test_global_outside_close_ignores_registered_trigger_widget,
+        test_visible_toggle_button_click_closes_expanded_drawer,
         test_drawer_accepts_custom_content_widget,
         test_drawer_updates_axis_constraints,
         test_drawer_can_change_position_after_creation,

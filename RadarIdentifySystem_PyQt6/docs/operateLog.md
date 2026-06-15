@@ -1,5 +1,16 @@
 # 变更记录
 
+- 时间：2026-06-15 14:08
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始增强抽屉关闭交互，并在切片界面加入右侧抽屉演示入口。
+- 原因：抽屉需要支持点击遮罩、内置关闭按钮和再次点击可见唤起按钮关闭，并提供实际界面入口用于观察效果。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；轻量实例化 `SliceInterface` 输出 `SlidingDrawer RIGHT`）
+
 - 时间：2026-06-15 12:18
 - 操作类型：新增
 - 影响文件：

@@ -5,13 +5,22 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from PyQt6.QtGui import QColor
-from qfluentwidgets import  TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, SimpleCardWidget, ScrollArea, qconfig
+from qfluentwidgets import FluentIcon, TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, SimpleCardWidget, ScrollArea, qconfig
 
 from app.custom_icon import CustomIcon
 from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession
-from ui.components import SliceDimensionCard, NavigationControlCard, PlotOptionCard, RedrawOptionCard, ExportOptionCard, JitterFreeCardGroup
+from ui.components import (
+    DrawerPosition,
+    JitterFreeCardGroup,
+    NavigationControlCard,
+    PlotOptionCard,
+    RedrawOptionCard,
+    ExportOptionCard,
+    SlidingDrawer,
+    SliceDimensionCard,
+)
 from ui.controllers.slice_controller import SliceController
 from ui.controllers.identify_controller import IdentifyController
 
@@ -289,11 +298,22 @@ class SliceInterface(QFrame):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
         
-        # 1. 切片信息标签
+        # 1. 切片信息与抽屉演示入口
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+
         self.slice_info_label = QLabel("预计将获得 0 个250ms切片", column)
         self.slice_info_label.setObjectName("sliceInfoLabel")
         # self.slice_info_label.setStyleSheet("margin-left: 12px")
         self.slice_info_label.setFixedHeight(25)
+
+        self.drawer_demo_button = TransparentToolButton(FluentIcon.RIGHT_ARROW, column)
+        self.drawer_demo_button.setFixedSize(28, 28)
+        self.drawer_demo_button.setToolTip("打开右侧抽屉")
+        self.drawer_demo_button.installEventFilter(
+            ToolTipFilter(self.drawer_demo_button, 1000, ToolTipPosition.TOP)
+        )
 
         # 2. 操作面板滚动区域
         self.right_panel_scroll_area = ScrollArea(column)
@@ -342,7 +362,20 @@ class SliceInterface(QFrame):
         self.panel_area_layout.addStretch(1)
         self.right_panel_scroll_area.setWidget(self.scroll_content_widget)
         
-        right_layout.addWidget(self.slice_info_label)
+        self.slice_demo_drawer = SlidingDrawer(DrawerPosition.RIGHT, 260, column)
+        self.slice_demo_drawer.setObjectName("sliceDemoDrawer")
+        self.slice_demo_drawer.setFixedHeight(180)
+        self.slice_demo_drawer.setToggleButtonVisible(False)
+        self.slice_demo_drawer.setTriggerWidget(self.drawer_demo_button)
+        self.slice_demo_drawer.contentLayout().addWidget(QLabel("右侧抽屉内容区", self.slice_demo_drawer))
+        self.slice_demo_drawer.contentLayout().addWidget(QLabel("这里可以放置任意组件", self.slice_demo_drawer))
+        self.slice_demo_drawer.contentLayout().addStretch(1)
+        self.drawer_demo_button.clicked.connect(self.slice_demo_drawer.toggle)
+
+        header_layout.addWidget(self.slice_info_label, 1)
+        header_layout.addWidget(self.drawer_demo_button)
+        right_layout.addLayout(header_layout)
+        right_layout.addWidget(self.slice_demo_drawer)
         right_layout.addWidget(self.right_panel_scroll_area)
         
         return column
