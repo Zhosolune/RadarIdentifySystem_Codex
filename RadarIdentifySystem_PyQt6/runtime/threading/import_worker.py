@@ -6,6 +6,7 @@ import logging
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from app.logger import bind_session_log_context, unbind_session_log_context
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.preprocess import preprocess
 from infra.parsers import ExcelPulseParser
@@ -78,6 +79,8 @@ class ImportWorker(QThread):
             调用 preprocess() 获取清洗后的 PreprocessResult。
             将结果赋给 Session，并发送完成信号。
         """
+        # 绑定会话日志上下文，使本线程内下层模块日志自动带上 session_id
+        log_token = bind_session_log_context(self._session.session_id)
         try:
             LOGGER.info("开始导入并预处理数据", extra={"session_id": self._session.session_id})
             batch = ExcelPulseParser().parse(self._file_path)
@@ -105,3 +108,6 @@ class ImportWorker(QThread):
         except Exception as e:
             LOGGER.error("数据导入失败: %s", str(e), extra={"session_id": self._session.session_id})
             self.finished_signal.emit(self._session.session_id, False, f"导入失败: {str(e)}")
+        finally:
+            # 复位会话日志上下文，防止线程复用导致 session_id 泄漏
+            unbind_session_log_context(log_token)

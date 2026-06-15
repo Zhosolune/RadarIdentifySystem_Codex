@@ -8,6 +8,7 @@ from typing import Optional
 from PyQt6.QtCore import QObject, pyqtSlot
 
 from app.app_config import appConfig, qconfig
+from app.logger import bind_session_log_context, unbind_session_log_context
 from app.model_bootstrap import get_enabled_model_path, get_cached_inference_service
 from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession
@@ -63,47 +64,53 @@ class IdentifyWorkflow(QObject):
             None
         """
         session_id = session.session_id
-        if not session.is_sliced:
-            LOGGER.warning("切片尚未完成，无法启动识别", extra={"session_id": session_id})
-            return
+        # 绑定会话日志上下文，使本主线程段日志（模型路径、推理服务创建等）归属当前 session
+        log_token = bind_session_log_context(session_id)
+        try:
+            if not session.is_sliced:
+                LOGGER.warning("切片尚未完成，无法启动识别", extra={"session_id": session_id})
+                return
 
-        if self._worker is not None and self._worker.isRunning():
-            LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session_id})
-            return
+            if self._worker is not None and self._worker.isRunning():
+                LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session_id})
+                return
 
-        # 读取当前启用模型路径
-        pa_path = get_enabled_model_path("PA")
-        dtoa_path = get_enabled_model_path("DTOA")
-        LOGGER.info("启用模型路径: PA=%s, DTOA=%s", pa_path, dtoa_path)
-        if not pa_path or not dtoa_path:
-            LOGGER.warning("启用模型路径为空，推理将无法执行！请在模型管理中启用 PA 和 DTOA 模型。")
-            return
+            # 读取当前启用模型路径
+            pa_path = get_enabled_model_path("PA")
+            dtoa_path = get_enabled_model_path("DTOA")
+            LOGGER.info("启用模型路径: PA=%s, DTOA=%s", pa_path, dtoa_path)
+            if not pa_path or not dtoa_path:
+                LOGGER.warning("启用模型路径为空，推理将无法执行！请在模型管理中启用 PA 和 DTOA 模型。")
+                return
 
-        temp_dir = qconfig.get(appConfig.logDir)
-        # 从 model_bootstrap 获取缓存的推理服务，内部自动处理复用或重建
-        self._inference_service = get_cached_inference_service(
-            pa_path=pa_path, dtoa_path=dtoa_path, temp_dir=temp_dir
-        )
+            temp_dir = qconfig.get(appConfig.logDir)
+            # 从 model_bootstrap 获取缓存的推理服务，内部自动处理复用或重建
+            self._inference_service = get_cached_inference_service(
+                pa_path=pa_path, dtoa_path=dtoa_path, temp_dir=temp_dir
+            )
 
-        # 发送流程开始全局信号
-        signal_bus.stage_started.emit(session_id, "identifying", slice_index)
-        LOGGER.info(
-            "发射识别开始事件，当前切片: %d",
-            slice_index,
-            extra={"session_id": session_id},
-        )
-        
-        # 挂载计算线程，并在线程结束时挂接回调
-        self._worker = IdentifyWorker(
-            session=session,
-            slice_index=slice_index,
-            inference_service=self._inference_service,
-            parent=self
-        )
-        self._active_slice_index = slice_index
-        self._worker.progress_signal.connect(self._on_worker_progress)
-        self._worker.finished_signal.connect(self._on_worker_finished)
-        self._worker.start()
+            # 发送流程开始全局信号
+            signal_bus.stage_started.emit(session_id, "identifying", slice_index)
+            LOGGER.info(
+                "发射识别开始事件，当前切片: %d",
+                slice_index,
+                extra={"session_id": session_id},
+            )
+
+            # 挂载计算线程，并在线程结束时挂接回调
+            self._worker = IdentifyWorker(
+                session=session,
+                slice_index=slice_index,
+                inference_service=self._inference_service,
+                parent=self
+            )
+            self._active_slice_index = slice_index
+            self._worker.progress_signal.connect(self._on_worker_progress)
+            self._worker.finished_signal.connect(self._on_worker_finished)
+            self._worker.start()
+        finally:
+            # 复位会话日志上下文（Worker 子线程有独立绑定，互不影响）
+            unbind_session_log_context(log_token)
 
     @pyqtSlot(str, int, int)
     def _on_worker_progress(self, session_id: str, current: int, total: int) -> None:

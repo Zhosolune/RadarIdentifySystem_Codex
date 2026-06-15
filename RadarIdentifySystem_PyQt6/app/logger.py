@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextvars import ContextVar, Token
 from datetime import datetime
 import logging
 import os
@@ -18,6 +19,49 @@ _RUN_LOG_FILE_NAME: Final[str] = f"RadarIdentifySystem_run_{_RUN_TIMESTAMP}.log"
 _CURRENT_LOG_FILE_PATH: Optional[Path] = None
 _PROJECT_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 LOGGER = logging.getLogger(__name__)
+
+# 会话日志上下文：承载“当前 session_id”，供 Filter 兜底读取。
+# Worker 在 run() 开头 bind、结束 unbind，下层 core/infra 模块无需传参即可自动带上 id。
+_session_id_ctx: ContextVar[str] = ContextVar("session_id", default="-")
+
+
+def bind_session_log_context(session_id: str) -> Token[str]:
+    """绑定当前线程/协程的会话日志标识。
+
+    功能描述：
+        在后台线程入口（如 Worker.run()）调用，将 session_id 写入
+        contextvar，使该线程内所有未显式传 extra 的日志自动归属该 session。
+        返回的 Token 必须在作用域结束时传给 unbind_session_log_context 复位。
+
+    参数说明：
+        session_id (str): 当前会话标识。
+
+    返回值说明：
+        Token[str]: contextvar 复位令牌，供 unbind 使用。
+
+    异常说明：
+        无。
+    """
+    return _session_id_ctx.set(session_id)
+
+
+def unbind_session_log_context(token: Token[str]) -> None:
+    """复位会话日志标识。
+
+    功能描述：
+        将 contextvar 恢复到 bind 前的状态，防止 session_id 泄漏到
+        后续无关日志（如线程池线程复用场景）。
+
+    参数说明：
+        token (Token[str]): bind_session_log_context 返回的令牌。
+
+    返回值说明：
+        None: 无返回值。
+
+    异常说明：
+        无。
+    """
+    _session_id_ctx.reset(token)
 
 
 def _build_module_path(file_path: str) -> str:
@@ -58,7 +102,10 @@ class RuntimeContextFilter(logging.Filter):
 
         功能描述：
             为每条日志补全 `session_id` 与 `module_path` 字段，避免格式化时报错，
-            并统一文件路径显示格式。
+            并统一文件路径显示格式。session_id 取值优先级：
+              1. 显式 extra={"session_id": ...}（调用方主动传参）
+              2. 当前线程的会话日志上下文（Worker.run() 入口已 bind）
+              3. 默认值 "-"
 
         参数说明：
             record (logging.LogRecord): 原始日志记录对象。
@@ -70,9 +117,9 @@ class RuntimeContextFilter(logging.Filter):
             无。
         """
 
-        # 补全缺省会话标识
+        # 补全缺省会话标识：显式 extra 优先，contextvar 兜底
         if not hasattr(record, "session_id"):
-            record.session_id = "-"
+            record.session_id = _session_id_ctx.get()
         # 写入点分文件路径
         record.module_path = _build_module_path(record.pathname)
         return True

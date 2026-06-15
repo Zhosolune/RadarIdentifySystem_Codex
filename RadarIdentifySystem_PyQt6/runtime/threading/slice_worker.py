@@ -6,6 +6,7 @@ import logging
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from app.logger import bind_session_log_context, unbind_session_log_context
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.slicing import slice_by_toa
 
@@ -61,12 +62,14 @@ class SliceWorker(QThread):
             无。捕获内部所有异常后通过 finished_signal 抛出错误消息。
         """
         session_id = self._session.session_id
+        # 绑定会话日志上下文，使本线程内下层模块日志自动带上 session_id
+        log_token = bind_session_log_context(session_id)
         try:
             # 1. 检查数据与预处理结果
             if not self._session.is_imported or self._session.raw_batch is None:
                 LOGGER.error("数据尚未导入，无法切片", extra={"session_id": session_id})
                 raise RuntimeError("数据尚未导入，无法切片")
-                
+
             if self._session.preprocess_result is None:
                 LOGGER.error("数据预处理结果缺失，无法切片", extra={"session_id": session_id})
                 raise ValueError("数据预处理结果缺失，无法切片")
@@ -93,3 +96,6 @@ class SliceWorker(QThread):
         except Exception as e:
             LOGGER.error("切片过程失败: %s", e, exc_info=True, extra={"session_id": session_id})
             self.finished_signal.emit(session_id, False, str(e))
+        finally:
+            # 复位会话日志上下文，防止线程复用导致 session_id 泄漏
+            unbind_session_log_context(log_token)

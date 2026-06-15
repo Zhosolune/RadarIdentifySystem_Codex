@@ -6,6 +6,7 @@ import logging
 import numpy as np
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from app.logger import bind_session_log_context, unbind_session_log_context
 from core.models.algorithm_params import ClusteringParams, RecognitionParams
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.cluster_result import ClusterItem, ClusteringResult, SliceClusterResult
@@ -54,6 +55,8 @@ class IdentifyWorker(QThread):
         将结果存入 ClusteringResult 中并更新 session。
         """
         session_id = self._session.session_id
+        # 绑定会话日志上下文，使本线程内 clustering/recognition/onnx_service 日志自动带上 session_id
+        log_token = bind_session_log_context(session_id)
         try:
             if not self._session.is_sliced or self._session.slice_result is None:
                 raise RuntimeError("数据尚未完成切片，无法进行聚类/识别")
@@ -61,9 +64,9 @@ class IdentifyWorker(QThread):
             slices = self._session.slice_result.slices
             if self._slice_index < 0 or self._slice_index >= len(slices):
                 raise ValueError(f"切片索引 {self._slice_index} 无效或越界")
-                
+
             target_slice = slices[self._slice_index]
-            
+
             LOGGER.info("开始聚类处理，当前切片: %d", self._slice_index, extra={"session_id": session_id})
 
             # 内部自行获取运行参数
@@ -133,6 +136,9 @@ class IdentifyWorker(QThread):
                     self._session.mark_slice_recognition_failed(self._slice_index, str(e))
             LOGGER.error("聚类与识别过程失败: %s", e, exc_info=True, extra={"session_id": session_id})
             self.finished_signal.emit(session_id, False, str(e))
+        finally:
+            # 复位会话日志上下文，防止线程复用导致 session_id 泄漏
+            unbind_session_log_context(log_token)
 
     def _cluster_and_recognize_slice(
         self,
