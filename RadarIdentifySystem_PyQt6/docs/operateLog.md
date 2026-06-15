@@ -1,5 +1,86 @@
 # 变更记录
 
+- 时间：2026-06-15 16:31
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修复抽屉实例在组件库主题切换后的样式刷新，并移除抽屉面板边框。
+- 原因：抽屉需要像 qfluentwidgets 组件一样响应 `qconfig.themeChanged`，不能只在构造时读取主题；同时抽屉面板不需要绘制边框。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；轻量实例化同一抽屉输出 `light True True 30` 与 `dark True False True 80`）
+
+- 时间：2026-06-15 16:17
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修复抽屉组件暗色主题适配。
+- 原因：抽屉浅色背景和边框已对齐组件库，但暗色主题下仍缺少组件库面板背景、边框和阴影 alpha 的明确适配验证。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；轻量实例化输出 `light rgb(243, 243, 243) rgb(229, 229, 229) 35.0 0.0 8.0 30` 与 `dark rgb(32, 32, 32) rgb(57, 57, 57) 35.0 0.0 8.0 80`）
+
+- 时间：2026-06-15 16:03
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将抽屉阴影参数改为本地 qfluentwidgets 弹出层阴影参数。
+- 原因：抽屉阴影不应独立调参，应复用组件库 `Flyout.setShadowEffect()` 的视觉参数。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；轻量实例化 `SliceInterface` 输出 `35.0 0.0 8.0 30 0 rgb(243, 243, 243) qfluentwidgets/components/widgets/flyout.py: Flyout.setShadowEffect qfluentwidgets/_rc/qss/light/navigation_interface.qss: NavigationPanel[menu=true]`）
+
+- 时间：2026-06-15 15:55
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将抽屉浅色背景改为本地 qfluentwidgets 面板背景色，并继续柔化阴影。
+- 原因：抽屉颜色不应使用推测值，应对齐组件库中 `navigation_interface.qss` 的面板背景；当前阴影边缘仍偏硬。
+- 测试状态：已测试（后续 2026-06-15 16:03 条目已将阴影参数进一步统一到 `Flyout.setShadowEffect()`；背景色来源保持为 `navigation_interface.qss` 的 `NavigationPanel[menu=true]`）
+
+- 时间：2026-06-15 15:38
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：继续优化抽屉遮罩、阴影强度和浅色主题背景色。
+- 原因：抽屉外区域不应再压暗页面，阴影仍偏重，浅色面板背景需要更贴近组件库窗口的暖白视觉。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；轻量实例化 `SliceInterface` 输出 `0 12.0 12 8 rgb(255, 253, 246)`）
+
+- 时间：2026-06-15 15:24
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：优化抽屉组件阴影强度与展开关闭动效速度。
+- 原因：当前抽屉阴影视觉过重，展开关闭缺少足够可感知的过渡时间。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；轻量实例化 `SliceInterface` 输出 `360 18.0 22`）
+
+- 时间：2026-06-15 15:02
+- 操作类型：重构
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将抽屉组件从布局内折叠面板重构为组件库弹层风格的父窗口覆盖层抽屉。
+- 原因：原实现会挤占布局，不符合抽屉组件应贴边覆盖页面并通过遮罩承载交互的视觉与行为模型。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；轻量实例化 `SliceInterface` 输出 `SlidingDrawer RIGHT True -1`；`D:\Miniforge3\envs\pyqt6\python.exe -X faulthandler RadarIdentifySystem_PyQt6\main.py` 运行 15 秒未自动退出，由验证超时终止）
+
+- 时间：2026-06-15 14:18
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复抽屉组件主题事件递归导致程序在主窗口构造阶段栈溢出退出的问题。
+- 原因：抽屉在 `StyleChange` 事件中调用 `setStyleSheet()`，再次触发 `StyleChange` 并形成无限递归。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\sliding_drawer.py RadarIdentifySystem_PyQt6\tests\unit\test_sliding_drawer.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -X faulthandler RadarIdentifySystem_PyQt6\main.py` 运行 15 秒未再主动退出，由验证超时终止）
+
 - 时间：2026-06-15 14:08
 - 操作类型：修改
 - 影响文件：

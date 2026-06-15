@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-"""滑动抽屉组件单元测试。"""
+"""滑动抽屉覆盖层组件单元测试。"""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QPointF, Qt, QObject, pyqtSignal
+from PyQt6.QtCore import QEvent, QPointF, Qt, QObject, pyqtSignal
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget
+from qfluentwidgets import Theme, qconfig, setTheme
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -50,15 +51,105 @@ def _app() -> QApplication:
     return app
 
 
+def _host(width: int = 400, height: int = 240) -> QWidget:
+    """创建抽屉测试宿主组件。
+
+    Args:
+        width (int): 宿主组件宽度。
+        height (int): 宿主组件高度。
+
+    Returns:
+        QWidget: 设置好尺寸的宿主组件。
+
+    Raises:
+        无显式抛出异常。
+    """
+    host = QWidget()
+    host.resize(width, height)
+    return host
+
+
+def _disable_animation(drawer: SlidingDrawer) -> SlidingDrawer:
+    """关闭测试对象动画以便同步断言几何。
+
+    Args:
+        drawer (SlidingDrawer): 需要关闭动画的抽屉实例。
+
+    Returns:
+        SlidingDrawer: 已关闭动画的抽屉实例。
+
+    Raises:
+        无显式抛出异常。
+    """
+    drawer.setAnimationDuration(0)
+    return drawer
+
+
+def _panel_style_block(drawer: SlidingDrawer) -> str:
+    """提取抽屉面板的 QSS 块。
+
+    Args:
+        drawer (SlidingDrawer): 需要检查样式的抽屉实例。
+
+    Returns:
+        str: `QFrame#slidingDrawerPanel` 对应的样式片段。
+
+    Raises:
+        AssertionError: 当样式块不存在时抛出。
+    """
+    style_sheet = drawer.styleSheet()
+    marker = "QFrame#slidingDrawerPanel {"
+    start = style_sheet.find(marker)
+    assert start >= 0
+    end = style_sheet.find("}", start)
+    assert end > start
+    return style_sheet[start:end]
+
+
 def test_drawer_supports_all_positions() -> None:
     """抽屉应支持上下左右四个展开方向。"""
     assert {item.name for item in DrawerPosition} == {"LEFT", "RIGHT", "TOP", "BOTTOM"}
 
 
+def test_drawer_opens_as_parent_overlay_and_right_panel() -> None:
+    """右侧抽屉展开后应覆盖父组件并贴右边显示面板。"""
+    _app()
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(position=DrawerPosition.RIGHT, drawer_size=140, parent=host))
+
+    drawer.open()
+
+    assert drawer.isHidden() is False
+    assert drawer.geometry() == host.rect()
+    assert drawer.panel().geometry().x() == host.width() - 140
+    assert drawer.panel().geometry().width() == 140
+    assert drawer.panel().geometry().height() == host.height()
+
+
+def test_drawer_places_panel_by_position() -> None:
+    """抽屉面板应按展开方向贴边定位。"""
+    _app()
+    host = _host()
+    cases = [
+        (DrawerPosition.LEFT, (0, 0, 100, host.height())),
+        (DrawerPosition.RIGHT, (host.width() - 100, 0, 100, host.height())),
+        (DrawerPosition.TOP, (0, 0, host.width(), 100)),
+        (DrawerPosition.BOTTOM, (0, host.height() - 100, host.width(), 100)),
+    ]
+
+    for position, expected in cases:
+        drawer = _disable_animation(SlidingDrawer(position=position, drawer_size=100, parent=host))
+        drawer.open()
+        rect = drawer.panel().geometry()
+        assert (rect.x(), rect.y(), rect.width(), rect.height()) == expected
+        drawer.close()
+
+
 def test_drawer_expanded_state_and_signals() -> None:
     """抽屉应支持方法和信号槽式展开状态控制。"""
     _app()
-    drawer = SlidingDrawer(position=DrawerPosition.LEFT)
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(position=DrawerPosition.LEFT, parent=host))
     states: list[bool] = []
     opened: list[bool] = []
     closed: list[bool] = []
@@ -83,7 +174,8 @@ def test_drawer_expanded_state_and_signals() -> None:
 def test_drawer_accepts_external_signal_connections() -> None:
     """抽屉应支持外部信号连接控制展开、关闭与切换。"""
     _app()
-    drawer = SlidingDrawer()
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(parent=host))
     emitter = _SignalEmitter()
 
     emitter.openRequested.connect(drawer.open)
@@ -101,36 +193,39 @@ def test_drawer_accepts_external_signal_connections() -> None:
 def test_drawer_can_hide_toggle_button() -> None:
     """抽屉应支持隐藏展开按钮。"""
     _app()
-    drawer = SlidingDrawer()
-
-    assert drawer.isToggleButtonVisible() is True
-    drawer.setToggleButtonVisible(False)
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(parent=host))
 
     assert drawer.isToggleButtonVisible() is False
-    assert drawer.toggleButton().isVisible() is False
+    drawer.setToggleButtonVisible(True)
+
+    assert drawer.isToggleButtonVisible() is True
+    assert drawer.toggleButton().isHidden() is False
 
 
 def test_drawer_closes_when_close_button_clicked() -> None:
     """点击抽屉右上角关闭按钮时应关闭抽屉。"""
     _app()
-    drawer = SlidingDrawer()
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(parent=host))
 
     drawer.open()
     drawer.closeButton().click()
 
     assert drawer.isExpanded() is False
+    assert drawer.isHidden() is True
 
 
 def test_drawer_closes_when_overlay_area_clicked() -> None:
     """展开后点击抽屉面板外区域时应关闭抽屉。"""
     _app()
-    drawer = SlidingDrawer(position=DrawerPosition.RIGHT, drawer_size=120)
-    drawer.resize(260, 120)
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(position=DrawerPosition.RIGHT, drawer_size=120, parent=host))
     drawer.open()
 
     event = QMouseEvent(
         QMouseEvent.Type.MouseButtonPress,
-        QPointF(220, 10),
+        QPointF(20, 20),
         Qt.MouseButton.LeftButton,
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
@@ -140,61 +235,26 @@ def test_drawer_closes_when_overlay_area_clicked() -> None:
     assert drawer.isExpanded() is False
 
 
-def test_drawer_closes_when_global_outside_area_clicked() -> None:
-    """展开后点击组件外区域时应通过全局事件过滤关闭抽屉。"""
+def test_drawer_trigger_area_click_closes_without_reopening() -> None:
+    """点击外部唤起按钮区域时应关闭抽屉，不被遮罩逻辑误判。"""
     _app()
-    host = QWidget()
-    drawer = SlidingDrawer(parent=host)
-
-    host.resize(400, 200)
-    drawer.resize(180, 120)
-    drawer.open()
-    event = QMouseEvent(
-        QMouseEvent.Type.MouseButtonPress,
-        QPointF(360, 80),
-        QPointF(360, 80),
-        Qt.MouseButton.LeftButton,
-        Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.NoModifier,
-    )
-
-    drawer.eventFilter(host, event)
-
-    assert drawer.isExpanded() is False
-
-
-def test_global_outside_close_ignores_registered_trigger_widget() -> None:
-    """全局外部点击关闭应忽略注册的外部唤起按钮。"""
-    _app()
-    host = QWidget()
-    drawer = SlidingDrawer(parent=host)
+    host = _host()
     trigger = QLabel("trigger", host)
-
-    host.resize(400, 200)
-    trigger.setGeometry(320, 20, 60, 30)
+    trigger.setGeometry(20, 20, 80, 32)
+    drawer = SlidingDrawer(position=DrawerPosition.RIGHT, parent=host)
+    drawer.setAnimationDuration(0)
     drawer.setTriggerWidget(trigger)
     drawer.open()
+
     event = QMouseEvent(
         QMouseEvent.Type.MouseButtonPress,
-        QPointF(330, 25),
-        QPointF(330, 25),
+        QPointF(30, 26),
+        QPointF(30, 26),
         Qt.MouseButton.LeftButton,
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
-
-    drawer.eventFilter(host, event)
-
-    assert drawer.isExpanded() is True
-
-
-def test_visible_toggle_button_click_closes_expanded_drawer() -> None:
-    """唤起按钮可见时，再次点击该按钮应关闭抽屉。"""
-    _app()
-    drawer = SlidingDrawer()
-
-    drawer.open()
-    drawer.toggleButton().click()
+    drawer.mousePressEvent(event)
 
     assert drawer.isExpanded() is False
 
@@ -202,7 +262,8 @@ def test_visible_toggle_button_click_closes_expanded_drawer() -> None:
 def test_drawer_accepts_custom_content_widget() -> None:
     """抽屉内容区应允许替换为任意 QWidget。"""
     _app()
-    drawer = SlidingDrawer()
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(parent=host))
     label = QLabel("content")
 
     drawer.setContentWidget(label)
@@ -211,46 +272,125 @@ def test_drawer_accepts_custom_content_widget() -> None:
     assert drawer.contentLayout() is None
 
 
-def test_drawer_updates_axis_constraints() -> None:
-    """抽屉展开尺寸应随方向作用在对应轴上。"""
-    _app()
-    left = SlidingDrawer(position=DrawerPosition.LEFT, drawer_size=180)
-    top = SlidingDrawer(position=DrawerPosition.TOP, drawer_size=96)
-
-    left.open()
-    top.open()
-
-    assert left.panel().maximumWidth() == 180
-    assert top.panel().maximumHeight() == 96
-
-
 def test_drawer_can_change_position_after_creation() -> None:
     """抽屉创建后应允许切换展开方向。"""
     _app()
-    drawer = SlidingDrawer(position=DrawerPosition.LEFT, drawer_size=160)
+    host = _host()
+    drawer = _disable_animation(SlidingDrawer(position=DrawerPosition.LEFT, drawer_size=160, parent=host))
 
     drawer.open()
     drawer.setPosition(DrawerPosition.BOTTOM)
 
     assert drawer.position() is DrawerPosition.BOTTOM
-    assert drawer.panel().maximumHeight() == 160
-    assert drawer.panel().maximumWidth() == 16777215
+    assert drawer.panel().geometry().y() == host.height() - 160
+    assert drawer.panel().geometry().height() == 160
+
+
+def test_drawer_uses_soft_shadow_and_slower_animation() -> None:
+    """抽屉应使用较慢的默认动画且不绘制外部遮罩。"""
+    _app()
+    host = _host()
+    drawer = SlidingDrawer(parent=host)
+
+    assert drawer.animationDuration() >= 320
+    assert drawer.maskAlpha() == 0
+
+
+def test_drawer_uses_component_panel_background_and_soft_shadow() -> None:
+    """抽屉应使用组件库面板背景并进一步柔化阴影。"""
+    _app()
+    previous_theme = qconfig.theme
+    try:
+        setTheme(Theme.LIGHT)
+        host = _host()
+        drawer = SlidingDrawer(parent=host)
+        shadow = drawer.panel().graphicsEffect()
+
+        assert drawer.maskAlpha() == 0
+        assert shadow.blurRadius() == 35
+        assert shadow.xOffset() == 0
+        assert shadow.yOffset() == 8
+        assert shadow.color().alpha() == 30
+        assert drawer.edgeShadowAlpha() == 0
+        assert "flyout.py" in drawer.shadowEffectSource()
+        assert drawer.lightPanelBackgroundColor() == "rgb(243, 243, 243)"
+        assert "navigation_interface.qss" in drawer.panelBackgroundColorSource()
+        assert "border: none" in _panel_style_block(drawer)
+    finally:
+        setTheme(previous_theme)
+
+
+def test_drawer_adapts_to_dark_theme() -> None:
+    """抽屉应在暗色主题下使用组件库暗色面板样式。"""
+    _app()
+    previous_theme = qconfig.theme
+    try:
+        setTheme(Theme.DARK)
+        host = _host()
+        drawer = SlidingDrawer(parent=host)
+        shadow = drawer.panel().graphicsEffect()
+        style_sheet = drawer.styleSheet()
+
+        assert drawer.darkPanelBackgroundColor() == "rgb(32, 32, 32)"
+        assert drawer.darkPanelBackgroundColor() in style_sheet
+        assert "rgb(255, 255, 255)" in style_sheet
+        assert "border: none" in _panel_style_block(drawer)
+        assert shadow.color().alpha() == 80
+    finally:
+        setTheme(previous_theme)
+
+
+def test_drawer_updates_existing_instance_when_theme_changes() -> None:
+    """抽屉实例应在组件库主题切换信号触发后刷新样式和阴影。"""
+    _app()
+    previous_theme = qconfig.theme
+    try:
+        setTheme(Theme.LIGHT)
+        host = _host()
+        drawer = SlidingDrawer(parent=host)
+
+        assert drawer.lightPanelBackgroundColor() in drawer.styleSheet()
+        assert drawer.panel().graphicsEffect().color().alpha() == 30
+
+        setTheme(Theme.DARK)
+
+        assert drawer.darkPanelBackgroundColor() in drawer.styleSheet()
+        assert drawer.lightPanelBackgroundColor() not in drawer.styleSheet()
+        assert drawer.panel().graphicsEffect().color().alpha() == 80
+        assert "border: none" in _panel_style_block(drawer)
+    finally:
+        setTheme(previous_theme)
+
+
+def test_style_change_event_does_not_reapply_stylesheet_recursively() -> None:
+    """StyleChange 事件不应触发 setStyleSheet 递归。"""
+    _app()
+    host = _host()
+    drawer = SlidingDrawer(parent=host)
+
+    handled = drawer.event(QEvent(QEvent.Type.StyleChange))
+
+    assert handled in (True, False)
 
 
 if __name__ == "__main__":
     tests = [
         test_drawer_supports_all_positions,
+        test_drawer_opens_as_parent_overlay_and_right_panel,
+        test_drawer_places_panel_by_position,
         test_drawer_expanded_state_and_signals,
         test_drawer_accepts_external_signal_connections,
         test_drawer_can_hide_toggle_button,
         test_drawer_closes_when_close_button_clicked,
         test_drawer_closes_when_overlay_area_clicked,
-        test_drawer_closes_when_global_outside_area_clicked,
-        test_global_outside_close_ignores_registered_trigger_widget,
-        test_visible_toggle_button_click_closes_expanded_drawer,
+        test_drawer_trigger_area_click_closes_without_reopening,
         test_drawer_accepts_custom_content_widget,
-        test_drawer_updates_axis_constraints,
         test_drawer_can_change_position_after_creation,
+        test_drawer_uses_soft_shadow_and_slower_animation,
+        test_drawer_uses_component_panel_background_and_soft_shadow,
+        test_drawer_adapts_to_dark_theme,
+        test_drawer_updates_existing_instance_when_theme_changes,
+        test_style_change_event_does_not_reapply_stylesheet_recursively,
     ]
     for test in tests:
         test()

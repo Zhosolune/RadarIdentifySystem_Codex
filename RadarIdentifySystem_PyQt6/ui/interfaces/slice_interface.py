@@ -362,20 +362,21 @@ class SliceInterface(QFrame):
         self.panel_area_layout.addStretch(1)
         self.right_panel_scroll_area.setWidget(self.scroll_content_widget)
         
-        self.slice_demo_drawer = SlidingDrawer(DrawerPosition.RIGHT, 260, column)
+        self.slice_demo_drawer = SlidingDrawer(DrawerPosition.RIGHT, 320, self)
         self.slice_demo_drawer.setObjectName("sliceDemoDrawer")
-        self.slice_demo_drawer.setFixedHeight(180)
+        self.slice_demo_drawer.setTitle("标题")
         self.slice_demo_drawer.setToggleButtonVisible(False)
         self.slice_demo_drawer.setTriggerWidget(self.drawer_demo_button)
-        self.slice_demo_drawer.contentLayout().addWidget(QLabel("右侧抽屉内容区", self.slice_demo_drawer))
-        self.slice_demo_drawer.contentLayout().addWidget(QLabel("这里可以放置任意组件", self.slice_demo_drawer))
+        self.slice_demo_drawer.contentLayout().addStretch(1)
+        drawer_empty_label = QLabel("没有更多通知", self.slice_demo_drawer)
+        drawer_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.slice_demo_drawer.contentLayout().addWidget(drawer_empty_label)
         self.slice_demo_drawer.contentLayout().addStretch(1)
         self.drawer_demo_button.clicked.connect(self.slice_demo_drawer.toggle)
 
         header_layout.addWidget(self.slice_info_label, 1)
         header_layout.addWidget(self.drawer_demo_button)
         right_layout.addLayout(header_layout)
-        right_layout.addWidget(self.slice_demo_drawer)
         right_layout.addWidget(self.right_panel_scroll_area)
         
         return column
