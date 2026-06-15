@@ -28,19 +28,22 @@ _session_id_ctx: ContextVar[str] = ContextVar("session_id", default="-")
 def bind_session_log_context(session_id: str) -> Token[str]:
     """绑定当前线程/协程的会话日志标识。
 
-    功能描述：
-        在后台线程入口（如 Worker.run()）调用，将 session_id 写入
-        contextvar，使该线程内所有未显式传 extra 的日志自动归属该 session。
-        返回的 Token 必须在作用域结束时传给 unbind_session_log_context 复位。
+    在后台线程入口（如 Worker.run()）调用，将 session_id 写入
+    contextvar，使该线程内所有未显式传 extra 的日志自动归属该 session。
+    返回的 Token 必须在作用域结束时传给 unbind_session_log_context 复位。
 
-    参数说明：
-        session_id (str): 当前会话标识。
+    Args:
+        session_id (str): 当前会话标识，不应为空字符串。
 
-    返回值说明：
-        Token[str]: contextvar 复位令牌，供 unbind 使用。
+    Returns:
+        contextvar 复位令牌，供 unbind_session_log_context 使用。
 
-    异常说明：
-        无。
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> token = bind_session_log_context("SESSION_A")
+        >>> unbind_session_log_context(token)
     """
     return _session_id_ctx.set(session_id)
 
@@ -48,18 +51,21 @@ def bind_session_log_context(session_id: str) -> Token[str]:
 def unbind_session_log_context(token: Token[str]) -> None:
     """复位会话日志标识。
 
-    功能描述：
-        将 contextvar 恢复到 bind 前的状态，防止 session_id 泄漏到
-        后续无关日志（如线程池线程复用场景）。
+    将 contextvar 恢复到 bind 前的状态，防止 session_id 泄漏到
+    后续无关日志（如线程池线程复用场景）。
 
-    参数说明：
-        token (Token[str]): bind_session_log_context 返回的令牌。
+    Args:
+        token (Token[str]): bind_session_log_context 返回的复位令牌。
 
-    返回值说明：
+    Returns:
         None: 无返回值。
 
-    异常说明：
-        无。
+    Raises:
+        ValueError: 当 token 不属于当前 context 时抛出。
+
+    Example:
+        >>> token = bind_session_log_context("SESSION_A")
+        >>> unbind_session_log_context(token)
     """
     _session_id_ctx.reset(token)
 
@@ -95,26 +101,35 @@ def _build_module_path(file_path: str) -> str:
 
 
 class RuntimeContextFilter(logging.Filter):
-    """日志上下文补全过滤器。"""
+    """日志上下文补全过滤器。
+
+    负责为日志记录补齐 session_id 与 module_path 字段，避免 formatter
+    在调用方未传入 extra 时出现字段缺失。
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
         """补全日志上下文字段。
 
-        功能描述：
-            为每条日志补全 `session_id` 与 `module_path` 字段，避免格式化时报错，
-            并统一文件路径显示格式。session_id 取值优先级：
-              1. 显式 extra={"session_id": ...}（调用方主动传参）
-              2. 当前线程的会话日志上下文（Worker.run() 入口已 bind）
-              3. 默认值 "-"
+        为每条日志补全 `session_id` 与 `module_path` 字段，避免格式化时报错，
+        并统一文件路径显示格式。session_id 取值优先级为显式 extra、当前线程
+        的会话日志上下文、默认值 "-"。
 
-        参数说明：
-            record (logging.LogRecord): 原始日志记录对象。
+        Args:
+            record (logging.LogRecord): 原始日志记录对象，可能尚未包含 session_id 字段。
 
-        返回值说明：
-            bool: 始终返回 True，表示允许输出。
+        Returns:
+            始终返回 True，表示允许输出该条日志。
 
-        异常说明：
-            无。
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> import logging
+            >>> record = logging.LogRecord("demo", logging.INFO, __file__, 1, "msg", None, None)
+            >>> RuntimeContextFilter().filter(record)
+            True
+            >>> hasattr(record, "session_id")
+            True
         """
 
         # 补全缺省会话标识：显式 extra 优先，contextvar 兜底

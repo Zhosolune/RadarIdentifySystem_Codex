@@ -1,5 +1,30 @@
 # 变更记录
 
+- 时间：2026-06-15 11:30
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\app\logger.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_logger_session_context.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始为最近一次规范修正中新增的 docstring 参数说明补充参数类型标注。
+- 原因：用户要求注释文档中的参数说明显式标注参数类型。
+- 测试状态：已测试（参数类型检查脚本确认 `logger.py` 与 `test_logger_session_context.py` 的 `Args:` 参数均已标注类型；`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_logger_session_context.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\logger.py RadarIdentifySystem_PyQt6\tests\unit\test_logger_session_context.py` 通过）
+
+- 时间：2026-06-15 09:49
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\app\logger.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\threading\import_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\threading\slice_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\config\config.json`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_logger_session_context.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始补录最近一次提交的会话日志上下文、线程上下文清理与绘图配置变更记录，并修正提交中直接相关的代码规范问题。
+- 原因：最近一次提交遗漏变更日志，且新增日志上下文 API 与测试说明需符合项目 docstring 规范。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe RadarIdentifySystem_PyQt6\tests\unit\test_logger_session_context.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\logger.py RadarIdentifySystem_PyQt6\runtime\threading\identify_worker.py RadarIdentifySystem_PyQt6\runtime\threading\import_worker.py RadarIdentifySystem_PyQt6\runtime\threading\slice_worker.py RadarIdentifySystem_PyQt6\runtime\workflows\identify_workflow.py RadarIdentifySystem_PyQt6\tests\unit\test_logger_session_context.py` 通过；`D:\Miniforge3\envs\pyqt6\python.exe -m json.tool RadarIdentifySystem_PyQt6\config\config.json` 通过）
+
 - 时间：2026-06-13 09:45
 - 操作类型：重构
 - 影响文件：
