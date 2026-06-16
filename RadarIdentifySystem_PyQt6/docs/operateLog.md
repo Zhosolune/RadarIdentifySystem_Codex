@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-06-16 14:36
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：恢复此前误删减的浮点设置卡方法注释文档。
+- 原因：上一轮修改中不应擅自缩短原有有用文档说明，需要立即纠正并恢复可读性。
+- 测试状态：待测试
+
+- 时间：2026-06-16 14:30
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复浮点设置卡在使用微调按钮后写入配置文件时出现长尾浮点表示的问题。
+- 原因：`DoubleSpinBox` 步进后的二进制浮点值直接写入 JSON，导致配置文件出现 `0.3100000000000001` 一类不必要的表示噪声。
+- 测试状态：已测试（`GetDiagnostics` 检查 `double_spin_box_setting_card.py` 无诊断；`D:\Miniforge3\envs\pyqt6\python.exe` 最小验证输出 `0.31` 与 `1.9`）
+
 - 时间：2026-06-15 17:02
 - 操作类型：修改
 - 影响文件：

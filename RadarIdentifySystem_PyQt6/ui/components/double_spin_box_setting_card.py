@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 """浮点数微调框设置卡片组件。"""
 
+from decimal import Decimal, ROUND_HALF_UP
+import logging
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import SettingCard, FluentIconBase, DoubleSpinBox, qconfig
+
+LOGGER = logging.getLogger(__name__)
 
 class DoubleSpinBoxSettingCard(SettingCard):
     """浮点数配置卡片。
@@ -35,6 +40,7 @@ class DoubleSpinBoxSettingCard(SettingCard):
         super().__init__(icon, title, content, parent)
         self.configItem = configItem
         self.spinBox = DoubleSpinBox(self)
+        self._decimals = decimals
 
         # 设置小数位数和微调步长
         self.spinBox.setDecimals(decimals)
@@ -44,21 +50,67 @@ class DoubleSpinBoxSettingCard(SettingCard):
         if hasattr(configItem, "validator") and configItem.validator is not None:
             self.spinBox.setRange(float(configItem.validator.min), float(configItem.validator.max))
 
-        # 设置初始值并连接信号
-        self.spinBox.setValue(qconfig.get(configItem))
+        # 归一化初始值，确保显示精度与控件精度一致
+        initial_value = self._normalize_value(float(qconfig.get(configItem)))
+        self.spinBox.setValue(initial_value)
         self.spinBox.valueChanged.connect(self._onValueChanged)
 
         # 添加到卡片布局
         self.hBoxLayout.addWidget(self.spinBox, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
+    def _normalize_value(self, value: float) -> float:
+        """按当前显示精度归一化浮点值。
+
+        功能描述：
+            将微调框产生的二进制浮点值按当前显示小数位进行量化，
+            让界面显示值与配置文件中的持久化值保持一致。
+
+        Args:
+            value (float): 需要归一化的原始浮点数值。
+
+        Returns:
+            float: 按当前小数位四舍五入后的浮点数值。
+
+        Raises:
+            无。
+        """
+        quantize_pattern = "1" if self._decimals <= 0 else f"1.{'0' * self._decimals}"
+        return float(
+            Decimal(str(value)).quantize(
+                Decimal(quantize_pattern),
+                rounding=ROUND_HALF_UP,
+            )
+        )
+
     def _onValueChanged(self, value: float) -> None:
         """处理数值改变事件。
 
         功能描述：
-            当微调框的数值改变时，同步更新到全局配置。
+            当微调框的数值改变时，先按当前显示小数位归一化浮点值，
+            再回写控件并同步更新到全局配置，避免配置文件出现长尾浮点表示。
 
         Args:
             value (float): 新的浮点数值。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
         """
-        qconfig.set(self.configItem, value)
+        # 归一化浮点值，避免 JSON 中出现长尾浮点表示
+        normalized_value = self._normalize_value(value)
+
+        if normalized_value != value:
+            LOGGER.debug("归一化浮点配置值：%s -> %s", value, normalized_value)
+
+            # 回写归一化值，确保控件显示与实际保存值一致
+            self.spinBox.blockSignals(True)
+            try:
+                self.spinBox.setValue(normalized_value)
+            finally:
+                self.spinBox.blockSignals(False)
+
+        # 持久化配置值
+        qconfig.set(self.configItem, normalized_value)
