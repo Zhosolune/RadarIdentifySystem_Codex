@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     FluentIcon,
     ScrollArea,
@@ -13,8 +13,6 @@ from qfluentwidgets import (
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
 from ui.components import (
-    DashboardMetric,
-    DashboardPage,
     ImportDashboardPanel,
     ImportDataPanel,
     JitterFreeCardGroup,
@@ -92,7 +90,7 @@ class HomeInterface(QFrame):
         root_layout.addWidget(self.right_column, 1)
 
     def _create_left_column(self) -> QWidget:
-        """创建右侧带滚动的目录管理面板。
+        """创建左侧带滚动的目录管理面板。
 
         功能描述：
             构建一个包含 ScrollArea 的右侧面板，ScrollArea 内放置
@@ -134,6 +132,10 @@ class HomeInterface(QFrame):
 
         # ---------- JitterFreeCardGroup ----------
         data_dir_group = JitterFreeCardGroup(scroll_content)
+        data_dir_group.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
 
         # FolderListSettingCard：自动从 appConfig.importDataDirs 读写
         # directory 参数指定"添加文件夹"对话框的初始目录
@@ -152,18 +154,18 @@ class HomeInterface(QFrame):
         # ---------- 导入数据面板（标签栏 + 文件列表） ----------
         # 放置在导入目录卡片下方，提供 Excel/Bin/MAT 三种格式的文件管理界面
         self.import_panel = ImportDataPanel(scroll_content)
-        # 固定高度，保证标签栏和文件列表有足够的展示空间
-        self.import_panel.setFixedHeight(420)
-        content_layout.addWidget(self.import_panel)
+        # 文件列表承担右侧栏剩余高度，空间不足时交给外层 ScrollArea 滚动。
+        self.import_panel.setMinimumHeight(320)
+        self.import_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        content_layout.addWidget(self.import_panel, 1)
 
         # ---------- 仪表盘面板（动态标签页 + 流式指标卡） ----------
         self.dashboard_panel = ImportDashboardPanel(scroll_content)
-        self.dashboard_panel.setFixedHeight(245)
-        self.dashboard_panel.set_dashboard_pages(self._build_default_dashboard_pages())
-        content_layout.addWidget(self.dashboard_panel)
-
-        # 底部弹性空间（面板撑满后不再拉伸）
-        content_layout.addStretch(1)
+        self.dashboard_panel.setFixedHeight(300)
+        content_layout.addWidget(self.dashboard_panel, 0)
 
         # 将内容容器注入 ScrollArea
         scroll_area.setWidget(scroll_content)
@@ -172,7 +174,7 @@ class HomeInterface(QFrame):
         return column
 
     def _create_right_column(self) -> QFrame:
-        """创建左侧空白占位栏。
+        """创建右侧空白占位栏。
 
         功能描述：
             构建一个带圆角边框的占位栏位，内部保留空白区，供后续业务填充。
@@ -196,36 +198,3 @@ class HomeInterface(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         return column
-
-    def _build_default_dashboard_pages(self) -> list[DashboardPage]:
-        """创建仪表盘占位页数据。
-
-        功能描述：
-            当前阶段尚未接入真实文件解析结果，先通过动态数据接口创建一个占位页。
-            后续可由控制器根据选中文件实际情况传入两个或三个标签页。
-
-        参数说明：
-            无。
-
-        返回值说明：
-            list[DashboardPage]: 仪表盘标签页数据列表。
-
-        异常说明：
-            无。
-        """
-
-        metrics = [
-            DashboardMetric("总脉冲", "--"),
-            DashboardMetric("剔除脉冲", "--"),
-            DashboardMetric("幅度丢弃", "--"),
-            DashboardMetric("持续时间", "--"),
-            DashboardMetric("波段", "--"),
-            DashboardMetric("预计切片数", "--"),
-        ]
-        return [
-            DashboardPage(
-                route_key="file_info",
-                title="文件信息",
-                metrics=metrics,
-            )
-        ]

@@ -176,6 +176,7 @@ class HomeController(QObject):
         self._active_parse_session_id = session.session_id
         self.view.import_panel.parseButton.setEnabled(False)
         self.view.import_panel.parseButton.setText("解析中")
+        self.view.dashboard_panel.clear_dashboard_pages()
         self._show_processing_dialog()
 
         try:
