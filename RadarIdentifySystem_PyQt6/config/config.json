@@ -1,8 +1,12 @@
 {
     "algorithm.clustering": {
+        "clipThresholdDOA": 95.0,
         "epsilonCF": 2.0,
+        "epsilonDOA": 16.8,
         "epsilonPW": 0.2,
-        "minPts": 1
+        "minPtsCF": 2,
+        "minPtsDOA": 2,
+        "minPtsPW": 2
     },
     "business": {
         "autoExport": false,

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QVBoxLayout, QWidget, QLabel
 
 from qfluentwidgets import (
     BodyLabel,
@@ -114,7 +114,7 @@ class DashboardCard(QFrame):
         layout.setSpacing(2)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        value_label = StrongBodyLabel(metric.value, self)
+        value_label = QLabel(metric.value, self)
         value_label.setObjectName("dashboardMetricValue")
         value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

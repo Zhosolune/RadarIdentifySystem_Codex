@@ -27,7 +27,7 @@ from typing import Optional
 
 import numpy as np
 
-from core.dashboard_info import DashboardInfoManager
+from core.dashboard import DashboardInfoManager
 from core.models.pulse_batch import COL_CF, COL_PA, COL_TOA
 from core.models.slice_result import PreprocessResult
 

@@ -14,7 +14,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from core.dashboard_info import DashboardInfoManager
+from core.dashboard import DashboardInfoManager
 from core.models.pulse_batch import COL_TOA
 from core.preprocess import preprocess
 
