@@ -6,7 +6,7 @@ import logging
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
-from qfluentwidgets import SettingCard, FluentIconBase, DoubleSpinBox, qconfig
+from qfluentwidgets import SettingCard, FluentIconBase, DoubleSpinBox, BodyLabel, qconfig
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class DoubleSpinBoxSettingCard(SettingCard):
         spinBox (DoubleSpinBox): 右侧的浮点数值微调框。
     """
 
-    def __init__(self, configItem, icon: FluentIconBase, title: str, content: str | None = None, parent: QWidget | None = None, decimals: int = 2, singleStep: float = 1.0):
+    def __init__(self, configItem, icon: FluentIconBase, title: str, content: str | None = None, unit: str | None = None, decimals: int = 2, singleStep: float = 1.0, parent: QWidget | None = None):
         """初始化浮点型配置卡片。
 
         功能描述：
@@ -32,6 +32,7 @@ class DoubleSpinBoxSettingCard(SettingCard):
             configItem (ConfigItem): 需要绑定的配置项。
             icon (FluentIconBase): 卡片左侧显示的图标。
             title (str): 卡片主标题。
+            unit (str | None, optional): 数值单位文本，显示在微调框右侧。默认为 None。
             content (str | None, optional): 卡片副标题/描述内容。默认为 None。
             parent (QWidget | None, optional): 挂载的父级组件。默认为 None。
             decimals (int, optional): 显示的小数位数。默认为 2。
@@ -40,6 +41,9 @@ class DoubleSpinBoxSettingCard(SettingCard):
         super().__init__(icon, title, content, parent)
         self.configItem = configItem
         self.spinBox = DoubleSpinBox(self)
+        self.unit = BodyLabel(self)
+        self.unit.setFixedWidth(40)
+        self.unit.setText(unit or " ")
         self._decimals = decimals
 
         # 设置小数位数和微调步长
@@ -57,6 +61,8 @@ class DoubleSpinBoxSettingCard(SettingCard):
 
         # 添加到卡片布局
         self.hBoxLayout.addWidget(self.spinBox, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addSpacing(8)
+        self.hBoxLayout.addWidget(self.unit, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
     def _normalize_value(self, value: float) -> float:

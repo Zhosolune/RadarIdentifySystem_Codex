@@ -51,17 +51,41 @@ class AppConfig(QConfig):
         default=2.0,
         validator=RangeValidator(0.01, 50.0),
     )
+    algorithmMinPtsCF = ConfigItem(
+        group="algorithm.clustering",
+        name="minPtsCF",
+        default=2,
+        validator=RangeValidator(1, 9999),
+    )
     algorithmEpsilonPW = ConfigItem(
         group="algorithm.clustering",
         name="epsilonPW",
         default=0.2,
         validator=RangeValidator(0.01, 10.0),
     )
-    algorithmMinPts = ConfigItem(
+    algorithmMinPtsPW = ConfigItem(
         group="algorithm.clustering",
-        name="minPts",
-        default=1,
+        name="minPtsPW",
+        default=2,
         validator=RangeValidator(1, 9999),
+    )
+    algorithmEpsilonDOA = ConfigItem(
+        group="algorithm.clustering",
+        name="epsilonDOA",
+        default=16.8,
+        validator=RangeValidator(0.01, 50.0),
+    )
+    algorithmMinPtsDOA = ConfigItem(
+        group="algorithm.clustering",
+        name="minPtsDOA",
+        default=2,
+        validator=RangeValidator(1, 9999),
+    )
+    algorithmClipThresholdDOA = ConfigItem(
+        group="algorithm.clustering",
+        name="clipThresholdDOA",
+        default=95.0,
+        validator=RangeValidator(0.0, 100.0),
     )
 
     # 识别参数 ─────────────────────────────────────────────────────────────────

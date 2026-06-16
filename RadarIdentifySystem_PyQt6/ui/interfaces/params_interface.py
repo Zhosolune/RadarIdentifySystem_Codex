@@ -64,33 +64,75 @@ class ParamsInterface(ScrollArea):
         self._clusterGroup = SettingCardGroup("聚类参数配置", self.settingScrollWidget)
         self._clusterGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                appConfig.algorithmEpsilonCF,
-                FluentIcon.SETTING,
-                "载频聚类半径",
-                "DBSCAN 算法中 CF 维度的核心邻域半径容差值",
-                self._clusterGroup,
+                icon=FluentIcon.SETTING,
+                configItem=appConfig.algorithmEpsilonCF,
+                title="CF聚类半径",
+                content="DBSCAN 算法中 CF 维度的核心邻域半径容差值",
+                unit="MHz",
                 decimals=2,
                 singleStep=0.01,
+                parent=self._clusterGroup,
+            )
+        )
+        self._clusterGroup.addSettingCard(
+            SpinBoxSettingCard(
+                icon=FluentIcon.PEOPLE,
+                configItem=appConfig.algorithmMinPtsCF,
+                title="CF核心点最小点数",
+                content="DBSCAN 算法中构成一个聚类核心对象所需要的最少点数",
+                unit="个",
+                parent=self._clusterGroup,
             )
         )
         self._clusterGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                appConfig.algorithmEpsilonPW,
-                FluentIcon.SETTING,
-                "脉宽聚类半径",
-                "DBSCAN 算法中 PW 维度的核心邻域半径容差值",
-                self._clusterGroup,
+                icon=FluentIcon.SETTING,
+                configItem=appConfig.algorithmEpsilonPW,
+                title="PW聚类半径",
+                content="DBSCAN 算法中 PW 维度的核心邻域半径容差值",
+                unit="μs",
                 decimals=2,
                 singleStep=0.01,
             )
         )
         self._clusterGroup.addSettingCard(
             SpinBoxSettingCard(
-                appConfig.algorithmMinPts,
-                FluentIcon.PEOPLE,
-                "核心点最小样本数",
-                "DBSCAN 算法中构成一个聚类核心对象所需要的最少点数",
-                self._clusterGroup,
+                icon=FluentIcon.PEOPLE,
+                configItem=appConfig.algorithmMinPtsPW,
+                title="PW核心点最小点数",
+                content="DBSCAN 算法中构成一个聚类核心对象所需要的最少点数",
+                unit="个",
+                parent=self._clusterGroup,
+            )
+        )
+        self._clusterGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                icon=FluentIcon.PEOPLE,
+                configItem=appConfig.algorithmEpsilonDOA,
+                title="DOA聚类半径",
+                content="DBSCAN 算法中 DOA 维度的核心邻域半径容差值",
+                unit="°",
+                parent=self._clusterGroup,
+            )
+        )
+        self._clusterGroup.addSettingCard(
+            SpinBoxSettingCard(
+                icon=FluentIcon.PEOPLE,
+                configItem=appConfig.algorithmMinPtsDOA,
+                title="DOA核心点最小点数",
+                content="DBSCAN 算法中构成一个聚类核心对象所需要的最少点数",
+                unit="个",
+                parent=self._clusterGroup,
+            )
+        )
+        self._clusterGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                icon=FluentIcon.PEOPLE,
+                configItem=appConfig.algorithmClipThresholdDOA,
+                title="DOA限幅阈值",
+                content="DBSCAN 算法中 DOA 维度的限幅阈值",
+                unit="%",
+                parent=self._clusterGroup,
             )
         )
 
@@ -100,33 +142,33 @@ class ParamsInterface(ScrollArea):
         )
         self._recognizeGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                appConfig.recognizeTolerance,
-                FluentIcon.SEARCH,
-                "识别容差阈值",
-                "配置识别模型中的基本容差判定阈值",
-                self._recognizeGroup,
+                configItem=appConfig.recognizeTolerance,
+                icon=FluentIcon.SEARCH,
+                title="识别容差阈值",
+                content="配置识别模型中的基本容差判定阈值",
+                parent=self._recognizeGroup,
                 decimals=2,
                 singleStep=0.01,
             )
         )
         self._recognizeGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                appConfig.recognizeMinConfidence,
-                FluentIcon.SEARCH,
-                "置信度底线",
-                "信号类型判定的最低置信度得分要求",
-                self._recognizeGroup,
+                configItem=appConfig.recognizeMinConfidence,
+                icon=FluentIcon.SEARCH,
+                title="置信度底线",
+                content="信号类型判定的最低置信度得分要求",
+                parent=self._recognizeGroup,
                 decimals=2,
                 singleStep=0.05,
             )
         )
         self._recognizeGroup.addSettingCard(
             SpinBoxSettingCard(
-                appConfig.recognizeMaxCandidates,
-                FluentIcon.SEARCH,
-                "最大匹配候选数",
-                "特征比对时保留的最大候选类型数量",
-                self._recognizeGroup,
+                configItem=appConfig.recognizeMaxCandidates,
+                icon=FluentIcon.SEARCH,
+                title="最大匹配候选数",
+                content="特征比对时保留的最大候选类型数量",
+                parent=self._recognizeGroup,
             )
         )
 
@@ -134,29 +176,29 @@ class ParamsInterface(ScrollArea):
         self._extractGroup = SettingCardGroup("提取参数配置", self.settingScrollWidget)
         self._extractGroup.addSettingCard(
             SpinBoxSettingCard(
-                appConfig.extractStep,
-                FluentIcon.FILTER,
-                "特征点提取步长",
-                "在时序域上抽取雷达信号特征的滑窗步长值",
-                self._extractGroup,
+                configItem=appConfig.extractStep,
+                icon=FluentIcon.FILTER,
+                title="特征点提取步长",
+                content="在时序域上抽取雷达信号特征的滑窗步长值",
+                parent=self._extractGroup,
             )
         )
         self._extractGroup.addSettingCard(
             SpinBoxSettingCard(
-                appConfig.extractSmoothWindow,
-                FluentIcon.FILTER,
-                "平滑滤波窗口大小",
-                "对提取的包络或特征序列进行平滑处理时的窗口点数",
-                self._extractGroup,
+                configItem=appConfig.extractSmoothWindow,
+                icon=FluentIcon.FILTER,
+                title="平滑滤波窗口大小",
+                content="对提取的包络或特征序列进行平滑处理时的窗口点数",
+                parent=self._extractGroup,
             )
         )
         self._extractGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                appConfig.extractOutlierThreshold,
-                FluentIcon.FILTER,
-                "异常点剔除阈值",
-                "特征提取阶段用于判断并剔除奇异值的相对误差限",
-                self._extractGroup,
+                configItem=appConfig.extractOutlierThreshold,
+                icon=FluentIcon.FILTER,
+                title="异常点剔除阈值",
+                content="特征提取阶段用于判断并剔除奇异值的相对误差限",
+                parent=self._extractGroup,
                 decimals=1,
                 singleStep=0.5,
             )
@@ -166,33 +208,33 @@ class ParamsInterface(ScrollArea):
         self._mergeGroup = SettingCardGroup("合并参数配置", self.settingScrollWidget)
         self._mergeGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                appConfig.mergeTimeDecay,
-                FluentIcon.LINK,
-                "时间衰减权重",
-                "跨切片航迹合并时时间间隔对关联概率的衰减系数",
-                self._mergeGroup,
+                configItem=appConfig.mergeTimeDecay,
+                icon=FluentIcon.LINK,
+                title="时间衰减权重",
+                content="跨切片航迹合并时时间间隔对关联概率的衰减系数",
+                parent=self._mergeGroup,
                 decimals=2,
                 singleStep=0.05,
             )
         )
         self._mergeGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                appConfig.mergeSimThreshold,
-                FluentIcon.LINK,
-                "特征相似度阈值",
-                "判定相邻切片中两个信号目标属于同一实体的最低相似度",
-                self._mergeGroup,
+                configItem=appConfig.mergeSimThreshold,
+                icon=FluentIcon.LINK,
+                title="特征相似度阈值",
+                content="判定相邻切片中两个信号目标属于同一实体的最低相似度",
+                parent=self._mergeGroup,
                 decimals=2,
                 singleStep=0.05,
             )
         )
         self._mergeGroup.addSettingCard(
             SpinBoxSettingCard(
-                appConfig.mergeMaxExtrapolate,
-                FluentIcon.LINK,
-                "最大外推帧数",
-                "航迹断点后允许外推保留的最大连续切片数量",
-                self._mergeGroup,
+                configItem=appConfig.mergeMaxExtrapolate,
+                icon=FluentIcon.LINK,
+                title="最大外推帧数",
+                content="航迹断点后允许外推保留的最大连续切片数量",
+                parent=self._mergeGroup,
             )
         )
 

@@ -91,33 +91,7 @@ class HomeInterface(QFrame):
         root_layout.addWidget(self.left_column, 1)
         root_layout.addWidget(self.right_column, 1)
 
-    def _create_left_column(self) -> QFrame:
-        """创建左侧空白占位栏。
-
-        功能描述：
-            构建一个带圆角边框的占位栏位，内部保留空白区，供后续业务填充。
-
-        参数说明：
-            无。
-
-        返回值说明：
-            QFrame: 左侧栏容器对象。
-
-        异常说明：
-            无。
-        """
-
-        column = QFrame(self)
-        column.setObjectName("homeLeftColumn")
-        column.setFrameShape(QFrame.Shape.StyledPanel)
-
-        # 简单占位布局，不添加任何实质内容
-        layout = QHBoxLayout(column)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        return column
-
-    def _create_right_column(self) -> QWidget:
+    def _create_left_column(self) -> QWidget:
         """创建右侧带滚动的目录管理面板。
 
         功能描述：
@@ -195,6 +169,32 @@ class HomeInterface(QFrame):
         scroll_area.setWidget(scroll_content)
 
         column_layout.addWidget(scroll_area)
+        return column
+
+    def _create_right_column(self) -> QFrame:
+        """创建左侧空白占位栏。
+
+        功能描述：
+            构建一个带圆角边框的占位栏位，内部保留空白区，供后续业务填充。
+
+        参数说明：
+            无。
+
+        返回值说明：
+            QFrame: 左侧栏容器对象。
+
+        异常说明：
+            无。
+        """
+
+        column = QFrame(self)
+        column.setObjectName("homeLeftColumn")
+        column.setFrameShape(QFrame.Shape.StyledPanel)
+
+        # 简单占位布局，不添加任何实质内容
+        layout = QHBoxLayout(column)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         return column
 
     def _build_default_dashboard_pages(self) -> list[DashboardPage]:

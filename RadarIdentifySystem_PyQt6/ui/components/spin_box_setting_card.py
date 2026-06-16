@@ -3,7 +3,7 @@
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
-from qfluentwidgets import SettingCard, FluentIconBase, SpinBox, qconfig
+from qfluentwidgets import SettingCard, FluentIconBase, SpinBox, BodyLabel, qconfig
 
 class SpinBoxSettingCard(SettingCard):
     """整数配置卡片。
@@ -17,7 +17,7 @@ class SpinBoxSettingCard(SettingCard):
         spinBox (SpinBox): 右侧的数值微调框。
     """
 
-    def __init__(self, configItem, icon: FluentIconBase, title: str, content: str | None = None, parent: QWidget | None = None):
+    def __init__(self, configItem, icon: FluentIconBase, title: str, content: str | None = None,unit: str | None = None, parent: QWidget | None = None):
         """初始化整型配置卡片。
 
         功能描述：
@@ -28,10 +28,14 @@ class SpinBoxSettingCard(SettingCard):
             icon (FluentIconBase): 卡片左侧显示的图标。
             title (str): 卡片主标题。
             content (str | None, optional): 卡片副标题/描述内容。默认为 None。
+            unit (str | None, optional): 单位字符串。默认为 None。
             parent (QWidget | None, optional): 挂载的父级组件。默认为 None。
         """
         super().__init__(icon, title, content, parent)
         self.configItem = configItem
+        self.unit = BodyLabel(self)
+        self.unit.setFixedWidth(40)
+        self.unit.setText(unit or " ")
         self.spinBox = SpinBox(self)
 
         # 从配置项提取合法范围并设置
@@ -44,6 +48,8 @@ class SpinBoxSettingCard(SettingCard):
 
         # 添加到卡片布局
         self.hBoxLayout.addWidget(self.spinBox, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addSpacing(8)
+        self.hBoxLayout.addWidget(self.unit, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
     def _onValueChanged(self, value: int) -> None:
