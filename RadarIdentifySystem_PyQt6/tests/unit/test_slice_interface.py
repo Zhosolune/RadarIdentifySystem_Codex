@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
 
@@ -59,6 +60,8 @@ def test_slice_param_panel_is_mounted_in_matching_drawer(
     assert interface.slice_param_drawer.contentWidget() is interface.slice_param_panel
     assert not hasattr(interface.navigation_control_card, "auto_recognize_card")
     assert interface.slice_param_panel.export_path_card is not None
+    # 控制器定时器与页面存在引用环，测试结束时显式释放 Qt 对象。
+    sip.delete(interface)
 
 
 if __name__ == "__main__":

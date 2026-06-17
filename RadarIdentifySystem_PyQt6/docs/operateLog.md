@@ -1,5 +1,64 @@
 # 变更记录
 
+- 时间：2026-06-17 16:53
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：对比根目录误写日志与 PyQt6 子项目日志，将缺失的 4 条切片参数面板设计和实现记录补入正确日志文件。
+- 原因：此前错误地把本次操作记录写入仓库根目录 `docs/operateLog.md`，未遵循 PyQt6 子项目的日志路径约定。
+- 测试状态：无需测试（已按变更摘要去重核对，三条既有仪表盘记录未重复追加）
+
+- 时间：2026-06-17 16:50
+- 操作类型：重构
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\plans\2026-06-17-slice-param-panel-jitter-layout.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将参数面板改为 `ScrollArea → SimpleCardWidget → JitterFreeCardGroup` 结构，滚动内容边距设置为左 16、上 8、右 16、下 16，简单卡片容器内部保持 12px 边距。
+- 原因：防止可展开设置卡互相挤压引发布局抖动，同时避免抽屉内容贴边。
+- 测试状态：已测试（TDD RED 阶段因缺少 `scroll_area` 失败；GREEN 阶段相关测试 4 项通过；`compileall`、Qt 离屏实例化和 `git diff --check` 通过；测试销毁期访问冲突通过显式释放带活动定时器的页面对象解决）
+
+- 时间：2026-06-17 16:19
+- 操作类型：重构
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\specs\2026-06-17-slice-param-panel-jitter-layout-design.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：设计将 `SliceParamPanel` 改为滚动区、简单卡片容器和 `JitterFreeCardGroup` 的嵌套结构，并增加左右 16px 内容边距。
+- 原因：降低可展开卡片引发布局抖动的风险，并避免抽屉内容紧贴左右边缘。
+- 测试状态：无需测试（布局结构、边距和范围限制已完成设计自检）
+
+- 时间：2026-06-17 15:42
+- 操作类型：重构
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\model_selection_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\navigation_control_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_model_selection_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：抽离普通 `QWidget` 类型的 `SliceParamPanel`，迁入自动识别和导出路径卡，新增实例级 PA/DTOA 模型选择卡，并恢复切片与类别文字导航按钮。
+- 原因：降低 `SliceInterface` 的抽屉内容布局职责，为未来每个 Session 独立子配置和模型选择建立 UI 基础，同时保留图形与文字两套导航入口。
+- 测试状态：已测试（相关测试 17 项通过、3 项既有抽屉视觉测试排除；`compileall` 和 Qt 离屏实例化通过；完整单元测试目录仍被 3 个既有旧接口导入错误阻塞）
+
+- 时间：2026-06-17 15:20
+- 操作类型：重构
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\specs\2026-06-17-slice-param-panel-design.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\plans\2026-06-17-slice-param-panel.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成切片参数面板重构设计和 TDD 实施计划，确定 `slice_param_drawer + slice_param_panel` 组合结构、实例级模型选择边界及双入口导航连接方案。
+- 原因：减少 `SliceInterface` 内部 UI 堆叠，为未来每个 Session 独立子配置和模型选择建立清晰组件边界。
+- 测试状态：无需测试（设计与实施计划文档已完成自检）
+
 - 时间：2026-06-17 11:35
 - 操作类型：修改
 - 影响文件：

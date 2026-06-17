@@ -352,7 +352,7 @@ class SliceInterface(QFrame):
 
         self.scroll_content_layout.addWidget(self.operate_panel_card)
         self.scroll_content_layout.addStretch(1)
-        
+
         self.right_panel_scroll_area.setWidget(self.scroll_content_widget)
         
         # 抽屉外壳由页面管理，内部卡片布局由独立参数面板负责。
@@ -360,7 +360,7 @@ class SliceInterface(QFrame):
             DrawerPosition.RIGHT,
             self.RIGHT_COLUMN_WIDTH,
             self,
-            title="切片参数",
+            title="当前Session配置",
         )
         self.slice_param_panel: SliceParamPanel = SliceParamPanel(
             self.slice_param_drawer

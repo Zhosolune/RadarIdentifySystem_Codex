@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
 
@@ -75,3 +76,5 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
         "prev_cluster": 2,
         "next_cluster": 2,
     }
+    # 控制器定时器与页面存在引用环，测试结束时显式释放 Qt 对象。
+    sip.delete(interface)

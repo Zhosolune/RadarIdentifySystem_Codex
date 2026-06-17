@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
-from qfluentwidgets import FluentIcon, SwitchSettingCard
+from qfluentwidgets import FluentIcon, ScrollArea, SimpleCardWidget, SwitchSettingCard, SettingCardGroup
 
 from app.app_config import appConfig
 from .export_option_card import ExportOptionCard
@@ -20,6 +20,11 @@ class SliceParamPanel(QWidget):
         auto_recognize_card: 切换下一片时自动识别的设置卡。
         model_selection_card: 当前页面使用的 PA 与 DTOA 模型选择卡。
         export_path_card: 导出路径与自动保存设置卡。
+        scroll_area: 支持内容溢出的滚动区域。
+        scroll_content_widget: 滚动区域承载的内容控件。
+        scroll_content_layout: 提供抽屉内容边距的布局。
+        panel_card: 包裹无抖动卡片组的简单卡片容器。
+        cards_group: 管理可展开卡片高度的无抖动卡片组。
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -55,11 +60,35 @@ class SliceParamPanel(QWidget):
         self._init_layout()
 
     def _init_layout(self) -> None:
-        """按固定顺序排列参数设置卡片。"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-        layout.addWidget(self.auto_recognize_card)
-        layout.addWidget(self.model_selection_card)
-        layout.addWidget(self.export_path_card)
-        layout.addStretch(1)
+        """使用滚动区和无抖动卡片组排列参数设置卡片。"""
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        self.drawer_scroll_area: ScrollArea = ScrollArea(self)
+        self.drawer_scroll_area.setObjectName("drawerPanelScrollArea")
+        self.drawer_scroll_area.setWidgetResizable(True)
+
+        self.drawer_scroll_widget: QWidget = QWidget()
+        self.drawer_scroll_widget.setObjectName("drawerPanelContentWidget")
+        self.drawer_scroll_layout: QVBoxLayout = QVBoxLayout(
+            self.drawer_scroll_widget
+        )
+        self.drawer_scroll_layout.setContentsMargins(16, 8, 16, 16)
+        self.drawer_scroll_layout.setSpacing(8)
+
+        # ExpandLayout 统一管理展开高度，避免多张设置卡互相挤压抖动。
+        self.cards_group: SettingCardGroup = SettingCardGroup(
+            "额外配置项",
+            self.drawer_scroll_widget
+        )
+        self.cards_group.addSettingCard(self.auto_recognize_card)
+        self.cards_group.addSettingCard(self.model_selection_card)
+        self.cards_group.addSettingCard(self.export_path_card)
+
+        # TODO: 其他设置卡组可添加到此。
+
+        self.drawer_scroll_layout.addWidget(self.cards_group)
+        self.drawer_scroll_layout.addStretch(1)
+        self.drawer_scroll_area.setWidget(self.drawer_scroll_widget)
+        root_layout.addWidget(self.drawer_scroll_area)

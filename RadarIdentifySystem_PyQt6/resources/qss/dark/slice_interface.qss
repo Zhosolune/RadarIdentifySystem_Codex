@@ -65,11 +65,13 @@ SimpleCardWidget#sliceImageCard {
     color: black;
 }
 
-#rightPanelScrollArea, #rightPanelScrollArea > QWidget {
+#rightPanelScrollArea, #rightPanelScrollArea > QWidget,
+#drawerPanelScrollArea, #drawerPanelScrollArea > QWidget {
     background: transparent;
     border: none;
 }
 
-#scrollContentWidget {
+#scrollContentWidget,
+#drawerPanelContentWidget {
     background: transparent;
 }

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRect, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEasingCurve, QSize, QEvent, QObject, QPropertyAnimation, QRect, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QCloseEvent, QLinearGradient, QMouseEvent, QPaintEvent, QPainter
 from PyQt6.QtWidgets import (
     QFrame,
@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import FluentIcon, Theme, TransparentToolButton, isDarkTheme, qconfig
+from qfluentwidgets import TitleLabel, FluentIcon, Theme, TransparentToolButton, isDarkTheme, qconfig
 
 
 class DrawerPosition(Enum):
@@ -107,11 +107,12 @@ class SlidingDrawer(QWidget):
         self._panel.setObjectName("slidingDrawerPanel")
         self._panel.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-        self._title_label = QLabel(title, self._panel)
+        self._title_label = TitleLabel(title, self._panel)
         self._title_label.setObjectName("slidingDrawerTitleLabel")
         self._close_button = TransparentToolButton(FluentIcon.CLOSE, self._panel)
         self._close_button.setObjectName("slidingDrawerCloseButton")
-        self._close_button.setFixedSize(32, 32)
+        self._close_button.setFixedSize(36, 36)
+        self._close_button.setIconSize(QSize(12, 12))
         self._close_button.clicked.connect(self.close)
 
         self._content_widget = QWidget(self._panel)
