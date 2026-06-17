@@ -57,3 +57,21 @@
 - 已完成内容：已确认 EdgeTabWidget.clearTabs() 会删除页面；已改为每次重新创建 DashboardSkeletonWidget，并通过空标题、固定 routeKey 的占位 tab 加入 EdgeTabWidget。
 - 待完成内容：因当前环境缺少 PyQt6，Qt 运行态冒烟和截图验证未完成。
 - 测试状态：[已测试] 已运行 python -m py_compile 覆盖 import_dashboard_panel.py、home_interface.py、home_controller.py。
+
+## 2026-06-17 设计阶段
+- 操作类型：[重构]
+- 影响文件：
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\specs\2026-06-17-slice-param-panel-design.md
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+- 变更摘要：设计将切片参数抽屉内容拆分为独立 `SliceParamPanel`，恢复文字导航按钮，并规划迁移自动识别、模型选择和导出路径卡片。
+- 原因：减少 `SliceInterface` 内部 UI 堆叠，为未来每个 Session 独立子配置和模型选择建立清晰组件边界。
+- 计划：
+  - [x] 核对现有抽屉、导航按钮、控制器槽函数和模型管理接口。
+  - [x] 明确模型选择仅保存在当前面板实例，不修改全局配置。
+  - [x] 确认 `SliceParamPanel` 使用普通 `QWidget`，不继承 `SlidingDrawer`。
+  - [x] 编写并自检设计文档。
+  - [ ] 编写测试先行的实施计划。
+  - [ ] 分阶段完成生产代码和回归测试。
+- 已完成内容：已确定 `slice_param_drawer` 与 `slice_param_panel` 的组合结构，以及模型选择卡的 Session 作用域边界。
+- 待完成内容：实施计划、失败测试、最小实现和运行验证。
+- 测试状态：[无需测试] 当前仅修改设计与操作记录文档。
