@@ -319,38 +319,40 @@ class SliceInterface(QFrame):
         self.scroll_content_widget = QWidget()
         self.scroll_content_widget.setObjectName("scrollContentWidget")
 
-        self.panel_area_layout = QVBoxLayout(self.scroll_content_widget)
-        self.panel_area_layout.setContentsMargins(0, 0, 0, 0)
-        self.panel_area_layout.setSpacing(10)
+        self.scroll_content_layout = QVBoxLayout(self.scroll_content_widget)
+        self.scroll_content_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_content_layout.setSpacing(10)
 
         # 业务面板卡片容器
-        self.right_panel_card = SimpleCardWidget(self.scroll_content_widget)
+        self.operate_panel_card = SimpleCardWidget(self.scroll_content_widget)
         
-        # 选项卡面板布局
-        control_panel_layout = QVBoxLayout(self.right_panel_card)
-        control_panel_layout.setContentsMargins(12, 12, 12, 12)
-        control_panel_layout.setSpacing(5)
+        # 业务面板布局
+        operate_panel_layout = QVBoxLayout(self.operate_panel_card)
+        operate_panel_layout.setContentsMargins(12, 12, 12, 12)
+        operate_panel_layout.setSpacing(8)
         
-        # 所有的卡片组件用 JitterFreeCardGroup 包裹，放入右侧面板
-        cards_group = JitterFreeCardGroup(self.right_panel_card)
+        # 导航与操作控制卡片
+        self.navigation_control_card = NavigationControlCard(self.operate_panel_card)
         
-        # 导航与主操作控制卡片
-        self.navigation_control_card = NavigationControlCard(cards_group)
-        
+        # 选项卡用 JitterFreeCardGroup 包裹，放入右侧面板
+        option_cards_group = JitterFreeCardGroup(self.operate_panel_card)
+
         # 绘图选项卡
-        self.plot_option_card = PlotOptionCard(cards_group)
+        self.plot_option_card = PlotOptionCard(option_cards_group)
         
         # 重绘选项卡
-        self.redraw_option_card = RedrawOptionCard(cards_group)
+        self.redraw_option_card = RedrawOptionCard(option_cards_group)
         
-        cards_group.addSettingCard(self.navigation_control_card)
-        cards_group.addSettingCard(self.plot_option_card)
-        cards_group.addSettingCard(self.redraw_option_card)
+        # option_cards_group.addSettingCard(self.navigation_control_card)
+        option_cards_group.addSettingCard(self.plot_option_card)
+        option_cards_group.addSettingCard(self.redraw_option_card)
         
-        control_panel_layout.addWidget(cards_group)
+        operate_panel_layout.addWidget(self.navigation_control_card)
+        operate_panel_layout.addWidget(option_cards_group)
 
-        self.panel_area_layout.addWidget(self.right_panel_card)
-        self.panel_area_layout.addStretch(1)
+        self.scroll_content_layout.addWidget(self.operate_panel_card)
+        self.scroll_content_layout.addStretch(1)
+        
         self.right_panel_scroll_area.setWidget(self.scroll_content_widget)
         
         # 抽屉外壳由页面管理，内部卡片布局由独立参数面板负责。

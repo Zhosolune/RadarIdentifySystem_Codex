@@ -1,6 +1,7 @@
 """导航与主操作控制组件。"""
 
 from __future__ import annotations
+from ast import main
 
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -49,7 +50,7 @@ class NavigationControlCard(QWidget):
         """
         super().__init__(parent)
         self.setObjectName("navigationControlCard")
-        self.setFixedHeight(140)
+        self.setFixedHeight(72)
 
         # --- 主操作区域 ---
         self.start_slicing_button: PrimaryPushButton = PrimaryPushButton(
@@ -112,7 +113,7 @@ class NavigationControlCard(QWidget):
         """
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(3)
+        main_layout.setSpacing(8)
 
         # 主操作行：切片和识别按钮
         action_button_layout = QHBoxLayout()
@@ -128,9 +129,10 @@ class NavigationControlCard(QWidget):
         nav_layout.setSpacing(8)
         nav_layout.addWidget(self.prev_slice_button)
         nav_layout.addWidget(self.prev_cluster_button)
-        nav_layout.addWidget(self.reset_cur_slice_button)
         nav_layout.addWidget(self.next_cluster_button)
         nav_layout.addWidget(self.next_slice_button)
+        nav_layout.addStretch(1)
+        nav_layout.addWidget(self.reset_cur_slice_button)
 
         main_layout.addLayout(action_button_layout)
         main_layout.addLayout(nav_layout)
