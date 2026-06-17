@@ -62,6 +62,13 @@ class IdentifyController(QObject):
         # 绑定聚类结果类别导航按钮
         self.view.prev_cluster_button.clicked.connect(self._on_prev_cluster)
         self.view.next_cluster_button.clicked.connect(self._on_next_cluster)
+        # 右侧控制卡的文字按钮复用同一组类别导航槽函数。
+        self.view.navigation_control_card.prev_cluster_button.clicked.connect(
+            self._on_prev_cluster
+        )
+        self.view.navigation_control_card.next_cluster_button.clicked.connect(
+            self._on_next_cluster
+        )
 
         # 绑定全局生命周期信号
         signal_bus.stage_finished.connect(self._on_stage_finished)

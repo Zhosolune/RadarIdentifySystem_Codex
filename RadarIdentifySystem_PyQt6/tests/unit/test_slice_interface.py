@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
+from pytest import MonkeyPatch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -40,19 +41,29 @@ def _app() -> QApplication:
     return app
 
 
-def test_slice_param_config_drawer_matches_right_column_width() -> None:
-    """参数配置抽屉宽度应与右侧栏宽度一致。"""
+def test_slice_param_panel_is_mounted_in_matching_drawer(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """参数面板应挂载到与右栏同宽的独立抽屉中。"""
     _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
     interface = SliceInterface()
 
-    assert hasattr(interface, "slice_param_config")
-    assert not hasattr(interface, "slice_demo_drawer")
-    assert interface.slice_param_config.drawerSize() == interface.right_column.width()
+    assert hasattr(interface, "slice_param_panel")
+    assert hasattr(interface, "slice_param_drawer")
+    assert not hasattr(interface, "slice_param_config")
+    assert interface.slice_param_drawer.drawerSize() == interface.right_column.width()
+    assert interface.slice_param_drawer.contentWidget() is interface.slice_param_panel
+    assert not hasattr(interface.navigation_control_card, "auto_recognize_card")
+    assert interface.slice_param_panel.export_path_card is not None
 
 
 if __name__ == "__main__":
     tests = [
-        test_slice_param_config_drawer_matches_right_column_width,
+        test_slice_param_panel_is_mounted_in_matching_drawer,
     ]
     for test in tests:
         test()

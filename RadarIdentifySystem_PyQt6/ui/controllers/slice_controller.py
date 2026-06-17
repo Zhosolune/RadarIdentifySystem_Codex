@@ -81,6 +81,13 @@ class SliceController(QObject):
         # 绑定标题旁边的透明导航按钮
         self.view.prev_slice_button.clicked.connect(self._on_prev_slice)
         self.view.next_slice_button.clicked.connect(self._on_next_slice)
+        # 右侧控制卡的文字按钮复用同一组切片导航槽函数。
+        self.view.navigation_control_card.prev_slice_button.clicked.connect(
+            self._on_prev_slice
+        )
+        self.view.navigation_control_card.next_slice_button.clicked.connect(
+            self._on_next_slice
+        )
 
         # 绑定全局生命周期信号
         signal_bus.stage_finished.connect(self._on_stage_finished)

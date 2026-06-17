@@ -16,6 +16,8 @@ from .import_dashboard_panel import DashboardCard, DashboardMetric, DashboardPag
 from .file_list_page import FileListPage
 from .file_item import FileItem
 from .sliding_drawer import DrawerPosition, SlidingDrawer
+from .model_selection_card import ModelSelectionCard
+from .slice_param_panel import SliceParamPanel
 
 __all__ = [
     "ActionButtonCard",
@@ -36,4 +38,6 @@ __all__ = [
     "FileItem",
     "DrawerPosition",
     "SlidingDrawer",
+    "ModelSelectionCard",
+    "SliceParamPanel",
 ]

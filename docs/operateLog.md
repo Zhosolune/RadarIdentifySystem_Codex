@@ -74,4 +74,34 @@
   - [ ] 分阶段完成生产代码和回归测试。
 - 已完成内容：已确定 `slice_param_drawer` 与 `slice_param_panel` 的组合结构，以及模型选择卡的 Session 作用域边界；已将实施拆分为模型卡、参数面板、抽屉迁移、导航连接和最终验证五个 TDD 任务。
 - 待完成内容：失败测试、最小实现和运行验证。
-- 测试状态：[无需测试] 当前仅修改设计与操作记录文档。
+- 环境准备：已在 `D:\Miniforge3\envs\pyqt6` 安装 `pytest 9.1.0`，用于执行本次 TDD。
+- 基线测试：执行 `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6/tests/unit -q`，在收集阶段发现 3 个既有错误：`cluster_single_slice` 导入失败、`core.data` 模块缺失、`AppSignalBus` 导入失败。
+- 测试状态：[待测试] 完整基线被既有测试错误阻塞，尚未修改本次生产代码；等待确认是否以相关 UI 定向测试作为实施基线。
+
+## 2026-06-17 15:42
+- 操作类型：[重构]
+- 影响文件：
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\model_selection_card.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\navigation_control_card.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\__init__.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\identify_controller.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_model_selection_card.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+- 变更摘要：抽离普通 `QWidget` 类型的 `SliceParamPanel`，迁入自动识别和导出路径卡，新增实例级 PA/DTOA 模型选择卡，并恢复切片与类别文字导航按钮。
+- 原因：降低 `SliceInterface` 的抽屉内容布局职责，为未来每个 Session 独立子配置和模型选择建立 UI 基础，同时保留图形与文字两套导航入口。
+- 计划：
+  - [x] 先写模型选择卡失败测试并确认目标模块缺失。
+  - [x] 实现只读取全局默认值、不回写全局配置的实例级模型选择卡。
+  - [x] 先写参数面板失败测试，再抽离三类卡片布局。
+  - [x] 先写抽屉组合失败测试，再改为 `slice_param_drawer + slice_param_panel` 组合。
+  - [x] 先写双入口导航失败测试，再让文字按钮连接现有控制器槽函数。
+  - [x] 完成语法编译、Qt 离屏实例化、相关单元测试和差异检查。
+- 已完成内容：右栏和抽屉共同使用 `RIGHT_COLUMN_WIDTH = 630`；自动识别卡与导出路径卡已从常驻右栏迁入参数面板；模型选择结果只保存在 `ModelSelectionCard` 实例；四个文字导航按钮与标题区图形按钮共用现有槽函数。
+- 待完成内容：本次需求无待实现项。完整测试目录仍有既有收集错误，抽屉视觉测试仍有 3 个既有阴影参数断言失败，均未在本次范围内修改。
+- 测试状态：[已测试] 相关测试 17 项通过、3 项既有抽屉视觉测试跳过；`compileall` 通过；Qt 离屏实例化输出 `SliceParamPanel 630 630 False True`；完整单元测试目录因 `cluster_single_slice`、`core.data`、`AppSignalBus` 三个旧接口错误在收集阶段失败。

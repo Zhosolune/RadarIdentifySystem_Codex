@@ -17,7 +17,7 @@ from ui.components import (
     NavigationControlCard,
     PlotOptionCard,
     RedrawOptionCard,
-    ExportOptionCard,
+    SliceParamPanel,
     SlidingDrawer,
     SliceDimensionCard,
 )
@@ -138,8 +138,8 @@ class SliceInterface(QFrame):
         root_layout.addWidget(middle_column, 2)
         root_layout.addWidget(self.right_column, 3)
 
-        # 限制右侧面板最大宽度
-        self.right_column.setMaximumWidth(self.RIGHT_COLUMN_WIDTH)
+        # 右栏与参数抽屉共用同一宽度真相源。
+        self.right_column.setFixedWidth(self.RIGHT_COLUMN_WIDTH)
 
     def _update_icon_colors(self) -> None:
         """当主题切换时，重新获取当前正确的 themeColor 并应用"""
@@ -343,13 +343,9 @@ class SliceInterface(QFrame):
         # 重绘选项卡
         self.redraw_option_card = RedrawOptionCard(cards_group)
         
-        # 导出路径设置卡
-        self.export_path_card = ExportOptionCard(cards_group)
-
         cards_group.addSettingCard(self.navigation_control_card)
         cards_group.addSettingCard(self.plot_option_card)
         cards_group.addSettingCard(self.redraw_option_card)
-        cards_group.addSettingCard(self.export_path_card)
         
         control_panel_layout.addWidget(cards_group)
 
@@ -357,17 +353,24 @@ class SliceInterface(QFrame):
         self.panel_area_layout.addStretch(1)
         self.right_panel_scroll_area.setWidget(self.scroll_content_widget)
         
-        self.slice_param_config = SlidingDrawer(DrawerPosition.RIGHT, self.RIGHT_COLUMN_WIDTH, self)
-        self.slice_param_config.setObjectName("sliceParamConfig")
-        self.slice_param_config.setTitle("标题")
-        self.slice_param_config.setToggleButtonVisible(False)
-        self.slice_param_config.setTriggerWidget(self.navigation_control_card.drawer_options_button)
-        self.slice_param_config.contentLayout().addStretch(1)
-        drawer_empty_label = QLabel("没有更多通知", self.slice_param_config)
-        drawer_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.slice_param_config.contentLayout().addWidget(drawer_empty_label)
-        self.slice_param_config.contentLayout().addStretch(1)
-        self.navigation_control_card.drawer_options_button.clicked.connect(self.slice_param_config.toggle)
+        # 抽屉外壳由页面管理，内部卡片布局由独立参数面板负责。
+        self.slice_param_drawer: SlidingDrawer = SlidingDrawer(
+            DrawerPosition.RIGHT,
+            self.RIGHT_COLUMN_WIDTH,
+            self,
+            title="切片参数",
+        )
+        self.slice_param_panel: SliceParamPanel = SliceParamPanel(
+            self.slice_param_drawer
+        )
+        self.slice_param_drawer.setContentWidget(self.slice_param_panel)
+        self.slice_param_drawer.setToggleButtonVisible(False)
+        self.slice_param_drawer.setTriggerWidget(
+            self.navigation_control_card.drawer_options_button
+        )
+        self.navigation_control_card.drawer_options_button.clicked.connect(
+            self.slice_param_drawer.toggle
+        )
 
         header_layout.addWidget(self.slice_info_label, 1)
         right_layout.addLayout(header_layout)
