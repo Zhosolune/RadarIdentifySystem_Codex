@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PyQt6.QtCore import QPoint, QRect, QSize, Qt
+from PyQt6.QtCore import QPoint, QRect, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QFrame,
@@ -28,6 +28,7 @@ from qfluentwidgets import (
     TransparentPushButton,
     setFont,
 )
+from qfluentwidgets.components.widgets import PrimaryPushButton
 from qfluentwidgets.components.layout import AdaptiveFlowLayout
 
 from ui.components.edge_tab_view import EdgeTabWidget
@@ -285,6 +286,8 @@ class DashboardFlowLayout(AdaptiveFlowLayout):
 class _DashboardPageWidget(QWidget):
     """仪表盘单个标签页内容。"""
 
+    importRequested = pyqtSignal()
+
     def __init__(self, metrics: list[DashboardMetric], parent: QWidget | None = None) -> None:
         """初始化仪表盘标签页内容。
 
@@ -303,8 +306,14 @@ class _DashboardPageWidget(QWidget):
         self._init_ui(metrics)
 
     def _init_ui(self, metrics: list[DashboardMetric]) -> None:
-        """构建流式指标卡布局。"""
-        flow_layout = DashboardFlowLayout(self, needAni=False, isTight=True)
+        """构建流式指标卡和右下角操作按钮布局。"""
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        metrics_container = QWidget(self)
+        metrics_container.setObjectName("dashboardMetricsContainer")
+        flow_layout = DashboardFlowLayout(metrics_container, needAni=False, isTight=True)
         flow_layout.setContentsMargins(10, 8, 10, 8)
         flow_layout.setHorizontalSpacing(10)
         flow_layout.setVerticalSpacing(10)
@@ -312,7 +321,26 @@ class _DashboardPageWidget(QWidget):
 
         for metric in metrics:
             # 指标卡宽度交给 DashboardFlowLayout 按行均分。
-            flow_layout.addWidget(DashboardCard(metric, self))
+            flow_layout.addWidget(DashboardCard(metric, metrics_container))
+
+        action_layout = QHBoxLayout()
+        action_layout.setContentsMargins(10, 0, 10, 10)
+        action_layout.addStretch(1)
+
+        self.import_button = PrimaryPushButton(
+            FluentIcon.ADD_TO,
+            "新建Session并导入",
+            self,
+        )
+        self.import_button.setObjectName("dashboardImportSessionButton")
+        self.import_button.setFixedHeight(32)
+        self.import_button.clicked.connect(
+            lambda _checked=False: self.importRequested.emit()
+        )
+        action_layout.addWidget(self.import_button, 0, Qt.AlignmentFlag.AlignRight)
+
+        root_layout.addWidget(metrics_container, 1)
+        root_layout.addLayout(action_layout, 0)
 
 
 class ImportDashboardPanel(SimpleCardWidget):
@@ -325,6 +353,8 @@ class ImportDashboardPanel(SimpleCardWidget):
         tab_widget: 仿 Edge 风格动态标签页容器。
         skeleton_widget: 空标题占位标签页中的懒加载骨架。
     """
+
+    importSessionRequested = pyqtSignal()
 
     _SKELETON_ROUTE_KEY = "__dashboard_skeleton__"
 
@@ -361,6 +391,7 @@ class ImportDashboardPanel(SimpleCardWidget):
 
         for page in pages:
             content = _DashboardPageWidget(page.metrics, self.tab_widget)
+            content.importRequested.connect(self.importSessionRequested.emit)
             self.tab_widget.addTab(content, page.title, None, page.route_key)
 
         if pages:

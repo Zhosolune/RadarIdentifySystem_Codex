@@ -48,6 +48,7 @@ class HomeController(QObject):
         self.view = view
         self.file_manager = ImportFileListManager()
         self._active_parse_session_id: str | None = None
+        self._last_import_session: ProcessingSession | None = None
         self._processing_dialog: ProcessingDialog | None = None
         self._connect_signals()
 
@@ -141,6 +142,9 @@ class HomeController(QObject):
             action.triggered.connect(lambda _checked=False: self.apply_sort())
         signal_bus.import_completed.connect(self.render_import_dashboard)
         signal_bus.stage_failed.connect(self._on_parse_stage_failed)
+        self.view.dashboard_panel.importSessionRequested.connect(
+            self.import_current_session
+        )
 
     def parse_selected_file(self) -> None:
         """解析当前文件列表中选中的文件。
@@ -174,6 +178,7 @@ class HomeController(QObject):
 
         session = ProcessingSession(source_path=str(entry.path), source_type="excel")
         self._active_parse_session_id = session.session_id
+        self._last_import_session = None
         self.view.import_panel.parseButton.setEnabled(False)
         self.view.import_panel.parseButton.setText("解析中")
         self.view.dashboard_panel.clear_dashboard_pages()
@@ -216,6 +221,7 @@ class HomeController(QObject):
         dashboard_info = session.dashboard_info
         if not isinstance(dashboard_info, ExcelDashboardInfo):
             return
+        self._last_import_session = session
 
         metrics = [
             DashboardMetric("总脉冲", str(dashboard_info.total_pulses)),
@@ -229,10 +235,41 @@ class HomeController(QObject):
             [
                 DashboardPage(
                     route_key="excel_info",
-                    title="文件信息",
+                    title=dashboard_info.band or "未知波段",
                     metrics=metrics,
                 )
             ]
+        )
+
+    def import_current_session(self) -> None:
+        """将最近解析完成的会话重新广播给下游页面。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> callable(HomeController.import_current_session)
+            True
+        """
+        if self._last_import_session is None:
+            self._show_top_warning("暂无可导入数据", "请先解析文件后再导入 Session。")
+            return
+
+        signal_bus.import_completed.emit(self._last_import_session)
+        InfoBar.success(
+            title="已导入",
+            content=f"Session {self._last_import_session.session_id} 已发送到处理流程。",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=1800,
+            parent=self.view.window() or self.view,
         )
 
     def _get_import_directories(self) -> list[str]:

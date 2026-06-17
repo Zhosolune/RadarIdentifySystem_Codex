@@ -4,7 +4,18 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
-from qfluentwidgets import CardWidget, FluentIcon, SwitchSettingCard, IconWidget, PushButton, PrimaryPushButton, CheckBox
+from qfluentwidgets import (
+    CardWidget,
+    CheckBox,
+    FluentIcon,
+    HyperlinkButton,
+    IconWidget,
+    PrimaryPushButton,
+    PushButton,
+    SwitchSettingCard,
+    ToolTipFilter,
+    ToolTipPosition,
+)
 from app.app_config import appConfig
 from app.custom_icon import CustomIcon
 
@@ -23,6 +34,7 @@ class NavigationControlCard(QWidget):
         start_slicing_button (PushButton): 触发切片工作流的按钮。
         start_recognition_button (PrimaryPushButton): 触发识别的按钮。
         adaptive_slicing_checkbox (CheckBox): 是否启用自适应切片的复选框。
+        drawer_options_button (HyperlinkButton): 打开右侧抽屉的更多选项按钮。
         prev_cluster_button (PushButton): 切换上一类的按钮。
         next_cluster_button (PushButton): 切换下一类的按钮。
         prev_slice_button (PushButton): 切换上一片的按钮。
@@ -48,6 +60,12 @@ class NavigationControlCard(QWidget):
         self.start_slicing_button = PrimaryPushButton(FluentIcon.CUT, "开始切片", self)
         self.start_recognition_button = PrimaryPushButton(FluentIcon.SEARCH, "开始识别", self)
         self.adaptive_slicing_checkbox = CheckBox("启用自适应切片", self)
+        # 借助 HyperlinkButton 的主题色透明按钮样式
+        self.drawer_options_button = HyperlinkButton(FluentIcon.MENU, "", "更多选项", self)
+        self.drawer_options_button.setToolTip("配置子Session的参数及模型")
+        self.drawer_options_button.installEventFilter(
+            ToolTipFilter(self.drawer_options_button, 1000, ToolTipPosition.TOP)
+        )
 
         # --- 导航控制区域 ---
         # self.prev_cluster_button = PushButton(CustomIcon.CHEVRON_LEFT, "上一类", self)
@@ -83,7 +101,8 @@ class NavigationControlCard(QWidget):
         action_button_layout.addWidget(self.start_slicing_button, 1)
         action_button_layout.addWidget(self.start_recognition_button, 1)
         action_button_layout.addWidget(self.adaptive_slicing_checkbox, 2)
-        action_button_layout.addStretch(1)
+        action_button_layout.addWidget(self.drawer_options_button, 0)
+        # action_button_layout.addStretch(1)
         
         # 导航行：重置当前切片按钮
         nav_layout = QHBoxLayout()
