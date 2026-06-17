@@ -105,3 +105,19 @@
 - 已完成内容：右栏和抽屉共同使用 `RIGHT_COLUMN_WIDTH = 630`；自动识别卡与导出路径卡已从常驻右栏迁入参数面板；模型选择结果只保存在 `ModelSelectionCard` 实例；四个文字导航按钮与标题区图形按钮共用现有槽函数。
 - 待完成内容：本次需求无待实现项。完整测试目录仍有既有收集错误，抽屉视觉测试仍有 3 个既有阴影参数断言失败，均未在本次范围内修改。
 - 测试状态：[已测试] 相关测试 17 项通过、3 项既有抽屉视觉测试跳过；`compileall` 通过；Qt 离屏实例化输出 `SliceParamPanel 630 630 False True`；完整单元测试目录因 `cluster_single_slice`、`core.data`、`AppSignalBus` 三个旧接口错误在收集阶段失败。
+
+## 2026-06-17 抽屉布局防抖设计
+- 操作类型：[重构]
+- 影响文件：
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\specs\2026-06-17-slice-param-panel-jitter-layout-design.md
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+- 变更摘要：设计将 `SliceParamPanel` 改为滚动区、简单卡片容器和 `JitterFreeCardGroup` 的嵌套结构，并增加左右 16px 内容边距。
+- 原因：降低可展开卡片引发布局抖动的风险，并避免抽屉内容紧贴左右边缘。
+- 计划：
+  - [x] 对照右栏滚动区和无抖动卡片组结构。
+  - [x] 明确滚动区、卡片容器和边距契约。
+  - [ ] 编写失败测试并实施最小布局调整。
+  - [ ] 运行相关回归和 Qt 离屏实例化。
+- 已完成内容：已确定结构和边距，不修改抽屉动画与业务卡行为。
+- 待完成内容：TDD 实现和验证。
+- 测试状态：[无需测试] 当前仅新增设计记录。
