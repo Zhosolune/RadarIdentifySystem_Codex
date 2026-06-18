@@ -20,6 +20,7 @@ from .session_config import (
     RecognitionConfigSnapshot,
     SessionConfigSnapshot,
 )
+from .session_model import ActiveModelCandidate, SessionModelSelection
 
 __all__ = [
     "PulseBatch",
@@ -43,4 +44,6 @@ __all__ = [
     "MergeConfigSnapshot",
     "RecognitionConfigSnapshot",
     "SessionConfigSnapshot",
+    "ActiveModelCandidate",
+    "SessionModelSelection",
 ]

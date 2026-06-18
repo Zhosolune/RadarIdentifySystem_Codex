@@ -25,6 +25,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 import threading
 
@@ -33,6 +34,8 @@ from core.models.slice_result import PreprocessResult, SliceResult
 from core.models.dashboard_info import FileDashboardInfo
 from core.models.cluster_result import ClusteringResult
 from core.models.recognition_result import RecognitionResult
+from core.models.session_config import SessionConfigSnapshot
+from core.models.session_model import SessionModelSelection
 
 
 # -------------------------------------------------------------------
@@ -114,6 +117,11 @@ class ProcessingSession:
         source_path (str): 数据文件路径。
         source_type (str): 数据来源类型，"excel" / "bin" / "mat"。
         created_at (datetime): 会话创建时间戳。
+        display_name (str): 会话展示名称，默认使用源文件名或 session_id。
+        last_opened_at (datetime): 最近打开时间戳。
+        restored_from_store (bool): 是否由持久化存储恢复。
+        config_snapshot (SessionConfigSnapshot): 当前 session 的子配置快照。
+        model_selection (SessionModelSelection): 当前 session 的模型选择快照。
         stage (ProcessingStage): 当前已完成的最高阶段。
         raw_batch (PulseBatch | None): 导入并归一化列顺序后的原始脉冲数据。
         preprocess_result (PreprocessResult | None): PA 清洗 + TOA 翻折修复结果。
@@ -140,6 +148,11 @@ class ProcessingSession:
     source_path: str = ""
     source_type: str = "unknown"
     created_at: datetime = field(default_factory=datetime.now)
+    display_name: str = ""
+    last_opened_at: datetime = field(default_factory=datetime.now)
+    restored_from_store: bool = False
+    config_snapshot: SessionConfigSnapshot = field(default_factory=SessionConfigSnapshot.default)
+    model_selection: SessionModelSelection = field(default_factory=SessionModelSelection)
 
     # ── 流程状态 ─────────────────────────────────────────────────────
     stage: ProcessingStage = field(default=ProcessingStage.CREATED)
@@ -163,6 +176,13 @@ class ProcessingSession:
 
     # ── 线程安全锁 ───────────────────────────────────────────────────
     lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """补齐 session 展示名称。"""
+        if not self.display_name and self.source_path:
+            self.display_name = Path(self.source_path).name
+        elif not self.display_name:
+            self.display_name = f"Session {self.session_id}"
 
     # -------------------------------------------------------------------
     # 只读属性（便捷查询，不允许外部赋值）

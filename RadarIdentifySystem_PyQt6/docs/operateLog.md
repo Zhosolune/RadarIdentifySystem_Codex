@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-06-18 20:29
+- 操作类型：新增
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\session_model.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始执行 Task 2，新增 session 级模型选择数据契约并扩展 ProcessingSession 元数据。
+- 原因：为 session 独立化提供展示名、打开时间、恢复标记、配置快照和模型选择快照的纯数据承载。
+- 测试状态：已测试（2026-06-18 20:31，RED：缺少 `display_name` 按预期失败；GREEN：`test_processing_session.py` 5 passed；`compileall` 通过；`git diff --check` 无空白错误）
+- 当前计划：
+  - [x] 确认当前 HEAD 与 worktree 状态。
+  - [x] 追加 ProcessingSession 元数据失败测试并验证 RED。
+  - [x] 实现 `SessionModelSelection`、`ActiveModelCandidate` 与 ProcessingSession 字段。
+  - [x] 运行 focused pytest、完整相关 pytest、compileall 和 git diff 检查。
+  - [x] 自查差异并提交。
+
 - 时间：2026-06-18 20:22
 - 操作类型：修改
 - 影响文件：

@@ -8,6 +8,53 @@ from core.models.processing_session import (
 from core.models.slice_result import SingleSlice, SliceResult
 
 
+def test_processing_session_owns_metadata_and_snapshots() -> None:
+    """ProcessingSession 应持有 session 级元数据与快照。
+
+    Args:
+        无。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        无。
+    """
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+
+    assert session.display_name == "a.xlsx"
+    assert session.config_snapshot is not None
+    assert session.model_selection.pa_model_path is None
+    assert session.restored_from_store is False
+
+
+def test_processing_session_defaults_are_session_local() -> None:
+    """ProcessingSession 默认展示名和快照对象应保持会话隔离。
+
+    Args:
+        无。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        无。
+    """
+    first_session = ProcessingSession()
+    second_session = ProcessingSession()
+
+    assert first_session.display_name == f"Session {first_session.session_id}"
+    assert first_session.config_snapshot is not second_session.config_snapshot
+    assert first_session.model_selection is not second_session.model_selection
+
+    # 修改一个 session 的快照，不应影响另一个 session。
+    first_session.config_snapshot.clustering.eps_cf = 9.0
+    first_session.model_selection.pa_model_path = "E:/models/pa.pt"
+
+    assert second_session.config_snapshot.clustering.eps_cf != 9.0
+    assert second_session.model_selection.pa_model_path is None
+
+
 def test_slice_processing_state_tracks_partial_cluster_progress() -> None:
     """测试切片级聚类状态与全局阶段分离。
 
