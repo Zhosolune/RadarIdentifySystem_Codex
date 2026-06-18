@@ -218,6 +218,54 @@ def test_session_store_load_index_returns_empty_for_invalid_entry_id(
     assert index.sessions == []
 
 
+def test_session_store_load_index_returns_empty_for_numeric_entry_id(
+    tmp_path: Path,
+) -> None:
+    """索引条目的 session id 为非字符串时应回退为空索引。"""
+    (tmp_path / "index.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_session_id": None,
+                "sessions": [
+                    {
+                        "session_id": 123,
+                        "display_name": "a.xlsx",
+                        "source_path": "E:/data/a.xlsx",
+                        "source_type": "excel",
+                        "created_at": "2026-06-18T20:00:00",
+                        "last_opened_at": "2026-06-18T20:01:00",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    store = SessionStore(tmp_path)
+
+    index = store.load_index()
+
+    assert index.active_session_id is None
+    assert index.sessions == []
+
+
+def test_session_store_load_index_returns_empty_when_sessions_is_not_list(
+    tmp_path: Path,
+) -> None:
+    """索引 sessions 字段不是列表时应回退为空索引。"""
+    (tmp_path / "index.json").write_text(
+        '{"schema_version": 1, "active_session_id": null, "sessions": {}}',
+        encoding="utf-8",
+    )
+    store = SessionStore(tmp_path)
+
+    index = store.load_index()
+
+    assert index.active_session_id is None
+    assert index.sessions == []
+
+
 def test_session_store_load_session_rejects_invalid_metadata_id(
     tmp_path: Path,
 ) -> None:
@@ -228,6 +276,25 @@ def test_session_store_load_session_rejects_invalid_metadata_id(
     session_json_path = tmp_path / session.session_id / "session.json"
     payload = json.loads(session_json_path.read_text(encoding="utf-8"))
     payload["session_id"] = "a/b"
+    session_json_path.write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        store.load_session(session.session_id)
+
+
+def test_session_store_load_session_rejects_numeric_metadata_id(
+    tmp_path: Path,
+) -> None:
+    """session 元数据 id 为非字符串时应阻止单 session 恢复。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    store.upsert_session(session)
+    session_json_path = tmp_path / session.session_id / "session.json"
+    payload = json.loads(session_json_path.read_text(encoding="utf-8"))
+    payload["session_id"] = 123
     session_json_path.write_text(
         json.dumps(payload, ensure_ascii=False),
         encoding="utf-8",
@@ -283,6 +350,30 @@ def test_session_store_load_all_sessions_skips_metadata_id_pollution(
     mismatched_payload["session_id"] = other_session.session_id
     mismatched_json_path.write_text(
         json.dumps(mismatched_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    restored_sessions = store.load_all_sessions()
+
+    assert [session.session_id for session in restored_sessions] == [
+        valid_session.session_id,
+    ]
+
+
+def test_session_store_load_all_sessions_skips_numeric_metadata_id(
+    tmp_path: Path,
+) -> None:
+    """批量恢复时应跳过元数据 id 为非字符串的坏 session。"""
+    store = SessionStore(tmp_path)
+    valid_session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    broken_session = ProcessingSession(source_path="E:/data/b.xlsx", source_type="excel")
+    store.upsert_session(valid_session)
+    store.upsert_session(broken_session)
+    broken_json_path = tmp_path / broken_session.session_id / "session.json"
+    payload = json.loads(broken_json_path.read_text(encoding="utf-8"))
+    payload["session_id"] = 123
+    broken_json_path.write_text(
+        json.dumps(payload, ensure_ascii=False),
         encoding="utf-8",
     )
 

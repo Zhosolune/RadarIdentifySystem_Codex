@@ -36,6 +36,13 @@ _WINDOWS_RESERVED_NAMES = {
 }
 
 
+def _require_string_session_id(value: object) -> str:
+    """要求持久化读取到的 session id 原本就是字符串。"""
+    if not isinstance(value, str):
+        raise ValueError("session_id 必须是字符串")
+    return value
+
+
 @dataclass
 class SessionIndexEntry:
     """Session 索引条目。
@@ -68,7 +75,7 @@ class SessionIndexEntry:
 
         Raises:
             KeyError: 当必要字段缺失时抛出。
-            ValueError: 当时间字段不是合法 ISO 格式时抛出。
+            ValueError: 当 session_id 不是字符串或时间字段不是合法 ISO 格式时抛出。
 
         Example:
             >>> entry = SessionIndexEntry.from_dict({
@@ -84,7 +91,7 @@ class SessionIndexEntry:
         """
 
         return cls(
-            session_id=str(payload["session_id"]),
+            session_id=_require_string_session_id(payload["session_id"]),
             display_name=str(payload["display_name"]),
             source_path=str(payload["source_path"]),
             source_type=str(payload["source_type"]),
@@ -148,7 +155,7 @@ class SessionIndex:
             SessionIndex: 恢复后的索引对象。
 
         Raises:
-            ValueError: 当 schema_version 或时间字段无法解析时抛出。
+            ValueError: 当 schema_version、sessions 或时间字段无法解析时抛出。
 
         Example:
             >>> index = SessionIndex.from_dict({"schema_version": 1, "sessions": []})
@@ -157,6 +164,8 @@ class SessionIndex:
         """
 
         sessions = payload.get("sessions", [])
+        if not isinstance(sessions, list):
+            raise ValueError("sessions 必须是列表")
         return cls(
             schema_version=int(payload.get("schema_version", 1)),
             active_session_id=payload.get("active_session_id"),
@@ -343,7 +352,9 @@ class SessionStore:
         metadata = self._read_json(session_dir / "session.json")
         config_payload = self._read_json(session_dir / "config.json")
         model_payload = metadata.get("model_selection")
-        metadata_session_id = self._validate_session_id(str(metadata["session_id"]))
+        metadata_session_id = self._validate_session_id(
+            _require_string_session_id(metadata["session_id"]),
+        )
         if metadata_session_id != requested_session_id:
             raise ValueError("session 元数据 id 与请求 id 不一致")
 
