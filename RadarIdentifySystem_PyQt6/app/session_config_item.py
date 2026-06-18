@@ -15,15 +15,40 @@ Example:
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Protocol
 
 from PyQt6.QtCore import QObject, pyqtSignal
-from qfluentwidgets import BoolValidator, RangeValidator
 
 from core.models.session_config import SessionConfigSnapshot
 
 
-ValidatorType = BoolValidator | RangeValidator
+class SessionConfigValidator(Protocol):
+    """Session 设置项 validator 协议。
+
+    Attributes:
+        correct: 将外部输入修正为可写入配置快照的值。
+    """
+
+    def correct(self, value: object) -> object:
+        """修正配置项输入值。
+
+        Args:
+            value [object]: 外部传入的原始值。
+
+        Returns:
+            object: 修正后的配置值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> class FixedValidator:
+            ...     def correct(self, value: object) -> object:
+            ...         return 1
+            >>> FixedValidator().correct("raw")
+            1
+        """
+        ...
 
 
 class SessionConfigItem(QObject):
@@ -49,7 +74,7 @@ class SessionConfigItem(QObject):
         snapshot: SessionConfigSnapshot,
         path: str,
         default: object,
-        validator: ValidatorType | None = None,
+        validator: SessionConfigValidator | None = None,
         on_changed: Callable[[], None] | None = None,
     ) -> None:
         """创建 session 配置项。
@@ -58,7 +83,7 @@ class SessionConfigItem(QObject):
             snapshot [SessionConfigSnapshot]: 目标 session 配置快照。
             path [str]: 点号分隔的字段路径，至少包含两段，例如 ``clustering.eps_cf``。
             default [object]: 默认值。
-            validator [ValidatorType | None]: qfluentwidgets 校验器，默认不校验。
+            validator [SessionConfigValidator | None]: 提供 ``correct`` 方法的校验器，默认不校验。
             on_changed [Callable[[], None] | None]: 值变化后的保存回调，默认不回调。
 
         Returns:
@@ -75,11 +100,13 @@ class SessionConfigItem(QObject):
             3.5
         """
         super().__init__()
-        self.snapshot = snapshot
-        self.path = path
+        self.snapshot: SessionConfigSnapshot = snapshot
+        self.path: str = path
+        self.group: str
+        self.name: str
         self.group, self.name = self._split_path(path)
-        self.validator = validator
-        self.defaultValue = default
+        self.validator: SessionConfigValidator | None = validator
+        self.defaultValue: object = default
         self._on_changed = on_changed
         self._read()
 
