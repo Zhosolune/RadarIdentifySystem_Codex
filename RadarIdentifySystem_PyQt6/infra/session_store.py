@@ -218,12 +218,10 @@ class SessionStore:
             无。
 
         Returns:
-            SessionIndex: 当前索引；索引文件不存在时返回空索引。
+            SessionIndex: 当前索引；索引文件不存在、损坏或字段非法时返回空索引。
 
         Raises:
-            OSError: 当索引文件读取失败时抛出。
-            json.JSONDecodeError: 当索引 JSON 格式非法时抛出。
-            ValueError: 当索引字段无法解析时抛出。
+            无显式抛出异常；索引读取失败时回退为空索引。
 
         Example:
             >>> store = SessionStore(Path("config/sessions"))
@@ -235,11 +233,19 @@ class SessionStore:
         if not index_path.exists():
             return SessionIndex()
 
-        with index_path.open("r", encoding="utf-8") as file:
-            payload = json.load(file)
-        if not isinstance(payload, dict):
+        try:
+            with index_path.open("r", encoding="utf-8") as file:
+                payload = json.load(file)
+            if not isinstance(payload, dict):
+                return SessionIndex()
+            index = SessionIndex.from_dict(payload)
+            if index.active_session_id is not None:
+                index.active_session_id = self._validate_session_id(
+                    index.active_session_id,
+                )
+            return index
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
             return SessionIndex()
-        return SessionIndex.from_dict(payload)
 
     def save_index(self, index: SessionIndex) -> None:
         """保存 session 索引。
@@ -373,13 +379,10 @@ class SessionStore:
             无。
 
         Returns:
-            list[ProcessingSession]: 已恢复的 session 列表。
+            list[ProcessingSession]: 已恢复的 session 列表；单个损坏条目会被跳过。
 
         Raises:
-            FileNotFoundError: 当索引条目对应的 session 文件不存在时抛出。
-            OSError: 当文件读取失败时抛出。
-            json.JSONDecodeError: 当 JSON 格式非法时抛出。
-            ValueError: 当索引或 session 字段无法解析时抛出。
+            无显式抛出异常；单个 session 文件缺失或损坏时跳过对应条目。
 
         Example:
             >>> store = SessionStore(Path("config/sessions"))
@@ -387,7 +390,20 @@ class SessionStore:
             True
         """
 
-        return [self.load_session(entry.session_id) for entry in self.load_index().sessions]
+        sessions: list[ProcessingSession] = []
+        for entry in self.load_index().sessions:
+            try:
+                sessions.append(self.load_session(entry.session_id))
+            except (
+                FileNotFoundError,
+                OSError,
+                json.JSONDecodeError,
+                KeyError,
+                TypeError,
+                ValueError,
+            ):
+                continue
+        return sessions
 
     def delete_session(self, session_id: str) -> None:
         """删除 session 目录并更新索引。
@@ -439,16 +455,32 @@ class SessionStore:
         """
 
         index = self.load_index()
-        index.active_session_id = session_id
+        index.active_session_id = (
+            None if session_id is None else self._validate_session_id(session_id)
+        )
         self.save_index(index)
+
+    def _validate_session_id(self, session_id: str) -> str:
+        """校验 session id 是否为单段安全目录名。"""
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id 不能为空")
+        if session_id in {".", ".."}:
+            raise ValueError("session_id 不能是当前目录或上级目录")
+        if "/" in session_id or "\\" in session_id:
+            raise ValueError("session_id 不能包含路径分隔符")
+
+        session_path = Path(session_id)
+        if session_path.is_absolute() or session_path.drive or session_path.root:
+            raise ValueError("session_id 不能是绝对路径")
+        if session_path.name != session_id:
+            raise ValueError("session_id 必须是单段目录名")
+        return session_id
 
     def _session_dir(self, session_id: str) -> Path:
         """生成并校验 session 目录路径。"""
-        if not session_id:
-            raise ValueError("session_id 不能为空")
-
+        safe_session_id = self._validate_session_id(session_id)
         root = self.root_dir.resolve()
-        session_dir = (self.root_dir / session_id).resolve()
+        session_dir = (self.root_dir / safe_session_id).resolve()
         if session_dir == root:
             raise ValueError("session 目录不能等于持久化根目录")
         try:
