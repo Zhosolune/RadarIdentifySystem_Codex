@@ -1,5 +1,22 @@
 # 变更记录
 
+- 时间：2026-06-18 20:39
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\session_model.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_model.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 Task 2 审查反馈，补齐 session 打开时间覆盖并收紧模型路径快照恢复规则。
+- 原因：`last_opened_at` 默认值缺少测试覆盖，模型选择快照应将非法路径、空字符串和纯空白字符串统一视为未选择。
+- 测试状态：已测试（2026-06-18 20:40，RED：空字符串路径未归一化按预期失败；GREEN：`test_processing_session.py` + `test_session_model.py` 10 passed；`compileall` 通过；`git diff --check` 无空白错误）
+- 当前计划：
+  - [x] 确认当前 HEAD 与 worktree 状态。
+  - [x] 补充 ProcessingSession 与 SessionModelSelection 边界测试并验证 RED。
+  - [x] 实现空路径归一化与文档示例补充。
+  - [x] 运行指定 pytest、compileall 和 git diff 检查。
+  - [x] 自查差异并提交。
+
 - 时间：2026-06-18 20:29
 - 操作类型：新增
 - 影响文件：

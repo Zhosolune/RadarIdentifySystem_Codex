@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 
 from core.models.processing_session import (
@@ -25,6 +27,7 @@ def test_processing_session_owns_metadata_and_snapshots() -> None:
     assert session.display_name == "a.xlsx"
     assert session.config_snapshot is not None
     assert session.model_selection.pa_model_path is None
+    assert isinstance(session.last_opened_at, datetime)
     assert session.restored_from_store is False
 
 
