@@ -1,5 +1,17 @@
 # 变更记录
 
+- 时间：2026-06-18 10:32
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：统一切片与类别双入口导航按钮的禁用逻辑，并将聚类结果列空态标题收口为“暂无聚类结果”。
+- 原因：需要在无识别结果、识别失败、首尾边界等场景下提供一致且可预期的导航可用性反馈，避免保留过期聚类标题和可点击的无效导航按钮。
+- 测试状态：已测试（`GetDiagnostics` 检查相关控制器、页面和测试文件均无诊断；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q` 3 项通过）
+
 - 时间：2026-06-18 08:58
 - 操作类型：修改
 - 影响文件：

@@ -108,6 +108,10 @@ class SliceInterface(QFrame):
             True
         """
         self._session = session
+        # 刷新切片导航状态。
+        self._slice_controller.refresh_navigation_state()
+        # 刷新聚类空态与导航状态。
+        self._identify_controller.refresh_cluster_view_state(reset_index=True)
 
     def _init_layout(self) -> None:
         """初始化三栏主布局。
@@ -261,7 +265,7 @@ class SliceInterface(QFrame):
         self.prev_cluster_button.setToolTip("上一类")
         self.prev_cluster_button.installEventFilter(ToolTipFilter(self.prev_cluster_button, 1000, ToolTipPosition.TOP))
 
-        self.cluster_title_label = QLabel("CF/PW维度聚类 第0类", column)
+        self.cluster_title_label = QLabel("暂无聚类结果", column)
         self.cluster_title_label.setObjectName("sliceMiddleTitle")
         self.cluster_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cluster_title_label.setFixedHeight(25)

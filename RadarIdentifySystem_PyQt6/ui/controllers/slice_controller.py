@@ -66,6 +66,7 @@ class SliceController(QObject):
         self._processing_dialog = None
         self._current_slice_index = 0
         self._connect_signals()
+        self.refresh_navigation_state()
 
         # 状态自检定时器
         self._check_timer = QTimer(self.view)
@@ -436,10 +437,31 @@ class SliceController(QObject):
         """
         session = self.view._session
         if not session or not session.slice_result:
+            # 在无切片结果时禁用两组切片导航按钮。
+            self._set_slice_navigation_enabled(False, False)
             return
         total = session.slice_result.slice_count
-        self.view.prev_slice_button.setEnabled(self._current_slice_index > 0)
-        self.view.next_slice_button.setEnabled(self._current_slice_index < total - 1)
+        self._set_slice_navigation_enabled(
+            self._current_slice_index > 0,
+            self._current_slice_index < total - 1,
+        )
+
+    def refresh_navigation_state(self) -> None:
+        """刷新当前切片导航按钮状态。"""
+        self._update_navigation_buttons()
+
+    def _set_slice_navigation_enabled(
+        self,
+        prev_enabled: bool,
+        next_enabled: bool,
+    ) -> None:
+        """同步更新两组切片导航按钮状态。"""
+        # 同步更新图像列标题区按钮。
+        self.view.prev_slice_button.setEnabled(prev_enabled)
+        self.view.next_slice_button.setEnabled(next_enabled)
+        # 同步更新右侧控制卡文字按钮。
+        self.view.navigation_control_card.prev_slice_button.setEnabled(prev_enabled)
+        self.view.navigation_control_card.next_slice_button.setEnabled(next_enabled)
 
     def _load_slice_image(self, index: int) -> None:
         """加载并展示指定索引的切片图像。

@@ -33,6 +33,8 @@ class IdentifyController(QObject):
         view (SliceInterface): 绑定的视图实例。
     """
 
+    EMPTY_CLUSTER_TITLE = "暂无聚类结果"
+
     def __init__(self, view: SliceInterface) -> None:
         """初始化识别控制器。
 
@@ -53,6 +55,7 @@ class IdentifyController(QObject):
         self._processing_dialog = None
         self._current_cluster_index = 0
         self._connect_signals()
+        self.refresh_cluster_view_state(reset_index=True)
 
     def _connect_signals(self) -> None:
         """连接识别相关按钮点击事件。"""
@@ -114,11 +117,14 @@ class IdentifyController(QObject):
         if not self._validate_enabled_models():
             return
 
-        # 更新按钮状态
-        self.view.navigation_control_card.start_recognition_button.setEnabled(False)
-
         # 从 slice_controller 获取当前正在查看的切片索引
         slice_index = self.view._slice_controller.current_slice_index
+
+        # 更新按钮状态
+        self.view.navigation_control_card.start_recognition_button.setEnabled(False)
+        # 清空旧聚类空态并禁用导航按钮。
+        self.clear_cluster_ui()
+        self.update_cluster_navigation_buttons(slice_index)
         
         # 启动识别工作流，参数由 runtime 层内部自行获取
         identify_workflow.start_identify(
@@ -233,6 +239,9 @@ class IdentifyController(QObject):
             
         # 恢复按钮状态
         self.view.navigation_control_card.start_recognition_button.setEnabled(True)
+        self.clear_cluster_ui()
+        current_slice_index = self.view._slice_controller.current_slice_index
+        self.update_cluster_navigation_buttons(current_slice_index)
         
         # 弹出错误提示
         slice_suffix = ""
@@ -280,19 +289,37 @@ class IdentifyController(QObject):
         """
         session = self.view._session
         if not session or not session.is_slice_recognized(current_slice_index):
-            self.view.prev_cluster_button.setEnabled(False)
-            self.view.next_cluster_button.setEnabled(False)
+            self._set_cluster_navigation_enabled(False, False)
             return
 
         rec_res = session.recognition_result.slice_results.get(current_slice_index)
         if not rec_res or not rec_res.valid_clusters:
-            self.view.prev_cluster_button.setEnabled(False)
-            self.view.next_cluster_button.setEnabled(False)
+            self._set_cluster_navigation_enabled(False, False)
             return
             
         total = len(rec_res.valid_clusters)
-        self.view.prev_cluster_button.setEnabled(self._current_cluster_index > 0)
-        self.view.next_cluster_button.setEnabled(self._current_cluster_index < total - 1)
+        self._set_cluster_navigation_enabled(
+            self._current_cluster_index > 0,
+            self._current_cluster_index < total - 1,
+        )
+
+    def refresh_cluster_view_state(self, reset_index: bool = False) -> None:
+        """刷新当前切片的聚类结果空态与导航状态。"""
+        current_slice_index = self.view._slice_controller.current_slice_index
+        self.load_cluster_image(current_slice_index, reset_index=reset_index)
+
+    def _set_cluster_navigation_enabled(
+        self,
+        prev_enabled: bool,
+        next_enabled: bool,
+    ) -> None:
+        """同步更新两组类别导航按钮状态。"""
+        # 同步更新中间列图形按钮。
+        self.view.prev_cluster_button.setEnabled(prev_enabled)
+        self.view.next_cluster_button.setEnabled(next_enabled)
+        # 同步更新右侧控制卡文字按钮。
+        self.view.navigation_control_card.prev_cluster_button.setEnabled(prev_enabled)
+        self.view.navigation_control_card.next_cluster_button.setEnabled(next_enabled)
 
     def load_cluster_image(self, current_slice_index: int, reset_index: bool = False) -> None:
         """加载并展示当前切片下指定索引的有效识别聚类结果图像。
@@ -367,7 +394,7 @@ class IdentifyController(QObject):
         """
         # 重置中间标题内容
         if hasattr(self.view, 'cluster_title_label'):
-            self.view.cluster_title_label.setText("聚类结果暂无")
+            self.view.cluster_title_label.setText(self.EMPTY_CLUSTER_TITLE)
             
         # 获取所有需要重置的聚类卡片
         cards = [
