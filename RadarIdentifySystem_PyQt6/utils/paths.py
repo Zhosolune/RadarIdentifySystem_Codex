@@ -92,6 +92,28 @@ def get_config_file_path() -> Path:
     return get_config_dir() / "config.json"
 
 
+def get_session_config_dir() -> Path:
+    """获取 session 持久化目录。
+
+    Args:
+        无。
+
+    Returns:
+        Path: session 持久化目录路径。
+
+    Raises:
+        OSError: 当目录创建失败时抛出。
+
+    Example:
+        >>> get_session_config_dir().name
+        'sessions'
+    """
+
+    session_dir = get_config_dir() / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_dir
+
+
 def get_import_file_list_path() -> Path:
     """获取导入文件列表状态文件路径。
 

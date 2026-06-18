@@ -2304,3 +2304,28 @@
 - 测试状态：无需测试（文档一致性检视已完成）
 
 ---
+---
+
+## 2026-06-18 20:50
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\utils\paths.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始实现文件式 session 持久化适配层，先补充失败测试。
+- 原因：为 session 隔离工作流提供可恢复的元数据和配置快照存储。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-18 20:53
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\utils\paths.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成文件式 session 持久化适配层，支持索引、元数据、配置快照、活动 session id、删除和按索引顺序恢复。
+- 原因：为 session 隔离工作流提供可恢复的元数据和配置快照存储，同时避免保存识别结果与计算产物。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp RadarIdentifySystem_PyQt6\.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
