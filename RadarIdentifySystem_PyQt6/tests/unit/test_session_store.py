@@ -266,6 +266,39 @@ def test_session_store_load_index_returns_empty_when_sessions_is_not_list(
     assert index.sessions == []
 
 
+def test_session_store_load_index_returns_empty_for_non_dict_entry(
+    tmp_path: Path,
+) -> None:
+    """索引包含非字典条目时应回退为空索引。"""
+    (tmp_path / "index.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_session_id": None,
+                "sessions": [
+                    123,
+                    {
+                        "session_id": "valid",
+                        "display_name": "a.xlsx",
+                        "source_path": "E:/data/a.xlsx",
+                        "source_type": "excel",
+                        "created_at": "2026-06-18T20:00:00",
+                        "last_opened_at": "2026-06-18T20:01:00",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    store = SessionStore(tmp_path)
+
+    index = store.load_index()
+
+    assert index.active_session_id is None
+    assert index.sessions == []
+
+
 def test_session_store_load_session_rejects_invalid_metadata_id(
     tmp_path: Path,
 ) -> None:

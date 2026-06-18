@@ -2410,3 +2410,26 @@
 - 变更摘要：完成持久化读取时的非字符串 session id 拒绝逻辑，并将非列表 sessions 视为坏索引。
 - 原因：修复 Task 3 最终质量复审反馈，避免数字 id 被隐式转成字符串后进入恢复流程。
 - 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+---
+
+## 2026-06-19 04:05
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复索引 sessions 非字典条目被静默过滤的问题。
+- 原因：非法 index entry 应使索引整体回退为空，不能跳过坏条目后继续暴露其他条目。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-19 04:06
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成索引 sessions 非字典条目校验，非法条目触发空索引回退。
+- 原因：修复 Task 3 最终规格复审反馈，避免坏索引条目被静默跳过。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`

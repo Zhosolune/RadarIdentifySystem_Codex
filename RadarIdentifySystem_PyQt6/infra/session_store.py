@@ -166,13 +166,14 @@ class SessionIndex:
         sessions = payload.get("sessions", [])
         if not isinstance(sessions, list):
             raise ValueError("sessions 必须是列表")
+        if not all(isinstance(entry, dict) for entry in sessions):
+            raise ValueError("sessions 条目必须是字典")
         return cls(
             schema_version=int(payload.get("schema_version", 1)),
             active_session_id=payload.get("active_session_id"),
             sessions=[
                 SessionIndexEntry.from_dict(entry)
                 for entry in sessions
-                if isinstance(entry, dict)
             ],
         )
 
