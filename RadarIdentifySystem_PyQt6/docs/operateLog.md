@@ -1,5 +1,39 @@
 # 变更记录
 
+- 时间：2026-06-18 13:33
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始梳理 session 独立化颠覆性功能的设计边界，确认现有导入、会话、配置、控制器和 UI 连接点。
+- 原因：该功能将改变文件导入、切片页实例、参数子配置、模型选择和控制器生命周期，需要先完成设计评审再实施。
+- 测试状态：无需测试（设计梳理中）
+- 当前计划：
+  - [x] 读取全局规则与 brainstorming 流程。
+  - [x] 初步读取主页、切片页、最近提交与现有操作日志。
+  - [x] 梳理导入、session、config、controller 的现有连接点。
+  - [x] 确认项目已有架构文档约束：多会话阶段应引入轻量 `runtime/session_registry.py`，`ProcessingSession` 仍保持纯数据容器，配置持久化入口仍为全局 `appConfig`。
+  - [x] 识别当前风险：解析完成事件、导入 Session 事件与切片页注入事件共用 `signal_bus.import_completed`，会导致解析完成自动进入切片页；`MainWindow` 当前只创建一个 `SliceInterface`；识别参数与模型仍从全局配置读取。
+  - [x] 用户确认 UI 形态采用动态新增 `SubInterface`，即每个导入文件对应一个独立切片页面导航项。
+  - [x] 用户确认 session 跨重启采用“元数据持久化、计算产物重启后重新生成”策略：保存 session_id、源文件路径、页面标题、子配置快照和模型路径快照，不持久化 raw/slice/cluster/recognition 结果。
+  - [x] 用户确认采用“分阶段兼容迁移”路线：先建立 `SessionRegistry + 动态 SubInterface + 事件拆分`，再接入子配置和模型快照，最后补 session 管理器与重启恢复。
+  - [x] 用户强调需要明确 `SessionRegistry` 的架构层级与目录结构科学性，并系统评估 config、模型、存储三套系统因 session 独立化产生的变化。
+  - [x] 修正设计边界：`SessionRegistry` 属于 `runtime` 运行态索引层；session 文件持久化属于 `infra` 存储适配层；session 子配置快照与模型选择快照属于会话数据契约，不新增第二套全局配置系统。
+  - [x] 用户补充模型系统方向：软件整体层级只维护“激活模型集合”，决定各 session 抽屉模型下拉框候选；真正启用模型由各 session 自己负责。
+  - [x] 用户澄清 session 持久化必须实现，且与 session 管理系统一体；暂不考虑的是识别结果、导出结果等业务产物保存系统。
+  - [x] 用户要求开始推进，当前进入 session 独立化设计评审阶段，先分段确认设计再写规格文档与实施计划。
+  - [x] 用户确认设计 1：按“Session 管理骨架 -> Session 子配置与模型快照 -> Session 管理器 UI 与生命周期治理”三阶段推进。
+  - [x] 用户确认设计 2：`core/models` 定义会话数据契约，`runtime/session_registry.py` 管运行态索引，`infra/session_store.py` 管 session 元数据持久化，`ui/main_window.py` 动态管理 session 子页面，控制器只绑定各自 session。
+  - [x] 用户确认设计 3：解析完成只刷新主页仪表盘；点击“新建Session并导入”才注册 session、持久化元数据并动态创建独立切片页面；切片和识别事件只由相同 session_id 的页面响应。
+  - [ ] 详细确认 session 子 config 的持久化保存方式：优先复用组件库 `ConfigItem/QConfig` 与设置卡的自洽绑定，评估通过 session_id 管理每个 session 独立 config 文件的子 config 管理器方案。
+  - [x] 验证本地 `qfluentwidgets` 是否支持多个独立 `QConfig` 实例，并确认设置卡写入时是否依赖全局 `qconfig` 单例：结论是不支持直接多实例并行绑定；`ConfigItem` 是类属性，同类 `QConfig` 多实例会共享值，设置卡内部直接调用全局 `qconfig.get/set`，`qconfig.set()` 只保存当前 `_cfg.file`。
+  - [x] 用户确认最终 session 子 config 方案：`SessionConfigSnapshot` 作为可序列化真相源，`SessionConfigItem` 作为设置卡适配层，session-aware 设置卡写入当前 session 快照并触发 session 持久化；全局配置继续使用 `AppConfig/QConfig`。
+  - [x] 用户确认设计 5：session 持久化采用 `config/sessions/index.json + config/sessions/<session_id>/session.json + config/sessions/<session_id>/config.json`，保存元数据、模型选择和子 config，不保存计算产物；启动时恢复空产物 session 和动态页面。
+  - [x] 用户确认设计 6：`MainWindow` 动态管理每个 session 的独立 `SliceInterface`，支持创建、激活、关闭和启动恢复；控制器只响应自身 session_id 的阶段事件，不再通过全局导入事件替换 `_session`。
+  - [x] 用户确认设计 7：测试覆盖 session 数据与持久化、UI 生命周期、事件隔离、子配置绑定、模型选择和手动验收路径。
+  - [x] 编写正式设计规格文档 `docs/superpowers/specs/2026-06-18-session-isolation-design.md`。
+  - [x] 完成设计文档自检：未发现 TODO/TBD 占位；已明确 session 持久化与识别结果保存的边界；已记录多 `QConfig` 方案验证失败和最终 `SessionConfigSnapshot + SessionConfigItem` 方案。
+  - [ ] 等待用户审阅正式设计规格文档。
+
 - 时间：2026-06-18 11:07
 - 操作类型：重构
 - 影响文件：
