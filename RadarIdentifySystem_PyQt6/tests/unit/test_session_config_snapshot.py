@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import core.models as core_models
+import core.models.session_config as session_config_module
 from core.models.session_config import (
     ClusteringConfigSnapshot,
     RecognitionConfigSnapshot,
@@ -40,6 +42,14 @@ def test_session_config_snapshot_fills_missing_fields() -> None:
     assert restored.recognition.max_candidates == RecognitionConfigSnapshot.default().max_candidates
 
 
+def test_session_config_snapshot_falls_back_invalid_schema_version() -> None:
+    """非法 schema_version 应回退为当前结构版本。"""
+    for raw_version in (None, "invalid"):
+        restored = SessionConfigSnapshot.from_dict({"schema_version": raw_version})
+
+        assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
+
+
 def test_session_config_snapshot_instances_are_independent() -> None:
     """两个 session 的子配置修改不能互相影响。"""
     first = SessionConfigSnapshot.default()
@@ -48,3 +58,9 @@ def test_session_config_snapshot_instances_are_independent() -> None:
     first.clustering.eps_pw = 0.9
 
     assert second.clustering.eps_pw != first.clustering.eps_pw
+
+
+def test_core_session_config_exports_only_pure_snapshots() -> None:
+    """core 配置模块不应导出 UI 设置适配项。"""
+    assert not hasattr(session_config_module, "SessionConfigItem")
+    assert not hasattr(core_models, "SessionConfigItem")

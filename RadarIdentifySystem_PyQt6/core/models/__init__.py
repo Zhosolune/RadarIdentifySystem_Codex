@@ -18,7 +18,6 @@ from .session_config import (
     ExtractConfigSnapshot,
     MergeConfigSnapshot,
     RecognitionConfigSnapshot,
-    SessionConfigItem,
     SessionConfigSnapshot,
 )
 
@@ -43,6 +42,5 @@ __all__ = [
     "ExtractConfigSnapshot",
     "MergeConfigSnapshot",
     "RecognitionConfigSnapshot",
-    "SessionConfigItem",
     "SessionConfigSnapshot",
 ]

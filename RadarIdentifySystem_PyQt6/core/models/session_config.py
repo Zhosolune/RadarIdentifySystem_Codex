@@ -1,7 +1,6 @@
 """Session 子配置数据契约。
 
-该模块定义可序列化的 session 级配置快照，以及用于绑定快照字段的轻量配置项。
-快照对象不依赖 appConfig、Qt UI 或磁盘持久化。
+该模块只定义可序列化的 session 级配置快照，不依赖 appConfig、Qt UI 或磁盘。
 
 Example:
     >>> snapshot = SessionConfigSnapshot.default()
@@ -14,13 +13,7 @@ Example:
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable
-
-from PyQt6.QtCore import QObject, pyqtSignal
-from qfluentwidgets import BoolValidator, RangeValidator
-
-
-ValidatorType = BoolValidator | RangeValidator
+from typing import Any
 
 
 def _coerce_dataclass(cls: type[Any], payload: dict[str, Any]) -> Any:
@@ -47,6 +40,14 @@ def _coerce_dataclass(cls: type[Any], payload: dict[str, Any]) -> Any:
             if key in values:
                 values[key] = value
     return cls(**values)
+
+
+def _coerce_schema_version(value: object) -> int:
+    """安全恢复配置结构版本号。"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return SessionConfigSnapshot.SCHEMA_VERSION
 
 
 @dataclass
@@ -272,7 +273,7 @@ class SessionConfigSnapshot:
         """
         data = payload if isinstance(payload, dict) else {}
         return cls(
-            schema_version=int(data.get("schema_version", cls.SCHEMA_VERSION)),
+            schema_version=_coerce_schema_version(data.get("schema_version", cls.SCHEMA_VERSION)),
             clustering=_coerce_dataclass(ClusteringConfigSnapshot, data.get("clustering", {})),
             recognition=_coerce_dataclass(RecognitionConfigSnapshot, data.get("recognition", {})),
             extract=_coerce_dataclass(ExtractConfigSnapshot, data.get("extract", {})),
@@ -294,128 +295,3 @@ class SessionConfigSnapshot:
             1
         """
         return asdict(self)
-
-
-class SessionConfigItem(QObject):
-    """绑定到 session 配置快照字段的轻量配置项。
-
-    Attributes:
-        valueChanged: 字段值变更信号。
-        snapshot: 目标 session 配置快照。
-        group: 字段路径所属分组。
-        name: 字段名称。
-        path: 点号分隔字段路径。
-        validator: 可选 qfluentwidgets 校验器。
-        defaultValue: 配置项默认值。
-        value: 当前字段值。
-    """
-
-    valueChanged = pyqtSignal(object)
-
-    def __init__(
-        self,
-        snapshot: SessionConfigSnapshot,
-        path: str,
-        default: object,
-        validator: ValidatorType | None = None,
-        on_changed: Callable[[], None] | None = None,
-    ) -> None:
-        """创建 session 配置项。
-
-        Args:
-            snapshot [SessionConfigSnapshot]: 目标 session 配置快照。
-            path [str]: 点号分隔的字段路径，例如 ``clustering.eps_cf``。
-            default [object]: 默认值。
-            validator [ValidatorType | None]: qfluentwidgets 校验器，默认不校验。
-            on_changed [Callable[[], None] | None]: 值变化后的保存回调，默认不回调。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            ValueError: 当字段路径不合法时抛出。
-
-        Example:
-            >>> snapshot = SessionConfigSnapshot.default()
-            >>> item = SessionConfigItem(snapshot, "clustering.eps_cf", 2.0)
-            >>> item.set(3.5)
-            >>> snapshot.clustering.eps_cf
-            3.5
-        """
-        super().__init__()
-        self.snapshot = snapshot
-        self.group, self.name = path.rsplit(".", 1)
-        self.path = path
-        self.validator = validator
-        self.defaultValue = default
-        self._on_changed = on_changed
-        self._read()
-
-    @property
-    def value(self) -> object:
-        """返回当前字段值。
-
-        Returns:
-            object: 当前绑定字段的值。
-
-        Raises:
-            ValueError: 当字段路径不合法时抛出。
-
-        Example:
-            >>> snapshot = SessionConfigSnapshot.default()
-            >>> SessionConfigItem(snapshot, "recognition.max_candidates", 5).value
-            5
-        """
-        return self._read()
-
-    @value.setter
-    def value(self, new_value: object) -> None:
-        self.set(new_value)
-
-    def set(self, new_value: object) -> None:
-        """设置当前字段值并触发保存回调。
-
-        Args:
-            new_value [object]: 需要写入的新值，会先经过可选校验器修正。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            ValueError: 当字段路径不合法时抛出。
-
-        Example:
-            >>> snapshot = SessionConfigSnapshot.default()
-            >>> item = SessionConfigItem(snapshot, "business.auto_export", False)
-            >>> item.set(True)
-            >>> item.value
-            True
-        """
-        corrected = self.validator.correct(new_value) if self.validator else new_value
-        old_value = self._read()
-        if old_value == corrected:
-            return
-
-        # 写入快照后再发出信号，确保订阅方读取到最新值。
-        self._write(corrected)
-        self.valueChanged.emit(corrected)
-        if self._on_changed:
-            self._on_changed()
-
-    def _target(self) -> tuple[object, str]:
-        """返回字段所属对象与字段名。"""
-        target = self.snapshot
-        parts = self.path.split(".")
-        for part in parts[:-1]:
-            target = getattr(target, part)
-        return target, parts[-1]
-
-    def _read(self) -> object:
-        """读取绑定字段。"""
-        target, field_name = self._target()
-        return getattr(target, field_name)
-
-    def _write(self, value: object) -> None:
-        """写入绑定字段。"""
-        target, field_name = self._target()
-        setattr(target, field_name, value)

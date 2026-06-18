@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-06-18 15:47
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\session_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_snapshot.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 Task 1 审查反馈，将纯快照契约与设置卡适配拆分。
+- 原因：`core.models` 不应依赖 Qt/qfluentwidgets，session 设置适配也不能伪装成全局 qconfig 兼容项。
+- 测试状态：已测试（2026-06-18 15:50，pytest 12 passed；compileall 通过；git diff --check 无空白错误）
+- 当前计划：
+  - [x] 确认当前 HEAD 与工作区状态。
+  - [x] 补充非法 schema_version 和 session 设置适配测试，并验证失败。
+  - [x] 拆分 core 快照与 app 侧设置适配实现。
+  - [x] 运行 pytest、compileall 和 git diff 检查。
+  - [x] 自查差异并提交。
+
 - 时间：2026-06-18 15:33
 - 操作类型：新增
 - 影响文件：
