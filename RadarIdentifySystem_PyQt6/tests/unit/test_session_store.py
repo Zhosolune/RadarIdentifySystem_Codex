@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -183,6 +184,143 @@ def test_session_store_load_index_returns_empty_for_invalid_active_id(
 
     assert index.active_session_id is None
     assert index.sessions == []
+
+
+def test_session_store_load_index_returns_empty_for_invalid_entry_id(
+    tmp_path: Path,
+) -> None:
+    """索引条目的 session id 非法时应回退为空索引。"""
+    (tmp_path / "index.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_session_id": None,
+                "sessions": [
+                    {
+                        "session_id": "a/b",
+                        "display_name": "a.xlsx",
+                        "source_path": "E:/data/a.xlsx",
+                        "source_type": "excel",
+                        "created_at": "2026-06-18T20:00:00",
+                        "last_opened_at": "2026-06-18T20:01:00",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    store = SessionStore(tmp_path)
+
+    index = store.load_index()
+
+    assert index.active_session_id is None
+    assert index.sessions == []
+
+
+def test_session_store_load_session_rejects_invalid_metadata_id(
+    tmp_path: Path,
+) -> None:
+    """session 元数据中的非法 id 应阻止单 session 恢复。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    store.upsert_session(session)
+    session_json_path = tmp_path / session.session_id / "session.json"
+    payload = json.loads(session_json_path.read_text(encoding="utf-8"))
+    payload["session_id"] = "a/b"
+    session_json_path.write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        store.load_session(session.session_id)
+
+
+def test_session_store_load_session_rejects_mismatched_metadata_id(
+    tmp_path: Path,
+) -> None:
+    """session 元数据 id 与请求 id 不一致时应抛出异常。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    other_session = ProcessingSession(source_path="E:/data/b.xlsx", source_type="excel")
+    store.upsert_session(session)
+    session_json_path = tmp_path / session.session_id / "session.json"
+    payload = json.loads(session_json_path.read_text(encoding="utf-8"))
+    payload["session_id"] = other_session.session_id
+    session_json_path.write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        store.load_session(session.session_id)
+
+
+def test_session_store_load_all_sessions_skips_metadata_id_pollution(
+    tmp_path: Path,
+) -> None:
+    """批量恢复时应跳过元数据 id 被污染或不一致的坏 session。"""
+    store = SessionStore(tmp_path)
+    valid_session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    polluted_session = ProcessingSession(source_path="E:/data/b.xlsx", source_type="excel")
+    mismatched_session = ProcessingSession(source_path="E:/data/c.xlsx", source_type="excel")
+    other_session = ProcessingSession(source_path="E:/data/d.xlsx", source_type="excel")
+    store.upsert_session(valid_session)
+    store.upsert_session(polluted_session)
+    store.upsert_session(mismatched_session)
+
+    polluted_json_path = tmp_path / polluted_session.session_id / "session.json"
+    polluted_payload = json.loads(polluted_json_path.read_text(encoding="utf-8"))
+    polluted_payload["session_id"] = "a/b"
+    polluted_json_path.write_text(
+        json.dumps(polluted_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    mismatched_json_path = tmp_path / mismatched_session.session_id / "session.json"
+    mismatched_payload = json.loads(mismatched_json_path.read_text(encoding="utf-8"))
+    mismatched_payload["session_id"] = other_session.session_id
+    mismatched_json_path.write_text(
+        json.dumps(mismatched_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    restored_sessions = store.load_all_sessions()
+
+    assert [session.session_id for session in restored_sessions] == [
+        valid_session.session_id,
+    ]
+
+
+@pytest.mark.parametrize(
+    "session_id",
+    [
+        "CON",
+        "NUL",
+        "COM1",
+        "con.txt",
+        "bad:name",
+        "bad*",
+        "bad?",
+        'bad"',
+        "bad<",
+        "bad>",
+        "bad|",
+        "trail.",
+        "trail ",
+        "bad\x01",
+    ],
+)
+def test_session_store_rejects_windows_invalid_file_names(
+    tmp_path: Path,
+    session_id: str,
+) -> None:
+    """session id 不允许使用 Windows 非法文件名或保留设备名。"""
+    store = SessionStore(tmp_path)
+
+    with pytest.raises(ValueError):
+        store.delete_session(session_id)
 
 
 def test_session_store_load_all_sessions_skips_broken_entries(

@@ -25,6 +25,17 @@ from core.models.session_model import SessionModelSelection
 from utils.paths import get_session_config_dir
 
 
+_WINDOWS_INVALID_FILENAME_CHARS = set('<>:"|?*')
+_WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
+
+
 @dataclass
 class SessionIndexEntry:
     """Session 索引条目。
@@ -218,7 +229,7 @@ class SessionStore:
             无。
 
         Returns:
-            SessionIndex: 当前索引；索引文件不存在、损坏或字段非法时返回空索引。
+            SessionIndex: 当前索引；索引文件不存在、损坏或 id 字段非法时返回空索引。
 
         Raises:
             无显式抛出异常；索引读取失败时回退为空索引。
@@ -243,6 +254,8 @@ class SessionStore:
                 index.active_session_id = self._validate_session_id(
                     index.active_session_id,
                 )
+            for entry in index.sessions:
+                entry.session_id = self._validate_session_id(entry.session_id)
             return index
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
             return SessionIndex()
@@ -317,7 +330,7 @@ class SessionStore:
             FileNotFoundError: 当 session.json 或 config.json 不存在时抛出。
             OSError: 当文件读取失败时抛出。
             json.JSONDecodeError: 当 JSON 格式非法时抛出。
-            ValueError: 当 session_id 指向 root_dir 外部路径或时间字段无法解析时抛出。
+            ValueError: 当 session_id 非法、元数据 id 不一致或时间字段无法解析时抛出。
 
         Example:
             >>> store = SessionStore(Path("config/sessions"))
@@ -325,13 +338,17 @@ class SessionStore:
             True
         """
 
-        session_dir = self._session_dir(session_id)
+        requested_session_id = self._validate_session_id(session_id)
+        session_dir = self._session_dir(requested_session_id)
         metadata = self._read_json(session_dir / "session.json")
         config_payload = self._read_json(session_dir / "config.json")
         model_payload = metadata.get("model_selection")
+        metadata_session_id = self._validate_session_id(str(metadata["session_id"]))
+        if metadata_session_id != requested_session_id:
+            raise ValueError("session 元数据 id 与请求 id 不一致")
 
         session = ProcessingSession(
-            session_id=str(metadata["session_id"]),
+            session_id=requested_session_id,
             source_path=str(metadata["source_path"]),
             source_type=str(metadata["source_type"]),
             created_at=datetime.fromisoformat(str(metadata["created_at"])),
@@ -468,6 +485,14 @@ class SessionStore:
             raise ValueError("session_id 不能是当前目录或上级目录")
         if "/" in session_id or "\\" in session_id:
             raise ValueError("session_id 不能包含路径分隔符")
+        if session_id.rstrip(" .") != session_id:
+            raise ValueError("session_id 不能以空格或点结尾")
+        if any(ord(char) < 32 for char in session_id):
+            raise ValueError("session_id 不能包含控制字符")
+        if any(char in _WINDOWS_INVALID_FILENAME_CHARS for char in session_id):
+            raise ValueError("session_id 不能包含 Windows 文件名非法字符")
+        if session_id.split(".")[0].upper() in _WINDOWS_RESERVED_NAMES:
+            raise ValueError("session_id 不能使用 Windows 保留设备名")
 
         session_path = Path(session_id)
         if session_path.is_absolute() or session_path.drive or session_path.root:

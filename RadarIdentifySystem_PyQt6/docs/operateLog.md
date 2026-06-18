@@ -2364,3 +2364,26 @@
 - 变更摘要：补充非法 active session id 索引字段的回退测试和校验。
 - 原因：确保损坏或非法 index 字段不会把无效 active id 带入恢复流程。
 - 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+---
+
+## 2026-06-19 03:50
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 session 持久化返修复审问题，补充索引条目、元数据 id 与 Windows 文件名安全测试。
+- 原因：避免坏索引条目或污染的 session 元数据进入恢复流程。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-19 03:52
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成索引条目 id 校验、session 元数据 id 一致性校验和 Windows 非法文件名拒绝逻辑。
+- 原因：修复 Task 3 返修复审反馈，防止非法持久化 id 污染 session 恢复状态。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
