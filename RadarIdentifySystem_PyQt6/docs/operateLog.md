@@ -32,7 +32,10 @@
   - [x] 用户确认设计 7：测试覆盖 session 数据与持久化、UI 生命周期、事件隔离、子配置绑定、模型选择和手动验收路径。
   - [x] 编写正式设计规格文档 `docs/superpowers/specs/2026-06-18-session-isolation-design.md`。
   - [x] 完成设计文档自检：未发现 TODO/TBD 占位；已明确 session 持久化与识别结果保存的边界；已记录多 `QConfig` 方案验证失败和最终 `SessionConfigSnapshot + SessionConfigItem` 方案。
-  - [ ] 等待用户审阅正式设计规格文档。
+  - [x] 用户确认正式设计规格文档。
+  - [x] 编写实施计划 `docs/superpowers/plans/2026-06-18-session-isolation.md`，拆分为 session 配置、模型选择、持久化、注册表、事件拆分、动态页面、主页导入、session-aware 设置卡、识别链路、启动恢复、session 管理器和最终验证任务。
+  - [x] 完成实施计划自检：未发现 TODO/TBD 占位；`git diff --check` 通过。
+  - [ ] 等待用户选择执行方式。
 
 - 时间：2026-06-18 11:07
 - 操作类型：重构
