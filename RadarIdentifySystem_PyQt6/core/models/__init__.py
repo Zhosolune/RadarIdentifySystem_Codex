@@ -12,6 +12,15 @@ from .algorithm_params import (
     MergeParams,
 )
 from .recognition_result import ClusterRecognition, SliceRecognitionResult, RecognitionResult
+from .session_config import (
+    BusinessConfigSnapshot,
+    ClusteringConfigSnapshot,
+    ExtractConfigSnapshot,
+    MergeConfigSnapshot,
+    RecognitionConfigSnapshot,
+    SessionConfigItem,
+    SessionConfigSnapshot,
+)
 
 __all__ = [
     "PulseBatch",
@@ -29,4 +38,11 @@ __all__ = [
     "ClusterRecognition",
     "SliceRecognitionResult",
     "RecognitionResult",
+    "BusinessConfigSnapshot",
+    "ClusteringConfigSnapshot",
+    "ExtractConfigSnapshot",
+    "MergeConfigSnapshot",
+    "RecognitionConfigSnapshot",
+    "SessionConfigItem",
+    "SessionConfigSnapshot",
 ]

@@ -1,5 +1,22 @@
 # 变更记录
 
+- 时间：2026-06-18 15:33
+- 操作类型：新增
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\session_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_snapshot.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始执行 Task 1，采用 TDD 增加 session 子配置快照数据契约。
+- 原因：为后续 session 持久化和 UI 绑定提供纯数据配置契约。
+- 测试状态：已测试（`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_snapshot.py -q`，3 passed，1 个既有 SciPy 弃用警告）
+- 当前计划：
+  - [x] 确认分支与 worktree 状态。
+  - [x] 新增配置快照测试并验证预期失败。
+  - [x] 实现 `SessionConfigSnapshot` 及子配置快照。
+  - [x] 运行指定 pytest 验证通过。
+  - [x] 自查差异并提交。
+
 - 时间：2026-06-18 13:33
 - 操作类型：修改
 - 影响文件：
