@@ -1,5 +1,16 @@
 # 变更记录
 
+- 时间：2026-06-18 11:07
+- 操作类型：重构
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将切片页的 `import_completed` 订阅与会话注入从 `SliceInterface` 下沉到 `SliceController`，并补充控制器接管事件后的验证用例。
+- 原因：页面层不应直接承担全局事件订阅和跨控制器状态编排职责，需要进一步对齐 `ui/interfaces` 只负责展示、`ui/controllers` 负责交互编排的分层约束。
+- 测试状态：已测试（`GetDiagnostics` 检查 `slice_controller.py`、`slice_interface.py`、`test_navigation_controls.py` 无诊断；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q` 4 项通过）
+
 - 时间：2026-06-18 10:32
 - 操作类型：修改
 - 影响文件：

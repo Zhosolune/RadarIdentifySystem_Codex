@@ -13,6 +13,7 @@ from PyQt6.QtGui import QImage, QPixmap
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus
+from core.models.processing_session import ProcessingSession
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_slice_images
 from app.app_config import appConfig, qconfig
@@ -63,6 +64,8 @@ class SliceController(QObject):
         """
         super().__init__(view)
         self.view = view
+        # 初始化空会话占位，等待导入流程注入真实会话。
+        self.view._session = ProcessingSession()
         self._processing_dialog = None
         self._current_slice_index = 0
         self._connect_signals()
@@ -91,11 +94,32 @@ class SliceController(QObject):
         )
 
         # 绑定全局生命周期信号
+        signal_bus.import_completed.connect(self._on_import_completed)
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
 
         # 绑定重绘请求信号
         self.view.redraw_option_card.redraw_requested.connect(self._on_redraw_requested)
+
+    def _on_import_completed(self, session: ProcessingSession) -> None:
+        """接收导入完成会话并刷新切片页状态。
+
+        Args:
+            session: 首页解析流程完成后广播的处理会话。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        # 注入当前处理会话。
+        self.view._session = session
+        # 刷新切片导航状态。
+        self.refresh_navigation_state()
+        # 刷新聚类空态与导航状态。
+        if hasattr(self.view, "_identify_controller"):
+            self.view._identify_controller.refresh_cluster_view_state(reset_index=True)
 
     def _check_workflow_state(self) -> None:
         """定期检查工作流状态，防止信号丢失导致 UI 卡死。

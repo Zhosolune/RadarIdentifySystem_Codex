@@ -18,7 +18,9 @@ from core.models.recognition_result import (
     RecognitionResult,
     SliceRecognitionResult,
 )
+from core.models.processing_session import ProcessingSession
 from core.models.slice_result import SingleSlice, SliceResult
+from app.signal_bus import signal_bus
 from ui.controllers.identify_controller import IdentifyController
 from ui.controllers.slice_controller import SliceController
 from ui.interfaces.slice_interface import SliceInterface
@@ -186,5 +188,27 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
     assert not interface.next_cluster_button.isEnabled()
     assert interface.navigation_control_card.prev_cluster_button.isEnabled()
     assert not interface.navigation_control_card.next_cluster_button.isEnabled()
+
+    sip.delete(interface)
+
+
+def test_import_completed_is_handled_by_controller(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """导入完成事件应由控制器接管并同步刷新页面会话。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    interface = SliceInterface()
+    session = ProcessingSession()
+
+    signal_bus.import_completed.emit(session)
+
+    assert interface._session is session
+    assert interface.cluster_title_label.text() == "暂无聚类结果"
+    assert not interface.prev_slice_button.isEnabled()
+    assert not interface.navigation_control_card.prev_cluster_button.isEnabled()
 
     sip.delete(interface)

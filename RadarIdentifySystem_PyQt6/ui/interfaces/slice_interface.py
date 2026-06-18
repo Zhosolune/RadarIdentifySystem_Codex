@@ -8,9 +8,7 @@ from PyQt6.QtGui import QColor
 from qfluentwidgets import TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, SimpleCardWidget, ScrollArea, qconfig
 
 from app.custom_icon import CustomIcon
-from app.signal_bus import signal_bus
 from app.style_sheet import StyleSheet
-from core.models.processing_session import ProcessingSession
 from ui.components import (
     DrawerPosition,
     JitterFreeCardGroup,
@@ -81,37 +79,10 @@ class SliceInterface(QFrame):
         # 监听绘图拉伸模式变化，以通知子卡片重新拉伸图片
         from app.app_config import appConfig
         appConfig.plotScaleMode.valueChanged.connect(self._on_plot_scale_mode_changed)
-        
-        # 当前处理会话由首页解析流程通过 signal_bus 注入。
-        self._session = ProcessingSession()
-        signal_bus.import_completed.connect(self._on_import_completed)
 
         # 初始化控制器，将业务逻辑抽离
         self._slice_controller = SliceController(self)
         self._identify_controller = IdentifyController(self)
-
-    def _on_import_completed(self, session: ProcessingSession) -> None:
-        """接收导入完成会话并作为切片页当前会话。
-
-        Args:
-            session: 首页解析流程完成后广播的处理会话。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无显式抛出异常。
-
-        Example:
-            >>> from core.models.processing_session import ProcessingSession
-            >>> isinstance(ProcessingSession(), ProcessingSession)
-            True
-        """
-        self._session = session
-        # 刷新切片导航状态。
-        self._slice_controller.refresh_navigation_state()
-        # 刷新聚类空态与导航状态。
-        self._identify_controller.refresh_cluster_view_state(reset_index=True)
 
     def _init_layout(self) -> None:
         """初始化三栏主布局。
