@@ -1,5 +1,32 @@
 # 变更记录
 
+- 时间：2026-06-18 08:58
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\navigation_control_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将主操作区首行从列拉伸方案调整为主按钮自宽度加中间弹性空间的布局，并保留窄宽度时复选框下移到第二行的行为。
+- 原因：主按钮不应被拉伸占满剩余宽度，只需要通过弹性留白把“更多选项”按钮推到右侧。
+- 测试状态：已测试（`GetDiagnostics` 检查 `navigation_control_card.py` 无诊断；离屏实例化验证宽容器下主按钮保持自宽度且“更多选项”贴右，窄容器下复选框位于第二行）
+
+- 时间：2026-06-17 17:51
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\navigation_control_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将主操作区改为自适应两态布局，宽度不足时把“启用自适应切片”复选框折到第二行，同时保持“更多选项”按钮留在首行。
+- 原因：需要在窄宽度下避免主操作区横向挤压，同时维持参数入口按钮的首行可见性。
+- 测试状态：已测试（`GetDiagnostics` 检查 `navigation_control_card.py` 无诊断；离屏实例化验证宽容器下四项仍在同一行，窄容器下复选框位于第二行且“更多选项”按钮保持首行）
+
+- 时间：2026-06-17 17:45
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\ui\components\navigation_control_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：将导航文字按钮区改为基于组件库 `FlowLayout` 的单行右吸附流式布局，宽度不足时自动换行，单行时保持“重置当前切片”按钮贴靠最右侧。
+- 原因：原 `QHBoxLayout + stretch` 只能维持单行右对齐，无法在窄宽度场景下自动折行。
+- 测试状态：已测试（`GetDiagnostics` 检查 `navigation_control_card.py` 无诊断；离屏实例化验证宽容器下重置按钮右边界贴合卡片右边界，窄容器下按钮分布为首行 3 个、次行 2 个）
+
 - 时间：2026-06-17 16:53
 - 操作类型：修改
 - 影响文件：
@@ -7,6 +34,23 @@
 - 变更摘要：对比根目录误写日志与 PyQt6 子项目日志，将缺失的 4 条切片参数面板设计和实现记录补入正确日志文件。
 - 原因：此前错误地把本次操作记录写入仓库根目录 `docs/operateLog.md`，未遵循 PyQt6 子项目的日志路径约定。
 - 测试状态：无需测试（已按变更摘要去重核对，三条既有仪表盘记录未重复追加）
+
+---
+
+- 时间：2026-06-18 09:30
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\core\models\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_runtime_algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_core_clustering.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\plans\2026-06-18-clustering-params-chain.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：同步聚类参数链路，新增 `min_pts_cf`、`min_pts_pw`、`eps_doa`、`min_pts_doa`、`clip_threshold_doa` 参数字段，并让 CF/PW 聚类分别使用各自的最小点数。
+- 原因：`app_config.py` 已拆分 CF/PW 聚类最小点数并新增 DOA 聚类配置；运行时仍读取旧 `algorithmMinPts` 会导致识别流程启动失败。
+- 测试状态：已测试（TDD RED 阶段分别复现 `algorithmMinPts` 缺失和 worker 访问旧 `min_pts` 字段；GREEN 阶段 `test_runtime_algorithm_params.py` 与 `test_identify_worker_clustering_params.py` 共 2 项通过；`compileall` 覆盖参数模型、运行时组装器和识别 worker；旧字段扫描无 `algorithmMinPts` 或 `cluster_params.min_pts` 残留；DOA 参数仅进入参数对象和日志快照，暂未接入算法逻辑）
 
 - 时间：2026-06-17 16:50
 - 操作类型：重构

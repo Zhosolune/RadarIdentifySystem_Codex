@@ -32,8 +32,12 @@ def get_clustering_params() -> ClusteringParams:
     # 组装聚类参数对象。
     return ClusteringParams(
         eps_cf=float(qconfig.get(appConfig.algorithmEpsilonCF)),
+        min_pts_cf=int(qconfig.get(appConfig.algorithmMinPtsCF)),
         eps_pw=float(qconfig.get(appConfig.algorithmEpsilonPW)),
-        min_pts=int(qconfig.get(appConfig.algorithmMinPts)),
+        min_pts_pw=int(qconfig.get(appConfig.algorithmMinPtsPW)),
+        eps_doa=float(qconfig.get(appConfig.algorithmEpsilonDOA)),
+        min_pts_doa=int(qconfig.get(appConfig.algorithmMinPtsDOA)),
+        clip_threshold_doa=float(qconfig.get(appConfig.algorithmClipThresholdDOA)),
     )
 
 

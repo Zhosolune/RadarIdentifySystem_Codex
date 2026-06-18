@@ -47,7 +47,8 @@ def test_cluster_single_slice():
         params=ClusteringParams(
             eps_cf=2.0,
             eps_pw=0.2,
-            min_pts=3,
+            min_pts_cf=3,
+            min_pts_pw=3,
             min_cluster_size=4,
         ),
     )

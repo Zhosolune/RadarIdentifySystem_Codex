@@ -42,7 +42,7 @@ class SliceInterface(QFrame):
         无。
     """
 
-    RIGHT_COLUMN_WIDTH = 630
+    RIGHT_COLUMN_MAX_WIDTH = 580
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化切片处理子页面。
@@ -138,8 +138,8 @@ class SliceInterface(QFrame):
         root_layout.addWidget(middle_column, 2)
         root_layout.addWidget(self.right_column, 3)
 
-        # 右栏与参数抽屉共用同一宽度真相源。
-        self.right_column.setFixedWidth(self.RIGHT_COLUMN_WIDTH)
+        # 设置右侧面板最大宽度
+        self.right_column.setMaximumWidth(self.RIGHT_COLUMN_MAX_WIDTH)
 
     def _update_icon_colors(self) -> None:
         """当主题切换时，重新获取当前正确的 themeColor 并应用"""
@@ -358,7 +358,7 @@ class SliceInterface(QFrame):
         # 抽屉外壳由页面管理，内部卡片布局由独立参数面板负责。
         self.slice_param_drawer: SlidingDrawer = SlidingDrawer(
             DrawerPosition.RIGHT,
-            self.RIGHT_COLUMN_WIDTH,
+            self.RIGHT_COLUMN_MAX_WIDTH,
             self,
             title="当前Session配置",
         )
