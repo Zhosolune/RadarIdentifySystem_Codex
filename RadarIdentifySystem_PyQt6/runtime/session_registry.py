@@ -91,6 +91,7 @@ class SessionRegistry:
         old_persisted_session = self._load_persisted_session_or_none(
             session.session_id,
         )
+        old_active_session_id = self.store.load_index().active_session_id
 
         if persist:
             # upsert 只保存 session 内容，active id 由 registry 显式同步。
@@ -104,11 +105,13 @@ class SessionRegistry:
                     session.session_id,
                     old_persisted_session,
                 )
+                self._restore_active_session_id(old_active_session_id)
                 session.last_opened_at = old_last_opened_at
                 raise
         else:
             session.last_opened_at = new_last_opened_at
 
+        session.last_opened_at = new_last_opened_at
         self._sessions[session.session_id] = session
         self.active_session_id = session.session_id
         return session
@@ -217,6 +220,7 @@ class SessionRegistry:
         old_last_opened_at = session.last_opened_at
         new_last_opened_at = datetime.now()
         old_persisted_session = self._load_persisted_session_or_none(session_id)
+        old_active_session_id = self.store.load_index().active_session_id
         persisted_session = replace(session, last_opened_at=new_last_opened_at)
         try:
             self.store.upsert_session(persisted_session)
@@ -224,6 +228,7 @@ class SessionRegistry:
         except Exception:
             # 激活持久化失败时恢复内存与磁盘打开时间，并保留原 active id。
             self._restore_persisted_session(session_id, old_persisted_session)
+            self._restore_active_session_id(old_active_session_id)
             session.last_opened_at = old_last_opened_at
             raise
 
@@ -326,6 +331,14 @@ class SessionRegistry:
                 self.store.upsert_session(old_persisted_session)
         except Exception:
             # 保留原始异常语义，恢复失败只作为尽力清理结果。
+            return
+
+    def _restore_active_session_id(self, old_active_session_id: str | None) -> None:
+        """尽力恢复失败写盘前的持久化 active session id。"""
+        try:
+            self.store.set_active_session_id(old_active_session_id)
+        except Exception:
+            # 保留原始异常语义，active id 恢复失败只作为尽力清理结果。
             return
 
     def _can_load_persisted_session(self, session_id: str) -> bool:

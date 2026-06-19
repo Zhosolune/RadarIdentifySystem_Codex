@@ -44,6 +44,9 @@ class _FailingSessionStore(SessionStore):
         """按需在设置 active id 时抛出异常。"""
         if self.failing_method == "set_active_session_id":
             raise OSError("注入 set_active_session_id 失败")
+        if self.failing_method == "set_active_session_id_after_write":
+            super().set_active_session_id(session_id)
+            raise OSError("注入 set_active_session_id 写入后失败")
         if (
             self.failing_method == "set_active_session_id_after_delete"
             and self.deleted_session_ids
@@ -84,10 +87,15 @@ def test_register_sets_active_and_persists_active_id(tmp_path: Path) -> None:
     assert registry.active_session is session
     assert session.last_opened_at >= old_last_opened_at
     assert store.load_index().active_session_id == "session-a"
-    assert store.load_session("session-a").session_id == "session-a"
+    persisted_session = store.load_session("session-a")
+    assert persisted_session.session_id == "session-a"
+    assert persisted_session.last_opened_at == session.last_opened_at
 
 
-@pytest.mark.parametrize("failing_method", ["upsert_session", "set_active_session_id"])
+@pytest.mark.parametrize(
+    "failing_method",
+    ["upsert_session", "set_active_session_id", "set_active_session_id_after_write"],
+)
 def test_register_persistence_failure_keeps_memory_state(
     tmp_path: Path,
     failing_method: str,
@@ -112,6 +120,25 @@ def test_register_persistence_failure_keeps_memory_state(
     )
     with pytest.raises(FileNotFoundError):
         store.load_session(session.session_id)
+
+
+def test_register_active_write_after_failure_restores_old_active_id(
+    tmp_path: Path,
+) -> None:
+    """注册时 active id 写入后失败应恢复旧的持久化 active id。"""
+    store = _FailingSessionStore(tmp_path, "")
+    registry = SessionRegistry(store)
+    first = registry.register(_make_session("session-a", "a.xlsx"))
+    store.failing_method = "set_active_session_id_after_write"
+    second = _make_session("session-b", "b.xlsx")
+
+    with pytest.raises(OSError):
+        registry.register(second)
+
+    assert registry.active_session is first
+    assert store.load_index().active_session_id == first.session_id
+    with pytest.raises(FileNotFoundError):
+        store.load_session(second.session_id)
 
 
 def test_register_existing_session_rolls_back_disk_when_active_write_fails(
@@ -228,17 +255,22 @@ def test_activate_persistence_failure_keeps_memory_state(
     assert second.last_opened_at == old_last_opened_at
 
 
-def test_activate_active_write_failure_restores_disk_last_opened_at(
+@pytest.mark.parametrize(
+    "failing_method",
+    ["set_active_session_id", "set_active_session_id_after_write"],
+)
+def test_activate_active_write_failure_restores_disk_state(
     tmp_path: Path,
+    failing_method: str,
 ) -> None:
-    """激活 active id 写入失败时应恢复目标 session 的磁盘打开时间。"""
+    """激活 active id 写入失败时应恢复目标 session 的磁盘打开时间和旧 active id。"""
     store = _FailingSessionStore(tmp_path, "")
     registry = SessionRegistry(store)
     first = registry.register(_make_session("session-a", "a.xlsx"))
     second = registry.register(_make_session("session-b", "b.xlsx"))
     registry.activate(first.session_id)
     old_disk_last_opened_at = store.load_session(second.session_id).last_opened_at
-    store.failing_method = "set_active_session_id"
+    store.failing_method = failing_method
 
     with pytest.raises(OSError):
         registry.activate(second.session_id)

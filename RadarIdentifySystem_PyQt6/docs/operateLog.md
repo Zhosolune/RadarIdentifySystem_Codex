@@ -2487,6 +2487,18 @@
 
 ---
 
+## 2026-06-20 05:09
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修复 register 成功路径的打开时间同步，并补充 register、activate 在 active id 写盘后抛异常时的持久化 active id 回滚。
+- 原因：最终审查发现持久化成功后仅磁盘副本使用新 last_opened_at，且 active id 写入后抛异常会泄漏失败目标 session 为持久化 active id。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_active_rollback -p no:cacheprovider` 通过：21 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_active_rollback2 -p no:cacheprovider` 通过：63 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py` 通过；`git diff --check` 通过，仅 CRLF 提示。
+
+---
+
 ## 2026-06-19 23:29
 - 操作类型：[修改]
 - 影响文件：
