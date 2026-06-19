@@ -62,19 +62,20 @@ def test_main_window_creates_independent_session_interfaces(
         lambda model_type: [],
     )
     window = MainWindow()
-    first_session = ProcessingSession(session_id="session_a", display_name="A.xlsx")
-    second_session = ProcessingSession(session_id="session_b", display_name="B.xlsx")
+    try:
+        first_session = ProcessingSession(session_id="session_a", display_name="A.xlsx")
+        second_session = ProcessingSession(session_id="session_b", display_name="B.xlsx")
 
-    first_interface = window.create_session_interface(first_session)
-    second_interface = window.create_session_interface(second_session)
+        first_interface = window.create_session_interface(first_session)
+        second_interface = window.create_session_interface(second_session)
 
-    assert first_interface is not second_interface
-    assert window.session_interface("session_a") is first_interface
-    assert window.session_interface("session_b") is second_interface
-    assert first_interface.objectName() == "sessionSliceInterface_session_a"
-    assert second_interface.objectName() == "sessionSliceInterface_session_b"
-
-    _dispose_window(window)
+        assert first_interface is not second_interface
+        assert window.session_interface("session_a") is first_interface
+        assert window.session_interface("session_b") is second_interface
+        assert first_interface.objectName() == "sessionSliceInterface_session_a"
+        assert second_interface.objectName() == "sessionSliceInterface_session_b"
+    finally:
+        _dispose_window(window)
 
 
 def test_main_window_reuses_existing_session_interface(
@@ -87,15 +88,16 @@ def test_main_window_reuses_existing_session_interface(
         lambda model_type: [],
     )
     window = MainWindow()
-    session = ProcessingSession(session_id="session_reused", display_name="复用.xlsx")
+    try:
+        session = ProcessingSession(session_id="session_reused", display_name="复用.xlsx")
 
-    first_interface = window.create_session_interface(session)
-    reused_interface = window.create_session_interface(session)
+        first_interface = window.create_session_interface(session)
+        reused_interface = window.create_session_interface(session)
 
-    assert reused_interface is first_interface
-    assert window.session_interface("session_reused") is first_interface
-
-    _dispose_window(window)
+        assert reused_interface is first_interface
+        assert window.session_interface("session_reused") is first_interface
+    finally:
+        _dispose_window(window)
 
 
 def test_main_window_closes_session_interface(
@@ -108,11 +110,13 @@ def test_main_window_closes_session_interface(
         lambda model_type: [],
     )
     window = MainWindow()
-    session = ProcessingSession(session_id="session_closed", display_name="关闭.xlsx")
+    try:
+        session = ProcessingSession(session_id="session_closed", display_name="关闭.xlsx")
 
-    window.create_session_interface(session)
-    window.close_session_interface("session_closed")
+        window.create_session_interface(session)
+        window.close_session_interface("session_closed")
 
-    assert window.session_interface("session_closed") is None
-
-    _dispose_window(window)
+        assert window.session_interface("session_closed") is None
+        assert window.stackedWidget.currentWidget() is window.homeInterface
+    finally:
+        _dispose_window(window)

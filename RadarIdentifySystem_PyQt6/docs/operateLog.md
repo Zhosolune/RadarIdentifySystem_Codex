@@ -2784,3 +2784,27 @@
 - 变更摘要：Task 6+7 提交步骤受阻，`git add` 无法写入 worktree Git 索引，提升权限请求被自动审批限制拒绝。
 - 原因：当前沙箱没有写入 `E:\myProjects_Trae\RadarIdentifySystem_Codex\.git\worktrees\session-isolation\index.lock` 的权限，系统用量限制阻止提升权限执行。
 - 测试状态：[已测试] 代码验证已完成；暂存和提交未完成，`git diff --cached --name-only` 为空。
+
+---
+
+## 2026-06-20 06:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 6+7 质量审查返修，移除旧导入完成 session 注入死代码，并加强主窗口动态页关闭测试。
+- 原因：审查指出旧 `_on_import_completed()` 仍覆盖构造 session，测试未断言关闭后回到主页且断言失败时可能残留 Qt/qrouter 状态。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-20 06:21
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 6+7 质量审查返修，删除旧 `_on_import_completed()`，主窗口测试增加关闭后主页断言和 `try/finally` 清理。
+- 原因：消除误导性的全局导入 session 注入死代码，并保证 Windows Qt 测试失败时也清理窗口与 qrouter 状态。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
