@@ -2353,8 +2353,6 @@
 - 原因：修复 Task 3 审查反馈，避免非法 active id 和坏持久化文件影响启动恢复。
 - 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
 
----
-
 ## 2026-06-19 22:48
 - 操作类型：[新增]
 - 影响文件：
@@ -2612,3 +2610,56 @@
 - 变更摘要：完成索引 sessions 非字典条目校验，非法条目触发空索引回退。
 - 原因：修复 Task 3 最终规格复审反馈，避免坏索引条目被静默跳过。
 - 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+
+---
+
+## 2026-06-20 05:18
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 5，拆分解析完成事件与确认导入事件。
+- 原因：避免文件解析完成直接触发 session 导入/注册入口，给后续 session 生命周期流程保留独立事件边界。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-20 05:20
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增 Task 5 RED 测试，覆盖解析完成、确认导入和 session 生命周期信号隔离。
+- 原因：先锁定缺失的 `parse_completed` 与 session 生命周期占位信号，防止解析完成继续误用导入确认事件。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 预期失败：2 failed, 1 passed；失败原因为 `_SignalBus` 缺少 `parse_completed` 与 `session_registered`。
+
+---
+
+## 2026-06-20 05:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 5 最小实现，解析完成改发 `parse_completed`，首页渲染改监听解析事件，确认导入继续发 `import_completed`。
+- 原因：把“解析结果可展示”和“用户确认导入/注册入口”拆成两个独立事件语义。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-20 05:21
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 5 验证，确认解析完成事件与确认导入事件已隔离。
+- 原因：提交前读取验证输出，避免基于猜测声明通过。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 通过：3 passed；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 通过：6 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\signal_bus.py RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。

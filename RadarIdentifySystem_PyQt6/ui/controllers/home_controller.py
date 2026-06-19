@@ -140,7 +140,7 @@ class HomeController(QObject):
             self.view.import_panel.descendAction,
         ):
             action.triggered.connect(lambda _checked=False: self.apply_sort())
-        signal_bus.import_completed.connect(self.render_import_dashboard)
+        signal_bus.parse_completed.connect(self.render_import_dashboard)
         signal_bus.stage_failed.connect(self._on_parse_stage_failed)
         self.view.dashboard_panel.importSessionRequested.connect(
             self.import_current_session

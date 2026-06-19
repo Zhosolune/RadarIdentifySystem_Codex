@@ -77,7 +77,7 @@ class ImportWorkflow(QObject):
         if success:
             signal_bus.stage_finished.emit(session_id, "importing", None)
             if self._worker is not None:
-                signal_bus.import_completed.emit(self._worker.session)
+                signal_bus.parse_completed.emit(self._worker.session)
         else:
             signal_bus.stage_failed.emit(session_id, "importing", None, message)
             
