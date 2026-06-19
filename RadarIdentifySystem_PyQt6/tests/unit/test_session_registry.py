@@ -13,6 +13,33 @@ from runtime.session_config_factory import create_session_config_from_global
 from runtime.session_registry import SessionRegistry
 
 
+class _FailingSessionStore(SessionStore):
+    """测试用持久化失败注入存储。"""
+
+    def __init__(self, root_dir: Path, failing_method: str) -> None:
+        """初始化失败注入存储。"""
+        super().__init__(root_dir)
+        self.failing_method = failing_method
+
+    def upsert_session(self, session: ProcessingSession) -> None:
+        """按需在 upsert 时抛出异常。"""
+        if self.failing_method == "upsert_session":
+            raise OSError("注入 upsert_session 失败")
+        super().upsert_session(session)
+
+    def delete_session(self, session_id: str) -> None:
+        """按需在 delete 时抛出异常。"""
+        if self.failing_method == "delete_session":
+            raise OSError("注入 delete_session 失败")
+        super().delete_session(session_id)
+
+    def set_active_session_id(self, session_id: str | None) -> None:
+        """按需在设置 active id 时抛出异常。"""
+        if self.failing_method == "set_active_session_id":
+            raise OSError("注入 set_active_session_id 失败")
+        super().set_active_session_id(session_id)
+
+
 def _make_session(session_id: str, source_name: str) -> ProcessingSession:
     """创建带稳定 id 的测试 session。"""
     return ProcessingSession(
@@ -37,6 +64,39 @@ def test_register_sets_active_and_persists_active_id(tmp_path: Path) -> None:
     assert session.last_opened_at >= old_last_opened_at
     assert store.load_index().active_session_id == "session-a"
     assert store.load_session("session-a").session_id == "session-a"
+
+
+@pytest.mark.parametrize("failing_method", ["upsert_session", "set_active_session_id"])
+def test_register_persistence_failure_keeps_memory_state(
+    tmp_path: Path,
+    failing_method: str,
+) -> None:
+    """注册持久化失败时不应提交内存 session、active id 或打开时间。"""
+    store = _FailingSessionStore(tmp_path, failing_method)
+    registry = SessionRegistry(store)
+    session = _make_session("session-a", "a.xlsx")
+    old_last_opened_at = session.last_opened_at
+
+    with pytest.raises(OSError):
+        registry.register(session)
+
+    assert registry.get(session.session_id) is None
+    assert registry.active_session_id is None
+    assert registry.active_session is None
+    assert session.last_opened_at == old_last_opened_at
+
+
+def test_register_same_session_id_keeps_single_ordered_entry(tmp_path: Path) -> None:
+    """重复注册相同 session id 时应按 upsert 语义保持单个内存条目。"""
+    registry = SessionRegistry(SessionStore(tmp_path))
+    first = _make_session("session-a", "a.xlsx")
+    second = _make_session("session-a", "b.xlsx")
+
+    registry.register(first)
+    registry.register(second)
+
+    assert registry.all_sessions() == [second]
+    assert registry.active_session is second
 
 
 def test_restore_uses_store_sessions_and_restores_active_id(
@@ -70,12 +130,53 @@ def test_restore_uses_store_sessions_and_restores_active_id(
     assert restored_first.merge_result is None
 
 
+def test_restore_clears_persisted_active_id_when_active_session_is_broken(
+    tmp_path: Path,
+) -> None:
+    """active session 被跳过恢复时应同步清理持久化 active id。"""
+    store = SessionStore(tmp_path)
+    valid_session = _make_session("session-a", "a.xlsx")
+    broken_session = _make_session("session-b", "b.xlsx")
+    store.upsert_session(valid_session)
+    store.upsert_session(broken_session)
+    store.set_active_session_id(broken_session.session_id)
+    (tmp_path / broken_session.session_id / "config.json").unlink()
+
+    registry = SessionRegistry(store)
+    restored_sessions = registry.restore()
+
+    assert [session.session_id for session in restored_sessions] == ["session-a"]
+    assert registry.active_session is None
+    assert store.load_index().active_session_id is None
+
+
 def test_activate_missing_session_raises_key_error(tmp_path: Path) -> None:
     """激活不存在的 session id 时应抛出 KeyError。"""
     registry = SessionRegistry(SessionStore(tmp_path))
 
     with pytest.raises(KeyError):
         registry.activate("missing")
+
+
+@pytest.mark.parametrize("failing_method", ["upsert_session", "set_active_session_id"])
+def test_activate_persistence_failure_keeps_memory_state(
+    tmp_path: Path,
+    failing_method: str,
+) -> None:
+    """激活持久化失败时不应改变 active id 或 session 打开时间。"""
+    store = _FailingSessionStore(tmp_path, failing_method)
+    registry = SessionRegistry(store)
+    first = registry.register(_make_session("session-a", "a.xlsx"), persist=False)
+    second = registry.register(_make_session("session-b", "b.xlsx"), persist=False)
+    registry.active_session_id = first.session_id
+    old_last_opened_at = second.last_opened_at
+
+    with pytest.raises(OSError):
+        registry.activate(second.session_id)
+
+    assert registry.active_session is first
+    assert registry.active_session_id == first.session_id
+    assert second.last_opened_at == old_last_opened_at
 
 
 def test_close_active_switches_to_last_remaining_and_syncs_index(
@@ -107,6 +208,25 @@ def test_close_non_active_keeps_active_session(tmp_path: Path) -> None:
 
     assert registry.active_session is second
     assert store.load_index().active_session_id == second.session_id
+
+
+@pytest.mark.parametrize("failing_method", ["delete_session", "set_active_session_id"])
+def test_close_persistence_failure_keeps_memory_state(
+    tmp_path: Path,
+    failing_method: str,
+) -> None:
+    """关闭持久化失败时不应移除内存 session 或切换 active id。"""
+    store = _FailingSessionStore(tmp_path, failing_method)
+    registry = SessionRegistry(store)
+    first = registry.register(_make_session("session-a", "a.xlsx"), persist=False)
+    second = registry.register(_make_session("session-b", "b.xlsx"), persist=False)
+
+    with pytest.raises(OSError):
+        registry.close(second.session_id)
+
+    assert registry.all_sessions() == [first, second]
+    assert registry.active_session is second
+    assert registry.active_session_id == second.session_id
 
 
 def test_close_without_deleting_persisted_session_keeps_disk_files(
