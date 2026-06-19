@@ -2452,6 +2452,41 @@
 
 ---
 
+## 2026-06-19 23:18
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 4 第二次质量复审返修，补充 active close 删除成功后 active id 写入失败的状态同步测试。
+- 原因：避免磁盘 session 已删除但 registry 内存仍保留该 active session 的分叉状态。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-19 23:19
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增 active session 删除成功后 active id 写入失败的回归测试，并确认修复前内存仍保留已删除 session。
+- 原因：按第二次质量复审意见锁定 close 的部分持久化成功分叉路径。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider` 预期失败：1 failed, 15 passed
+
+---
+
+## 2026-06-19 23:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 close 部分持久化成功后的内存状态同步返修。
+- 原因：当磁盘 session 已删除但 active id 更新失败时，registry 需按磁盘结果移除已删除 session 并避免 active id 指向它。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
+
+---
+
 ## 2026-06-18 21:04
 - 操作类型：[修改]
 - 影响文件：

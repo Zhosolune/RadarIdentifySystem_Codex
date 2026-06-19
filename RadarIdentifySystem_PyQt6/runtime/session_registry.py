@@ -253,14 +253,31 @@ class SessionRegistry:
             if remaining_session_ids
             else None
         )
+        persisted_deleted = False
 
         if delete_persisted:
             # 仅删除 session 元数据目录，不触碰任何计算结果存储。
             self.store.delete_session(session_id)
+            persisted_deleted = True
 
         if was_active:
-            self.store.set_active_session_id(next_active_session_id)
+            try:
+                self.store.set_active_session_id(next_active_session_id)
+            except Exception:
+                if persisted_deleted:
+                    self._reconcile_after_persisted_close(session_id)
+                raise
 
         self._sessions.pop(session_id, None)
         if was_active:
             self.active_session_id = next_active_session_id
+
+    def _reconcile_after_persisted_close(self, session_id: str) -> None:
+        """按磁盘删除结果同步 close 失败后的内存状态。"""
+        self._sessions.pop(session_id, None)
+        persisted_active_session_id = self.store.load_index().active_session_id
+        self.active_session_id = (
+            persisted_active_session_id
+            if persisted_active_session_id in self._sessions
+            else None
+        )

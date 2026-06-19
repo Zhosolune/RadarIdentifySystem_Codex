@@ -20,6 +20,7 @@ class _FailingSessionStore(SessionStore):
         """初始化失败注入存储。"""
         super().__init__(root_dir)
         self.failing_method = failing_method
+        self.deleted_session_ids: list[str] = []
 
     def upsert_session(self, session: ProcessingSession) -> None:
         """按需在 upsert 时抛出异常。"""
@@ -32,11 +33,17 @@ class _FailingSessionStore(SessionStore):
         if self.failing_method == "delete_session":
             raise OSError("注入 delete_session 失败")
         super().delete_session(session_id)
+        self.deleted_session_ids.append(session_id)
 
     def set_active_session_id(self, session_id: str | None) -> None:
         """按需在设置 active id 时抛出异常。"""
         if self.failing_method == "set_active_session_id":
             raise OSError("注入 set_active_session_id 失败")
+        if (
+            self.failing_method == "set_active_session_id_after_delete"
+            and self.deleted_session_ids
+        ):
+            raise OSError("注入 delete 后 set_active_session_id 失败")
         super().set_active_session_id(session_id)
 
 
@@ -210,7 +217,7 @@ def test_close_non_active_keeps_active_session(tmp_path: Path) -> None:
     assert store.load_index().active_session_id == second.session_id
 
 
-@pytest.mark.parametrize("failing_method", ["delete_session", "set_active_session_id"])
+@pytest.mark.parametrize("failing_method", ["delete_session"])
 def test_close_persistence_failure_keeps_memory_state(
     tmp_path: Path,
     failing_method: str,
@@ -227,6 +234,26 @@ def test_close_persistence_failure_keeps_memory_state(
     assert registry.all_sessions() == [first, second]
     assert registry.active_session is second
     assert registry.active_session_id == second.session_id
+
+
+def test_close_active_reconciles_memory_when_active_id_update_fails_after_delete(
+    tmp_path: Path,
+) -> None:
+    """active session 已从磁盘删除后应同步内存状态再抛出 active id 写入异常。"""
+    store = _FailingSessionStore(tmp_path, "set_active_session_id_after_delete")
+    registry = SessionRegistry(store)
+    first = registry.register(_make_session("session-a", "a.xlsx"))
+    second = registry.register(_make_session("session-b", "b.xlsx"))
+
+    with pytest.raises(OSError):
+        registry.close(second.session_id)
+
+    assert registry.get(second.session_id) is None
+    assert registry.active_session_id != second.session_id
+    assert registry.active_session is None
+    assert first.session_id in {session.session_id for session in registry.all_sessions()}
+    with pytest.raises(FileNotFoundError):
+        store.load_session(second.session_id)
 
 
 def test_close_without_deleting_persisted_session_keeps_disk_files(
