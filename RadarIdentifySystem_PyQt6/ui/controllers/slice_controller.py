@@ -5,11 +5,10 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from collections import OrderedDict
 
 import logging
 from PyQt6.QtCore import QObject, Qt, QTimer
-from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtGui import QImage
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus

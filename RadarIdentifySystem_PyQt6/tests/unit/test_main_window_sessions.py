@@ -52,6 +52,15 @@ def _dispose_window(window: MainWindow) -> None:
     sip.delete(window)
 
 
+def _routes_for_window(window: MainWindow) -> list[str]:
+    """返回指定主窗口在 qrouter 全局历史中的 route key。"""
+    return [
+        item.routeKey
+        for item in qrouter.history
+        if item.stacked is window.stackedWidget
+    ]
+
+
 def test_main_window_creates_independent_session_interfaces(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -118,5 +127,9 @@ def test_main_window_closes_session_interface(
 
         assert window.session_interface("session_closed") is None
         assert window.stackedWidget.currentWidget() is window.homeInterface
+        route_history = _routes_for_window(window)
+        assert "sessionSliceInterface_session_closed" not in route_history
+        assert "settingInterface" not in route_history
+        assert route_history[-1] == window.homeInterface.objectName()
     finally:
         _dispose_window(window)

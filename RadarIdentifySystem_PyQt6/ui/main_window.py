@@ -15,6 +15,7 @@ from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
     InfoBar, InfoBarPosition, SystemThemeListener, SplashScreen
 )
+from qfluentwidgets.common.router import qrouter
 
 from core.models.processing_session import ProcessingSession
 from ui.interfaces.home_interface import HomeInterface
@@ -203,8 +204,13 @@ class MainWindow(FluentWindow):
         if interface is None:
             return
 
+        route_key = interface.objectName()
+        # 先回到主页，再移除动态页，避免 QStackedWidget 自动切到无关页面并污染 qrouter 历史。
+        if self.stackedWidget.currentWidget() is not self.homeInterface:
+            self.switchTo(self.homeInterface)
+
+        qrouter.remove(route_key)
         self.removeInterface(interface, isDelete=True)
-        self.switchTo(self.homeInterface)
 
     def initWindow(self) -> None:
         self.setWindowIcon(QIcon(':/RadarIdentifySystem/images/icon.png'))

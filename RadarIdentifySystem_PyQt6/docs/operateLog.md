@@ -2808,3 +2808,16 @@
 - 变更摘要：完成 Task 6+7 质量审查返修，删除旧 `_on_import_completed()`，主窗口测试增加关闭后主页断言和 `try/finally` 清理。
 - 原因：消除误导性的全局导入 session 注入死代码，并保证 Windows Qt 测试失败时也清理窗口与 qrouter 状态。
 - 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+---
+
+## 2026-06-20 06:29
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 Task 6+7 动态 session 页关闭时的 qrouter 历史污染，并清理 SliceController 无用导入。
+- 原因：质量审查指出关闭当前动态页会先跳到无关页面再回主页，导致全局路由历史残留错误页面。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_session_interface -q --basetemp=.pytest_tmp_task6_7_qrouter_red -p no:cacheprovider` 预期失败，route_history 为 `['settingInterface', 'homeInterface']`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_qrouter_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
