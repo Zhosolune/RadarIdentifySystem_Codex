@@ -2355,6 +2355,68 @@
 
 ---
 
+## 2026-06-19 22:48
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 4 session registry 与全局配置快照工厂实现，先补回归测试并确认缺失模块失败。
+- 原因：为 session 独立化提供运行期注册表和从全局默认配置创建独立快照的入口。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-19 22:49
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增 Task 4 registry 与全局配置快照工厂测试，并确认实现前因 runtime 模块缺失失败。
+- 原因：按 TDD 固定 register、restore、activate、close 和全局配置快照行为。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider` 预期失败：`ModuleNotFoundError: No module named 'runtime.session_config_factory'`
+
+---
+
+## 2026-06-19 22:50
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成全局配置快照工厂和运行期 SessionRegistry 最小实现。
+- 原因：提供 session 运行期注册、恢复、激活、关闭和 active id 持久化能力，同时保持计算产物不进入持久化。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-19 22:53
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 4 验证并清理 `.pytest_tmp_task4` 临时目录。
+- 原因：确认 runtime session registry 与配置快照工厂满足持久化、恢复和独立快照要求。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_config_factory.py RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
+
+---
+
+## 2026-06-19 22:55
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：拆分 Task 4 实现和测试中的长行，保持可读性。
+- 原因：降低后续维护成本，不改变 registry 和配置快照行为。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_config_factory.py RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
+
+---
+
 ## 2026-06-18 21:04
 - 操作类型：[修改]
 - 影响文件：
