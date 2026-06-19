@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from core.models.processing_session import ProcessingSession
@@ -87,15 +88,22 @@ class SessionRegistry:
         """
         old_last_opened_at = session.last_opened_at
         new_last_opened_at = datetime.now()
+        old_persisted_session = self._load_persisted_session_or_none(
+            session.session_id,
+        )
 
         if persist:
             # upsert 只保存 session 内容，active id 由 registry 显式同步。
-            session.last_opened_at = new_last_opened_at
+            persisted_session = replace(session, last_opened_at=new_last_opened_at)
             try:
-                self.store.upsert_session(session)
+                self.store.upsert_session(persisted_session)
                 self.store.set_active_session_id(session.session_id)
             except Exception:
-                # 持久化未完整成功时恢复调用前对象状态，避免内存先行漂移。
+                # 持久化未完整成功时恢复磁盘与调用前对象状态。
+                self._restore_persisted_session(
+                    session.session_id,
+                    old_persisted_session,
+                )
                 session.last_opened_at = old_last_opened_at
                 raise
         else:
@@ -207,15 +215,19 @@ class SessionRegistry:
             raise KeyError(session_id)
 
         old_last_opened_at = session.last_opened_at
-        session.last_opened_at = datetime.now()
+        new_last_opened_at = datetime.now()
+        old_persisted_session = self._load_persisted_session_or_none(session_id)
+        persisted_session = replace(session, last_opened_at=new_last_opened_at)
         try:
-            self.store.upsert_session(session)
+            self.store.upsert_session(persisted_session)
             self.store.set_active_session_id(session_id)
         except Exception:
-            # 激活持久化失败时恢复打开时间，并保留原 active id。
+            # 激活持久化失败时恢复内存与磁盘打开时间，并保留原 active id。
+            self._restore_persisted_session(session_id, old_persisted_session)
             session.last_opened_at = old_last_opened_at
             raise
 
+        session.last_opened_at = new_last_opened_at
         self.active_session_id = session_id
         return session
 
@@ -254,11 +266,20 @@ class SessionRegistry:
             else None
         )
         persisted_deleted = False
+        had_persisted_session = self._can_load_persisted_session(session_id)
 
         if delete_persisted:
             # 仅删除 session 元数据目录，不触碰任何计算结果存储。
-            self.store.delete_session(session_id)
-            persisted_deleted = True
+            try:
+                self.store.delete_session(session_id)
+                persisted_deleted = True
+            except Exception:
+                if (
+                    had_persisted_session
+                    and not self._can_load_persisted_session(session_id)
+                ):
+                    self._reconcile_after_persisted_close(session_id)
+                raise
 
         if was_active:
             try:
@@ -281,3 +302,36 @@ class SessionRegistry:
             if persisted_active_session_id in self._sessions
             else None
         )
+
+    def _load_persisted_session_or_none(
+        self,
+        session_id: str,
+    ) -> ProcessingSession | None:
+        """读取旧持久化 session，缺失时返回 None。"""
+        try:
+            return self.store.load_session(session_id)
+        except FileNotFoundError:
+            return None
+
+    def _restore_persisted_session(
+        self,
+        session_id: str,
+        old_persisted_session: ProcessingSession | None,
+    ) -> None:
+        """尽力恢复失败写盘前的持久化 session 状态。"""
+        try:
+            if old_persisted_session is None:
+                self.store.delete_session(session_id)
+            else:
+                self.store.upsert_session(old_persisted_session)
+        except Exception:
+            # 保留原始异常语义，恢复失败只作为尽力清理结果。
+            return
+
+    def _can_load_persisted_session(self, session_id: str) -> bool:
+        """判断磁盘 session 当前是否仍可加载。"""
+        try:
+            self.store.load_session(session_id)
+        except FileNotFoundError:
+            return False
+        return True

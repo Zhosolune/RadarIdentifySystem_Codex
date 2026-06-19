@@ -8,7 +8,7 @@ import pytest
 
 from app.app_config import appConfig, qconfig
 from core.models.processing_session import ProcessingSession
-from infra.session_store import SessionStore
+from infra.session_store import SessionIndex, SessionStore
 from runtime.session_config_factory import create_session_config_from_global
 from runtime.session_registry import SessionRegistry
 
@@ -21,6 +21,7 @@ class _FailingSessionStore(SessionStore):
         super().__init__(root_dir)
         self.failing_method = failing_method
         self.deleted_session_ids: list[str] = []
+        self._is_deleting_session = False
 
     def upsert_session(self, session: ProcessingSession) -> None:
         """按需在 upsert 时抛出异常。"""
@@ -32,8 +33,12 @@ class _FailingSessionStore(SessionStore):
         """按需在 delete 时抛出异常。"""
         if self.failing_method == "delete_session":
             raise OSError("注入 delete_session 失败")
-        super().delete_session(session_id)
-        self.deleted_session_ids.append(session_id)
+        self._is_deleting_session = True
+        try:
+            super().delete_session(session_id)
+            self.deleted_session_ids.append(session_id)
+        finally:
+            self._is_deleting_session = False
 
     def set_active_session_id(self, session_id: str | None) -> None:
         """按需在设置 active id 时抛出异常。"""
@@ -45,6 +50,15 @@ class _FailingSessionStore(SessionStore):
         ):
             raise OSError("注入 delete 后 set_active_session_id 失败")
         super().set_active_session_id(session_id)
+
+    def save_index(self, index: SessionIndex) -> None:
+        """按需在删除 session 后保存索引时抛出异常。"""
+        if (
+            self.failing_method == "save_index_after_delete"
+            and self._is_deleting_session
+        ):
+            raise OSError("注入 delete 后 save_index 失败")
+        super().save_index(index)
 
 
 def _make_session(session_id: str, source_name: str) -> ProcessingSession:
@@ -91,6 +105,34 @@ def test_register_persistence_failure_keeps_memory_state(
     assert registry.active_session_id is None
     assert registry.active_session is None
     assert session.last_opened_at == old_last_opened_at
+    assert store.load_index().active_session_id != session.session_id
+    assert all(
+        entry.session_id != session.session_id
+        for entry in store.load_index().sessions
+    )
+    with pytest.raises(FileNotFoundError):
+        store.load_session(session.session_id)
+
+
+def test_register_existing_session_rolls_back_disk_when_active_write_fails(
+    tmp_path: Path,
+) -> None:
+    """重复注册已持久化 session 失败时应恢复原磁盘元数据。"""
+    store = _FailingSessionStore(tmp_path, "")
+    registry = SessionRegistry(store)
+    original = registry.register(_make_session("session-a", "a.xlsx"))
+    original_disk = store.load_session(original.session_id)
+    replacement = _make_session("session-a", "b.xlsx")
+    store.failing_method = "set_active_session_id"
+
+    with pytest.raises(OSError):
+        registry.register(replacement)
+
+    restored_disk = store.load_session(original.session_id)
+    assert registry.get(original.session_id) is original
+    assert restored_disk.source_path == original_disk.source_path
+    assert restored_disk.display_name == original_disk.display_name
+    assert restored_disk.last_opened_at == original_disk.last_opened_at
 
 
 def test_register_same_session_id_keeps_single_ordered_entry(tmp_path: Path) -> None:
@@ -186,6 +228,27 @@ def test_activate_persistence_failure_keeps_memory_state(
     assert second.last_opened_at == old_last_opened_at
 
 
+def test_activate_active_write_failure_restores_disk_last_opened_at(
+    tmp_path: Path,
+) -> None:
+    """激活 active id 写入失败时应恢复目标 session 的磁盘打开时间。"""
+    store = _FailingSessionStore(tmp_path, "")
+    registry = SessionRegistry(store)
+    first = registry.register(_make_session("session-a", "a.xlsx"))
+    second = registry.register(_make_session("session-b", "b.xlsx"))
+    registry.activate(first.session_id)
+    old_disk_last_opened_at = store.load_session(second.session_id).last_opened_at
+    store.failing_method = "set_active_session_id"
+
+    with pytest.raises(OSError):
+        registry.activate(second.session_id)
+
+    assert registry.active_session is first
+    assert second.last_opened_at == old_disk_last_opened_at
+    assert store.load_session(second.session_id).last_opened_at == old_disk_last_opened_at
+    assert store.load_index().active_session_id == first.session_id
+
+
 def test_close_active_switches_to_last_remaining_and_syncs_index(
     tmp_path: Path,
 ) -> None:
@@ -251,6 +314,26 @@ def test_close_active_reconciles_memory_when_active_id_update_fails_after_delete
     assert registry.get(second.session_id) is None
     assert registry.active_session_id != second.session_id
     assert registry.active_session is None
+    assert first.session_id in {session.session_id for session in registry.all_sessions()}
+    with pytest.raises(FileNotFoundError):
+        store.load_session(second.session_id)
+
+
+def test_close_reconciles_memory_when_delete_removes_dir_but_index_save_fails(
+    tmp_path: Path,
+) -> None:
+    """删除目录成功但索引保存失败时应按磁盘事实移除内存 session。"""
+    store = _FailingSessionStore(tmp_path, "")
+    registry = SessionRegistry(store)
+    first = registry.register(_make_session("session-a", "a.xlsx"))
+    second = registry.register(_make_session("session-b", "b.xlsx"))
+    store.failing_method = "save_index_after_delete"
+
+    with pytest.raises(OSError):
+        registry.close(second.session_id)
+
+    assert registry.get(second.session_id) is None
+    assert registry.active_session_id != second.session_id
     assert first.session_id in {session.session_id for session in registry.all_sessions()}
     with pytest.raises(FileNotFoundError):
         store.load_session(second.session_id)

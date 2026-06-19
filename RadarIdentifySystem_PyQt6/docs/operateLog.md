@@ -2487,6 +2487,41 @@
 
 ---
 
+## 2026-06-19 23:29
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 4 最终质量复审返修，补充 register、activate、close 部分持久化成功后的磁盘回滚测试。
+- 原因：避免注册或激活失败后遗留错误磁盘元数据，避免 close 删除目录成功但索引保存失败后内存仍保留已删除 session。
+- 测试状态：[待测试]
+
+---
+
+## 2026-06-19 23:31
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增磁盘回滚测试并确认当前实现存在 register、activate、close 部分持久化成功后的磁盘泄漏。
+- 原因：按最终质量复审意见锁定失败注册落盘、重复注册覆盖旧磁盘元数据、激活失败改写磁盘打开时间和删除目录后索引保存失败的场景。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix3 -p no:cacheprovider` 预期失败：4 failed, 14 passed
+
+---
+
+## 2026-06-19 23:32
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 register、activate、close 部分持久化成功后的磁盘回滚和内存收敛返修。
+- 原因：失败注册或激活不应泄漏错误磁盘元数据，close 在磁盘目录已删除时应按磁盘事实移除内存 session。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_verify_final -p no:cacheprovider` 通过：18 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_verify_final2 -p no:cacheprovider` 通过：60 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py` 通过；`git diff --check` 通过，仅 CRLF 提示；临时目录清理由安全审查限制阻止，未纳入提交。
+
+---
+
 ## 2026-06-18 21:04
 - 操作类型：[修改]
 - 影响文件：
