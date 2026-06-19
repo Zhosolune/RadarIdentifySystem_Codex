@@ -2833,3 +2833,17 @@
 - 变更摘要：开始修复 Task 6+7 后台动态 session 页关闭时错误跳回主页的问题。
 - 原因：质量审查指出关闭非当前动态页不应打断用户当前所在页面。
 - 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_background_session_without_switching_current_page -q --basetemp=.pytest_tmp_task6_7_background_red -p no:cacheprovider` 预期失败，关闭后台 session 后 currentWidget 错误变为 homeInterface；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_background_fix -p no:cacheprovider` 通过：9 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+---
+
+## 2026-06-20 06:44
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 8，将主页确认导入接入 MainWindow session 注册与动态页面创建入口。
+- 原因：解析完成后不应再通过旧 `import_completed` 注入切片页，确认导入应注册持久化 session 并创建独立页面。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py::test_home_import_action_delegates_to_window_session_creation -q --basetemp=.pytest_tmp_task8_red_home2 -p no:cacheprovider` 预期失败，主页导入未委托窗口创建；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_task8_red_window -p no:cacheprovider` 预期失败，MainWindow 缺少 `create_session_from_parsed`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_related -p no:cacheprovider` 通过：13 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。

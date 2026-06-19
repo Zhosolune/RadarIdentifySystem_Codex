@@ -17,12 +17,14 @@ from pathlib import Path
 from typing import Any, cast
 
 from PyQt6.QtCore import QObject
+from pytest import MonkeyPatch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession
 from runtime.workflows.import_workflow import ImportWorkflow
+from ui.controllers.home_controller import HomeController
 
 
 class _SessionEventReceiver(QObject):
@@ -221,3 +223,49 @@ def test_session_lifecycle_signals_emit_session_id() -> None:
     finally:
         for signal in connected_signals:
             signal.disconnect(receiver.receive_session_id)
+
+
+def test_home_import_action_delegates_to_window_session_creation(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """主页导入按钮应委托窗口创建 session 页面。"""
+
+    class _Window:
+        """记录主页控制器委托创建的 session。"""
+
+        def __init__(self) -> None:
+            """初始化记录容器。"""
+            self.created: list[ProcessingSession] = []
+
+        def create_session_from_parsed(self, session: ProcessingSession) -> None:
+            """记录被委托创建的 session。"""
+            self.created.append(session)
+
+    class _View(QObject):
+        """提供 HomeController 所需的最小窗口接口。"""
+
+        def __init__(self) -> None:
+            """初始化假视图。"""
+            super().__init__()
+            self._window = _Window()
+
+        def window(self) -> _Window:
+            """返回假窗口。"""
+            return self._window
+
+    view = _View()
+    controller = HomeController.__new__(HomeController)
+    controller.view = view
+    controller._last_import_session = ProcessingSession(
+        source_path="E:/data/a.xlsx",
+        source_type="excel",
+    )
+    controller._show_top_warning = lambda title, content: None
+    monkeypatch.setattr(
+        "ui.controllers.home_controller.InfoBar.success",
+        lambda **kwargs: None,
+    )
+
+    HomeController.import_current_session(controller)
+
+    assert view.window().created == [controller._last_import_session]

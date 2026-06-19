@@ -11,8 +11,11 @@ from pytest import MonkeyPatch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession
+from infra.session_store import SessionStore
 from qfluentwidgets.common.router import qrouter
+from runtime.session_registry import SessionRegistry
 from ui.main_window import MainWindow
 
 
@@ -168,4 +171,49 @@ def test_main_window_closes_background_session_without_switching_current_page(
         assert background_interface.objectName() not in route_history
         assert route_history[-1] == current_interface.objectName()
     finally:
+        _dispose_window(window)
+
+
+def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """主窗口应注册解析结果、创建动态页并发出 session 生命周期信号。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow()
+    received_registered: list[str] = []
+    received_activated: list[str] = []
+    try:
+        window.session_registry = SessionRegistry(SessionStore(tmp_path))
+        session = ProcessingSession(
+            session_id="session_imported",
+            source_path="E:/data/imported.xlsx",
+            source_type="excel",
+        )
+        signal_bus.session_registered.connect(received_registered.append)
+        signal_bus.session_activated.connect(received_activated.append)
+
+        interface = window.create_session_from_parsed(session)
+
+        assert window.session_registry.get("session_imported") is session
+        assert window.session_registry.active_session_id == "session_imported"
+        assert window.session_interface("session_imported") is interface
+        assert window.stackedWidget.currentWidget() is interface
+        assert received_registered == ["session_imported"]
+        assert received_activated == ["session_imported"]
+        assert (tmp_path / "session_imported" / "session.json").exists()
+        assert (tmp_path / "session_imported" / "config.json").exists()
+    finally:
+        try:
+            signal_bus.session_registered.disconnect(received_registered.append)
+        except TypeError:
+            pass
+        try:
+            signal_bus.session_activated.disconnect(received_activated.append)
+        except TypeError:
+            pass
         _dispose_window(window)

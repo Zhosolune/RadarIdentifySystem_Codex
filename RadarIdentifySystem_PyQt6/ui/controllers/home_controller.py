@@ -242,7 +242,7 @@ class HomeController(QObject):
         )
 
     def import_current_session(self) -> None:
-        """将最近解析完成的会话重新广播给下游页面。
+        """将最近解析完成的会话注册为独立 session。
 
         Args:
             无。
@@ -261,10 +261,15 @@ class HomeController(QObject):
             self._show_top_warning("暂无可导入数据", "请先解析文件后再导入 Session。")
             return
 
-        signal_bus.import_completed.emit(self._last_import_session)
+        window = self.view.window()
+        if window is None or not hasattr(window, "create_session_from_parsed"):
+            self._show_top_warning("导入失败", "当前窗口不支持创建 Session 页面。")
+            return
+
+        window.create_session_from_parsed(self._last_import_session)
         InfoBar.success(
             title="已导入",
-            content=f"Session {self._last_import_session.session_id} 已发送到处理流程。",
+            content=f"Session {self._last_import_session.session_id} 已创建。",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,

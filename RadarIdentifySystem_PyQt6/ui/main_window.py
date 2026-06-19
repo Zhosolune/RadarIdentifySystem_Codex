@@ -17,7 +17,10 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.common.router import qrouter
 
+from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession
+from runtime.session_config_factory import create_session_config_from_global
+from runtime.session_registry import SessionRegistry
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.model_manager_interface import ModelManagerInterface
@@ -46,6 +49,7 @@ class MainWindow(FluentWindow):
         self.connectSignalToSlot()
 
         self._session_interfaces: dict[str, SliceInterface] = {}
+        self.session_registry = SessionRegistry()
         self.initNavigation()
         self._enable_pointing_hand_cursor()
 
@@ -153,6 +157,26 @@ class MainWindow(FluentWindow):
         )
         self._session_interfaces[session.session_id] = interface
         self.activate_session_interface(session.session_id)
+        return interface
+
+    def create_session_from_parsed(self, session: ProcessingSession) -> SliceInterface:
+        """注册解析完成的 session 并创建对应动态页面。
+
+        Args:
+            session [ProcessingSession]: 主页解析完成后等待确认导入的 session。
+
+        Returns:
+            SliceInterface: 绑定该 session 的动态切片页面。
+
+        Raises:
+            OSError: 当 session 持久化写入失败时由注册表抛出。
+            ValueError: 当 session_id 非法时由持久化层抛出。
+        """
+        session.config_snapshot = create_session_config_from_global()
+        self.session_registry.register(session)
+        interface = self.create_session_interface(session)
+        signal_bus.session_registered.emit(session.session_id)
+        signal_bus.session_activated.emit(session.session_id)
         return interface
 
     def session_interface(self, session_id: str) -> SliceInterface | None:
