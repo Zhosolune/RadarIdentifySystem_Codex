@@ -133,3 +133,39 @@ def test_main_window_closes_session_interface(
         assert route_history[-1] == window.homeInterface.objectName()
     finally:
         _dispose_window(window)
+
+
+def test_main_window_closes_background_session_without_switching_current_page(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """关闭非当前动态 session 页面时应保留用户当前所在页面。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow()
+    try:
+        background_session = ProcessingSession(
+            session_id="session_background",
+            display_name="后台.xlsx",
+        )
+        current_session = ProcessingSession(
+            session_id="session_current",
+            display_name="当前.xlsx",
+        )
+
+        background_interface = window.create_session_interface(background_session)
+        current_interface = window.create_session_interface(current_session)
+
+        assert window.stackedWidget.currentWidget() is current_interface
+
+        window.close_session_interface("session_background")
+
+        assert window.session_interface("session_background") is None
+        assert window.stackedWidget.currentWidget() is current_interface
+        route_history = _routes_for_window(window)
+        assert background_interface.objectName() not in route_history
+        assert route_history[-1] == current_interface.objectName()
+    finally:
+        _dispose_window(window)

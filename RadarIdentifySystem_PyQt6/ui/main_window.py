@@ -206,7 +206,7 @@ class MainWindow(FluentWindow):
 
         route_key = interface.objectName()
         # 先回到主页，再移除动态页，避免 QStackedWidget 自动切到无关页面并污染 qrouter 历史。
-        if self.stackedWidget.currentWidget() is not self.homeInterface:
+        if self.stackedWidget.currentWidget() is interface:
             self.switchTo(self.homeInterface)
 
         qrouter.remove(route_key)

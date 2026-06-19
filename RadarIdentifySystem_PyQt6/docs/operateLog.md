@@ -2821,3 +2821,15 @@
 - 变更摘要：开始修复 Task 6+7 动态 session 页关闭时的 qrouter 历史污染，并清理 SliceController 无用导入。
 - 原因：质量审查指出关闭当前动态页会先跳到无关页面再回主页，导致全局路由历史残留错误页面。
 - 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_session_interface -q --basetemp=.pytest_tmp_task6_7_qrouter_red -p no:cacheprovider` 预期失败，route_history 为 `['settingInterface', 'homeInterface']`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_qrouter_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+---
+
+## 2026-06-20 06:37
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 Task 6+7 后台动态 session 页关闭时错误跳回主页的问题。
+- 原因：质量审查指出关闭非当前动态页不应打断用户当前所在页面。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_background_session_without_switching_current_page -q --basetemp=.pytest_tmp_task6_7_background_red -p no:cacheprovider` 预期失败，关闭后台 session 后 currentWidget 错误变为 homeInterface；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_background_fix -p no:cacheprovider` 通过：9 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
