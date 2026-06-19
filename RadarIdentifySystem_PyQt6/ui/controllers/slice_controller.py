@@ -13,7 +13,6 @@ from PyQt6.QtGui import QImage, QPixmap
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from app.signal_bus import signal_bus
-from core.models.processing_session import ProcessingSession
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_slice_images
 from app.app_config import appConfig, qconfig
@@ -64,8 +63,6 @@ class SliceController(QObject):
         """
         super().__init__(view)
         self.view = view
-        # 初始化空会话占位，等待导入流程注入真实会话。
-        self.view._session = ProcessingSession()
         self._processing_dialog = None
         self._current_slice_index = 0
         self._connect_signals()
@@ -93,8 +90,7 @@ class SliceController(QObject):
             self._on_next_slice
         )
 
-        # 绑定全局生命周期信号
-        signal_bus.import_completed.connect(self._on_import_completed)
+        # 绑定全局生命周期信号。
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
 

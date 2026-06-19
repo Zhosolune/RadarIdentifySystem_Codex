@@ -192,21 +192,42 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
     sip.delete(interface)
 
 
-def test_import_completed_is_handled_by_controller(
+def test_slice_controller_uses_constructor_session(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """导入完成事件应由控制器接管并同步刷新页面会话。"""
+    """切片控制器应复用 SliceInterface 构造时绑定的 session。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
-    session = ProcessingSession()
+    session = ProcessingSession(session_id="constructor_session")
 
-    signal_bus.import_completed.emit(session)
+    interface = SliceInterface(session=session)
 
     assert interface._session is session
+    assert interface._slice_controller.view._session is session
+
+    sip.delete(interface)
+
+
+def test_import_completed_does_not_replace_constructor_session(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """全局导入完成事件不应替换构造时绑定的 session。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    constructor_session = ProcessingSession(session_id="constructor_session")
+    emitted_session = ProcessingSession(session_id="emitted_session")
+
+    interface = SliceInterface(session=constructor_session)
+
+    signal_bus.import_completed.emit(emitted_session)
+
+    assert interface._session is constructor_session
     assert interface.cluster_title_label.text() == "暂无聚类结果"
     assert not interface.prev_slice_button.isEnabled()
     assert not interface.navigation_control_card.prev_cluster_button.isEnabled()

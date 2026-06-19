@@ -1,0 +1,118 @@
+"""主窗口动态 session 切片页面管理测试。"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from PyQt6 import sip
+from PyQt6.QtWidgets import QApplication
+from pytest import MonkeyPatch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from core.models.processing_session import ProcessingSession
+from qfluentwidgets.common.router import qrouter
+from ui.main_window import MainWindow
+
+
+_APP: QApplication | None = None
+
+
+def _app() -> QApplication:
+    """返回测试进程共享的 Qt 应用实例。"""
+    global _APP
+    app = QApplication.instance()
+    if app is None:
+        _APP = QApplication([])
+        return _APP
+    return app
+
+
+def _dispose_window(window: MainWindow) -> None:
+    """释放主窗口并清理 qfluentwidgets 全局路由引用。
+
+    Args:
+        window [MainWindow]: 需要释放的主窗口实例。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        无显式抛出异常。
+    """
+    # 测试进程复用 QApplication，先移除本窗口在全局路由中的堆栈历史。
+    qrouter.history = [
+        item
+        for item in qrouter.history
+        if item.stacked is not window.stackedWidget
+    ]
+    qrouter.stackHistories.pop(window.stackedWidget, None)
+    window.close()
+    sip.delete(window)
+
+
+def test_main_window_creates_independent_session_interfaces(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """主窗口应为不同 session 创建独立切片页面并可按 id 查回。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow()
+    first_session = ProcessingSession(session_id="session_a", display_name="A.xlsx")
+    second_session = ProcessingSession(session_id="session_b", display_name="B.xlsx")
+
+    first_interface = window.create_session_interface(first_session)
+    second_interface = window.create_session_interface(second_session)
+
+    assert first_interface is not second_interface
+    assert window.session_interface("session_a") is first_interface
+    assert window.session_interface("session_b") is second_interface
+    assert first_interface.objectName() == "sessionSliceInterface_session_a"
+    assert second_interface.objectName() == "sessionSliceInterface_session_b"
+
+    _dispose_window(window)
+
+
+def test_main_window_reuses_existing_session_interface(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """同一 session_id 重复创建时应复用并返回已有页面。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow()
+    session = ProcessingSession(session_id="session_reused", display_name="复用.xlsx")
+
+    first_interface = window.create_session_interface(session)
+    reused_interface = window.create_session_interface(session)
+
+    assert reused_interface is first_interface
+    assert window.session_interface("session_reused") is first_interface
+
+    _dispose_window(window)
+
+
+def test_main_window_closes_session_interface(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """关闭动态 session 页面后应移除索引并回到主页。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow()
+    session = ProcessingSession(session_id="session_closed", display_name="关闭.xlsx")
+
+    window.create_session_interface(session)
+    window.close_session_interface("session_closed")
+
+    assert window.session_interface("session_closed") is None
+
+    _dispose_window(window)

@@ -16,6 +16,7 @@ from qfluentwidgets import (
     InfoBar, InfoBarPosition, SystemThemeListener, SplashScreen
 )
 
+from core.models.processing_session import ProcessingSession
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.model_manager_interface import ModelManagerInterface
@@ -43,6 +44,7 @@ class MainWindow(FluentWindow):
 
         self.connectSignalToSlot()
 
+        self._session_interfaces: dict[str, SliceInterface] = {}
         self.initNavigation()
         self._enable_pointing_hand_cursor()
 
@@ -121,6 +123,89 @@ class MainWindow(FluentWindow):
             self.iconInterface, FluentIcon.SETTING, "设置",
             position=NavigationItemPosition.BOTTOM,
         )
+
+    def create_session_interface(self, session: ProcessingSession) -> SliceInterface:
+        """创建或复用指定 session 对应的切片页面。
+
+        Args:
+            session [ProcessingSession]: 需要绑定到切片页面的处理会话。
+
+        Returns:
+            SliceInterface: 已创建或已存在的动态切片页面。
+
+        Raises:
+            无显式抛出异常。
+        """
+        existing_interface = self._session_interfaces.get(session.session_id)
+        if existing_interface is not None:
+            # 已有页面时直接激活，避免为同一 session 重复创建导航项。
+            self.activate_session_interface(session.session_id)
+            return existing_interface
+
+        interface = SliceInterface(self, session=session)
+        interface.setObjectName(f"sessionSliceInterface_{session.session_id}")
+        self.addSubInterface(
+            interface,
+            FluentIcon.PIE_SINGLE,
+            session.display_name,
+            position=NavigationItemPosition.TOP,
+        )
+        self._session_interfaces[session.session_id] = interface
+        self.activate_session_interface(session.session_id)
+        return interface
+
+    def session_interface(self, session_id: str) -> SliceInterface | None:
+        """按 session_id 查找动态切片页面。
+
+        Args:
+            session_id [str]: 需要查询的 session 唯一标识。
+
+        Returns:
+            SliceInterface | None: 找到时返回页面实例，否则返回 None。
+
+        Raises:
+            无显式抛出异常。
+        """
+        return self._session_interfaces.get(session_id)
+
+    def activate_session_interface(self, session_id: str) -> None:
+        """激活指定 session 的动态切片页面。
+
+        Args:
+            session_id [str]: 需要激活的 session 唯一标识。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        interface = self._session_interfaces.get(session_id)
+        if interface is None:
+            return
+
+        # 复用 FluentWindow 的导航切换逻辑，同步堆栈页与导航选中项。
+        self.switchTo(interface)
+
+    def close_session_interface(self, session_id: str) -> None:
+        """关闭并移除指定 session 的动态切片页面。
+
+        Args:
+            session_id [str]: 需要关闭的 session 唯一标识。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        interface = self._session_interfaces.pop(session_id, None)
+        if interface is None:
+            return
+
+        self.removeInterface(interface, isDelete=True)
+        self.switchTo(self.homeInterface)
+
     def initWindow(self) -> None:
         self.setWindowIcon(QIcon(':/RadarIdentifySystem/images/icon.png'))
         self.setWindowTitle("RadarIdentifySystem")

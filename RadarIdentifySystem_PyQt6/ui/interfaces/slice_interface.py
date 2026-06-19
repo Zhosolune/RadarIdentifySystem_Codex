@@ -9,6 +9,7 @@ from qfluentwidgets import TransparentToolButton, ToolTipFilter, ToolTipPosition
 
 from app.custom_icon import CustomIcon
 from app.style_sheet import StyleSheet
+from core.models.processing_session import ProcessingSession
 from ui.components import (
     DrawerPosition,
     JitterFreeCardGroup,
@@ -42,24 +43,29 @@ class SliceInterface(QFrame):
 
     RIGHT_COLUMN_MAX_WIDTH = 580
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        session: ProcessingSession | None = None,
+    ) -> None:
         """初始化切片处理子页面。
 
-        功能描述：
-            创建三栏布局并应用页面样式资源。
+        创建三栏布局并应用页面样式资源。
 
-        参数说明：
-            parent (QWidget | None): 父级控件，默认值为 None。
+        Args:
+            parent [QWidget | None]: 父级控件，默认值为 None。
+            session [ProcessingSession | None]: 当前页面绑定的处理会话，默认新建空会话。
 
-        返回值说明：
+        Returns:
             None: 无返回值。
 
-        异常说明：
-            无。
+        Raises:
+            无显式抛出异常。
         """
 
         super().__init__(parent)
         self.setObjectName("sliceInterface")
+        self._session = session or ProcessingSession()
         self.original_cf_card = SliceDimensionCard("载频", "originalCfCard", self)
         self.original_pw_card = SliceDimensionCard("脉宽", "originalPwCard", self)
         self.original_pa_card = SliceDimensionCard("幅度", "originalPaCard", self)
