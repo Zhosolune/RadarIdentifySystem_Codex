@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from PyQt6.QtCore import QObject
 
@@ -21,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession
+from runtime.workflows.import_workflow import ImportWorkflow
 
 
 class _SessionEventReceiver(QObject):
@@ -46,6 +48,19 @@ class _SessionEventReceiver(QObject):
         self.session_ids.append(session_id)
 
 
+class _FakeImportWorker:
+    """模拟导入工作流完成时持有的 worker。"""
+
+    def __init__(self, session: ProcessingSession) -> None:
+        """初始化假 worker。"""
+        self.session = session
+        self.delete_later_called = False
+
+    def deleteLater(self) -> None:
+        """记录释放请求。"""
+        self.delete_later_called = True
+
+
 def test_parse_completed_does_not_emit_import_completed() -> None:
     """解析完成信号不会触发确认导入接收器。
 
@@ -56,7 +71,7 @@ def test_parse_completed_does_not_emit_import_completed() -> None:
         None: 无返回值。
 
     Raises:
-        AttributeError: 当前实现缺少 parse_completed 时用于 RED 阶段暴露问题。
+        无显式抛出异常。
 
     Example:
         >>> callable(test_parse_completed_does_not_emit_import_completed)
@@ -116,6 +131,52 @@ def test_import_completed_still_emits_import_receiver() -> None:
         signal_bus.import_completed.disconnect(receiver.receive_import)
 
 
+def test_import_workflow_finished_emits_only_parse_completed() -> None:
+    """导入工作流成功完成时只发解析完成事件。
+
+    Args:
+        无。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> callable(test_import_workflow_finished_emits_only_parse_completed)
+        True
+    """
+    receiver = _SessionEventReceiver()
+    session = ProcessingSession(source_path="demo.xlsx", source_type="excel")
+    fake_worker = _FakeImportWorker(session)
+    workflow = ImportWorkflow()
+    parse_connected = False
+    import_connected = False
+
+    try:
+        signal_bus.parse_completed.connect(receiver.receive_parse)
+        parse_connected = True
+        signal_bus.import_completed.connect(receiver.receive_import)
+        import_connected = True
+        workflow._worker = cast(Any, fake_worker)
+
+        # 直接驱动工作流完成回调，锁定成功路径的事件分发语义。
+        workflow._on_worker_finished(session.session_id, True, "ok")
+
+        assert [item.session_id for item in receiver.parsed_sessions] == [
+            session.session_id
+        ]
+        assert receiver.imported_sessions == []
+        assert fake_worker.delete_later_called is True
+        assert workflow._worker is None
+    finally:
+        if parse_connected:
+            signal_bus.parse_completed.disconnect(receiver.receive_parse)
+        if import_connected:
+            signal_bus.import_completed.disconnect(receiver.receive_import)
+
+
 def test_session_lifecycle_signals_emit_session_id() -> None:
     """session 生命周期占位信号按 session_id 传递。
 
@@ -126,7 +187,7 @@ def test_session_lifecycle_signals_emit_session_id() -> None:
         None: 无返回值。
 
     Raises:
-        AttributeError: 当前实现缺少生命周期信号时用于 RED 阶段暴露问题。
+        无显式抛出异常。
 
     Example:
         >>> callable(test_session_lifecycle_signals_emit_session_id)
