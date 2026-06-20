@@ -56,7 +56,8 @@ def test_slice_param_panel_is_mounted_in_matching_drawer(
     assert hasattr(interface, "slice_param_panel")
     assert hasattr(interface, "slice_param_drawer")
     assert not hasattr(interface, "slice_param_config")
-    assert interface.slice_param_drawer.drawerSize() == interface.right_column.width()
+    assert interface.right_column.maximumWidth() == interface.RIGHT_COLUMN_MAX_WIDTH
+    assert interface.slice_param_drawer.drawerSize() == interface.RIGHT_COLUMN_MAX_WIDTH
     assert interface.slice_param_drawer.contentWidget() is interface.slice_param_panel
     assert not hasattr(interface.navigation_control_card, "auto_recognize_card")
     assert interface.slice_param_panel.export_path_card is not None

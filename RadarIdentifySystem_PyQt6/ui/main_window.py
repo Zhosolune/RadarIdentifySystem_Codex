@@ -158,7 +158,13 @@ class MainWindow(FluentWindow):
             self.activate_session_interface(session.session_id)
             return existing_interface
 
-        interface = SliceInterface(self, session=session)
+        interface = SliceInterface(
+            self,
+            session=session,
+            on_config_changed=lambda: self.session_registry.persist_session(
+                session.session_id
+            ),
+        )
         interface.setObjectName(f"sessionSliceInterface_{session.session_id}")
         self.addSubInterface(
             interface,

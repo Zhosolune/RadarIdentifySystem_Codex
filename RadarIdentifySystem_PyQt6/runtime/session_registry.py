@@ -191,6 +191,35 @@ class SessionRegistry:
         """
         return list(self._sessions.values())
 
+    def persist_session(self, session_id: str) -> ProcessingSession:
+        """持久化当前内存中的指定 session。
+
+        Args:
+            session_id [str]: 需要保存的 session 唯一标识。
+
+        Returns:
+            ProcessingSession: 已写入持久化存储的 session 对象。
+
+        Raises:
+            KeyError: 当 session_id 不在当前注册表中时抛出。
+            OSError: 当持久化写入失败时抛出。
+            ValueError: 当 session_id 非法时由持久化层抛出。
+
+        Example:
+            >>> registry = SessionRegistry()
+            >>> session = ProcessingSession(session_id="demo")
+            >>> registry.register(session, persist=False)
+            ProcessingSession(id=demo, stage=CREATED, band=None, slices=0, src='')
+            >>> registry.persist_session("demo") is session
+            True
+        """
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise KeyError(session_id)
+
+        self.store.upsert_session(session)
+        return session
+
     def activate(self, session_id: str) -> ProcessingSession:
         """激活指定 session。
 

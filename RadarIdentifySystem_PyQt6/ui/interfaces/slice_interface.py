@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from PyQt6.QtGui import QColor
@@ -47,6 +49,7 @@ class SliceInterface(QFrame):
         self,
         parent: QWidget | None = None,
         session: ProcessingSession | None = None,
+        on_config_changed: Callable[[], None] | None = None,
     ) -> None:
         """初始化切片处理子页面。
 
@@ -55,6 +58,7 @@ class SliceInterface(QFrame):
         Args:
             parent [QWidget | None]: 父级控件，默认值为 None。
             session [ProcessingSession | None]: 当前页面绑定的处理会话，默认新建空会话。
+            on_config_changed [Callable[[], None] | None]: 子配置变更后的保存回调，默认不回调。
 
         Returns:
             None: 无返回值。
@@ -66,6 +70,7 @@ class SliceInterface(QFrame):
         super().__init__(parent)
         self.setObjectName("sliceInterface")
         self._session = session or ProcessingSession()
+        self._on_config_changed = on_config_changed
         self.original_cf_card = SliceDimensionCard("载频", "originalCfCard", self)
         self.original_pw_card = SliceDimensionCard("脉宽", "originalPwCard", self)
         self.original_pa_card = SliceDimensionCard("幅度", "originalPaCard", self)
@@ -344,7 +349,9 @@ class SliceInterface(QFrame):
             title="当前Session配置",
         )
         self.slice_param_panel: SliceParamPanel = SliceParamPanel(
-            self.slice_param_drawer
+            session=self._session,
+            on_config_changed=self._on_config_changed,
+            parent=self.slice_param_drawer,
         )
         self.slice_param_drawer.setContentWidget(self.slice_param_panel)
         self.slice_param_drawer.setToggleButtonVisible(False)

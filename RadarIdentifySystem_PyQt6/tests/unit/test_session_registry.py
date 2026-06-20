@@ -92,6 +92,40 @@ def test_register_sets_active_and_persists_active_id(tmp_path: Path) -> None:
     assert persisted_session.last_opened_at == session.last_opened_at
 
 
+def test_persist_session_writes_current_config_without_changing_active(
+    tmp_path: Path,
+) -> None:
+    """显式持久化 session 时应写入当前子配置且不改变 active id。"""
+    store = SessionStore(tmp_path)
+    registry = SessionRegistry(store)
+    first_session = _make_session("session-a", "a.xlsx")
+    second_session = _make_session("session-b", "b.xlsx")
+    registry.register(first_session)
+    registry.register(second_session)
+
+    first_session.config_snapshot.business.auto_recognize_next_slice = False
+    persisted = registry.persist_session("session-a")
+
+    assert persisted is first_session
+    assert registry.active_session_id == "session-b"
+    assert store.load_index().active_session_id == "session-b"
+    assert (
+        store.load_session("session-a")
+        .config_snapshot
+        .business
+        .auto_recognize_next_slice
+        is False
+    )
+
+
+def test_persist_session_rejects_unknown_session(tmp_path: Path) -> None:
+    """显式持久化未知 session 时应抛出 KeyError。"""
+    registry = SessionRegistry(SessionStore(tmp_path))
+
+    with pytest.raises(KeyError, match="missing"):
+        registry.persist_session("missing")
+
+
 @pytest.mark.parametrize(
     "failing_method",
     ["upsert_session", "set_active_session_id", "set_active_session_id_after_write"],

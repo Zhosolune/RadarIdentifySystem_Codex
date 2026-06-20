@@ -222,6 +222,40 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
         _dispose_window(window)
 
 
+def test_session_drawer_config_change_is_persisted(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """动态 session 抽屉配置变更后应同步写入持久化子配置。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    store = SessionStore(tmp_path)
+    window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        session = ProcessingSession(
+            session_id="session_config_saved",
+            source_path="E:/data/config.xlsx",
+            source_type="excel",
+        )
+        interface = window.create_session_from_parsed(session)
+        target_value = not bool(interface.slice_param_panel.auto_recognize_item.value)
+
+        interface.slice_param_panel.auto_recognize_card.setChecked(target_value)
+
+        assert (
+            store.load_session("session_config_saved")
+            .config_snapshot
+            .business
+            .auto_recognize_next_slice
+            is target_value
+        )
+    finally:
+        _dispose_window(window)
+
+
 def test_main_window_rolls_back_registration_when_session_page_creation_fails(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,

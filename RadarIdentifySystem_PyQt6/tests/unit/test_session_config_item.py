@@ -3,11 +3,24 @@
 from __future__ import annotations
 
 import pytest
-from qfluentwidgets import RangeValidator
+from PyQt6.QtWidgets import QApplication
+from qfluentwidgets import FluentIcon, RangeValidator
 
 import app.session_config_item as session_config_item_module
 from app.session_config_item import SessionConfigItem, SessionConfigWriter
 from core.models.session_config import SessionConfigSnapshot
+from ui.components.double_spin_box_setting_card import DoubleSpinBoxSettingCard
+from ui.components.spin_box_setting_card import SpinBoxSettingCard
+
+
+_APP: QApplication | None = None
+
+
+def _app() -> QApplication:
+    """返回测试用 QApplication 实例。"""
+    global _APP
+    _APP = QApplication.instance() or QApplication([])
+    return _APP
 
 
 class CustomConfidenceValidator:
@@ -111,3 +124,48 @@ def test_session_config_writer_gets_and_sets_item() -> None:
 
     assert writer.get(item) is True
     assert snapshot.business.auto_export is True
+
+
+def test_spin_box_setting_card_writes_session_item() -> None:
+    """整型设置卡应支持写入 session 子配置。"""
+    _app()
+    snapshot = SessionConfigSnapshot.default()
+    item = SessionConfigItem(
+        snapshot,
+        "recognition.max_candidates",
+        5,
+        validator=RangeValidator(1, 10),
+    )
+    card = SpinBoxSettingCard(
+        item,
+        FluentIcon.SETTING,
+        "候选数量",
+        config_writer=SessionConfigWriter(),
+    )
+
+    card.spinBox.setValue(8)
+
+    assert snapshot.recognition.max_candidates == 8
+
+
+def test_double_spin_box_setting_card_writes_session_item() -> None:
+    """浮点设置卡应支持写入 session 子配置并保留归一化行为。"""
+    _app()
+    snapshot = SessionConfigSnapshot.default()
+    item = SessionConfigItem(
+        snapshot,
+        "clustering.eps_cf",
+        2.0,
+        validator=RangeValidator(0.1, 10.0),
+    )
+    card = DoubleSpinBoxSettingCard(
+        item,
+        FluentIcon.SETTING,
+        "载频半径",
+        decimals=1,
+        config_writer=SessionConfigWriter(),
+    )
+
+    card.spinBox.setValue(3.26)
+
+    assert snapshot.clustering.eps_cf == 3.3

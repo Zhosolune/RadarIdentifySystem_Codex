@@ -3,12 +3,26 @@
 
 from decimal import Decimal, ROUND_HALF_UP
 import logging
+from typing import Protocol
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import SettingCard, FluentIconBase, DoubleSpinBox, BodyLabel, qconfig
 
 LOGGER = logging.getLogger(__name__)
+
+
+class ConfigWriterProtocol(Protocol):
+    """设置卡读写器协议。"""
+
+    def get(self, item: object) -> object:
+        """读取配置项当前值。"""
+        ...
+
+    def set(self, item: object, value: object) -> None:
+        """写入配置项当前值。"""
+        ...
+
 
 class DoubleSpinBoxSettingCard(SettingCard):
     """浮点数配置卡片。
@@ -19,27 +33,53 @@ class DoubleSpinBoxSettingCard(SettingCard):
 
     Attributes:
         configItem (ConfigItem): 绑定的配置项对象。
+        config_writer (ConfigWriterProtocol): 配置项读写器。
         spinBox (DoubleSpinBox): 右侧的浮点数值微调框。
     """
 
-    def __init__(self, configItem, icon: FluentIconBase, title: str, content: str | None = None, unit: str | None = None, decimals: int = 2, singleStep: float = 1.0, parent: QWidget | None = None):
+    def __init__(
+        self,
+        configItem: object,
+        icon: FluentIconBase,
+        title: str,
+        content: str | None = None,
+        unit: str | None = None,
+        decimals: int = 2,
+        singleStep: float = 1.0,
+        parent: QWidget | None = None,
+        config_writer: ConfigWriterProtocol = qconfig,
+    ) -> None:
         """初始化浮点型配置卡片。
 
         功能描述：
             创建卡片，配置右侧的浮点微调框并绑定配置项，同时可指定小数位数和单步步长。
+            默认读写全局配置，也可注入 session 级 writer 写入独立子配置。
 
         Args:
-            configItem (ConfigItem): 需要绑定的配置项。
-            icon (FluentIconBase): 卡片左侧显示的图标。
-            title (str): 卡片主标题。
-            unit (str | None, optional): 数值单位文本，显示在微调框右侧。默认为 None。
-            content (str | None, optional): 卡片副标题/描述内容。默认为 None。
-            parent (QWidget | None, optional): 挂载的父级组件。默认为 None。
-            decimals (int, optional): 显示的小数位数。默认为 2。
-            singleStep (float, optional): 每次微调的步长大小。默认为 1.0。
+            configItem [object]: 需要绑定的配置项。
+            icon [FluentIconBase]: 卡片左侧显示的图标。
+            title [str]: 卡片主标题。
+            content [str | None]: 卡片副标题或描述内容，默认值为 ``None``。
+            unit [str | None]: 数值单位文本，显示在微调框右侧，默认值为 ``None``。
+            decimals [int]: 显示的小数位数，默认值为 2。
+            singleStep [float]: 每次微调的步长大小，默认值为 1.0。
+            parent [QWidget | None]: 挂载的父级组件，默认值为 ``None``。
+            config_writer [ConfigWriterProtocol]: 配置读写器，默认使用全局 ``qconfig``。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> from qfluentwidgets import FluentIcon
+            >>> hasattr(FluentIcon, "SETTING")
+            True
         """
         super().__init__(icon, title, content, parent)
         self.configItem = configItem
+        self.config_writer: ConfigWriterProtocol = config_writer
         self.spinBox = DoubleSpinBox(self)
         self.unit = BodyLabel(self)
         self.unit.setFixedWidth(40)
@@ -55,7 +95,7 @@ class DoubleSpinBoxSettingCard(SettingCard):
             self.spinBox.setRange(float(configItem.validator.min), float(configItem.validator.max))
 
         # 归一化初始值，确保显示精度与控件精度一致
-        initial_value = self._normalize_value(float(qconfig.get(configItem)))
+        initial_value = self._normalize_value(float(self.config_writer.get(configItem)))
         self.spinBox.setValue(initial_value)
         self.spinBox.valueChanged.connect(self._onValueChanged)
 
@@ -119,4 +159,4 @@ class DoubleSpinBoxSettingCard(SettingCard):
                 self.spinBox.blockSignals(False)
 
         # 持久化配置值
-        qconfig.set(self.configItem, normalized_value)
+        self.config_writer.set(self.configItem, normalized_value)

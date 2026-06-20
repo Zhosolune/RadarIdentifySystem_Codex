@@ -7,14 +7,15 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
-from qfluentwidgets import ScrollArea, SimpleCardWidget
+from qfluentwidgets import ScrollArea, qconfig
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from app.app_config import appConfig
+from core.models.processing_session import ProcessingSession
 from ui.components import SliceParamPanel
 from ui.components.export_option_card import ExportOptionCard
 from ui.components.model_selection_card import ModelSelectionCard
-from ui.components.jitter_free_container import JitterFreeCardGroup
 
 
 _APP: QApplication | None = None
@@ -37,15 +38,14 @@ def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    panel = SliceParamPanel()
+    session = ProcessingSession()
+    panel = SliceParamPanel(session=session)
 
-    assert isinstance(panel.scroll_area, ScrollArea)
-    assert panel.scroll_area.widgetResizable()
-    assert panel.scroll_area.widget() is panel.scroll_content_widget
-    assert isinstance(panel.panel_card, SimpleCardWidget)
-    assert isinstance(panel.cards_group, JitterFreeCardGroup)
+    assert isinstance(panel.drawer_scroll_area, ScrollArea)
+    assert panel.drawer_scroll_area.widgetResizable()
+    assert panel.drawer_scroll_area.widget() is panel.drawer_scroll_widget
 
-    margins = panel.scroll_content_layout.contentsMargins()
+    margins = panel.drawer_scroll_layout.contentsMargins()
     assert (margins.left(), margins.top(), margins.right(), margins.bottom()) == (
         16,
         8,
@@ -53,7 +53,33 @@ def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
         16,
     )
     assert panel.auto_recognize_card.parent() is panel.cards_group
+    assert panel.auto_recognize_item.value is True
     assert isinstance(panel.model_selection_card, ModelSelectionCard)
     assert panel.model_selection_card.parent() is panel.cards_group
     assert isinstance(panel.export_path_card, ExportOptionCard)
     assert panel.export_path_card.parent() is panel.cards_group
+
+
+def test_slice_param_panel_updates_session_auto_recognize_only(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """自动识别卡片应只修改当前 session 子配置。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    changed: list[str] = []
+    session = ProcessingSession()
+    global_value = qconfig.get(appConfig.autoRecognizeNextSlice)
+    panel = SliceParamPanel(
+        session=session,
+        on_config_changed=lambda: changed.append("saved"),
+    )
+
+    panel.auto_recognize_card.setChecked(False)
+
+    assert session.config_snapshot.business.auto_recognize_next_slice is False
+    assert panel.auto_recognize_item.value is False
+    assert changed == ["saved"]
+    assert qconfig.get(appConfig.autoRecognizeNextSlice) == global_value

@@ -2882,3 +2882,45 @@
 - 变更摘要：继续修复 Task 8 质量审查反馈，改为动态页面创建成功后再注册 session，并为主窗口测试注入临时 registry。
 - 原因：简单 close 回滚无法恢复注册前 active id 或同名旧 session；测试构造默认 MainWindow 也会创建真实 session 配置目录。
 - 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_window -p no:cacheprovider` 通过：6 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_related -p no:cacheprovider` 通过：15 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+---
+
+## 2026-06-20 19:10
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：Task 9 将抽屉自动识别卡绑定到当前 session 子配置，并让整型/浮点设置卡支持注入 session 配置读写器。
+- 原因：动态 session 页面需要独立参数配置，抽屉设置不能继续写入全局 appConfig。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_red -p no:cacheprovider` 预期失败，`SliceParamPanel.__init__()` 不支持 `session`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9 -p no:cacheprovider` 通过：13 passed, 1 warning；相关回归：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_related -p no:cacheprovider` 通过：28 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\session_config_item.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+---
+
+## 2026-06-20 19:14
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：补全 Task 9 子配置变更持久化链路，动态 session 抽屉配置修改后通过 SessionRegistry 写回磁盘。
+- 原因：仅更新内存中的 session 子配置不足以满足 session 配置持久化要求。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_persist -p no:cacheprovider` 通过：43 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过。
+
+---
+
+## 2026-06-20 19:16
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修正切片页面抽屉宽度测试，改为断言右栏最大宽度常量与抽屉尺寸一致。
+- 原因：未显示的 Qt 控件 `width()` 仍可能是默认值 100，不能稳定表达右栏宽度绑定契约。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_final -p no:cacheprovider` 预期失败，未显示右栏宽度为 100；GREEN：同范围使用 `--basetemp=.pytest_tmp_task9_final2` 通过：58 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py` 通过。

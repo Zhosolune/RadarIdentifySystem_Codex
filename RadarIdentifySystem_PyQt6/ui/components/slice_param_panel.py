@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QVBoxLayout, QWidget
-from qfluentwidgets import FluentIcon, ScrollArea, SimpleCardWidget, SwitchSettingCard, SettingCardGroup
+from collections.abc import Callable
 
-from app.app_config import appConfig
+from PyQt6.QtWidgets import QVBoxLayout, QWidget
+from qfluentwidgets import (
+    BoolValidator,
+    FluentIcon,
+    ScrollArea,
+    SwitchSettingCard,
+    SettingCardGroup,
+)
+
+from app.session_config_item import SessionConfigItem
+from core.models.processing_session import ProcessingSession
 from .export_option_card import ExportOptionCard
 from .model_selection_card import ModelSelectionCard
 
@@ -17,20 +26,28 @@ class SliceParamPanel(QWidget):
     设置卡可继续加入此面板。
 
     Attributes:
+        session: 当前切片页面所属的处理 session。
+        auto_recognize_item: 绑定到当前 session 子配置的自动识别设置项。
         auto_recognize_card: 切换下一片时自动识别的设置卡。
         model_selection_card: 当前页面使用的 PA 与 DTOA 模型选择卡。
         export_path_card: 导出路径与自动保存设置卡。
-        scroll_area: 支持内容溢出的滚动区域。
-        scroll_content_widget: 滚动区域承载的内容控件。
-        scroll_content_layout: 提供抽屉内容边距的布局。
-        panel_card: 包裹无抖动卡片组的简单卡片容器。
+        drawer_scroll_area: 支持内容溢出的滚动区域。
+        drawer_scroll_widget: 滚动区域承载的内容控件。
+        drawer_scroll_layout: 提供抽屉内容边距的布局。
         cards_group: 管理可展开卡片高度的无抖动卡片组。
     """
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        session: ProcessingSession,
+        on_config_changed: Callable[[], None] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         """创建抽屉内容卡片并完成纵向布局。
 
         Args:
+            session [ProcessingSession]: 当前页面所属 session，用于读写独立子配置。
+            on_config_changed [Callable[[], None] | None]: 子配置变更后的保存回调，默认不回调。
             parent [QWidget | None]: 父级控件，默认值为 ``None``。
 
         Returns:
@@ -40,19 +57,34 @@ class SliceParamPanel(QWidget):
             OSError: 模型目录扫描失败时抛出。
 
         Example:
-            >>> panel = SliceParamPanel()
-            >>> panel.layout().count() >= 3
-            True
+            >>> from PyQt6.QtWidgets import QApplication
+            >>> app = QApplication.instance() or QApplication([])
+            >>> panel = SliceParamPanel(ProcessingSession())
+            >>> panel.objectName()
+            'sliceParamPanel'
         """
         super().__init__(parent)
         self.setObjectName("sliceParamPanel")
 
+        self.session: ProcessingSession = session
+        self.auto_recognize_item: SessionConfigItem = SessionConfigItem(
+            self.session.config_snapshot,
+            "business.auto_recognize_next_slice",
+            True,
+            validator=BoolValidator(),
+            on_changed=on_config_changed,
+        )
         self.auto_recognize_card: SwitchSettingCard = SwitchSettingCard(
             icon=FluentIcon.PLAY,
             title="自动识别",
             content="切换下一片时自动执行识别工作流",
-            configItem=appConfig.autoRecognizeNextSlice,
+            configItem=None,
             parent=self,
+        )
+        self.auto_recognize_card.setChecked(bool(self.auto_recognize_item.value))
+        self.auto_recognize_card.checkedChanged.connect(self.auto_recognize_item.set)
+        self.auto_recognize_item.valueChanged.connect(
+            self.auto_recognize_card.setChecked
         )
         self.model_selection_card: ModelSelectionCard = ModelSelectionCard(self)
         self.export_path_card: ExportOptionCard = ExportOptionCard(self)
