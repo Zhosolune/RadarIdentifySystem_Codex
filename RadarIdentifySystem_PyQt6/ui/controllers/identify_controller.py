@@ -10,7 +10,6 @@ from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import InfoBar, InfoBarPosition
-from app.model_bootstrap import get_enabled_model_path
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
@@ -144,8 +143,9 @@ class IdentifyController(QObject):
         Raises:
             无。
         """
-        pa_path = get_enabled_model_path("PA")
-        dtoa_path = get_enabled_model_path("DTOA")
+        selection = self.view._session.model_selection
+        pa_path = selection.pa_model_path
+        dtoa_path = selection.dtoa_model_path
         if (
             not pa_path
             or not dtoa_path
@@ -154,7 +154,7 @@ class IdentifyController(QObject):
         ):
             InfoBar.warning(
                 title="模型未就绪",
-                content="请先在模型管理中分别启用一个 PA 模型和一个 DTOA 模型。",
+                content="请先在当前 Session 中分别选择一个 PA 模型和一个 DTOA 模型。",
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.BOTTOM_RIGHT,

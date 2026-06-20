@@ -83,3 +83,42 @@ def test_slice_param_panel_updates_session_auto_recognize_only(
     assert panel.auto_recognize_item.value is False
     assert changed == ["saved"]
     assert qconfig.get(appConfig.autoRecognizeNextSlice) == global_value
+
+
+def test_slice_param_panel_binds_model_selection_to_session(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """模型选择卡片应写入当前 session 的模型选择快照。"""
+    _app()
+    pa_paths = [r"C:\models\pa-default.onnx", r"C:\models\pa-session.onnx"]
+    dtoa_paths = [r"C:\models\dtoa-default.onnx", r"C:\models\dtoa-session.onnx"]
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: pa_paths if model_type == "PA" else dtoa_paths,
+    )
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_path",
+        lambda model_type: pa_paths[0] if model_type == "PA" else dtoa_paths[0],
+    )
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_display_name",
+        lambda path, model_type: Path(path).stem,
+    )
+    changed: list[str] = []
+    session = ProcessingSession()
+
+    panel = SliceParamPanel(
+        session=session,
+        on_config_changed=lambda: changed.append("saved"),
+    )
+
+    assert session.model_selection.pa_model_path == pa_paths[0]
+    assert session.model_selection.dtoa_model_path == dtoa_paths[0]
+    assert changed == []
+
+    panel.model_selection_card.pa_model_combo.setCurrentIndex(1)
+    panel.model_selection_card.dtoa_model_combo.setCurrentIndex(1)
+
+    assert session.model_selection.pa_model_path == pa_paths[1]
+    assert session.model_selection.dtoa_model_path == dtoa_paths[1]
+    assert changed == ["saved", "saved"]

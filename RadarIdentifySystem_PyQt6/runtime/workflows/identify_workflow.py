@@ -9,13 +9,68 @@ from PyQt6.QtCore import QObject, pyqtSlot
 
 from app.app_config import appConfig, qconfig
 from app.logger import bind_session_log_context, unbind_session_log_context
-from app.model_bootstrap import get_enabled_model_path, get_cached_inference_service
+from app.model_bootstrap import get_cached_inference_service
 from app.signal_bus import signal_bus
+from core.models.algorithm_params import ClusteringParams, RecognitionParams
 from core.models.processing_session import ProcessingSession
 from runtime.threading.identify_worker import IdentifyWorker
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _cluster_params_from_session(session: ProcessingSession) -> ClusteringParams:
+    """从 session 子配置组装聚类参数。
+
+    Args:
+        session [ProcessingSession]: 当前识别流程所属 session。
+
+    Returns:
+        ClusteringParams: 根据 session 子配置生成的聚类参数。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> session = ProcessingSession()
+        >>> _cluster_params_from_session(session).eps_cf
+        2.0
+    """
+    cfg = session.config_snapshot.clustering
+    return ClusteringParams(
+        eps_cf=cfg.eps_cf,
+        min_pts_cf=cfg.min_pts_cf,
+        eps_pw=cfg.eps_pw,
+        min_pts_pw=cfg.min_pts_pw,
+        eps_doa=cfg.eps_doa,
+        min_pts_doa=cfg.min_pts_doa,
+        clip_threshold_doa=cfg.clip_threshold_doa,
+    )
+
+
+def _recognition_params_from_session(session: ProcessingSession) -> RecognitionParams:
+    """从 session 子配置组装识别参数。
+
+    Args:
+        session [ProcessingSession]: 当前识别流程所属 session。
+
+    Returns:
+        RecognitionParams: 根据 session 子配置生成的识别参数。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> session = ProcessingSession()
+        >>> _recognition_params_from_session(session).max_candidates
+        5
+    """
+    cfg = session.config_snapshot.recognition
+    return RecognitionParams(
+        tolerance=cfg.tolerance,
+        min_confidence=cfg.min_confidence,
+        max_candidates=cfg.max_candidates,
+    )
 
 
 class IdentifyWorkflow(QObject):
@@ -54,7 +109,7 @@ class IdentifyWorkflow(QObject):
 
         功能描述：
             检查前置条件，初始化推理服务，挂载 IdentifyWorker，绑定进度与完成信号，最后启动线程。
-            聚类与识别参数由 Worker 内部自行获取，无需外部透传。
+            聚类与识别参数由当前 session 子配置组装后注入 Worker。
 
         Args:
             session (ProcessingSession): 目标数据会话。
@@ -75,12 +130,12 @@ class IdentifyWorkflow(QObject):
                 LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session_id})
                 return
 
-            # 读取当前启用模型路径
-            pa_path = get_enabled_model_path("PA")
-            dtoa_path = get_enabled_model_path("DTOA")
+            # 读取当前 session 选择的模型路径。
+            pa_path = session.model_selection.pa_model_path
+            dtoa_path = session.model_selection.dtoa_model_path
             LOGGER.info("启用模型路径: PA=%s, DTOA=%s", pa_path, dtoa_path)
             if not pa_path or not dtoa_path:
-                LOGGER.warning("启用模型路径为空，推理将无法执行！请在模型管理中启用 PA 和 DTOA 模型。")
+                LOGGER.warning("session 模型路径为空，推理将无法执行！请在当前 session 中选择 PA 和 DTOA 模型。")
                 return
 
             temp_dir = qconfig.get(appConfig.logDir)
@@ -102,6 +157,8 @@ class IdentifyWorkflow(QObject):
                 session=session,
                 slice_index=slice_index,
                 inference_service=self._inference_service,
+                cluster_params=_cluster_params_from_session(session),
+                recognize_params=_recognition_params_from_session(session),
                 parent=self
             )
             self._active_slice_index = slice_index

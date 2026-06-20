@@ -67,6 +67,7 @@ class SliceParamPanel(QWidget):
         self.setObjectName("sliceParamPanel")
 
         self.session: ProcessingSession = session
+        self._on_config_changed = on_config_changed
         self.auto_recognize_item: SessionConfigItem = SessionConfigItem(
             self.session.config_snapshot,
             "business.auto_recognize_next_slice",
@@ -87,9 +88,32 @@ class SliceParamPanel(QWidget):
             self.auto_recognize_card.setChecked
         )
         self.model_selection_card: ModelSelectionCard = ModelSelectionCard(self)
+        self._sync_initial_model_selection()
+        self.model_selection_card.modelChanged.connect(self._on_model_changed)
         self.export_path_card: ExportOptionCard = ExportOptionCard(self)
 
         self._init_layout()
+
+    def _sync_initial_model_selection(self) -> None:
+        """将模型卡片的初始选择复制到当前 session。"""
+        self.session.model_selection.pa_model_path = (
+            self.model_selection_card.selected_model_path("PA")
+        )
+        self.session.model_selection.dtoa_model_path = (
+            self.model_selection_card.selected_model_path("DTOA")
+        )
+
+    def _on_model_changed(self, model_type: str, model_path: str) -> None:
+        """将模型卡片选择写入当前 session 并触发保存回调。"""
+        if model_type == "PA":
+            self.session.model_selection.pa_model_path = model_path
+        elif model_type == "DTOA":
+            self.session.model_selection.dtoa_model_path = model_path
+        else:
+            return
+
+        if self._on_config_changed:
+            self._on_config_changed()
 
     def _init_layout(self) -> None:
         """使用滚动区和无抖动卡片组排列参数设置卡片。"""

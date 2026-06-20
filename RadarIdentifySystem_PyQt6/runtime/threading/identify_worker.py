@@ -13,7 +13,6 @@ from core.models.cluster_result import ClusterItem, ClusteringResult, SliceClust
 from core.models.recognition_result import ClusterRecognition, RecognitionResult, SliceRecognitionResult
 from core.clustering import process_dimension_clustering
 from core.recognition import InferenceService, recognize_clusters
-from runtime.algorithm_params import get_clustering_params, get_recognition_params
 
 
 LOGGER = logging.getLogger(__name__)
@@ -33,20 +32,32 @@ class IdentifyWorker(QThread):
         session: ProcessingSession,
         slice_index: int,
         inference_service: InferenceService,
+        cluster_params: ClusteringParams,
+        recognize_params: RecognitionParams,
         parent: QObject | None = None,
     ) -> None:
         """初始化识别（聚类）工作线程。
 
         Args:
-            session: 当前流程所依附的会话上下文。
-            slice_index: 需要进行识别聚类的切片索引。
-            inference_service: 注入的防腐层推理服务。
-            parent: 挂载的 Qt 父节点。
+            session [ProcessingSession]: 当前流程所依附的会话上下文。
+            slice_index [int]: 需要进行识别聚类的切片索引。
+            inference_service [InferenceService]: 注入的防腐层推理服务。
+            cluster_params [ClusteringParams]: 当前 session 的聚类参数快照。
+            recognize_params [RecognitionParams]: 当前 session 的识别参数快照。
+            parent [QObject | None]: 挂载的 Qt 父节点。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
         """
         super().__init__(parent)
         self._session = session
         self._slice_index = slice_index
         self._inference_service = inference_service
+        self._cluster_params = cluster_params
+        self._recognize_params = recognize_params
 
     def run(self) -> None:
         """执行级联聚类逻辑。
@@ -69,9 +80,9 @@ class IdentifyWorker(QThread):
 
             LOGGER.info("开始聚类处理，当前切片: %d", self._slice_index, extra={"session_id": session_id})
 
-            # 内部自行获取运行参数
-            clustering_params = get_clustering_params()
-            recognition_params = get_recognition_params()
+            # 使用 workflow 注入的 session 参数，避免读取全局配置。
+            clustering_params = self._cluster_params
+            recognition_params = self._recognize_params
 
             # 记录聚类参数快照，便于问题排查与回放分析。
             LOGGER.info(

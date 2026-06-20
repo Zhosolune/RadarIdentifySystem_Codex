@@ -14,6 +14,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.models.algorithm_params import ClusteringParams, RecognitionParams
 from core.models.processing_session import ProcessingSession
 from runtime.threading.identify_worker import IdentifyWorker
+from runtime.workflows.identify_workflow import IdentifyWorkflow
+
+
+def test_identify_worker_requires_injected_session_params() -> None:
+    """识别线程应通过构造函数接收 session 参数。"""
+    assert "cluster_params" in IdentifyWorker.__init__.__code__.co_varnames
+    assert "recognize_params" in IdentifyWorker.__init__.__code__.co_varnames
+    assert isinstance(ClusteringParams(eps_cf=7.0), ClusteringParams)
+    assert isinstance(RecognitionParams(tolerance=0.25), RecognitionParams)
 
 
 def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
@@ -45,6 +54,8 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
         session=ProcessingSession(),
         slice_index=0,
         inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
     )
     slice_data = SimpleNamespace(
         index=0,
@@ -65,3 +76,68 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
     )
 
     assert calls == [("CF", 3), ("PW", 7)]
+
+
+def test_identify_workflow_injects_session_params_and_models(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """识别 workflow 应从当前 session 注入模型路径与算法参数。"""
+    captured: dict[str, object] = {}
+
+    class FakeSignal:
+        """测试用信号桩。"""
+
+        def connect(self, _slot) -> None:
+            """忽略信号连接。"""
+            return None
+
+    class FakeWorker:
+        """测试用识别线程桩。"""
+
+        progress_signal = FakeSignal()
+        finished_signal = FakeSignal()
+
+        def __init__(self, **kwargs) -> None:
+            """记录 workflow 传入的构造参数。"""
+            captured.update(kwargs)
+
+        def isRunning(self) -> bool:
+            """返回线程未运行。"""
+            return False
+
+        def start(self) -> None:
+            """标记 workflow 已启动线程。"""
+            captured["started"] = True
+
+    monkeypatch.setattr(
+        "runtime.workflows.identify_workflow.IdentifyWorker",
+        FakeWorker,
+    )
+    monkeypatch.setattr(
+        "runtime.workflows.identify_workflow.get_cached_inference_service",
+        lambda **kwargs: {"service_args": kwargs},
+    )
+
+    session = ProcessingSession(session_id="session_params")
+    session.slice_result = object()
+    session.model_selection.pa_model_path = "E:/models/pa.onnx"
+    session.model_selection.dtoa_model_path = "E:/models/dtoa.onnx"
+    session.config_snapshot.clustering.eps_cf = 7.0
+    session.config_snapshot.clustering.min_pts_cf = 4
+    session.config_snapshot.recognition.tolerance = 0.25
+    workflow = IdentifyWorkflow()
+
+    workflow.start_identify(session, slice_index=2)
+
+    cluster_params = captured["cluster_params"]
+    recognize_params = captured["recognize_params"]
+    assert isinstance(cluster_params, ClusteringParams)
+    assert isinstance(recognize_params, RecognitionParams)
+    assert cluster_params.eps_cf == 7.0
+    assert cluster_params.min_pts_cf == 4
+    assert recognize_params.tolerance == 0.25
+    assert captured["started"] is True
+    service_args = captured["inference_service"]["service_args"]
+    assert service_args["pa_path"] == "E:/models/pa.onnx"
+    assert service_args["dtoa_path"] == "E:/models/dtoa.onnx"
+    assert service_args["temp_dir"]
