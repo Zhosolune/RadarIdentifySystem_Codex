@@ -22,6 +22,7 @@ from pytest import MonkeyPatch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.signal_bus import signal_bus
+from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
 from runtime.workflows.import_workflow import ImportWorkflow
 from ui.controllers.home_controller import HomeController
@@ -61,6 +62,93 @@ class _FakeImportWorker:
     def deleteLater(self) -> None:
         """记录释放请求。"""
         self.delete_later_called = True
+
+
+class _SignalStub:
+    """提供测试用 connect 接口的轻量信号替身。"""
+
+    def __init__(self) -> None:
+        """初始化回调列表。"""
+        self.callbacks: list[object] = []
+
+    def connect(self, callback: object) -> None:
+        """记录连接的回调。"""
+        self.callbacks.append(callback)
+
+
+class _ActionStub:
+    """提供 triggered 信号的测试动作替身。"""
+
+    def __init__(self) -> None:
+        """初始化 triggered 信号。"""
+        self.triggered = _SignalStub()
+
+
+class _ButtonStub:
+    """提供 clicked 信号与状态记录的测试按钮替身。"""
+
+    def __init__(self) -> None:
+        """初始化按钮状态。"""
+        self.clicked = _SignalStub()
+        self.enabled: bool = True
+        self.text: str = ""
+
+    def setEnabled(self, enabled: bool) -> None:
+        """记录按钮可用状态。"""
+        self.enabled = enabled
+
+    def setText(self, text: str) -> None:
+        """记录按钮文本。"""
+        self.text = text
+
+
+class _ImportPanelStub:
+    """提供 HomeController 所需导入列表接口的测试替身。"""
+
+    def __init__(self) -> None:
+        """初始化动作与按钮替身。"""
+        self.refresh_action = _ActionStub()
+        self.remove_action = _ActionStub()
+        self.nameAction = _ActionStub()
+        self.sizeAction = _ActionStub()
+        self.dateAction = _ActionStub()
+        self.ascendAction = _ActionStub()
+        self.descendAction = _ActionStub()
+        self.parseButton = _ButtonStub()
+        self.files_by_type: object | None = None
+
+    def set_files_by_type(self, files_by_type: object) -> None:
+        """记录渲染到列表的数据。"""
+        self.files_by_type = files_by_type
+
+
+class _DashboardPanelStub:
+    """提供 HomeController 所需仪表盘接口的测试替身。"""
+
+    def __init__(self) -> None:
+        """初始化仪表盘记录。"""
+        self.importSessionRequested = _SignalStub()
+        self.pages: list[object] = []
+        self.clear_count = 0
+
+    def clear_dashboard_pages(self) -> None:
+        """记录清空仪表盘次数。"""
+        self.clear_count += 1
+        self.pages = []
+
+    def set_dashboard_pages(self, pages: list[object]) -> None:
+        """记录渲染的仪表盘页。"""
+        self.pages = pages
+
+
+class _HomeViewStub(QObject):
+    """提供 HomeController 初始化所需的最小主页视图。"""
+
+    def __init__(self) -> None:
+        """初始化主页子组件替身。"""
+        super().__init__()
+        self.import_panel = _ImportPanelStub()
+        self.dashboard_panel = _DashboardPanelStub()
 
 
 def test_parse_completed_does_not_emit_import_completed() -> None:
@@ -177,6 +265,45 @@ def test_import_workflow_finished_emits_only_parse_completed() -> None:
             signal_bus.parse_completed.disconnect(receiver.receive_parse)
         if import_connected:
             signal_bus.import_completed.disconnect(receiver.receive_import)
+
+
+def test_home_controller_parse_completed_renders_dashboard() -> None:
+    """HomeController 应通过 parse_completed 渲染主页仪表盘。"""
+    view = _HomeViewStub()
+    controller = HomeController(view)
+    session = ProcessingSession(session_id="dashboard_session", source_type="excel")
+    session.dashboard_info = ExcelDashboardInfo(
+        total_pulses=120,
+        removed_pulses=5,
+        amplitude_dropped_pulses=3,
+        duration=10_000,
+        band="C波段",
+        estimated_slice_count=7,
+    )
+    controller._active_parse_session_id = session.session_id
+
+    try:
+        signal_bus.parse_completed.emit(session)
+
+        assert controller._last_import_session is session
+        assert controller._active_parse_session_id is None
+        assert view.import_panel.parseButton.enabled is True
+        assert view.import_panel.parseButton.text == "解析"
+        assert len(view.dashboard_panel.pages) == 1
+        page = view.dashboard_panel.pages[0]
+        assert page.route_key == "excel_info"
+        assert page.title == "C波段"
+        assert [(metric.label, metric.value) for metric in page.metrics] == [
+            ("总脉冲", "120"),
+            ("剔除脉冲", "5"),
+            ("幅度丢弃", "3"),
+            ("持续时间", "1.00 ms"),
+            ("波段", "C波段"),
+            ("预计切片数", "7"),
+        ]
+    finally:
+        signal_bus.parse_completed.disconnect(controller.render_import_dashboard)
+        signal_bus.stage_failed.disconnect(controller._on_parse_stage_failed)
 
 
 def test_session_lifecycle_signals_emit_session_id() -> None:
