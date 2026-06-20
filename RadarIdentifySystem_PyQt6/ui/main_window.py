@@ -32,7 +32,18 @@ LOGGER = logging.getLogger(__name__)
 class MainWindow(FluentWindow):
     """RadarIdentifySystem 主窗口。"""
 
-    def __init__(self) -> None:
+    def __init__(self, session_registry: SessionRegistry | None = None) -> None:
+        """初始化主窗口。
+
+        Args:
+            session_registry [SessionRegistry | None]: session 注册表；为 None 时使用默认持久化注册表。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            OSError: 当默认 SessionRegistry 初始化目录失败时抛出。
+        """
         super().__init__()
         self.initWindow()
 
@@ -49,7 +60,7 @@ class MainWindow(FluentWindow):
         self.connectSignalToSlot()
 
         self._session_interfaces: dict[str, SliceInterface] = {}
-        self.session_registry = SessionRegistry()
+        self.session_registry = session_registry or SessionRegistry()
         self.initNavigation()
         self._enable_pointing_hand_cursor()
 
@@ -173,15 +184,14 @@ class MainWindow(FluentWindow):
             ValueError: 当 session_id 非法时由持久化层抛出。
         """
         session.config_snapshot = create_session_config_from_global()
-        self.session_registry.register(session)
+        interface_existed = session.session_id in self._session_interfaces
+        interface = self.create_session_interface(session)
         try:
-            interface = self.create_session_interface(session)
+            self.session_registry.register(session)
         except Exception:
-            # UI 页面创建失败时，回滚已完成的注册与持久化，避免内存/磁盘/UI 分叉。
-            try:
-                self.session_registry.close(session.session_id)
-            except Exception:
-                LOGGER.exception("回滚 session 注册失败: %s", session.session_id)
+            # 注册失败时只回滚本次创建的 UI 页面，避免留下未持久化的动态页。
+            if not interface_existed:
+                self.close_session_interface(session.session_id)
             raise
         signal_bus.session_registered.emit(session.session_id)
         signal_bus.session_activated.emit(session.session_id)

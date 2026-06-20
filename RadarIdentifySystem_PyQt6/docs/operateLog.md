@@ -2870,3 +2870,15 @@
 - 变更摘要：修复 Task 8 质量审查反馈，动态页面创建失败时回滚已注册和持久化的 session。
 - 原因：避免 `create_session_from_parsed()` 在 UI 页面创建失败后遗留 registry、磁盘和 UI 状态分叉。
 - 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task8_rollback_red -p no:cacheprovider` 预期失败，registry 保留 `session_failed_page`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task8_rollback_green -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_rollback_related -p no:cacheprovider` 通过：15 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+---
+
+## 2026-06-20 18:46
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：继续修复 Task 8 质量审查反馈，改为动态页面创建成功后再注册 session，并为主窗口测试注入临时 registry。
+- 原因：简单 close 回滚无法恢复注册前 active id 或同名旧 session；测试构造默认 MainWindow 也会创建真实 session 配置目录。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_window -p no:cacheprovider` 通过：6 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_related -p no:cacheprovider` 通过：15 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。

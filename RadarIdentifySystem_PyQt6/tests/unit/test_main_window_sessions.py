@@ -66,6 +66,7 @@ def _routes_for_window(window: MainWindow) -> list[str]:
 
 def test_main_window_creates_independent_session_interfaces(
     monkeypatch: MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """主窗口应为不同 session 创建独立切片页面并可按 id 查回。"""
     _app()
@@ -73,7 +74,7 @@ def test_main_window_creates_independent_session_interfaces(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    window = MainWindow()
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
     try:
         first_session = ProcessingSession(session_id="session_a", display_name="A.xlsx")
         second_session = ProcessingSession(session_id="session_b", display_name="B.xlsx")
@@ -92,6 +93,7 @@ def test_main_window_creates_independent_session_interfaces(
 
 def test_main_window_reuses_existing_session_interface(
     monkeypatch: MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """同一 session_id 重复创建时应复用并返回已有页面。"""
     _app()
@@ -99,7 +101,7 @@ def test_main_window_reuses_existing_session_interface(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    window = MainWindow()
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
     try:
         session = ProcessingSession(session_id="session_reused", display_name="复用.xlsx")
 
@@ -114,6 +116,7 @@ def test_main_window_reuses_existing_session_interface(
 
 def test_main_window_closes_session_interface(
     monkeypatch: MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """关闭动态 session 页面后应移除索引并回到主页。"""
     _app()
@@ -121,7 +124,7 @@ def test_main_window_closes_session_interface(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    window = MainWindow()
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
     try:
         session = ProcessingSession(session_id="session_closed", display_name="关闭.xlsx")
 
@@ -140,6 +143,7 @@ def test_main_window_closes_session_interface(
 
 def test_main_window_closes_background_session_without_switching_current_page(
     monkeypatch: MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """关闭非当前动态 session 页面时应保留用户当前所在页面。"""
     _app()
@@ -147,7 +151,7 @@ def test_main_window_closes_background_session_without_switching_current_page(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    window = MainWindow()
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
     try:
         background_session = ProcessingSession(
             session_id="session_background",
@@ -184,11 +188,10 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    window = MainWindow()
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
     received_registered: list[str] = []
     received_activated: list[str] = []
     try:
-        window.session_registry = SessionRegistry(SessionStore(tmp_path))
         session = ProcessingSession(
             session_id="session_imported",
             source_path="E:/data/imported.xlsx",
@@ -229,7 +232,19 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    window = MainWindow()
+    registry = SessionRegistry(SessionStore(tmp_path))
+    first_session = ProcessingSession(
+        session_id="session_first",
+        display_name="first.xlsx",
+    )
+    second_session = ProcessingSession(
+        session_id="session_second",
+        display_name="second.xlsx",
+    )
+    registry.register(first_session)
+    registry.register(second_session)
+    registry.activate("session_first")
+    window = MainWindow(session_registry=registry)
     received_registered: list[str] = []
     received_activated: list[str] = []
 
@@ -238,7 +253,6 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
         raise RuntimeError("page creation failed")
 
     try:
-        window.session_registry = SessionRegistry(SessionStore(tmp_path))
         session = ProcessingSession(
             session_id="session_failed_page",
             source_path="E:/data/failed.xlsx",
@@ -256,8 +270,13 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
             raise AssertionError("页面创建失败应继续抛出原始异常")
 
         assert window.session_registry.get("session_failed_page") is None
-        assert window.session_registry.active_session_id is None
+        assert window.session_registry.get("session_first") is first_session
+        assert window.session_registry.get("session_second") is second_session
+        assert window.session_registry.active_session_id == "session_first"
         assert not (tmp_path / "session_failed_page").exists()
+        assert (tmp_path / "session_first").exists()
+        assert (tmp_path / "session_second").exists()
+        assert registry.store.load_index().active_session_id == "session_first"
         assert received_registered == []
         assert received_activated == []
     finally:
