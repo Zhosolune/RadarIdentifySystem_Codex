@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import FluentIcon, RangeValidator
 
@@ -146,6 +147,8 @@ def test_spin_box_setting_card_writes_session_item() -> None:
     card.spinBox.setValue(8)
 
     assert snapshot.recognition.max_candidates == 8
+    sip.delete(card)
+    QApplication.processEvents()
 
 
 def test_double_spin_box_setting_card_writes_session_item() -> None:
@@ -169,3 +172,5 @@ def test_double_spin_box_setting_card_writes_session_item() -> None:
     card.spinBox.setValue(3.26)
 
     assert snapshot.clustering.eps_cf == 3.3
+    sip.delete(card)
+    QApplication.processEvents()
