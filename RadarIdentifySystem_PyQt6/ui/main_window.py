@@ -174,7 +174,15 @@ class MainWindow(FluentWindow):
         """
         session.config_snapshot = create_session_config_from_global()
         self.session_registry.register(session)
-        interface = self.create_session_interface(session)
+        try:
+            interface = self.create_session_interface(session)
+        except Exception:
+            # UI 页面创建失败时，回滚已完成的注册与持久化，避免内存/磁盘/UI 分叉。
+            try:
+                self.session_registry.close(session.session_id)
+            except Exception:
+                LOGGER.exception("回滚 session 注册失败: %s", session.session_id)
+            raise
         signal_bus.session_registered.emit(session.session_id)
         signal_bus.session_activated.emit(session.session_id)
         return interface

@@ -217,3 +217,56 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
         except TypeError:
             pass
         _dispose_window(window)
+
+
+def test_main_window_rolls_back_registration_when_session_page_creation_fails(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """动态页面创建失败时主窗口应回滚 session 注册和持久化。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow()
+    received_registered: list[str] = []
+    received_activated: list[str] = []
+
+    def _raise_page_error(_session: ProcessingSession) -> None:
+        """模拟动态页面创建失败。"""
+        raise RuntimeError("page creation failed")
+
+    try:
+        window.session_registry = SessionRegistry(SessionStore(tmp_path))
+        session = ProcessingSession(
+            session_id="session_failed_page",
+            source_path="E:/data/failed.xlsx",
+            source_type="excel",
+        )
+        signal_bus.session_registered.connect(received_registered.append)
+        signal_bus.session_activated.connect(received_activated.append)
+        monkeypatch.setattr(window, "create_session_interface", _raise_page_error)
+
+        try:
+            window.create_session_from_parsed(session)
+        except RuntimeError as exc:
+            assert str(exc) == "page creation failed"
+        else:
+            raise AssertionError("页面创建失败应继续抛出原始异常")
+
+        assert window.session_registry.get("session_failed_page") is None
+        assert window.session_registry.active_session_id is None
+        assert not (tmp_path / "session_failed_page").exists()
+        assert received_registered == []
+        assert received_activated == []
+    finally:
+        try:
+            signal_bus.session_registered.disconnect(received_registered.append)
+        except TypeError:
+            pass
+        try:
+            signal_bus.session_activated.disconnect(received_activated.append)
+        except TypeError:
+            pass
+        _dispose_window(window)
