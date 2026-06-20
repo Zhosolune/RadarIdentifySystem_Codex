@@ -24,7 +24,7 @@ build/
 .vercel/
 
 results/
-# config/
+config/sessions/
 # docs/
 
 .vscode/
