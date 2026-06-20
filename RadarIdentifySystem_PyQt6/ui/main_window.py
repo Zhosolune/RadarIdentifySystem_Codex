@@ -200,6 +200,7 @@ class MainWindow(FluentWindow):
             if not interface_existed:
                 self.close_session_interface(session.session_id)
             raise
+        self.refresh_session_manager_panel()
         signal_bus.session_registered.emit(session.session_id)
         signal_bus.session_activated.emit(session.session_id)
         return interface
@@ -244,7 +245,29 @@ class MainWindow(FluentWindow):
 
         if active_session_id:
             self.activate_session_interface(active_session_id)
+        self.refresh_session_manager_panel()
         return restored_ids
+
+    def refresh_session_manager_panel(self) -> None:
+        """刷新主页 session 管理器列表。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> hasattr(object(), "session_manager_panel")
+            False
+        """
+        if hasattr(self.homeInterface, "session_manager_panel"):
+            self.homeInterface.session_manager_panel.set_sessions(
+                self.session_registry.all_sessions()
+            )
 
     def activate_session_interface(self, session_id: str) -> None:
         """激活指定 session 的动态切片页面。
@@ -309,7 +332,9 @@ class MainWindow(FluentWindow):
 
     def connectSignalToSlot(self) -> None:
         """连接信号到槽函数。"""
-        pass
+        self.homeInterface.session_manager_panel.sessionActivated.connect(
+            self.activate_session_interface
+        )
 
     # ------------------------------------------------------------------
     # 生命周期

@@ -52,7 +52,9 @@ def _dispose_window(window: MainWindow) -> None:
     ]
     qrouter.stackHistories.pop(window.stackedWidget, None)
     window.close()
+    QApplication.processEvents()
     sip.delete(window)
+    QApplication.processEvents()
 
 
 def _routes_for_window(window: MainWindow) -> list[str]:
@@ -290,6 +292,32 @@ def test_main_window_restores_session_interfaces_from_registry(
         assert second_interface is not None
         assert window.stackedWidget.currentWidget() is first_interface
         assert window.session_registry.active_session_id == "session_restore_a"
+    finally:
+        _dispose_window(window)
+
+
+def test_home_session_manager_lists_created_session(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """创建 session 后主页 session 管理器应显示该 session。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
+    try:
+        session = ProcessingSession(
+            session_id="session_manager_created",
+            source_path="E:/data/a.xlsx",
+            source_type="excel",
+        )
+
+        window.create_session_from_parsed(session)
+
+        titles = window.homeInterface.session_manager_panel.session_titles()
+        assert session.display_name in titles
     finally:
         _dispose_window(window)
 

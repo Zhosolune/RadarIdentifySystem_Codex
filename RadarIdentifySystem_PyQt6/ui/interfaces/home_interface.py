@@ -16,6 +16,7 @@ from ui.components import (
     ImportDashboardPanel,
     ImportDataPanel,
     JitterFreeCardGroup,
+    SessionManagerPanel,
 )
 from ui.controllers.home_controller import HomeController
 
@@ -193,8 +194,11 @@ class HomeInterface(QFrame):
         column.setObjectName("homeLeftColumn")
         column.setFrameShape(QFrame.Shape.StyledPanel)
 
-        # 简单占位布局，不添加任何实质内容
-        layout = QHBoxLayout(column)
+        layout = QVBoxLayout(column)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(12)
+
+        self.session_manager_panel = SessionManagerPanel(column)
+        layout.addWidget(self.session_manager_panel)
+        layout.addStretch(1)
         return column

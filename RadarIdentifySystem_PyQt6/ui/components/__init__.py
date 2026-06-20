@@ -18,6 +18,7 @@ from .file_item import FileItem
 from .sliding_drawer import DrawerPosition, SlidingDrawer
 from .model_selection_card import ModelSelectionCard
 from .slice_param_panel import SliceParamPanel
+from .session_manager_panel import SessionManagerPanel
 
 __all__ = [
     "ActionButtonCard",
@@ -40,4 +41,5 @@ __all__ = [
     "SlidingDrawer",
     "ModelSelectionCard",
     "SliceParamPanel",
+    "SessionManagerPanel",
 ]
