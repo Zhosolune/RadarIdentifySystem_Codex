@@ -62,6 +62,7 @@ class MainWindow(FluentWindow):
         self._session_interfaces: dict[str, SliceInterface] = {}
         self.session_registry = session_registry or SessionRegistry()
         self.initNavigation()
+        self.restore_session_interfaces()
         self._enable_pointing_hand_cursor()
 
         timer = QTimer()
@@ -216,6 +217,34 @@ class MainWindow(FluentWindow):
             无显式抛出异常。
         """
         return self._session_interfaces.get(session_id)
+
+    def restore_session_interfaces(self) -> list[str]:
+        """从注册表恢复动态 session 页面。
+
+        Args:
+            无。
+
+        Returns:
+            list[str]: 成功恢复为动态页面的 session id 列表。
+
+        Raises:
+            无显式抛出异常；损坏 session 由注册表和持久化层跳过。
+
+        Example:
+            >>> window = None
+            >>> window is None
+            True
+        """
+        restored_sessions = self.session_registry.restore()
+        restored_ids: list[str] = []
+        active_session_id = self.session_registry.active_session_id
+        for session in restored_sessions:
+            self.create_session_interface(session)
+            restored_ids.append(session.session_id)
+
+        if active_session_id:
+            self.activate_session_interface(active_session_id)
+        return restored_ids
 
     def activate_session_interface(self, session_id: str) -> None:
         """激活指定 session 的动态切片页面。

@@ -256,6 +256,44 @@ def test_session_drawer_config_change_is_persisted(
         _dispose_window(window)
 
 
+def test_main_window_restores_session_interfaces_from_registry(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """主窗口启动时应从 registry 恢复动态 session 页面并激活记录的 session。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    store = SessionStore(tmp_path)
+    first_session = ProcessingSession(
+        session_id="session_restore_a",
+        source_path="E:/data/a.xlsx",
+        source_type="excel",
+    )
+    second_session = ProcessingSession(
+        session_id="session_restore_b",
+        source_path="E:/data/b.xlsx",
+        source_type="excel",
+    )
+    store.upsert_session(first_session)
+    store.upsert_session(second_session)
+    store.set_active_session_id("session_restore_a")
+
+    window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        first_interface = window.session_interface("session_restore_a")
+        second_interface = window.session_interface("session_restore_b")
+
+        assert first_interface is not None
+        assert second_interface is not None
+        assert window.stackedWidget.currentWidget() is first_interface
+        assert window.session_registry.active_session_id == "session_restore_a"
+    finally:
+        _dispose_window(window)
+
+
 def test_main_window_rolls_back_registration_when_session_page_creation_fails(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
@@ -304,8 +342,10 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
             raise AssertionError("页面创建失败应继续抛出原始异常")
 
         assert window.session_registry.get("session_failed_page") is None
-        assert window.session_registry.get("session_first") is first_session
-        assert window.session_registry.get("session_second") is second_session
+        assert window.session_registry.get("session_first") is not None
+        assert window.session_registry.get("session_second") is not None
+        assert window.session_registry.get("session_first").display_name == "first.xlsx"
+        assert window.session_registry.get("session_second").display_name == "second.xlsx"
         assert window.session_registry.active_session_id == "session_first"
         assert not (tmp_path / "session_failed_page").exists()
         assert (tmp_path / "session_first").exists()
