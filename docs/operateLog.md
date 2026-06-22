@@ -1,5 +1,20 @@
 # 变更记录
 
+- 时间：2026-06-22 16:12
+- 操作类型：[修改]
+- 影响文件：
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+- 变更摘要：将卡片导航项标题与副标题切换为局部统一字体方案，消除中英数字与中文混排时的视觉割裂。
+- 原因：当前 `BodyLabel` 与 `CaptionLabel` 使用组件库默认字体回退链，英文数字与中文可能落到不同字族，导致卡片导航项字体观感不统一。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py tests/unit/test_session_manager_panel.py -q --basetemp=.pytest_tmp_card_nav_font_fix -p no:cacheprovider` 通过（3 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py tests/unit/test_session_manager_panel.py` 通过；`git diff --check` 通过，仅提示 `test_session_manager_panel.py` 将在下次 Git 处理时从 LF 转为 CRLF。
+- 当前计划：
+  - [x] 为卡片标题与副标题封装统一字体应用逻辑。
+  - [x] 更新导航组件相关单测，锁定统一字体契约。
+  - [x] 完成诊断、目标测试与结果回填。
+
 - 时间：2026-06-22 14:17
 - 操作类型：[修改]
 - 影响文件：

@@ -17,15 +17,15 @@ Example:
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QIcon, QPainter
+from PyQt6.QtGui import QColor, QFont, QIcon, QPainter
 from PyQt6.QtWidgets import QHBoxLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CaptionLabel, CardWidget, IconWidget, themeColor
-from qfluentwidgets.common.config import isDarkTheme
-from qfluentwidgets.common.font import setFont
+from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.icon import FluentIconBase
 
 
 NavigationIcon = str | QIcon | FluentIconBase
+UNIFIED_NAVIGATION_FONT_FAMILIES = ["Microsoft YaHei UI", "Microsoft YaHei"]
 
 
 class CardNavigationItem(CardWidget):
@@ -83,6 +83,9 @@ class CardNavigationItem(CardWidget):
         self.icon_widget: IconWidget | None = None
         self._is_selected = False
 
+        # 统一标题字体，避免中英数字与中文分别落到不同字族。
+        self._apply_uniform_text_font(self.title_label, 14)
+
         self.setObjectName("cardNavigationItem")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -100,16 +103,25 @@ class CardNavigationItem(CardWidget):
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(0)
+        text_layout.setSpacing(2)
         text_layout.addWidget(self.title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         if subtitle:
             self.subtitle_label = CaptionLabel(subtitle, self)
+            # 统一副标题字体，保持与主标题一致的字族观感。
+            self._apply_uniform_text_font(self.subtitle_label, 12)
             self.subtitle_label.setTextColor("#606060", "#d2d2d2")
             text_layout.addWidget(self.subtitle_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self._main_layout.addLayout(text_layout, 1)
+
+    def _apply_uniform_text_font(self, widget: QWidget, pixel_size: int) -> None:
+        """为标签应用统一字体族。"""
+        font = getFont(pixel_size, QFont.Weight.Normal)
+        # 覆盖字体回退链，优先使用同一字体绘制中英数字与中文。
+        font.setFamilies(UNIFIED_NAVIGATION_FONT_FAMILIES)
+        widget.setFont(font)
 
     def set_selected(self, selected: bool) -> None:
         """设置选中状态并刷新绘制。

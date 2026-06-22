@@ -7,6 +7,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import QApplication
 
 from core.models.processing_session import ProcessingSession
+from ui.components.card_navigation_list import UNIFIED_NAVIGATION_FONT_FAMILIES
 from ui.components.session_manager_panel import SessionManagerPanel
 
 
@@ -40,5 +41,7 @@ def test_session_manager_panel_uses_card_navigation_list() -> None:
     assert item.title_label.text().endswith("A.xlsx")
     assert item.subtitle_label is not None
     assert item.subtitle_label.text() == "2026-06-22 12:30"
+    assert item.title_label.font().families() == UNIFIED_NAVIGATION_FONT_FAMILIES
+    assert item.subtitle_label.font().families() == UNIFIED_NAVIGATION_FONT_FAMILIES
     assert panel.session_detail_placeholder.text() == "Session 详情占位"
     assert panel.session_titles() == ["A.xlsx"]

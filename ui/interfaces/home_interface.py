@@ -87,8 +87,8 @@ class HomeInterface(QFrame):
         # 右侧目录管理面板
         self.right_column = self._create_right_column()
 
-        root_layout.addWidget(self.left_column, 1)
-        root_layout.addWidget(self.right_column, 1)
+        root_layout.addWidget(self.left_column, 4)
+        root_layout.addWidget(self.right_column, 6)
 
     def _create_left_column(self) -> QWidget:
         """创建左侧带滚动的目录管理面板。

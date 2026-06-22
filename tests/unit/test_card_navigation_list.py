@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QApplication
 
 from qfluentwidgets import FluentIcon
 
-from ui.components.card_navigation_list import CardNavigationList
+from ui.components.card_navigation_list import CardNavigationList, UNIFIED_NAVIGATION_FONT_FAMILIES
 
 
 _APP: QApplication | None = None
@@ -41,8 +41,8 @@ def test_card_navigation_list_switches_single_selected_item() -> None:
     assert selected_keys == ["import", "slice"]
 
 
-def test_card_navigation_item_aligns_font_contract_and_keeps_debug_prefix() -> None:
-    """导航卡片应沿用组件库字体契约，并保留人工调试前缀。"""
+def test_card_navigation_item_uses_uniform_font_and_keeps_debug_prefix() -> None:
+    """导航卡片应统一标题与副标题的字体族，并保留人工调试前缀。"""
     _app()
     navigation_list = CardNavigationList()
 
@@ -53,11 +53,13 @@ def test_card_navigation_item_aligns_font_contract_and_keeps_debug_prefix() -> N
         FluentIcon.HOME,
     )
     assert item.title_label.text() == "中文测试看看字体Session A"
+    assert item.subtitle_label is not None
     assert item.subtitle_label.text() == "2026-06-22 12:30"
-    assert item.title_label.font().families() == ["Segoe UI", "Microsoft YaHei", "PingFang SC"]
+    assert item.title_label.font().families() == UNIFIED_NAVIGATION_FONT_FAMILIES
+    assert item.subtitle_label.font().families() == UNIFIED_NAVIGATION_FONT_FAMILIES
     assert item.title_label.font().pixelSize() == 14
     assert item.subtitle_label.font().pixelSize() == 12
-    assert item.property("selected") is False
+    assert item.property("selected") is None
 
     item.set_selected(True)
 
