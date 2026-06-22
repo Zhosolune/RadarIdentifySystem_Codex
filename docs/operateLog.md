@@ -1,5 +1,22 @@
 # 变更记录
 
+- 时间：2026-06-22 12:21
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：新增独立的布局式卡片导航列表组件，支持单选切换、左侧主题色竖条选中态和组件包导出。
+- 原因：后续页面导航需要复用卡片式列表容器，但当前阶段不接入现有 UI。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py -q --basetemp=.pytest_tmp_card_nav_red -p no:cacheprovider` 预期失败，组件模块不存在；GREEN：目标单测通过；`py_compile`、`ui.components` 导入检查和 `git diff --check` 均通过。
+- 当前计划：
+  - [x] 分析现有布局式卡片列表和 qfluentwidgets CardWidget 绘制方式。
+  - [x] 编写失败测试锁定卡片导航列表单选切换行为。
+  - [x] 新增 `CardNavigationItem` 和 `CardNavigationList` 独立组件。
+  - [x] 补充组件包导出。
+  - [x] 完成编译、单测、导入和 diff 格式检查。
+
 - 时间：2026-06-22 11:03
 - 操作类型：修改
 - 影响文件：

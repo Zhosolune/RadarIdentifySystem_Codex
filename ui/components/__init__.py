@@ -1,4 +1,4 @@
-"""包入口。"""
+"""组件包入口。"""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from .sliding_drawer import DrawerPosition, SlidingDrawer
 from .model_selection_card import ModelSelectionCard
 from .slice_param_panel import SliceParamPanel
 from .session_manager_panel import SessionManagerPanel
+from .card_navigation_list import CardNavigationItem, CardNavigationList
 
 __all__ = [
     "ActionButtonCard",
@@ -42,4 +43,6 @@ __all__ = [
     "ModelSelectionCard",
     "SliceParamPanel",
     "SessionManagerPanel",
+    "CardNavigationItem",
+    "CardNavigationList",
 ]
