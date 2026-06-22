@@ -25,6 +25,9 @@ build/
 
 results/
 config/sessions/
-# docs/
+docs/superpowers/
 
 .vscode/
+.trae/
+.qoder/
+.worktrees/

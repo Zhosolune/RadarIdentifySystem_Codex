@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
 from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
@@ -12,7 +13,11 @@ from pytest import MonkeyPatch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.signal_bus import signal_bus
+from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
+from core.models.processing_session import ProcessingStage
+from core.models.pulse_batch import PulseBatch
+from core.models.slice_result import PreprocessResult
 from infra.session_store import SessionStore
 from qfluentwidgets.common.router import qrouter
 from runtime.session_registry import SessionRegistry
@@ -199,6 +204,31 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
             source_path="E:/data/imported.xlsx",
             source_type="excel",
         )
+        dashboard_info = ExcelDashboardInfo(
+            total_pulses=1,
+            removed_pulses=0,
+            amplitude_dropped_pulses=0,
+            duration=0.0,
+            band="C波段",
+            estimated_slice_count=0,
+        )
+        session.raw_batch = PulseBatch(
+            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            session.source_path,
+            "excel",
+            1,
+        )
+        session.preprocess_result = PreprocessResult(
+            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            total_pulses=1,
+            filtered_pulses=0,
+            toa_flip_count=0,
+            time_range=0.0,
+            estimated_slice_count=0,
+            band="C波段",
+            dashboard_info=dashboard_info,
+        )
+        session.dashboard_info = dashboard_info
         signal_bus.session_registered.connect(received_registered.append)
         signal_bus.session_activated.connect(received_activated.append)
 
@@ -212,6 +242,7 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
         assert received_activated == ["session_imported"]
         assert (tmp_path / "session_imported" / "session.json").exists()
         assert (tmp_path / "session_imported" / "config.json").exists()
+        assert (tmp_path / "session_imported" / "import_cache.npz").exists()
     finally:
         try:
             signal_bus.session_registered.disconnect(received_registered.append)
@@ -292,6 +323,62 @@ def test_main_window_restores_session_interfaces_from_registry(
         assert second_interface is not None
         assert window.stackedWidget.currentWidget() is first_interface
         assert window.session_registry.active_session_id == "session_restore_a"
+    finally:
+        _dispose_window(window)
+
+
+def test_main_window_restores_import_cache_for_sessions(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """主窗口恢复 session 页面时应同步恢复导入缓存运行态。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(
+        session_id="session_restore_cache",
+        source_path="E:/data/cache.xlsx",
+        source_type="excel",
+    )
+    raw_data = np.array([[1200.0, 3.0, 40.0, 50.0, 10.0]])
+    preprocess_data = np.array([[1200.0, 3.0, 40.0, 50.0, 10.0]])
+    dashboard_info = ExcelDashboardInfo(
+        total_pulses=1,
+        removed_pulses=0,
+        amplitude_dropped_pulses=0,
+        duration=0.0,
+        band="C波段",
+        estimated_slice_count=0,
+    )
+    session.raw_batch = PulseBatch(raw_data, session.source_path, "excel", 1)
+    session.preprocess_result = PreprocessResult(
+        preprocess_data,
+        total_pulses=1,
+        filtered_pulses=0,
+        toa_flip_count=0,
+        time_range=0.0,
+        estimated_slice_count=0,
+        band="C波段",
+        dashboard_info=dashboard_info,
+    )
+    session.dashboard_info = dashboard_info
+    store.upsert_session(session)
+    store.save_import_cache(session)
+
+    window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        restored = window.session_registry.get("session_restore_cache")
+
+        assert restored is not None
+        assert restored.raw_batch is not None
+        assert restored.preprocess_result is not None
+        assert restored.dashboard_info == dashboard_info
+        assert restored.stage is ProcessingStage.PREPROCESSED
+        np.testing.assert_array_equal(restored.raw_batch.data, raw_data)
+        np.testing.assert_array_equal(restored.preprocess_result.data, preprocess_data)
     finally:
         _dispose_window(window)
 

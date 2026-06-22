@@ -5,9 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
+from core.models.processing_session import ProcessingStage
+from core.models.pulse_batch import PulseBatch
+from core.models.slice_result import PreprocessResult
 from infra.session_store import SessionStore
 
 
@@ -36,6 +41,51 @@ def test_session_store_writes_index_session_and_config(tmp_path: Path) -> None:
     assert restored.recognition_result is None
     assert restored.merge_result is None
     assert restored.restored_from_store is True
+
+
+def test_session_store_round_trips_import_cache(tmp_path: Path) -> None:
+    """session 导入缓存应能恢复到导入/预处理完成态。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    raw_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
+    preprocess_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
+    dashboard_info = ExcelDashboardInfo(
+        total_pulses=1,
+        removed_pulses=0,
+        amplitude_dropped_pulses=0,
+        duration=0.0,
+        band="C波段",
+        estimated_slice_count=0,
+    )
+    session.raw_batch = PulseBatch(
+        data=raw_data,
+        source_path="E:/data/a.xlsx",
+        source_type="excel",
+        total_pulses=1,
+    )
+    session.preprocess_result = PreprocessResult(
+        data=preprocess_data,
+        total_pulses=1,
+        filtered_pulses=0,
+        toa_flip_count=0,
+        time_range=0.0,
+        estimated_slice_count=0,
+        band="C波段",
+        dashboard_info=dashboard_info,
+    )
+    session.dashboard_info = dashboard_info
+
+    store.upsert_session(session)
+    store.save_import_cache(session)
+    restored = store.load_session(session.session_id)
+    assert store.load_import_cache(restored) is True
+
+    assert restored.raw_batch is not None
+    assert restored.preprocess_result is not None
+    assert restored.dashboard_info == dashboard_info
+    assert restored.stage is ProcessingStage.PREPROCESSED
+    np.testing.assert_array_equal(restored.raw_batch.data, raw_data)
+    np.testing.assert_array_equal(restored.preprocess_result.data, preprocess_data)
 
 
 def test_session_store_delete_removes_session_dir(tmp_path: Path) -> None:

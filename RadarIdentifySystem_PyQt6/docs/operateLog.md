@@ -1,5 +1,19 @@
 # 变更记录
 
+- 时间：2026-06-22 10:16
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+- 变更摘要：补齐 `persist_session()` 对导入缓存的同步覆盖，并增加旧缓存覆盖回归测试。
+- 原因：已存在 session 重新导入或预处理结果变化后，显式持久化链路需要同步刷新 `import_cache.npz`。
+- 测试状态：已测试（2026-06-22 10:10，RED：新增 `test_persist_session_overwrites_existing_import_cache` 先失败并恢复旧缓存；GREEN：新增用例通过；`test_session_registry.py` + `test_session_store.py` 67 passed；MainWindow 注册链路单测 1 passed；整份 `test_main_window_sessions.py` 输出 10 passed 后进程未退出导致命令超时；编译解析通过；`git diff --check` 通过）
+- 当前计划：
+  - [x] 定位 `SessionRegistry.register()`、`persist_session()`、导入完成注册链路和 MainWindow session 注册流程。
+  - [x] 用 RED 测试复现 `persist_session()` 不覆盖旧 `import_cache.npz` 的问题。
+  - [x] 在 `persist_session()` 中复用导入缓存载荷判断并同步保存缓存。
+  - [x] 运行 registry/store/MainWindow 相关验证并记录剩余测试进程退出限制。
+
 - 时间：2026-06-18 20:39
 - 操作类型：修改
 - 影响文件：
@@ -2978,3 +2992,16 @@
 - 变更摘要：Task 13 修复 session 配置项测试中 Qt 设置卡未显式释放导致的组合测试退出挂起，并完成 session 独立化最终验证。
 - 原因：最终验证要求多个 Qt 测试文件组合运行时不仅断言通过，还必须让 pytest 进程正常退出。
 - 测试状态：[已测试] 复现：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task13_item_main -p no:cacheprovider` 输出 20 passed 后进程未退出并被 120s 超时终止；修复后同范围使用 `--basetemp=.pytest_tmp_task13_item_main_fix` 通过：20 passed, 1 warning；目标测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_snapshot.py RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task13_targeted2 -p no:cacheprovider` 通过：96 passed, 1 warning；相关测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_model_selection_card.py RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_task13_related -p no:cacheprovider` 通过：12 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\core RadarIdentifySystem_PyQt6\runtime RadarIdentifySystem_PyQt6\infra RadarIdentifySystem_PyQt6\ui` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+---
+
+## 2026-06-21 19:12
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\superpowers\plans\2026-06-21-session-import-cache.md`
+- 变更摘要：为 session 持久化目录新增 `import_cache.npz` 导入缓存，重启恢复 session 时可直接恢复到导入/预处理完成态。
+- 原因：session 恢复不应依赖用户重新选择原始文件并再次解析，导入完成态应成为 session 自身持久化能力的一部分。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py::test_session_store_round_trips_import_cache -q --basetemp=.pytest_tmp_import_cache_red -p no:cacheprovider` 预期失败，`SessionStore` 缺少 `save_import_cache`；RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_import_cache_for_sessions -q --basetemp=.pytest_tmp_restore_cache_red -p no:cacheprovider` 预期失败，恢复后 `raw_batch` 仍为 None；RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_register_cache_red -p no:cacheprovider` 预期失败，未生成 `import_cache.npz`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_session_import_cache_store_registry_final -p no:cacheprovider` 通过：66 passed, 1 warning；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_session_import_cache_register_only_final -p no:cacheprovider` 通过：1 passed, 1 warning；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_import_cache_for_sessions -q --basetemp=.pytest_tmp_session_import_cache_restore_only_final -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF；组合运行 `test_main_window_sessions.py` 或两个主窗口目标测试时断言全部通过后 pytest 进程仍可能不退出并被超时终止，延续既有 Qt 测试组合退出问题，已用单测拆分验证缓存相关行为。

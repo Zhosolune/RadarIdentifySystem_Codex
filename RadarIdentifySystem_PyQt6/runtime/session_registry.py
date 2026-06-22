@@ -99,6 +99,8 @@ class SessionRegistry:
             try:
                 self.store.upsert_session(persisted_session)
                 self.store.set_active_session_id(session.session_id)
+                if self._has_import_cache_payload(session):
+                    self.store.save_import_cache(session)
             except Exception:
                 # 持久化未完整成功时恢复磁盘与调用前对象状态。
                 self._restore_persisted_session(
@@ -138,6 +140,9 @@ class SessionRegistry:
             True
         """
         restored_sessions = self.store.load_all_sessions()
+        for session in restored_sessions:
+            # 导入缓存缺失或损坏时保留元数据恢复结果，不阻断页面恢复。
+            self.store.load_import_cache(session)
         restored_mapping = {
             session.session_id: session
             for session in restored_sessions
@@ -218,6 +223,9 @@ class SessionRegistry:
             raise KeyError(session_id)
 
         self.store.upsert_session(session)
+        if self._has_import_cache_payload(session):
+            # 配置保存或重新导入后的显式持久化要同步覆盖导入缓存。
+            self.store.save_import_cache(session)
         return session
 
     def activate(self, session_id: str) -> ProcessingSession:
@@ -377,3 +385,11 @@ class SessionRegistry:
         except FileNotFoundError:
             return False
         return True
+
+    def _has_import_cache_payload(self, session: ProcessingSession) -> bool:
+        """判断 session 是否具备写入导入缓存的最小数据。"""
+        return (
+            session.raw_batch is not None
+            and session.preprocess_result is not None
+            and session.dashboard_info is not None
+        )

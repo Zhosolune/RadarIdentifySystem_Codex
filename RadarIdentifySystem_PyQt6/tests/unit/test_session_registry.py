@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from app.app_config import appConfig, qconfig
+from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
+from core.models.pulse_batch import PulseBatch
+from core.models.slice_result import PreprocessResult
 from infra.session_store import SessionIndex, SessionStore
 from runtime.session_config_factory import create_session_config_from_global
 from runtime.session_registry import SessionRegistry
@@ -73,6 +77,39 @@ def _make_session(session_id: str, source_name: str) -> ProcessingSession:
     )
 
 
+def _attach_import_cache_payload(
+    session: ProcessingSession,
+    raw_data: np.ndarray,
+    preprocess_data: np.ndarray,
+    band: str,
+) -> None:
+    """为测试 session 填充可写入导入缓存的最小运行态数据。"""
+    dashboard_info = ExcelDashboardInfo(
+        total_pulses=len(raw_data),
+        removed_pulses=0,
+        amplitude_dropped_pulses=0,
+        duration=0.0,
+        band=band,
+        estimated_slice_count=0,
+    )
+    session.raw_batch = PulseBatch(
+        data=raw_data,
+        source_path=session.source_path,
+        source_type=session.source_type,
+        total_pulses=len(raw_data),
+    )
+    session.preprocess_result = PreprocessResult(
+        data=preprocess_data,
+        total_pulses=len(preprocess_data),
+        filtered_pulses=0,
+        toa_flip_count=0,
+        time_range=0.0,
+        estimated_slice_count=0,
+        band=band,
+        dashboard_info=dashboard_info,
+    )
+    session.dashboard_info = dashboard_info
+
 def test_register_sets_active_and_persists_active_id(tmp_path: Path) -> None:
     """注册 session 后应可查询、自动激活并持久化 active id。"""
     store = SessionStore(tmp_path)
@@ -117,6 +154,45 @@ def test_persist_session_writes_current_config_without_changing_active(
         is False
     )
 
+
+def test_persist_session_overwrites_existing_import_cache(
+    tmp_path: Path,
+) -> None:
+    """显式持久化已存在 session 时应覆盖旧的导入缓存。"""
+    store = SessionStore(tmp_path)
+    registry = SessionRegistry(store)
+    session = _make_session("session-cache", "cache.xlsx")
+    old_raw_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
+    old_preprocess_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
+    _attach_import_cache_payload(
+        session,
+        raw_data=old_raw_data,
+        preprocess_data=old_preprocess_data,
+        band="旧缓存",
+    )
+    registry.register(session)
+
+    new_raw_data = np.array([[2000.0, 4.0, 60.0, 80.0, 10.0]])
+    new_preprocess_data = np.array([[2100.0, 4.0, 60.0, 80.0, 10.0]])
+    _attach_import_cache_payload(
+        session,
+        raw_data=new_raw_data,
+        preprocess_data=new_preprocess_data,
+        band="新缓存",
+    )
+    registry.persist_session(session.session_id)
+
+    restored = store.load_session(session.session_id)
+    assert store.load_import_cache(restored) is True
+    assert restored.raw_batch is not None
+    assert restored.preprocess_result is not None
+    assert restored.dashboard_info is not None
+    assert restored.dashboard_info.band == "新缓存"
+    np.testing.assert_array_equal(restored.raw_batch.data, new_raw_data)
+    np.testing.assert_array_equal(
+        restored.preprocess_result.data,
+        new_preprocess_data,
+    )
 
 def test_persist_session_rejects_unknown_session(tmp_path: Path) -> None:
     """显式持久化未知 session 时应抛出 KeyError。"""

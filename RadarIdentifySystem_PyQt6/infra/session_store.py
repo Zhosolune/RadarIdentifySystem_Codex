@@ -1,7 +1,7 @@
 """Session 文件式持久化适配层。
 
-该模块仅负责保存和恢复 session 元数据、模型选择与配置快照，不保存导入数据、
-切片结果、聚类结果、识别结果、合并结果等计算产物。
+该模块负责保存和恢复 session 元数据、模型选择、配置快照，并额外维护每个 session 的
+导入/预处理缓存。缓存只覆盖 P03 导入完成态，不保存切片、聚类、识别、合并等下游结果。
 
 Example:
     >>> from pathlib import Path
@@ -19,9 +19,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
+from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
+from core.models.processing_session import ProcessingStage
+from core.models.pulse_batch import PulseBatch
 from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
+from core.models.slice_result import PreprocessResult
 from utils.paths import get_session_config_dir
 
 
@@ -379,6 +385,140 @@ class SessionStore:
         session.merge_result = None
         return session
 
+    def save_import_cache(self, session: ProcessingSession) -> None:
+        """保存 session 的导入与预处理缓存。
+
+        Args:
+            session [ProcessingSession]: 已完成导入与预处理的 session。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当 session 缺少导入或预处理产物时抛出。
+            OSError: 当缓存文件写入失败时抛出。
+
+        Example:
+            >>> store = SessionStore(Path("config/sessions"))
+            >>> isinstance(store, SessionStore)
+            True
+        """
+
+        if session.raw_batch is None or session.preprocess_result is None:
+            raise ValueError("保存导入缓存前必须完成导入与预处理")
+        if session.dashboard_info is None:
+            raise ValueError("保存导入缓存前必须存在仪表盘信息")
+
+        cache_path = self._import_cache_path(session.session_id)
+        metadata = {
+            "schema_version": 1,
+            "raw_batch": {
+                "source_path": session.raw_batch.source_path,
+                "source_type": session.raw_batch.source_type,
+                "total_pulses": session.raw_batch.total_pulses,
+            },
+            "preprocess_result": {
+                "total_pulses": session.preprocess_result.total_pulses,
+                "filtered_pulses": session.preprocess_result.filtered_pulses,
+                "toa_flip_count": session.preprocess_result.toa_flip_count,
+                "time_range": session.preprocess_result.time_range,
+                "estimated_slice_count": (
+                    session.preprocess_result.estimated_slice_count
+                ),
+                "band": session.preprocess_result.band,
+            },
+            "dashboard_info": asdict(session.dashboard_info),
+        }
+
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        # 数组交给 npz 存储，结构化元信息以 JSON 字符串随包写入。
+        np.savez_compressed(
+            cache_path,
+            raw_data=session.raw_batch.data,
+            preprocess_data=session.preprocess_result.data,
+            metadata=np.array(json.dumps(metadata, ensure_ascii=False)),
+        )
+
+    def load_import_cache(self, session: ProcessingSession) -> bool:
+        """读取 session 的导入缓存并恢复运行态数据。
+
+        Args:
+            session [ProcessingSession]: 需要填充缓存数据的 session。
+
+        Returns:
+            bool: 成功恢复缓存时返回 True，缓存缺失或损坏时返回 False。
+
+        Raises:
+            ValueError: 当 session_id 非法时抛出。
+
+        Example:
+            >>> store = SessionStore(Path("config/sessions"))
+            >>> session = ProcessingSession(session_id="missing")
+            >>> store.load_import_cache(session)
+            False
+        """
+
+        cache_path = self._import_cache_path(session.session_id)
+        if not cache_path.exists():
+            return False
+
+        try:
+            with np.load(cache_path, allow_pickle=False) as cache:
+                metadata = json.loads(str(cache["metadata"].item()))
+                if int(metadata.get("schema_version", 0)) != 1:
+                    return False
+                raw_data = np.array(cache["raw_data"])
+                preprocess_data = np.array(cache["preprocess_data"])
+
+            raw_payload = metadata["raw_batch"]
+            preprocess_payload = metadata["preprocess_result"]
+            dashboard_payload = metadata["dashboard_info"]
+            dashboard_info = ExcelDashboardInfo(
+                total_pulses=int(dashboard_payload["total_pulses"]),
+                removed_pulses=int(dashboard_payload["removed_pulses"]),
+                amplitude_dropped_pulses=int(
+                    dashboard_payload["amplitude_dropped_pulses"]
+                ),
+                duration=float(dashboard_payload["duration"]),
+                band=dashboard_payload["band"],
+                estimated_slice_count=int(
+                    dashboard_payload["estimated_slice_count"]
+                ),
+            )
+            preprocess_result = PreprocessResult(
+                data=preprocess_data,
+                total_pulses=int(preprocess_payload["total_pulses"]),
+                filtered_pulses=int(preprocess_payload["filtered_pulses"]),
+                toa_flip_count=int(preprocess_payload["toa_flip_count"]),
+                time_range=float(preprocess_payload["time_range"]),
+                estimated_slice_count=int(
+                    preprocess_payload["estimated_slice_count"]
+                ),
+                band=preprocess_payload["band"],
+                dashboard_info=dashboard_info,
+            )
+
+            with session.lock:
+                # 只恢复导入/预处理产物，下游结果仍由对应流程重新产生。
+                session.raw_batch = PulseBatch(
+                    data=raw_data,
+                    source_path=str(raw_payload["source_path"]),
+                    source_type=str(raw_payload["source_type"]),
+                    total_pulses=int(raw_payload["total_pulses"]),
+                )
+                session.preprocess_result = preprocess_result
+                session.dashboard_info = dashboard_info
+                session.stage = ProcessingStage.PREPROCESSED
+            return True
+        except (
+            OSError,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
+            return False
+
     def list_sessions(self) -> list[SessionIndexEntry]:
         """按索引顺序列出 session 条目。
 
@@ -525,6 +665,10 @@ class SessionStore:
         except ValueError as exc:
             raise ValueError("session 目录不能位于持久化根目录之外") from exc
         return session_dir
+
+    def _import_cache_path(self, session_id: str) -> Path:
+        """返回指定 session 的导入缓存文件路径。"""
+        return self._session_dir(session_id) / "import_cache.npz"
 
     def _session_to_index_entry(self, session: ProcessingSession) -> SessionIndexEntry:
         """从 session 构造索引条目。"""
