@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QApplication
 
+from qfluentwidgets import FluentIcon
+
 from ui.components.card_navigation_list import CardNavigationList
 
 
@@ -37,3 +39,26 @@ def test_card_navigation_list_switches_single_selected_item() -> None:
     assert first_item.is_selected() is False
     assert second_item.is_selected() is True
     assert selected_keys == ["import", "slice"]
+
+
+def test_card_navigation_item_aligns_font_contract_and_keeps_debug_prefix() -> None:
+    """导航卡片应沿用组件库字体契约，并保留人工调试前缀。"""
+    _app()
+    navigation_list = CardNavigationList()
+
+    item = navigation_list.add_item(
+        "session",
+        "Session A",
+        "2026-06-22 12:30",
+        FluentIcon.HOME,
+    )
+    assert item.title_label.text() == "中文测试看看字体Session A"
+    assert item.subtitle_label.text() == "2026-06-22 12:30"
+    assert item.title_label.font().families() == ["Segoe UI", "Microsoft YaHei", "PingFang SC"]
+    assert item.title_label.font().pixelSize() == 14
+    assert item.subtitle_label.font().pixelSize() == 12
+    assert item.property("selected") is False
+
+    item.set_selected(True)
+
+    assert item.property("selected") is True

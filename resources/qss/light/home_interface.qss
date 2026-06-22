@@ -13,20 +13,22 @@ QFrame#homeLeftColumn {
 }
 
 /* 右侧列容器本身透明，无边框 */
-QWidget#homeRightColumn {
+QWidget#homeLeftColumn {
     background-color: transparent;
     border: none;
 }
 
 /* ScrollArea 及其内部 QWidget 视口全部透明 */
-QScrollArea#homeRightScrollArea,
-QScrollArea#homeRightScrollArea > QWidget {
+QScrollArea#homeLeftScrollArea,
+QScrollArea#cardNavigationScrollArea,
+QScrollArea#homeLeftScrollArea > QWidget {
     background: transparent;
     border: none;
 }
 
 /* 滚动内容容器透明 */
-QWidget#homeRightScrollContent {
+QWidget#cardNavigationContent,
+QWidget#homeLeftScrollContent {
     background: transparent;
 }
 

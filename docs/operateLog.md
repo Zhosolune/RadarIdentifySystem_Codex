@@ -1,5 +1,37 @@
 # 变更记录
 
+- 时间：2026-06-22 14:17
+- 操作类型：[修改]
+- 影响文件：
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+- 变更摘要：修正卡片导航项内部 title/content/icon 排版，沿用组件库 CardGroupWidget 的内容样式。
+- 原因：自定义卡片列表不应另起一套标题、内容、图标间距和内容文字颜色规则，应复用组件库既有视觉规范。
+- 测试状态：[已测试] RED：新增样式契约测试先失败，当前边距为 (16, 8, 16, 8)；GREEN：	est_card_navigation_list.py 与 	est_session_manager_panel.py 通过，py_compile 与 git diff --check 通过。
+- 当前计划：
+  - [x] 核对 qfluentwidgets.components.widgets.card_widget.CardGroupWidget 的真实排版参数。
+  - [x] 新增测试锁定卡片导航项内容样式契约。
+  - [x] 将导航卡片边距、间距、图标尺寸、content 颜色与组件库保持一致。
+  - [x] 完成编译、目标单测和格式检查。
+
+- 时间：2026-06-22 12:30
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将主页右侧 session 管理器升级为卡片式两栏布局，左侧使用卡片导航列表展示 session，右侧保留详情占位。
+- 原因：主页右侧需要承载 session 管理 UI，并复用卡片列表作为 session 导航入口。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py -q --basetemp=.pytest_tmp_session_manager_panel_red -p no:cacheprovider` 预期失败，旧面板缺少 `session_nav`；GREEN：`test_session_manager_panel.py` 与 `test_home_session_manager_lists_created_session` 通过；`py_compile` 与 `git diff --check` 通过。
+- 当前计划：
+  - [x] 梳理 `HomeInterface` 右侧布局与旧 `SessionManagerPanel` 接入方式。
+  - [x] 新增失败测试锁定卡片导航列表、session 标题、创建时间和详情占位。
+  - [x] 将 `SessionManagerPanel` 改为 `SimpleCardWidget` 内部两栏布局。
+  - [x] 调整 `HomeInterface` 右侧列为透明容器，由 session 管理器卡片占满。
+  - [x] 完成编译、目标单测和格式检查。
+
 - 时间：2026-06-22 12:21
 - 操作类型：[新增]
 - 影响文件：

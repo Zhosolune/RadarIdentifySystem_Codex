@@ -20,6 +20,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPainter
 from PyQt6.QtWidgets import QHBoxLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CaptionLabel, CardWidget, IconWidget, themeColor
+from qfluentwidgets.common.config import isDarkTheme
+from qfluentwidgets.common.font import setFont
 from qfluentwidgets.common.icon import FluentIconBase
 
 
@@ -76,7 +78,7 @@ class CardNavigationItem(CardWidget):
             raise ValueError("导航项标题不能为空")
 
         self.key = key
-        self.title_label = BodyLabel(title, self)
+        self.title_label = BodyLabel("中文测试看看字体" + title, self)
         self.subtitle_label: CaptionLabel | None = None
         self.icon_widget: IconWidget | None = None
         self._is_selected = False
@@ -87,8 +89,8 @@ class CardNavigationItem(CardWidget):
         self.setFixedHeight(56 if not subtitle else 68)
 
         self._main_layout = QHBoxLayout(self)
-        self._main_layout.setContentsMargins(16, 8, 16, 8)
-        self._main_layout.setSpacing(12)
+        self._main_layout.setContentsMargins(16, 10, 10, 10)
+        self._main_layout.setSpacing(15)
 
         if icon is not None:
             # 图标可选，避免纯文本导航项承担额外视觉负担。
@@ -98,13 +100,15 @@ class CardNavigationItem(CardWidget):
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(2)
-        text_layout.addWidget(self.title_label)
+        text_layout.setSpacing(0)
+        text_layout.addWidget(self.title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         if subtitle:
             self.subtitle_label = CaptionLabel(subtitle, self)
-            text_layout.addWidget(self.subtitle_label)
+            self.subtitle_label.setTextColor("#606060", "#d2d2d2")
+            text_layout.addWidget(self.subtitle_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
+        text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self._main_layout.addLayout(text_layout, 1)
 
     def set_selected(self, selected: bool) -> None:

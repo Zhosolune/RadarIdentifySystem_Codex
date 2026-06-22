@@ -109,7 +109,7 @@ class HomeInterface(QFrame):
         """
 
         column = QWidget(self)
-        column.setObjectName("homeRightColumn")
+        column.setObjectName("homeLeftColumn")
 
         column_layout = QVBoxLayout(column)
         column_layout.setContentsMargins(0, 0, 0, 0)
@@ -118,14 +118,14 @@ class HomeInterface(QFrame):
         # ---------- ScrollArea ----------
         # 使用 qfluentwidgets 的 ScrollArea，自带主题感知滚动条样式
         scroll_area = ScrollArea(column)
-        scroll_area.setObjectName("homeRightScrollArea")
+        scroll_area.setObjectName("homeLeftScrollArea")
         scroll_area.setWidgetResizable(True)
         # 关闭水平滚动条，保持面板整洁
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         # ---------- 滚动内容容器 ----------
         scroll_content = QWidget()
-        scroll_content.setObjectName("homeRightScrollContent")
+        scroll_content.setObjectName("homeLeftScrollContent")
 
         content_layout = QVBoxLayout(scroll_content)
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -174,7 +174,7 @@ class HomeInterface(QFrame):
         column_layout.addWidget(scroll_area)
         return column
 
-    def _create_right_column(self) -> QFrame:
+    def _create_right_column(self) -> QWidget:
         """创建右侧空白占位栏。
 
         功能描述：
@@ -190,15 +190,17 @@ class HomeInterface(QFrame):
             无。
         """
 
-        column = QFrame(self)
-        column.setObjectName("homeLeftColumn")
-        column.setFrameShape(QFrame.Shape.StyledPanel)
+        column = QWidget(self)
+        column.setObjectName("homeSessionColumn")
 
         layout = QVBoxLayout(column)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(0)
 
         self.session_manager_panel = SessionManagerPanel(column)
-        layout.addWidget(self.session_manager_panel)
-        layout.addStretch(1)
+        self.session_manager_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        layout.addWidget(self.session_manager_panel, 1)
         return column
