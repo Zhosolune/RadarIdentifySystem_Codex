@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-06-22 11:03
+- 操作类型：修改
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\setting_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\main.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\config\config.json`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复日志目录设置未稳定写回配置文件且运行时部分操作仍回落默认日志目录的问题。
+- 原因：项目文件结构迁移到根目录后，日志目录应以 `System.LogDir` 配置项为准，设置页显示、打开、清理和程序启动均需要统一读取配置值；同时需要处理内存值与配置文件不一致时 `qconfig.set()` 不触发保存的边界。
+- 测试状态：已测试（2026-06-22 11:03，`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile app/app_config.py app/logger.py ui/interfaces/setting_interface.py main.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -c "from app.app_config import appConfig, qconfig; from app.logger import get_log_dir_path; print(qconfig.get(appConfig.logDir)); print(get_log_dir_path(qconfig.get(appConfig.logDir)))"` 输出均为 `E:\myProjects_Trae\RadarIdentifySystem_Codex\logs`）
+- 当前计划：
+  - [x] 定位日志目录配置的读取、显示、保存和启动链路。
+  - [x] 将设置页日志目录显示、打开、清理统一改为读取 `qconfig.get(appConfig.logDir)`。
+  - [x] 选择新日志目录后写入规范化路径，并显式调用 `qconfig.save()` 修复内存与文件不同步边界。
+  - [x] 将程序入口日志初始化改为读取 `qconfig.get(appConfig.logDir)`。
+  - [x] 将当前 `config/config.json` 的 `System.LogDir` 迁移到根目录 `logs`。
+  - [x] 运行语法编译和配置读取检查。
+
 - 时间：2026-06-22 10:16
 - 操作类型：修改
 - 影响文件：
@@ -13,6 +31,591 @@
   - [x] 用 RED 测试复现 `persist_session()` 不覆盖旧 `import_cache.npz` 的问题。
   - [x] 在 `persist_session()` 中复用导入缓存载荷判断并同步保存缓存。
   - [x] 运行 registry/store/MainWindow 相关验证并记录剩余测试进程退出限制。
+
+- 时间：2026-06-21 19:12
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\superpowers\plans\2026-06-21-session-import-cache.md`
+- 变更摘要：为 session 持久化目录新增 `import_cache.npz` 导入缓存，重启恢复 session 时可直接恢复到导入/预处理完成态。
+- 原因：session 恢复不应依赖用户重新选择原始文件并再次解析，导入完成态应成为 session 自身持久化能力的一部分。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py::test_session_store_round_trips_import_cache -q --basetemp=.pytest_tmp_import_cache_red -p no:cacheprovider` 预期失败，`SessionStore` 缺少 `save_import_cache`；RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_import_cache_for_sessions -q --basetemp=.pytest_tmp_restore_cache_red -p no:cacheprovider` 预期失败，恢复后 `raw_batch` 仍为 None；RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_register_cache_red -p no:cacheprovider` 预期失败，未生成 `import_cache.npz`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_session_import_cache_store_registry_final -p no:cacheprovider` 通过：66 passed, 1 warning；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_session_import_cache_register_only_final -p no:cacheprovider` 通过：1 passed, 1 warning；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_import_cache_for_sessions -q --basetemp=.pytest_tmp_session_import_cache_restore_only_final -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF；组合运行 `test_main_window_sessions.py` 或两个主窗口目标测试时断言全部通过后 pytest 进程仍可能不退出并被超时终止，延续既有 Qt 测试组合退出问题，已用单测拆分验证缓存相关行为。
+
+- 时间：2026-06-21 00:53
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：Task 13 修复 session 配置项测试中 Qt 设置卡未显式释放导致的组合测试退出挂起，并完成 session 独立化最终验证。
+- 原因：最终验证要求多个 Qt 测试文件组合运行时不仅断言通过，还必须让 pytest 进程正常退出。
+- 测试状态：[已测试] 复现：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task13_item_main -p no:cacheprovider` 输出 20 passed 后进程未退出并被 120s 超时终止；修复后同范围使用 `--basetemp=.pytest_tmp_task13_item_main_fix` 通过：20 passed, 1 warning；目标测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_snapshot.py RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task13_targeted2 -p no:cacheprovider` 通过：96 passed, 1 warning；相关测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_model_selection_card.py RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_task13_related -p no:cacheprovider` 通过：12 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\core RadarIdentifySystem_PyQt6\runtime RadarIdentifySystem_PyQt6\infra RadarIdentifySystem_PyQt6\ui` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-21 00:44
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：Task 12 在主页右侧添加最小 session 管理面板，并在 session 注册/恢复后刷新列表。
+- 原因：主页右侧需要承载后续 session 管理能力，当前先提供可见列表与激活动态页面入口。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_home_session_manager_lists_created_session -q --basetemp=.pytest_tmp_task12_red -p no:cacheprovider` 预期失败，`HomeInterface` 缺少 `session_manager_panel`；GREEN：同测试使用 `--basetemp=.pytest_tmp_task12_green` 通过：1 passed, 1 warning；主窗口全集初次输出 9 passed 后进程未退出，经 `_dispose_window()` 增加 `QApplication.processEvents()` 后，`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task12_main_fix -p no:cacheprovider` 通过：9 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task12_nav -p no:cacheprovider` 通过：5 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py -q --basetemp=.pytest_tmp_task12_home_dashboard -p no:cacheprovider` 通过：3 passed, 1 warning；组合运行 `test_main_window_sessions.py test_navigation_controls.py test_home_dashboard_format.py` 输出 17 passed 后进程未退出并被 120s 超时终止，需最终清理阶段继续排查组合退出问题；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\session_manager_panel.py RadarIdentifySystem_PyQt6\ui\components\__init__.py RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-21 00:33
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：Task 11 增加主窗口启动恢复持久化 session 动态页面，并在恢复后切回记录的 active session。
+- 原因：应用重启后应恢复已持久化 session 的页面生命周期，不应只保留磁盘元数据。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_session_interfaces_from_registry -q --basetemp=.pytest_tmp_task11_red -p no:cacheprovider` 预期失败，恢复页面为 None；GREEN：同测试使用 `--basetemp=.pytest_tmp_task11_green` 通过：1 passed, 1 warning；修复自动恢复后 registry 对象 identity 改变的回归测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task11_rollback_fix -p no:cacheprovider` 通过：1 passed, 1 warning；计划内主窗口测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task11_main_only -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task11_nav_only -p no:cacheprovider` 通过：5 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task11_registry_only -p no:cacheprovider` 通过：23 passed, 1 warning；组合运行 `test_main_window_sessions.py test_session_registry.py` 输出 31 passed 后进程未退出并被 120s 超时终止，需后续单独排查 Qt/pytest 组合退出问题；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-21 00:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：Task 10 将识别 worker/workflow/controller 切换为使用当前 session 的模型选择与算法参数。
+- 原因：识别流程不能继续读取全局启用模型和全局 runtime 参数，否则不同 session 的模型与配置会互相污染。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py::test_identify_worker_requires_injected_session_params -q --basetemp=.pytest_tmp_task10_red -p no:cacheprovider` 预期失败，`IdentifyWorker.__init__` 缺少 `cluster_params`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task10_related -p no:cacheprovider` 通过：13 passed, 1 warning；相关回归：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py RadarIdentifySystem_PyQt6\tests\unit\test_model_selection_card.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task10_final -p no:cacheprovider` 通过：19 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\threading\identify_worker.py RadarIdentifySystem_PyQt6\runtime\workflows\identify_workflow.py RadarIdentifySystem_PyQt6\ui\controllers\identify_controller.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 19:16
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修正切片页面抽屉宽度测试，改为断言右栏最大宽度常量与抽屉尺寸一致。
+- 原因：未显示的 Qt 控件 `width()` 仍可能是默认值 100，不能稳定表达右栏宽度绑定契约。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_final -p no:cacheprovider` 预期失败，未显示右栏宽度为 100；GREEN：同范围使用 `--basetemp=.pytest_tmp_task9_final2` 通过：58 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py` 通过。
+
+- 时间：2026-06-20 19:14
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：补全 Task 9 子配置变更持久化链路，动态 session 抽屉配置修改后通过 SessionRegistry 写回磁盘。
+- 原因：仅更新内存中的 session 子配置不足以满足 session 配置持久化要求。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_persist -p no:cacheprovider` 通过：43 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过。
+
+- 时间：2026-06-20 19:10
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：Task 9 将抽屉自动识别卡绑定到当前 session 子配置，并让整型/浮点设置卡支持注入 session 配置读写器。
+- 原因：动态 session 页面需要独立参数配置，抽屉设置不能继续写入全局 appConfig。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_red -p no:cacheprovider` 预期失败，`SliceParamPanel.__init__()` 不支持 `session`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9 -p no:cacheprovider` 通过：13 passed, 1 warning；相关回归：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_related -p no:cacheprovider` 通过：28 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\session_config_item.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 18:46
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：继续修复 Task 8 质量审查反馈，改为动态页面创建成功后再注册 session，并为主窗口测试注入临时 registry。
+- 原因：简单 close 回滚无法恢复注册前 active id 或同名旧 session；测试构造默认 MainWindow 也会创建真实 session 配置目录。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_window -p no:cacheprovider` 通过：6 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_related -p no:cacheprovider` 通过：15 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 18:39
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修复 Task 8 质量审查反馈，动态页面创建失败时回滚已注册和持久化的 session。
+- 原因：避免 `create_session_from_parsed()` 在 UI 页面创建失败后遗留 registry、磁盘和 UI 状态分叉。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task8_rollback_red -p no:cacheprovider` 预期失败，registry 保留 `session_failed_page`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task8_rollback_green -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_rollback_related -p no:cacheprovider` 通过：15 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 18:33
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：补充 Task 8 规格审查返修测试，锁定 `parse_completed` 仍由 HomeController 渲染主页仪表盘。
+- 原因：规格审查指出 Task 8 需要显式防止解析完成仪表盘路径在确认导入改造中回退。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py::test_home_controller_parse_completed_renders_dashboard -q --basetemp=.pytest_tmp_task8_dashboard_fix -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_dashboard_related -p no:cacheprovider` 通过：14 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py` 通过。
+
+- 时间：2026-06-20 06:44
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 8，将主页确认导入接入 MainWindow session 注册与动态页面创建入口。
+- 原因：解析完成后不应再通过旧 `import_completed` 注入切片页，确认导入应注册持久化 session 并创建独立页面。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py::test_home_import_action_delegates_to_window_session_creation -q --basetemp=.pytest_tmp_task8_red_home2 -p no:cacheprovider` 预期失败，主页导入未委托窗口创建；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_task8_red_window -p no:cacheprovider` 预期失败，MainWindow 缺少 `create_session_from_parsed`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_related -p no:cacheprovider` 通过：13 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 06:37
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 Task 6+7 后台动态 session 页关闭时错误跳回主页的问题。
+- 原因：质量审查指出关闭非当前动态页不应打断用户当前所在页面。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_background_session_without_switching_current_page -q --basetemp=.pytest_tmp_task6_7_background_red -p no:cacheprovider` 预期失败，关闭后台 session 后 currentWidget 错误变为 homeInterface；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_background_fix -p no:cacheprovider` 通过：9 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 06:29
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 Task 6+7 动态 session 页关闭时的 qrouter 历史污染，并清理 SliceController 无用导入。
+- 原因：质量审查指出关闭当前动态页会先跳到无关页面再回主页，导致全局路由历史残留错误页面。
+- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_session_interface -q --basetemp=.pytest_tmp_task6_7_qrouter_red -p no:cacheprovider` 预期失败，route_history 为 `['settingInterface', 'homeInterface']`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_qrouter_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 06:21
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 6+7 质量审查返修，删除旧 `_on_import_completed()`，主窗口测试增加关闭后主页断言和 `try/finally` 清理。
+- 原因：消除误导性的全局导入 session 注入死代码，并保证 Windows Qt 测试失败时也清理窗口与 qrouter 状态。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 06:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 6+7 质量审查返修，移除旧导入完成 session 注入死代码，并加强主窗口动态页关闭测试。
+- 原因：审查指出旧 `_on_import_completed()` 仍覆盖构造 session，测试未断言关闭后回到主页且断言失败时可能残留 Qt/qrouter 状态。
+- 测试状态：[待测试]
+
+- 时间：2026-06-20 05:45
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：Task 6+7 提交步骤受阻，`git add` 无法写入 worktree Git 索引，提升权限请求被自动审批限制拒绝。
+- 原因：当前沙箱没有写入 `E:\myProjects_Trae\RadarIdentifySystem_Codex\.git\worktrees\session-isolation\index.lock` 的权限，系统用量限制阻止提升权限执行。
+- 测试状态：[已测试] 代码验证已完成；暂存和提交未完成，`git diff --cached --name-only` 为空。
+
+- 时间：2026-06-20 05:43
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 6+7 验证，动态 session 切片页管理与构造 session 所有权测试均已通过。
+- 原因：提交前确认 RED 对应行为转绿、既有导航控制测试未回退、目标生产文件可编译。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py::test_slice_controller_uses_constructor_session -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 通过：4 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 通过：5 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 05:43
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 6 主窗口测试隔离修复，窗口释放前清理 qfluentwidgets 全局路由中对应堆栈历史。
+- 原因：避免同一测试进程内已删除窗口残留影响后续动态导航项删除。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py::test_slice_controller_uses_constructor_session -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 通过：4 passed, 1 warning。
+
+- 时间：2026-06-20 05:42
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 Task 6 主窗口测试间 qfluentwidgets 全局路由历史残留问题。
+- 原因：focused GREEN 中关闭动态页面测试在完整文件运行时触发已删除 `StackedWidget`，根因是前序窗口释放后 `qrouter.stackHistories` 仍保留引用。
+- 测试状态：[待测试]
+
+- 时间：2026-06-20 05:41
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 6+7 最小 GREEN 实现，主窗口新增动态 session 切片页管理，切片页构造期绑定 session，控制器停止覆盖构造 session。
+- 原因：满足独立 session 页面和页面级 session 所有权要求，同时避免接入 HomeController 注册流程或 session registry。
+- 测试状态：[待测试]
+
+
+- 时间：2026-06-20 05:39
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：确认 Task 6+7 RED 失败，当前主窗口缺少动态 session 页面 API，切片页构造函数不接受 session。
+- 原因：验证测试能真实捕获待实现行为，而不是仅因测试环境或导入错误失败。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py::test_slice_controller_uses_constructor_session -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 预期失败：4 failed；复跑单测确认失败原因分别为 `MainWindow` 缺少 `create_session_interface` 与 `SliceInterface.__init__()` 不接受 `session`。
+
+- 时间：2026-06-20 05:38
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增 Task 6+7 RED 测试，覆盖动态 session 切片页创建/复用/关闭与构造 session 所有权。
+- 原因：先锁定缺失行为，确认当前生产代码无法满足独立 session 页面与非全局导入注入约束。
+- 测试状态：[待测试]
+
+- 时间：2026-06-20 05:37
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 6+7，准备以 RED 先锁定 MainWindow 动态 session 页面与 SliceInterface 构造 session 所有权。
+- 原因：Task 6 的动态切片页创建依赖 Task 7 的构造期 session 注入，必须一起完成以避免页面复用全局导入事件覆盖 session。
+- 测试状态：[待测试]
+
+- 时间：2026-06-20 05:30
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 5 质量审查返修，新增导入工作流成功回调只发 `parse_completed` 的 focused 单测，并清理过时 RED docstring。
+- 原因：锁定 `ImportWorkflow._on_worker_finished()` 成功路径不会同时触发确认导入事件。
+- 测试状态：[已测试] 新增测试在当前实现上通过，属于覆盖加强而非生产代码修复；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5_fix -p no:cacheprovider` 通过：4 passed；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5_fix -p no:cacheprovider` 通过：7 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 05:29
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 5 质量审查返修，补充 `ImportWorkflow._on_worker_finished()` 成功路径事件隔离测试。
+- 原因：直接 emit 信号的测试无法约束导入工作流是否误发 `import_completed`。
+- 测试状态：[待测试]
+
+- 时间：2026-06-20 05:21
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 5 验证，确认解析完成事件与确认导入事件已隔离。
+- 原因：提交前读取验证输出，避免基于猜测声明通过。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 通过：3 passed；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 通过：6 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\signal_bus.py RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
+
+- 时间：2026-06-20 05:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 5 最小实现，解析完成改发 `parse_completed`，首页渲染改监听解析事件，确认导入继续发 `import_completed`。
+- 原因：把“解析结果可展示”和“用户确认导入/注册入口”拆成两个独立事件语义。
+- 测试状态：[待测试]
+
+- 时间：2026-06-20 05:20
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增 Task 5 RED 测试，覆盖解析完成、确认导入和 session 生命周期信号隔离。
+- 原因：先锁定缺失的 `parse_completed` 与 session 生命周期占位信号，防止解析完成继续误用导入确认事件。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 预期失败：2 failed, 1 passed；失败原因为 `_SignalBus` 缺少 `parse_completed` 与 `session_registered`。
+
+---
+- 时间：2026-06-20 05:18
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 5，拆分解析完成事件与确认导入事件。
+- 原因：避免文件解析完成直接触发 session 导入/注册入口，给后续 session 生命周期流程保留独立事件边界。
+- 测试状态：[待测试]
+
+- 时间：2026-06-20 05:09
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：修复 register 成功路径的打开时间同步，并补充 register、activate 在 active id 写盘后抛异常时的持久化 active id 回滚。
+- 原因：最终审查发现持久化成功后仅磁盘副本使用新 last_opened_at，且 active id 写入后抛异常会泄漏失败目标 session 为持久化 active id。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_active_rollback -p no:cacheprovider` 通过：21 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_active_rollback2 -p no:cacheprovider` 通过：63 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py` 通过；`git diff --check` 通过，仅 CRLF 提示。
+
+- 时间：2026-06-19 23:32
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 register、activate、close 部分持久化成功后的磁盘回滚和内存收敛返修。
+- 原因：失败注册或激活不应泄漏错误磁盘元数据，close 在磁盘目录已删除时应按磁盘事实移除内存 session。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_verify_final -p no:cacheprovider` 通过：18 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_verify_final2 -p no:cacheprovider` 通过：60 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py` 通过；`git diff --check` 通过，仅 CRLF 提示；临时目录清理由安全审查限制阻止，未纳入提交。
+
+- 时间：2026-06-19 23:31
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增磁盘回滚测试并确认当前实现存在 register、activate、close 部分持久化成功后的磁盘泄漏。
+- 原因：按最终质量复审意见锁定失败注册落盘、重复注册覆盖旧磁盘元数据、激活失败改写磁盘打开时间和删除目录后索引保存失败的场景。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix3 -p no:cacheprovider` 预期失败：4 failed, 14 passed
+
+- 时间：2026-06-19 23:29
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 4 最终质量复审返修，补充 register、activate、close 部分持久化成功后的磁盘回滚测试。
+- 原因：避免注册或激活失败后遗留错误磁盘元数据，避免 close 删除目录成功但索引保存失败后内存仍保留已删除 session。
+- 测试状态：[待测试]
+
+- 时间：2026-06-19 23:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 close 部分持久化成功后的内存状态同步返修。
+- 原因：当磁盘 session 已删除但 active id 更新失败时，registry 需按磁盘结果移除已删除 session 并避免 active id 指向它。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
+
+- 时间：2026-06-19 23:19
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增 active session 删除成功后 active id 写入失败的回归测试，并确认修复前内存仍保留已删除 session。
+- 原因：按第二次质量复审意见锁定 close 的部分持久化成功分叉路径。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider` 预期失败：1 failed, 15 passed
+
+- 时间：2026-06-19 23:18
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 4 第二次质量复审返修，补充 active close 删除成功后 active id 写入失败的状态同步测试。
+- 原因：避免磁盘 session 已删除但 registry 内存仍保留该 active session 的分叉状态。
+- 测试状态：[待测试]
+
+- 时间：2026-06-19 23:07
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 4 质量审查返修，registry 在持久化成功后提交内存状态，并清理 restore 中无效 active id。
+- 原因：确保 register、activate、close 的内存状态不因持久化异常漂移，并避免坏 active session 被跳过后索引残留无效 active id。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
+
+- 时间：2026-06-19 23:05
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增失败注入测试并确认当前实现存在 register、activate、close 内存状态漂移和 restore active id 残留问题。
+- 原因：按质量审查意见先用测试锁定持久化异常和损坏 active session 恢复场景。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix -p no:cacheprovider` 预期失败：7 failed, 8 passed
+
+- 时间：2026-06-19 23:04
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 4 质量审查返修，补充持久化失败回滚、restore 清理坏 active id 和重复注册语义测试。
+- 原因：避免 SessionRegistry 内存状态与磁盘索引在持久化异常或损坏 session 恢复时分叉。
+- 测试状态：[待测试]
+
+- 时间：2026-06-19 22:55
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：拆分 Task 4 实现和测试中的长行，保持可读性。
+- 原因：降低后续维护成本，不改变 registry 和配置快照行为。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_config_factory.py RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
+
+- 时间：2026-06-19 22:53
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成 Task 4 验证并清理 `.pytest_tmp_task4` 临时目录。
+- 原因：确认 runtime session registry 与配置快照工厂满足持久化、恢复和独立快照要求。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_config_factory.py RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
+
+- 时间：2026-06-19 22:50
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成全局配置快照工厂和运行期 SessionRegistry 最小实现。
+- 原因：提供 session 运行期注册、恢复、激活、关闭和 active id 持久化能力，同时保持计算产物不进入持久化。
+- 测试状态：[待测试]
+
+- 时间：2026-06-19 22:49
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：新增 Task 4 registry 与全局配置快照工厂测试，并确认实现前因 runtime 模块缺失失败。
+- 原因：按 TDD 固定 register、restore、activate、close 和全局配置快照行为。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider` 预期失败：`ModuleNotFoundError: No module named 'runtime.session_config_factory'`
+
+- 时间：2026-06-19 22:48
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始 Task 4 session registry 与全局配置快照工厂实现，先补回归测试并确认缺失模块失败。
+- 原因：为 session 独立化提供运行期注册表和从全局默认配置创建独立快照的入口。
+- 测试状态：[待测试]
+
+- 时间：2026-06-19 04:06
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成索引 sessions 非字典条目校验，非法条目触发空索引回退。
+- 原因：修复 Task 3 最终规格复审反馈，避免坏索引条目被静默跳过。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+
+- 时间：2026-06-19 04:05
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复索引 sessions 非字典条目被静默过滤的问题。
+- 原因：非法 index entry 应使索引整体回退为空，不能跳过坏条目后继续暴露其他条目。
+- 测试状态：[待测试]
+
+- 时间：2026-06-19 03:59
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成持久化读取时的非字符串 session id 拒绝逻辑，并将非列表 sessions 视为坏索引。
+- 原因：修复 Task 3 最终质量复审反馈，避免数字 id 被隐式转成字符串后进入恢复流程。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+
+- 时间：2026-06-19 03:58
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复非字符串 session id 返修问题，补充索引和元数据类型校验测试。
+- 原因：防止持久化读取时把非字符串 id 隐式转换为字符串并绕过类型校验。
+- 测试状态：[待测试]
+
+- 时间：2026-06-19 03:52
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成索引条目 id 校验、session 元数据 id 一致性校验和 Windows 非法文件名拒绝逻辑。
+- 原因：修复 Task 3 返修复审反馈，防止非法持久化 id 污染 session 恢复状态。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+
+- 时间：2026-06-19 03:50
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 session 持久化返修复审问题，补充索引条目、元数据 id 与 Windows 文件名安全测试。
+- 原因：避免坏索引条目或污染的 session 元数据进入恢复流程。
+- 测试状态：[待测试]
+
+- 时间：2026-06-18 21:04
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：补充非法 active session id 索引字段的回退测试和校验。
+- 原因：确保损坏或非法 index 字段不会把无效 active id 带入恢复流程。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+
+- 时间：2026-06-18 21:03
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：加固 session id 校验、索引容错和批量 session 恢复跳过损坏条目的行为。
+- 原因：修复 Task 3 审查反馈，避免非法 active id 和坏持久化文件影响启动恢复。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+
+- 时间：2026-06-18 21:01
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始修复 session 持久化审查反馈，补充非法 session id 与损坏文件恢复测试。
+- 原因：避免坏索引或非法 session id 阻断后续 session 恢复流程。
+- 测试状态：[待测试]
+
+- 时间：2026-06-18 20:53
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\utils\paths.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：完成文件式 session 持久化适配层，支持索引、元数据、配置快照、活动 session id、删除和按索引顺序恢复。
+- 原因：为 session 隔离工作流提供可恢复的元数据和配置快照存储，同时避免保存识别结果与计算产物。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp RadarIdentifySystem_PyQt6\.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
+
+- 时间：2026-06-18 20:50
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\utils\paths.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
+- 变更摘要：开始实现文件式 session 持久化适配层，先补充失败测试。
+- 原因：为 session 隔离工作流提供可恢复的元数据和配置快照存储。
+- 测试状态：[待测试]
 
 - 时间：2026-06-18 20:39
 - 操作类型：修改
@@ -2316,692 +2919,3 @@
 - 变更摘要：统一文档架构基线为 `runtime` 顶层，明确 `workflow/threading/events` 归属，并将配置入口统一修正为 `app/app_config.py`。
 - 原因：落实新架构决策（`ui -> runtime -> core`，`runtime -> infra`，`app` 仅承担应用壳层能力）。
 - 测试状态：无需测试（文档一致性检视已完成）
-
----
----
-
-## 2026-06-18 20:50
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\utils\paths.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始实现文件式 session 持久化适配层，先补充失败测试。
-- 原因：为 session 隔离工作流提供可恢复的元数据和配置快照存储。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-18 20:53
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\utils\paths.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成文件式 session 持久化适配层，支持索引、元数据、配置快照、活动 session id、删除和按索引顺序恢复。
-- 原因：为 session 隔离工作流提供可恢复的元数据和配置快照存储，同时避免保存识别结果与计算产物。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp RadarIdentifySystem_PyQt6\.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
----
-
-## 2026-06-18 21:01
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始修复 session 持久化审查反馈，补充非法 session id 与损坏文件恢复测试。
-- 原因：避免坏索引或非法 session id 阻断后续 session 恢复流程。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-18 21:03
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：加固 session id 校验、索引容错和批量 session 恢复跳过损坏条目的行为。
-- 原因：修复 Task 3 审查反馈，避免非法 active id 和坏持久化文件影响启动恢复。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
-
-## 2026-06-19 22:48
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 4 session registry 与全局配置快照工厂实现，先补回归测试并确认缺失模块失败。
-- 原因：为 session 独立化提供运行期注册表和从全局默认配置创建独立快照的入口。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 22:49
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：新增 Task 4 registry 与全局配置快照工厂测试，并确认实现前因 runtime 模块缺失失败。
-- 原因：按 TDD 固定 register、restore、activate、close 和全局配置快照行为。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider` 预期失败：`ModuleNotFoundError: No module named 'runtime.session_config_factory'`
-
----
-
-## 2026-06-19 22:50
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成全局配置快照工厂和运行期 SessionRegistry 最小实现。
-- 原因：提供 session 运行期注册、恢复、激活、关闭和 active id 持久化能力，同时保持计算产物不进入持久化。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 22:53
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 4 验证并清理 `.pytest_tmp_task4` 临时目录。
-- 原因：确认 runtime session registry 与配置快照工厂满足持久化、恢复和独立快照要求。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_config_factory.py RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
-
----
-
-## 2026-06-19 22:55
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_config_factory.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：拆分 Task 4 实现和测试中的长行，保持可读性。
-- 原因：降低后续维护成本，不改变 registry 和配置快照行为。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_config_factory.py RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
-
----
-
-## 2026-06-19 23:04
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 4 质量审查返修，补充持久化失败回滚、restore 清理坏 active id 和重复注册语义测试。
-- 原因：避免 SessionRegistry 内存状态与磁盘索引在持久化异常或损坏 session 恢复时分叉。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 23:05
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：新增失败注入测试并确认当前实现存在 register、activate、close 内存状态漂移和 restore active id 残留问题。
-- 原因：按质量审查意见先用测试锁定持久化异常和损坏 active session 恢复场景。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix -p no:cacheprovider` 预期失败：7 failed, 8 passed
-
----
-
-## 2026-06-19 23:07
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 4 质量审查返修，registry 在持久化成功后提交内存状态，并清理 restore 中无效 active id。
-- 原因：确保 register、activate、close 的内存状态不因持久化异常漂移，并避免坏 active session 被跳过后索引残留无效 active id。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
-
----
-
-## 2026-06-19 23:18
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 4 第二次质量复审返修，补充 active close 删除成功后 active id 写入失败的状态同步测试。
-- 原因：避免磁盘 session 已删除但 registry 内存仍保留该 active session 的分叉状态。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 23:19
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：新增 active session 删除成功后 active id 写入失败的回归测试，并确认修复前内存仍保留已删除 session。
-- 原因：按第二次质量复审意见锁定 close 的部分持久化成功分叉路径。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider` 预期失败：1 failed, 15 passed
-
----
-
-## 2026-06-19 23:20
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 close 部分持久化成功后的内存状态同步返修。
-- 原因：当磁盘 session 已删除但 active id 更新失败时，registry 需按磁盘结果移除已删除 session 并避免 active id 指向它。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix2 -p no:cacheprovider`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py`；`git diff --check`
-
----
-
-## 2026-06-20 05:09
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：修复 register 成功路径的打开时间同步，并补充 register、activate 在 active id 写盘后抛异常时的持久化 active id 回滚。
-- 原因：最终审查发现持久化成功后仅磁盘副本使用新 last_opened_at，且 active id 写入后抛异常会泄漏失败目标 session 为持久化 active id。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_active_rollback -p no:cacheprovider` 通过：21 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_active_rollback2 -p no:cacheprovider` 通过：63 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py` 通过；`git diff --check` 通过，仅 CRLF 提示。
-
----
-
-## 2026-06-19 23:29
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 4 最终质量复审返修，补充 register、activate、close 部分持久化成功后的磁盘回滚测试。
-- 原因：避免注册或激活失败后遗留错误磁盘元数据，避免 close 删除目录成功但索引保存失败后内存仍保留已删除 session。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 23:31
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：新增磁盘回滚测试并确认当前实现存在 register、activate、close 部分持久化成功后的磁盘泄漏。
-- 原因：按最终质量复审意见锁定失败注册落盘、重复注册覆盖旧磁盘元数据、激活失败改写磁盘打开时间和删除目录后索引保存失败的场景。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_fix3 -p no:cacheprovider` 预期失败：4 failed, 14 passed
-
----
-
-## 2026-06-19 23:32
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 register、activate、close 部分持久化成功后的磁盘回滚和内存收敛返修。
-- 原因：失败注册或激活不应泄漏错误磁盘元数据，close 在磁盘目录已删除时应按磁盘事实移除内存 session。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_verify_final -p no:cacheprovider` 通过：18 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task4_verify_final2 -p no:cacheprovider` 通过：60 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py` 通过；`git diff --check` 通过，仅 CRLF 提示；临时目录清理由安全审查限制阻止，未纳入提交。
-
----
-
-## 2026-06-18 21:04
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：补充非法 active session id 索引字段的回退测试和校验。
-- 原因：确保损坏或非法 index 字段不会把无效 active id 带入恢复流程。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
----
-
-## 2026-06-19 03:50
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始修复 session 持久化返修复审问题，补充索引条目、元数据 id 与 Windows 文件名安全测试。
-- 原因：避免坏索引条目或污染的 session 元数据进入恢复流程。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 03:52
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成索引条目 id 校验、session 元数据 id 一致性校验和 Windows 非法文件名拒绝逻辑。
-- 原因：修复 Task 3 返修复审反馈，防止非法持久化 id 污染 session 恢复状态。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
----
-
-## 2026-06-19 03:58
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始修复非字符串 session id 返修问题，补充索引和元数据类型校验测试。
-- 原因：防止持久化读取时把非字符串 id 隐式转换为字符串并绕过类型校验。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 03:59
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成持久化读取时的非字符串 session id 拒绝逻辑，并将非列表 sessions 视为坏索引。
-- 原因：修复 Task 3 最终质量复审反馈，避免数字 id 被隐式转成字符串后进入恢复流程。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
----
-
-## 2026-06-19 04:05
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始修复索引 sessions 非字典条目被静默过滤的问题。
-- 原因：非法 index entry 应使索引整体回退为空，不能跳过坏条目后继续暴露其他条目。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-19 04:06
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成索引 sessions 非字典条目校验，非法条目触发空索引回退。
-- 原因：修复 Task 3 最终规格复审反馈，避免坏索引条目被静默跳过。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py -q --basetemp=.pytest_tmp`；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\utils\paths.py`；`git diff --check`
-
----
-
-## 2026-06-20 05:18
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 5，拆分解析完成事件与确认导入事件。
-- 原因：避免文件解析完成直接触发 session 导入/注册入口，给后续 session 生命周期流程保留独立事件边界。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 05:20
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：新增 Task 5 RED 测试，覆盖解析完成、确认导入和 session 生命周期信号隔离。
-- 原因：先锁定缺失的 `parse_completed` 与 session 生命周期占位信号，防止解析完成继续误用导入确认事件。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 预期失败：2 failed, 1 passed；失败原因为 `_SignalBus` 缺少 `parse_completed` 与 `session_registered`。
-
----
-
-## 2026-06-20 05:20
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 5 最小实现，解析完成改发 `parse_completed`，首页渲染改监听解析事件，确认导入继续发 `import_completed`。
-- 原因：把“解析结果可展示”和“用户确认导入/注册入口”拆成两个独立事件语义。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 05:21
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\app\signal_bus.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 5 验证，确认解析完成事件与确认导入事件已隔离。
-- 原因：提交前读取验证输出，避免基于猜测声明通过。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 通过：3 passed；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5 -p no:cacheprovider` 通过：6 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\signal_bus.py RadarIdentifySystem_PyQt6\runtime\workflows\import_workflow.py RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 05:29
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 5 质量审查返修，补充 `ImportWorkflow._on_worker_finished()` 成功路径事件隔离测试。
-- 原因：直接 emit 信号的测试无法约束导入工作流是否误发 `import_completed`。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 05:30
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 5 质量审查返修，新增导入工作流成功回调只发 `parse_completed` 的 focused 单测，并清理过时 RED docstring。
-- 原因：锁定 `ImportWorkflow._on_worker_finished()` 成功路径不会同时触发确认导入事件。
-- 测试状态：[已测试] 新增测试在当前实现上通过，属于覆盖加强而非生产代码修复；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5_fix -p no:cacheprovider` 通过：4 passed；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py -q --basetemp=.pytest_tmp_task5_fix -p no:cacheprovider` 通过：7 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 05:37
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 6+7，准备以 RED 先锁定 MainWindow 动态 session 页面与 SliceInterface 构造 session 所有权。
-- 原因：Task 6 的动态切片页创建依赖 Task 7 的构造期 session 注入，必须一起完成以避免页面复用全局导入事件覆盖 session。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 05:38
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：新增 Task 6+7 RED 测试，覆盖动态 session 切片页创建/复用/关闭与构造 session 所有权。
-- 原因：先锁定缺失行为，确认当前生产代码无法满足独立 session 页面与非全局导入注入约束。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 05:39
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：确认 Task 6+7 RED 失败，当前主窗口缺少动态 session 页面 API，切片页构造函数不接受 session。
-- 原因：验证测试能真实捕获待实现行为，而不是仅因测试环境或导入错误失败。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py::test_slice_controller_uses_constructor_session -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 预期失败：4 failed；复跑单测确认失败原因分别为 `MainWindow` 缺少 `create_session_interface` 与 `SliceInterface.__init__()` 不接受 `session`。
-
----
-
-## 2026-06-20 05:41
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 6+7 最小 GREEN 实现，主窗口新增动态 session 切片页管理，切片页构造期绑定 session，控制器停止覆盖构造 session。
-- 原因：满足独立 session 页面和页面级 session 所有权要求，同时避免接入 HomeController 注册流程或 session registry。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 05:42
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始修复 Task 6 主窗口测试间 qfluentwidgets 全局路由历史残留问题。
-- 原因：focused GREEN 中关闭动态页面测试在完整文件运行时触发已删除 `StackedWidget`，根因是前序窗口释放后 `qrouter.stackHistories` 仍保留引用。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 05:43
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 6 主窗口测试隔离修复，窗口释放前清理 qfluentwidgets 全局路由中对应堆栈历史。
-- 原因：避免同一测试进程内已删除窗口残留影响后续动态导航项删除。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py::test_slice_controller_uses_constructor_session -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 通过：4 passed, 1 warning。
-
----
-
-## 2026-06-20 05:43
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 6+7 验证，动态 session 切片页管理与构造 session 所有权测试均已通过。
-- 原因：提交前确认 RED 对应行为转绿、既有导航控制测试未回退、目标生产文件可编译。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py::test_slice_controller_uses_constructor_session -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 通过：4 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7 -p no:cacheprovider` 通过：5 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 05:45
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：Task 6+7 提交步骤受阻，`git add` 无法写入 worktree Git 索引，提升权限请求被自动审批限制拒绝。
-- 原因：当前沙箱没有写入 `E:\myProjects_Trae\RadarIdentifySystem_Codex\.git\worktrees\session-isolation\index.lock` 的权限，系统用量限制阻止提升权限执行。
-- 测试状态：[已测试] 代码验证已完成；暂存和提交未完成，`git diff --cached --name-only` 为空。
-
----
-
-## 2026-06-20 06:20
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 6+7 质量审查返修，移除旧导入完成 session 注入死代码，并加强主窗口动态页关闭测试。
-- 原因：审查指出旧 `_on_import_completed()` 仍覆盖构造 session，测试未断言关闭后回到主页且断言失败时可能残留 Qt/qrouter 状态。
-- 测试状态：[待测试]
-
----
-
-## 2026-06-20 06:21
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：完成 Task 6+7 质量审查返修，删除旧 `_on_import_completed()`，主窗口测试增加关闭后主页断言和 `try/finally` 清理。
-- 原因：消除误导性的全局导入 session 注入死代码，并保证 Windows Qt 测试失败时也清理窗口与 qrouter 状态。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 06:29
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始修复 Task 6+7 动态 session 页关闭时的 qrouter 历史污染，并清理 SliceController 无用导入。
-- 原因：质量审查指出关闭当前动态页会先跳到无关页面再回主页，导致全局路由历史残留错误页面。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_session_interface -q --basetemp=.pytest_tmp_task6_7_qrouter_red -p no:cacheprovider` 预期失败，route_history 为 `['settingInterface', 'homeInterface']`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_qrouter_fix -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\controllers\slice_controller.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 06:37
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始修复 Task 6+7 后台动态 session 页关闭时错误跳回主页的问题。
-- 原因：质量审查指出关闭非当前动态页不应打断用户当前所在页面。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_closes_background_session_without_switching_current_page -q --basetemp=.pytest_tmp_task6_7_background_red -p no:cacheprovider` 预期失败，关闭后台 session 后 currentWidget 错误变为 homeInterface；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task6_7_background_fix -p no:cacheprovider` 通过：9 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 06:44
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：开始 Task 8，将主页确认导入接入 MainWindow session 注册与动态页面创建入口。
-- 原因：解析完成后不应再通过旧 `import_completed` 注入切片页，确认导入应注册持久化 session 并创建独立页面。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py::test_home_import_action_delegates_to_window_session_creation -q --basetemp=.pytest_tmp_task8_red_home2 -p no:cacheprovider` 预期失败，主页导入未委托窗口创建；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_task8_red_window -p no:cacheprovider` 预期失败，MainWindow 缺少 `create_session_from_parsed`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_related -p no:cacheprovider` 通过：13 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\controllers\home_controller.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 18:33
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：补充 Task 8 规格审查返修测试，锁定 `parse_completed` 仍由 HomeController 渲染主页仪表盘。
-- 原因：规格审查指出 Task 8 需要显式防止解析完成仪表盘路径在确认导入改造中回退。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py::test_home_controller_parse_completed_renders_dashboard -q --basetemp=.pytest_tmp_task8_dashboard_fix -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_dashboard_related -p no:cacheprovider` 通过：14 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py` 通过。
-
----
-
-## 2026-06-20 18:39
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：修复 Task 8 质量审查反馈，动态页面创建失败时回滚已注册和持久化的 session。
-- 原因：避免 `create_session_from_parsed()` 在 UI 页面创建失败后遗留 registry、磁盘和 UI 状态分叉。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task8_rollback_red -p no:cacheprovider` 预期失败，registry 保留 `session_failed_page`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task8_rollback_green -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_rollback_related -p no:cacheprovider` 通过：15 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 18:46
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：继续修复 Task 8 质量审查反馈，改为动态页面创建成功后再注册 session，并为主窗口测试注入临时 registry。
-- 原因：简单 close 回滚无法恢复注册前 active id 或同名旧 session；测试构造默认 MainWindow 也会创建真实 session 配置目录。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_window -p no:cacheprovider` 通过：6 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task8_injected_related -p no:cacheprovider` 通过：15 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 19:10
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：Task 9 将抽屉自动识别卡绑定到当前 session 子配置，并让整型/浮点设置卡支持注入 session 配置读写器。
-- 原因：动态 session 页面需要独立参数配置，抽屉设置不能继续写入全局 appConfig。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_red -p no:cacheprovider` 预期失败，`SliceParamPanel.__init__()` 不支持 `session`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9 -p no:cacheprovider` 通过：13 passed, 1 warning；相关回归：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_related -p no:cacheprovider` 通过：28 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\app\session_config_item.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-20 19:14
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：补全 Task 9 子配置变更持久化链路，动态 session 抽屉配置修改后通过 SessionRegistry 写回磁盘。
-- 原因：仅更新内存中的 session 子配置不足以满足 session 配置持久化要求。
-- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_persist -p no:cacheprovider` 通过：43 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过。
-
----
-
-## 2026-06-20 19:16
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：修正切片页面抽屉宽度测试，改为断言右栏最大宽度常量与抽屉尺寸一致。
-- 原因：未显示的 Qt 控件 `width()` 仍可能是默认值 100，不能稳定表达右栏宽度绑定契约。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py -q --basetemp=.pytest_tmp_task9_final -p no:cacheprovider` 预期失败，未显示右栏宽度为 100；GREEN：同范围使用 `--basetemp=.pytest_tmp_task9_final2` 通过：58 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\ui\interfaces\slice_interface.py RadarIdentifySystem_PyQt6\ui\components\spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\double_spin_box_setting_card.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_interface.py` 通过。
-
----
-
-## 2026-06-21 00:20
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\threading\identify_worker.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\runtime\workflows\identify_workflow.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\controllers\identify_controller.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：Task 10 将识别 worker/workflow/controller 切换为使用当前 session 的模型选择与算法参数。
-- 原因：识别流程不能继续读取全局启用模型和全局 runtime 参数，否则不同 session 的模型与配置会互相污染。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py::test_identify_worker_requires_injected_session_params -q --basetemp=.pytest_tmp_task10_red -p no:cacheprovider` 预期失败，`IdentifyWorker.__init__` 缺少 `cluster_params`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task10_related -p no:cacheprovider` 通过：13 passed, 1 warning；相关回归：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py RadarIdentifySystem_PyQt6\tests\unit\test_model_selection_card.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task10_final -p no:cacheprovider` 通过：19 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\runtime\threading\identify_worker.py RadarIdentifySystem_PyQt6\runtime\workflows\identify_workflow.py RadarIdentifySystem_PyQt6\ui\controllers\identify_controller.py RadarIdentifySystem_PyQt6\ui\components\slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-21 00:33
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：Task 11 增加主窗口启动恢复持久化 session 动态页面，并在恢复后切回记录的 active session。
-- 原因：应用重启后应恢复已持久化 session 的页面生命周期，不应只保留磁盘元数据。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_session_interfaces_from_registry -q --basetemp=.pytest_tmp_task11_red -p no:cacheprovider` 预期失败，恢复页面为 None；GREEN：同测试使用 `--basetemp=.pytest_tmp_task11_green` 通过：1 passed, 1 warning；修复自动恢复后 registry 对象 identity 改变的回归测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_rolls_back_registration_when_session_page_creation_fails -q --basetemp=.pytest_tmp_task11_rollback_fix -p no:cacheprovider` 通过：1 passed, 1 warning；计划内主窗口测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task11_main_only -p no:cacheprovider` 通过：8 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task11_nav_only -p no:cacheprovider` 通过：5 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_task11_registry_only -p no:cacheprovider` 通过：23 passed, 1 warning；组合运行 `test_main_window_sessions.py test_session_registry.py` 输出 31 passed 后进程未退出并被 120s 超时终止，需后续单独排查 Qt/pytest 组合退出问题；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-21 00:44
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\session_manager_panel.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\components\__init__.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\ui\main_window.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：Task 12 在主页右侧添加最小 session 管理面板，并在 session 注册/恢复后刷新列表。
-- 原因：主页右侧需要承载后续 session 管理能力，当前先提供可见列表与激活动态页面入口。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_home_session_manager_lists_created_session -q --basetemp=.pytest_tmp_task12_red -p no:cacheprovider` 预期失败，`HomeInterface` 缺少 `session_manager_panel`；GREEN：同测试使用 `--basetemp=.pytest_tmp_task12_green` 通过：1 passed, 1 warning；主窗口全集初次输出 9 passed 后进程未退出，经 `_dispose_window()` 增加 `QApplication.processEvents()` 后，`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task12_main_fix -p no:cacheprovider` 通过：9 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py -q --basetemp=.pytest_tmp_task12_nav -p no:cacheprovider` 通过：5 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_home_dashboard_format.py -q --basetemp=.pytest_tmp_task12_home_dashboard -p no:cacheprovider` 通过：3 passed, 1 warning；组合运行 `test_main_window_sessions.py test_navigation_controls.py test_home_dashboard_format.py` 输出 17 passed 后进程未退出并被 120s 超时终止，需最终清理阶段继续排查组合退出问题；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\ui\components\session_manager_panel.py RadarIdentifySystem_PyQt6\ui\components\__init__.py RadarIdentifySystem_PyQt6\ui\interfaces\home_interface.py RadarIdentifySystem_PyQt6\ui\main_window.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
-
----
-
-## 2026-06-21 00:53
-- 操作类型：[修改]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees\session-isolation\RadarIdentifySystem_PyQt6\docs\operateLog.md`
-- 变更摘要：Task 13 修复 session 配置项测试中 Qt 设置卡未显式释放导致的组合测试退出挂起，并完成 session 独立化最终验证。
-- 原因：最终验证要求多个 Qt 测试文件组合运行时不仅断言通过，还必须让 pytest 进程正常退出。
-- 测试状态：[已测试] 复现：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task13_item_main -p no:cacheprovider` 输出 20 passed 后进程未退出并被 120s 超时终止；修复后同范围使用 `--basetemp=.pytest_tmp_task13_item_main_fix` 通过：20 passed, 1 warning；目标测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_config_snapshot.py RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_session_event_isolation.py RadarIdentifySystem_PyQt6\tests\unit\test_session_config_item.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py -q --basetemp=.pytest_tmp_task13_targeted2 -p no:cacheprovider` 通过：96 passed, 1 warning；相关测试：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_navigation_controls.py RadarIdentifySystem_PyQt6\tests\unit\test_slice_param_panel.py RadarIdentifySystem_PyQt6\tests\unit\test_model_selection_card.py RadarIdentifySystem_PyQt6\tests\unit\test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_task13_related -p no:cacheprovider` 通过：12 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\core RadarIdentifySystem_PyQt6\runtime RadarIdentifySystem_PyQt6\infra RadarIdentifySystem_PyQt6\ui` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF。
----
-
-## 2026-06-21 19:12
-- 操作类型：[新增]
-- 影响文件：
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\infra\session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\runtime\session_registry.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\RadarIdentifySystem_PyQt6\docs\superpowers\plans\2026-06-21-session-import-cache.md`
-- 变更摘要：为 session 持久化目录新增 `import_cache.npz` 导入缓存，重启恢复 session 时可直接恢复到导入/预处理完成态。
-- 原因：session 恢复不应依赖用户重新选择原始文件并再次解析，导入完成态应成为 session 自身持久化能力的一部分。
-- 测试状态：[已测试] RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py::test_session_store_round_trips_import_cache -q --basetemp=.pytest_tmp_import_cache_red -p no:cacheprovider` 预期失败，`SessionStore` 缺少 `save_import_cache`；RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_import_cache_for_sessions -q --basetemp=.pytest_tmp_restore_cache_red -p no:cacheprovider` 预期失败，恢复后 `raw_batch` 仍为 None；RED：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_register_cache_red -p no:cacheprovider` 预期失败，未生成 `import_cache.npz`；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_session_registry.py -q --basetemp=.pytest_tmp_session_import_cache_store_registry_final -p no:cacheprovider` 通过：66 passed, 1 warning；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_registers_parsed_session_and_emits_lifecycle_signals -q --basetemp=.pytest_tmp_session_import_cache_register_only_final -p no:cacheprovider` 通过：1 passed, 1 warning；GREEN：`D:\Miniforge3\envs\pyqt6\python.exe -m pytest RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py::test_main_window_restores_import_cache_for_sessions -q --basetemp=.pytest_tmp_session_import_cache_restore_only_final -p no:cacheprovider` 通过：1 passed, 1 warning；`D:\Miniforge3\envs\pyqt6\python.exe -m compileall RadarIdentifySystem_PyQt6\infra\session_store.py RadarIdentifySystem_PyQt6\runtime\session_registry.py RadarIdentifySystem_PyQt6\tests\unit\test_session_store.py RadarIdentifySystem_PyQt6\tests\unit\test_main_window_sessions.py` 通过；`git diff --check` 通过，仅提示 LF 将被 Git 转为 CRLF；组合运行 `test_main_window_sessions.py` 或两个主窗口目标测试时断言全部通过后 pytest 进程仍可能不退出并被超时终止，延续既有 Qt 测试组合退出问题，已用单测拆分验证缓存相关行为。

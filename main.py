@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
 from qfluentwidgets import FluentTranslator
-from app.app_config import appConfig
+from app.app_config import appConfig, qconfig
 from app.model_bootstrap import initialize_model_runtime
 from ui.main_window import MainWindow
 from app.logger import configure_logging, get_current_log_file_path
@@ -69,7 +69,7 @@ def exception_hook(exctype, value, tb):
 
 
 def main() -> None:
-    configure_logging(appConfig.logDir.value)
+    configure_logging(qconfig.get(appConfig.logDir))
     sys.excepthook = exception_hook
     qInstallMessageHandler(qt_message_handler)
 
