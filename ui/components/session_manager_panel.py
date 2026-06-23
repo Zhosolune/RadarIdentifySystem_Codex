@@ -6,7 +6,7 @@ from datetime import datetime
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, SimpleCardWidget
+from qfluentwidgets import BodyLabel, SimpleCardWidget, TransparentPushButton, FluentIcon, ToolTipFilter, ToolTipPosition
 from qfluentwidgets.common.font import setFont
 
 from core.models.processing_session import ProcessingSession
@@ -50,15 +50,25 @@ class SessionManagerPanel(SimpleCardWidget):
         self.setObjectName("sessionManagerPanel")
         self._sessions: list[ProcessingSession] = []
 
+        # 创建标题标签。
         self.session_title_label = BodyLabel("Session 管理", self)
         self.session_title_label.setObjectName("sessionManagerTitleLabel")
         setFont(self.session_title_label, 14)
 
+        # 创建透明按钮。
+        self.create_session_button = TransparentPushButton("新建", self, FluentIcon.ADD)
+        self.create_session_button.setObjectName("createSessionButton")
+        self.create_session_button.setFixedHeight(34)
+        self.create_session_button.setToolTip("新建空白 Session")
+        self.create_session_button.installEventFilter(ToolTipFilter(self.create_session_button, 500, ToolTipPosition.TOP))
+
+        # 创建标题分隔线。
         self.session_header_separator = QWidget(self)
         self.session_header_separator.setObjectName("sessionManagerSeparator")
         self.session_header_separator.setFixedHeight(1)
         self.session_header_separator.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
 
+        # 创建左侧 session 导航列表。
         self.session_nav = CardNavigationList(self)
         self.session_nav.setObjectName("sessionNavigationList")
         self.session_nav.setSizePolicy(
@@ -66,10 +76,12 @@ class SessionManagerPanel(SimpleCardWidget):
             QSizePolicy.Policy.Expanding,
         )
 
+        # 创建右侧详情占位标签。
         self.session_detail_placeholder = BodyLabel("Session 详情占位", self)
         self.session_detail_placeholder.setObjectName("sessionDetailPlaceholder")
         self.session_detail_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        # 创建右侧详情容器。
         self._detail_widget = QWidget(self)
         self._detail_widget.setObjectName("sessionDetailPane")
         self._detail_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
@@ -82,7 +94,9 @@ class SessionManagerPanel(SimpleCardWidget):
         self._content_layout = QHBoxLayout()
         self._detail_layout = QVBoxLayout(self._detail_widget)
 
+        # 组装面板布局。
         self._init_widget()
+        # 转发导航激活信号。
         self.session_nav.itemSelected.connect(self.sessionActivated.emit)
 
     def _init_widget(self) -> None:
@@ -90,20 +104,25 @@ class SessionManagerPanel(SimpleCardWidget):
         self._root_layout.setContentsMargins(0, 0, 0, 0)
         self._root_layout.setSpacing(0)
 
-        self._header_layout.setContentsMargins(20, 10, 10, 9)
+        # 组装标题栏布局。
+        self._header_layout.setContentsMargins(20, 8, 8, 7)
         self._header_layout.setSpacing(8)
         self._header_layout.addWidget(self.session_title_label)
         self._header_layout.addStretch(1)
+        self._header_layout.addWidget(self.create_session_button)
 
+        # 组装内容区双栏布局。
         self._content_layout.setContentsMargins(8, 7, 8, 8)
         self._content_layout.setSpacing(8)
 
+        # 居中放置详情占位内容。
         self._detail_layout.setContentsMargins(12, 12, 12, 12)
         self._detail_layout.setSpacing(0)
         self._detail_layout.addStretch(1)
         self._detail_layout.addWidget(self.session_detail_placeholder)
         self._detail_layout.addStretch(1)
 
+        # 按“标题栏 + 分隔线 + 内容区”顺序挂接布局。
         self._root_layout.addLayout(self._header_layout)
         self._root_layout.addWidget(self.session_header_separator)
         self._content_layout.addWidget(self.session_nav, 1)
@@ -128,10 +147,13 @@ class SessionManagerPanel(SimpleCardWidget):
             >>> panel.session_titles()
             []
         """
+        # 缓存当前 session 列表。
         self._sessions = list(sessions)
+        # 清空旧导航项。
         self.session_nav.clear_items()
 
         for session in self._sessions:
+            # 追加新的 session 导航项。
             self.session_nav.add_item(
                 session.session_id,
                 session.display_name,

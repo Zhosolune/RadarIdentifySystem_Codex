@@ -157,6 +157,7 @@ class HomeInterface(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
+        # session管理面板
         self.session_manager_panel = SessionManagerPanel(column)
         self.session_manager_panel.setSizePolicy(
             QSizePolicy.Policy.Expanding,
