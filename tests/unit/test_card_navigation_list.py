@@ -64,3 +64,23 @@ def test_card_navigation_item_uses_uniform_font_and_keeps_debug_prefix() -> None
     item.set_selected(True)
 
     assert item.property("selected") is True
+
+
+def test_card_navigation_item_tracks_parent_available_width() -> None:
+    """导航卡片最大宽度应跟随父容器可用宽度变化。"""
+    app = _app()
+    navigation_list = CardNavigationList()
+    navigation_list.resize(320, 240)
+    navigation_list.show()
+
+    item = navigation_list.add_item("session", "Session A", "2026-06-22 12:30")
+    app.processEvents()
+
+    expected_width = navigation_list.scroll_area.viewport().width()
+    assert item.maximumWidth() == expected_width
+
+    navigation_list.resize(260, 240)
+    app.processEvents()
+
+    expected_width = navigation_list.scroll_area.viewport().width()
+    assert item.maximumWidth() == expected_width

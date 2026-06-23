@@ -26,6 +26,31 @@ QScrollArea#homeLeftScrollArea > QWidget {
     border: none;
 }
 
+QWidget#cardNavigationContent,
+QScrollArea#cardNavigationScrollArea {
+    background: transparent;
+    border: none;
+}
+
+QWidget#homeRightPlaceholderBody,
+QWidget#sessionDetailPane {
+    background-color: rgba(0, 0, 0, 0.1795);
+    border: none;
+    border-radius: 8px;
+}
+
+QWidget#homePanelSeparator,
+QWidget#sessionManagerSeparator {
+    background-color: rgba(255, 255, 255, 0.10);
+    border: none;
+}
+
+QWidget#sessionNavigationList,
+QWidget#sessionDetailPlaceholder,
+QWidget#homeRightPlaceholderText {
+    background: transparent;
+}
+
 /* 滚动内容容器透明 */
 QWidget#cardNavigationContent,
 QWidget#homeLeftScrollContent {

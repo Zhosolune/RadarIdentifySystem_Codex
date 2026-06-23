@@ -7,6 +7,7 @@ from datetime import datetime
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, SimpleCardWidget
+from qfluentwidgets.common.font import setFont
 
 from core.models.processing_session import ProcessingSession
 from ui.components.card_navigation_list import CardNavigationList
@@ -15,7 +16,8 @@ from ui.components.card_navigation_list import CardNavigationList
 class SessionManagerPanel(SimpleCardWidget):
     """展示当前运行期 session 的卡片式管理面板。
 
-    面板内部为两栏式布局：左侧是卡片导航列表，右侧是详情占位区域。
+    面板内部为标题栏 + 内容区结构；内容区使用左右两栏布局展示
+    session 导航列表与详情占位区域。
 
     Attributes:
         sessionActivated: 请求激活指定 session 的信号。
@@ -48,9 +50,17 @@ class SessionManagerPanel(SimpleCardWidget):
         self.setObjectName("sessionManagerPanel")
         self._sessions: list[ProcessingSession] = []
 
+        self.session_title_label = BodyLabel("Session 管理", self)
+        self.session_title_label.setObjectName("sessionManagerTitleLabel")
+        setFont(self.session_title_label, 14)
+
+        self.session_header_separator = QWidget(self)
+        self.session_header_separator.setObjectName("sessionManagerSeparator")
+        self.session_header_separator.setFixedHeight(1)
+        self.session_header_separator.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+
         self.session_nav = CardNavigationList(self)
         self.session_nav.setObjectName("sessionNavigationList")
-        self.session_nav.setMinimumWidth(260)
         self.session_nav.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -62,7 +72,18 @@ class SessionManagerPanel(SimpleCardWidget):
 
         self._detail_widget = QWidget(self)
         self._detail_widget.setObjectName("sessionDetailPane")
-        self._root_layout = QHBoxLayout(self)
+        self._detail_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self._detail_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        # self._content_divider = QWidget(self)
+        # self._content_divider.setObjectName("sessionContentDivider")
+        # self._content_divider.setFixedWidth(1)
+        # self._content_divider.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self._root_layout = QVBoxLayout(self)
+        self._header_layout = QHBoxLayout()
+        self._content_layout = QHBoxLayout()
         self._detail_layout = QVBoxLayout(self._detail_widget)
 
         self._init_widget()
@@ -70,8 +91,16 @@ class SessionManagerPanel(SimpleCardWidget):
 
     def _init_widget(self) -> None:
         """初始化面板布局。"""
-        self._root_layout.setContentsMargins(12, 12, 12, 12)
-        self._root_layout.setSpacing(12)
+        self._root_layout.setContentsMargins(0, 0, 0, 0)
+        self._root_layout.setSpacing(0)
+
+        self._header_layout.setContentsMargins(20, 8, 8, 7)
+        self._header_layout.setSpacing(8)
+        self._header_layout.addWidget(self.session_title_label)
+        self._header_layout.addStretch(1)
+
+        self._content_layout.setContentsMargins(8, 7, 8, 8)
+        self._content_layout.setSpacing(8)
 
         self._detail_layout.setContentsMargins(12, 12, 12, 12)
         self._detail_layout.setSpacing(0)
@@ -79,8 +108,11 @@ class SessionManagerPanel(SimpleCardWidget):
         self._detail_layout.addWidget(self.session_detail_placeholder)
         self._detail_layout.addStretch(1)
 
-        self._root_layout.addWidget(self.session_nav, 1)
-        self._root_layout.addWidget(self._detail_widget, 2)
+        self._root_layout.addLayout(self._header_layout)
+        self._root_layout.addWidget(self.session_header_separator)
+        self._content_layout.addWidget(self.session_nav, 1)
+        self._content_layout.addWidget(self._detail_widget, 2)
+        self._root_layout.addLayout(self._content_layout, 1)
 
     def set_sessions(self, sessions: list[ProcessingSession]) -> None:
         """刷新 session 卡片列表。

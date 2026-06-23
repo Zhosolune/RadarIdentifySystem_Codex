@@ -19,7 +19,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter
 from PyQt6.QtWidgets import QHBoxLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CaptionLabel, CardWidget, IconWidget, themeColor
+from qfluentwidgets import BodyLabel, CaptionLabel, ElevatedCardWidget, IconWidget, themeColor
 from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.icon import FluentIconBase
 
@@ -28,7 +28,7 @@ NavigationIcon = str | QIcon | FluentIconBase
 UNIFIED_NAVIGATION_FONT_FAMILIES = ["Microsoft YaHei UI", "Microsoft YaHei"]
 
 
-class CardNavigationItem(CardWidget):
+class CardNavigationItem(ElevatedCardWidget):
     """单个卡片导航项。
 
     该组件复用 `CardWidget` 的明暗主题背景、悬浮态和按压态，仅在选中时
@@ -259,6 +259,22 @@ class CardNavigationList(QWidget):
         self.scroll_area.setWidget(self.content_widget)
         self._main_layout.addWidget(self.scroll_area)
 
+    def _available_item_width(self) -> int:
+        """返回当前列表可用于卡片项的最大宽度。"""
+        margins = self.content_layout.contentsMargins()
+        available_width = self.scroll_area.viewport().width() - margins.left() - margins.right()
+        return max(0, available_width)
+
+    def _sync_item_max_widths(self) -> None:
+        """同步所有卡片项的最大宽度。"""
+        available_width = self._available_item_width()
+        if available_width <= 0:
+            return
+
+        for item in self._items.values():
+            # 约束卡片最大宽度，避免超出当前父容器可视宽度。
+            item.setMaximumWidth(available_width)
+
     def add_item(
         self,
         key: str,
@@ -297,6 +313,7 @@ class CardNavigationList(QWidget):
         # 伸缩项始终保留在底部，新卡片插入到伸缩项之前。
         self.content_layout.insertWidget(self.content_layout.count() - 1, item)
         self._items[key] = item
+        self._sync_item_max_widths()
         return item
 
     def clear_items(self) -> None:
@@ -425,3 +442,8 @@ class CardNavigationList(QWidget):
             0
         """
         return len(self._items)
+
+    def resizeEvent(self, event) -> None:
+        """在容器尺寸变化后同步卡片最大宽度。"""
+        super().resizeEvent(event)
+        self._sync_item_max_widths()

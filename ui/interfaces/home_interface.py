@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import os
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     FluentIcon,
+    BodyLabel,
     ScrollArea,
-    SettingCardGroup,
+    SimpleCardWidget,
     FolderListSettingCard,
+    setFont
 )
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
@@ -24,35 +28,21 @@ from ui.controllers.home_controller import HomeController
 class HomeInterface(QFrame):
     """主页界面（非滚动、两栏布局）。
 
-    功能描述：
-        提供一个固定两栏的主页骨架区域。
-        - 左侧栏：保留空白占位，供后续业务填充。
-        - 右侧栏：包含一个 ScrollArea，其内放置 FolderListSettingCard，
-          用于展示并持久化管理"导入数据目录"列表。
-
-    参数说明：
-        parent (QWidget | None): 父级控件，默认值为 None。
-
-    返回值说明：
-        无。
-
-    异常说明：
-        无。
+    左侧列使用固定三区结构：顶部数据目录卡固定高度，中部导入列表卡片
+    撑满剩余高度，底部仪表盘卡固定高度。右侧列使用上下双卡片结构，
+    上方放置 session 管理卡，下方保留同风格占位卡。
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化主页界面。
 
-        功能描述：
-            创建左右两栏容器，右侧栏包含带滚动的目录列表设置卡。
+        Args:
+            parent: 父级控件，默认值为 None。
 
-        参数说明：
-            parent (QWidget | None): 父级控件，默认值为 None。
-
-        返回值说明：
+        Returns:
             None: 无返回值。
 
-        异常说明：
+        Raises:
             无。
         """
 
@@ -65,47 +55,26 @@ class HomeInterface(QFrame):
     def _init_layout(self) -> None:
         """初始化两栏布局。
 
-        功能描述：
-            构建左侧空白占位栏与右侧带滚动目录管理卡片的两栏布局。
-
-        参数说明：
-            无。
-
-        返回值说明：
-            None: 无返回值。
-
-        异常说明：
-            无。
+        构建左侧固定三区列和右侧上下双卡片列。
         """
 
         root_layout = QHBoxLayout(self)
         root_layout.setContentsMargins(20, 20, 20, 20)
         root_layout.setSpacing(12)
 
-        # 左侧空白占位栏
+        # 创建左侧固定三区布局。
         self.left_column = self._create_left_column()
-        # 右侧目录管理面板
+        # 创建右侧上下双卡片布局。
         self.right_column = self._create_right_column()
 
         root_layout.addWidget(self.left_column, 4)
         root_layout.addWidget(self.right_column, 6)
 
     def _create_left_column(self) -> QWidget:
-        """创建左侧带滚动的目录管理面板。
+        """创建左侧固定三区布局面板。
 
-        功能描述：
-            构建一个包含 ScrollArea 的右侧面板，ScrollArea 内放置
-            SettingCardGroup + FolderListSettingCard，供用户管理
-            "导入数据目录"列表，目录变动实时写入 appConfig 持久化配置。
-
-        参数说明：
-            无。
-
-        返回值说明：
-            QWidget: 右侧列容器对象。
-
-        异常说明：
-            无。
+        左侧列由三个卡片区组成：顶部目录选项卡固定高度，中部文件列表卡片
+        撑满剩余空间，底部仪表盘卡片固定高度。
         """
 
         column = QWidget(self)
@@ -175,19 +144,10 @@ class HomeInterface(QFrame):
         return column
 
     def _create_right_column(self) -> QWidget:
-        """创建右侧空白占位栏。
+        """创建右侧上下双卡片面板。
 
-        功能描述：
-            构建一个带圆角边框的占位栏位，内部保留空白区，供后续业务填充。
-
-        参数说明：
-            无。
-
-        返回值说明：
-            QFrame: 左侧栏容器对象。
-
-        异常说明：
-            无。
+        右侧列包含上下两个卡片：上方为 session 管理卡，下方为后续扩展预留卡。
+        两张卡片按相同拉伸因子分配高度。
         """
 
         column = QWidget(self)
@@ -195,7 +155,7 @@ class HomeInterface(QFrame):
 
         layout = QVBoxLayout(column)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(12)
 
         self.session_manager_panel = SessionManagerPanel(column)
         self.session_manager_panel.setSizePolicy(
@@ -203,4 +163,46 @@ class HomeInterface(QFrame):
             QSizePolicy.Policy.Expanding,
         )
         layout.addWidget(self.session_manager_panel, 1)
+        self.session_placeholder_card = self._create_placeholder_card(column)
+        layout.addWidget(self.session_placeholder_card, 1)
         return column
+
+    def _create_placeholder_card(self, parent: QWidget) -> SimpleCardWidget:
+        """创建右侧下半区预留卡片。"""
+        card = SimpleCardWidget(parent)
+        card.setObjectName("homeRightPlaceholderCard")
+
+        root_layout = QVBoxLayout(card)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(20, 8, 8, 7)
+        header_layout.setSpacing(8)
+
+        title_label = BodyLabel("预留面板", card)
+        title_label.setObjectName("homeRightPlaceholderTitle")
+        setFont(title_label, 14)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch(1)
+        root_layout.addLayout(header_layout)
+
+        separator = QWidget(card)
+        separator.setObjectName("homePanelSeparator")
+        separator.setFixedHeight(1)
+        separator.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        root_layout.addWidget(separator)
+
+        body_widget = QWidget(card)
+        body_widget.setObjectName("homeRightPlaceholderBody")
+        body_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        body_layout = QVBoxLayout(body_widget)
+        body_layout.setContentsMargins(20, 20, 20, 20)
+        body_layout.setSpacing(0)
+
+        placeholder_label = BodyLabel("右侧下半区占位", body_widget)
+        placeholder_label.setObjectName("homeRightPlaceholderText")
+        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        body_layout.addWidget(placeholder_label, 1)
+        root_layout.addWidget(body_widget, 1)
+        return card

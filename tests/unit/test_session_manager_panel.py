@@ -43,5 +43,8 @@ def test_session_manager_panel_uses_card_navigation_list() -> None:
     assert item.subtitle_label.text() == "2026-06-22 12:30"
     assert item.title_label.font().families() == UNIFIED_NAVIGATION_FONT_FAMILIES
     assert item.subtitle_label.font().families() == UNIFIED_NAVIGATION_FONT_FAMILIES
+    assert panel.session_title_label.text() == "Session 管理"
+    assert panel.session_header_separator.height() == 1
+    assert panel._content_divider.width() == 1
     assert panel.session_detail_placeholder.text() == "Session 详情占位"
     assert panel.session_titles() == ["A.xlsx"]

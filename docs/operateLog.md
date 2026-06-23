@@ -1,12 +1,57 @@
 # 变更记录
 
+- 时间：2026-06-22 17:01
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为卡片导航项增加随父容器宽度变化的最大宽度约束，并补充缩放回归测试。
+- 原因：`CardNavigationItem` 需要在保留拉伸能力的同时，避免超过当前列表容器允许的可用宽度。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py -q --basetemp=.pytest_tmp_card_nav_width -p no:cacheprovider` 通过（3 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py` 通过；`git diff --check` 通过，仅提示 `tests/unit/test_card_navigation_list.py` 与 `ui/components/session_manager_panel.py` 将在下次 Git 处理时从 LF 转为 CRLF。
+- 当前计划：
+  - [x] 在列表容器中统一同步卡片项最大宽度。
+  - [x] 增加父容器缩放时的最大宽度回归测试。
+  - [x] 完成诊断、目标测试与结果回填。
+
+- 时间：2026-06-22 16:55
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修正主页亮色主题下 session 详情面板与右下占位卡片的背景色和分割线颜色。
+- 原因：当前亮色主题样式误用了暗色配色，导致详情区和占位区背景过深、分割线偏亮，视觉与左侧卡片不一致。
+- 测试状态：[已测试] 已人工核对 `resources/qss/light/home_interface.qss` 中相关配色恢复为亮色主题值；`git diff --check` 通过，仅提示 `ui/components/session_manager_panel.py` 将在下次 Git 处理时从 LF 转为 CRLF。
+- 当前计划：
+  - [x] 修正亮色主题详情区和占位区背景色。
+  - [x] 修正亮色主题相关分割线颜色。
+  - [x] 完成轻量校验并回填记录。
+
+- 时间：2026-06-22 16:35
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：重构主页固定双列布局，移除左列外层滚动，新增右侧上下双卡片，并统一 session 管理卡的标题、分割线和详情背景。
+- 原因：主页需要固定分区高度与更明确的卡片层次，右侧 session 区域也需要与左侧卡片风格对齐并增强列表/详情分隔。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py tests/unit/test_home_interface.py tests/unit/test_card_navigation_list.py -q --basetemp=.pytest_tmp_home_layout_refactor -p no:cacheprovider` 通过（4 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/interfaces/home_interface.py ui/components/session_manager_panel.py tests/unit/test_session_manager_panel.py tests/unit/test_home_interface.py` 通过；`git diff --check` 通过，仅提示 `ui/components/session_manager_panel.py` 将在下次 Git 处理时从 LF 转为 CRLF。
+- 当前计划：
+  - [x] 重构主页左右列布局和右侧上下双卡片分配。
+  - [x] 改造 session 管理卡的标题、分割线和详情背景样式。
+  - [x] 完成诊断、目标测试与记录回填。
+
 - 时间：2026-06-22 16:12
 - 操作类型：[修改]
 - 影响文件：
-  - E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py
-  - E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py
-  - E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py
-  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
 - 变更摘要：将卡片导航项标题与副标题切换为局部统一字体方案，消除中英数字与中文混排时的视觉割裂。
 - 原因：当前 `BodyLabel` 与 `CaptionLabel` 使用组件库默认字体回退链，英文数字与中文可能落到不同字族，导致卡片导航项字体观感不统一。
 - 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py tests/unit/test_session_manager_panel.py -q --basetemp=.pytest_tmp_card_nav_font_fix -p no:cacheprovider` 通过（3 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py tests/unit/test_session_manager_panel.py` 通过；`git diff --check` 通过，仅提示 `test_session_manager_panel.py` 将在下次 Git 处理时从 LF 转为 CRLF。
@@ -18,9 +63,9 @@
 - 时间：2026-06-22 14:17
 - 操作类型：[修改]
 - 影响文件：
-  - E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py
-  - E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py
-  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
 - 变更摘要：修正卡片导航项内部 title/content/icon 排版，沿用组件库 CardGroupWidget 的内容样式。
 - 原因：自定义卡片列表不应另起一套标题、内容、图标间距和内容文字颜色规则，应复用组件库既有视觉规范。
 - 测试状态：[已测试] RED：新增样式契约测试先失败，当前边距为 (16, 8, 16, 8)；GREEN：	est_card_navigation_list.py 与 	est_session_manager_panel.py 通过，py_compile 与 git diff --check 通过。
