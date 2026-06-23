@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QApplication
 
 from qfluentwidgets import FluentIcon
+from qfluentwidgets.common.style_sheet import isDarkTheme
 
 from ui.components.card_navigation_list import CardNavigationList, UNIFIED_NAVIGATION_FONT_FAMILIES
 
@@ -84,3 +85,33 @@ def test_card_navigation_item_tracks_parent_available_width() -> None:
 
     expected_width = navigation_list.scroll_area.viewport().width()
     assert item.maximumWidth() == expected_width
+
+
+def test_card_navigation_item_is_wrapped_by_transparent_hover_buffer() -> None:
+    """导航卡片应放入透明容器，为 hover 上移动画预留裁剪缓冲。"""
+    _app()
+    navigation_list = CardNavigationList()
+
+    item = navigation_list.add_item("session", "Session A", "2026-06-23 10:11")
+    wrapper = item.parentWidget()
+    layout_widget = navigation_list.content_layout.itemAt(0).widget()
+    margins = wrapper.layout().contentsMargins()
+
+    assert wrapper is layout_widget
+    assert wrapper is not item
+    assert wrapper.objectName() == "cardNavigationItemContainer"
+    assert margins.top() >= 3
+    assert margins.bottom() >= 3
+    assert wrapper.autoFillBackground() is False
+
+
+def test_card_navigation_item_selected_outline_color_matches_theme_depth() -> None:
+    """选中态轮廓颜色应比组件库原生卡片边框更深。"""
+    _app()
+    navigation_list = CardNavigationList()
+    item = navigation_list.add_item("session", "Session A", "2026-06-23 09:34")
+
+    color = item._selected_outline_color()
+
+    assert color.alpha() == (92 if isDarkTheme() else 48)
+    assert color.red() == (255 if isDarkTheme() else 0)

@@ -1,5 +1,33 @@
 # 变更记录
 
+- 时间：2026-06-23 10:11
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为卡片导航列表项增加透明外层容器，给 ElevatedCardWidget 悬浮上移动画预留裁剪缓冲。
+- 原因：最上方导航卡片 hover 上移后会被滚动内容边界裁剪，需要通过父容器缓冲区保留完整绘制范围。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py::test_card_navigation_item_is_wrapped_by_transparent_hover_buffer -q --basetemp=.pytest_tmp_card_nav_hover_wrapper_red -p no:cacheprovider` 按预期失败，确认原实现未使用外层容器；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py -q --basetemp=.pytest_tmp_card_nav_hover_wrapper_final -p no:cacheprovider` 通过（5 passed, 1 warning，警告来自 qfluentwidgets/scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py` 通过；`git diff --check` 通过，仅提示若干文件下次 Git 处理时 LF 会替换为 CRLF。补充：`test_session_manager_panel.py` 当前失败在既有断言 `panel._content_divider.width()`，代码中该 `_content_divider` 已被注释，和本次透明容器改动无关。
+- 当前计划：
+  - [x] 增加透明容器结构回归测试并确认当前实现失败。
+  - [x] 将导航卡片放入透明容器并保留原有选中、宽度同步与清空逻辑。
+  - [x] 完成目标单测、语法检查与空白检查并回填结果。
+- 时间：2026-06-23 09:42
+- 操作类型：[修改]
+- 影响文件：
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py
+  - E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md
+- 变更摘要：为右侧 Session 管理面板的卡片导航项增加选中态加深轮廓，并补充主题深度回归测试。
+- 原因：当前选中态主要依赖左侧主题色竖条，卡片整体轮廓不够明显，需要在选中时增强边界识别。
+- 测试状态：[已测试] D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py -q --basetemp=.pytest_tmp_card_nav_selected_outline -p no:cacheprovider 通过（4 passed, 1 warning，警告来自 qfluentwidgets 中 scipy 旧导入）；D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py 通过；git diff --check 通过，仅提示 docs/operateLog.md、tests/unit/test_card_navigation_list.py 与 ui/components/card_navigation_list.py 下次 Git 处理时 LF 会替换为 CRLF。
+- 当前计划：
+  - [x] 核对本地 qfluentwidgets 卡片绘制与现有卡片导航实现。
+  - [x] 在选中态绘制主题感知的加深卡片轮廓。
+  - [x] 补充选中态轮廓颜色深度回归测试。
+  - [x] 完成目标测试、编译检查与空白检查。
+
 - 时间：2026-06-22 17:01
 - 操作类型：[修改]
 - 影响文件：

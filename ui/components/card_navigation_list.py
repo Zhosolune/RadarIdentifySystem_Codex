@@ -17,11 +17,12 @@ Example:
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QIcon, QPainter
+from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPen
 from PyQt6.QtWidgets import QHBoxLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CaptionLabel, ElevatedCardWidget, IconWidget, themeColor
 from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.icon import FluentIconBase
+from qfluentwidgets.common.style_sheet import isDarkTheme
 
 
 NavigationIcon = str | QIcon | FluentIconBase
@@ -32,7 +33,7 @@ class CardNavigationItem(ElevatedCardWidget):
     """单个卡片导航项。
 
     该组件复用 `CardWidget` 的明暗主题背景、悬浮态和按压态，仅在选中时
-    额外绘制左侧主题色竖条。
+    额外绘制加深轮廓和左侧主题色竖条。
 
     Attributes:
         key: 导航项的唯一键。
@@ -168,6 +169,10 @@ class CardNavigationItem(ElevatedCardWidget):
         """
         return self._is_selected
 
+    def _selected_outline_color(self) -> QColor:
+        """返回选中态卡片轮廓颜色。"""
+        return QColor(255, 255, 255, 92) if isDarkTheme() else QColor(0, 0, 0, 24)
+
     def paintEvent(self, event) -> None:
         """绘制卡片背景和选中竖条。
 
@@ -186,10 +191,19 @@ class CardNavigationItem(ElevatedCardWidget):
 
         painter = QPainter(self)
         painter.setRenderHints(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(themeColor()))
+
+        # 选中态额外加深完整卡片轮廓，保留组件库原生卡片背景与悬浮阴影。
+        painter.setPen(QPen(self._selected_outline_color(), 1.5))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(
+            self.rect().adjusted(1, 1, -1, -1),
+            self.borderRadius,
+            self.borderRadius,
+        )
 
         # 与组件库列表项一致，选中标记为居中的窄竖条。
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(themeColor()))
         height = self.height()
         padding_y = round(0.257 * height)
         painter.drawRoundedRect(0, padding_y, 3, height - 2 * padding_y, 1.5, 1.5)

@@ -77,10 +77,6 @@ class SessionManagerPanel(SimpleCardWidget):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
-        # self._content_divider = QWidget(self)
-        # self._content_divider.setObjectName("sessionContentDivider")
-        # self._content_divider.setFixedWidth(1)
-        # self._content_divider.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self._root_layout = QVBoxLayout(self)
         self._header_layout = QHBoxLayout()
         self._content_layout = QHBoxLayout()
@@ -94,7 +90,7 @@ class SessionManagerPanel(SimpleCardWidget):
         self._root_layout.setContentsMargins(0, 0, 0, 0)
         self._root_layout.setSpacing(0)
 
-        self._header_layout.setContentsMargins(20, 8, 8, 7)
+        self._header_layout.setContentsMargins(20, 10, 10, 9)
         self._header_layout.setSpacing(8)
         self._header_layout.addWidget(self.session_title_label)
         self._header_layout.addStretch(1)
