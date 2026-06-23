@@ -17,9 +17,9 @@ Example:
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPen
+from PyQt6.QtGui import QColor, QFont, QIcon, QPainter
 from PyQt6.QtWidgets import QHBoxLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CaptionLabel, ElevatedCardWidget, IconWidget, themeColor
+from qfluentwidgets import BodyLabel, CaptionLabel, CardWidget, IconWidget, themeColor
 from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.icon import FluentIconBase
 from qfluentwidgets.common.style_sheet import isDarkTheme
@@ -29,11 +29,11 @@ NavigationIcon = str | QIcon | FluentIconBase
 UNIFIED_NAVIGATION_FONT_FAMILIES = ["Microsoft YaHei UI", "Microsoft YaHei"]
 
 
-class CardNavigationItem(ElevatedCardWidget):
+class CardNavigationItem(CardWidget):
     """单个卡片导航项。
 
-    该组件复用 `CardWidget` 的明暗主题背景、悬浮态和按压态，仅在选中时
-    额外绘制加深轮廓和左侧主题色竖条。
+    该组件复用 `CardWidget` 的明暗主题背景，并在交互时额外绘制深色覆盖层；
+    选中时继续叠加更深背景和左侧主题色竖条。
 
     Attributes:
         key: 导航项的唯一键。
@@ -169,9 +169,39 @@ class CardNavigationItem(ElevatedCardWidget):
         """
         return self._is_selected
 
-    def _selected_outline_color(self) -> QColor:
-        """返回选中态卡片轮廓颜色。"""
-        return QColor(255, 255, 255, 92) if isDarkTheme() else QColor(0, 0, 0, 24)
+    def _selected_background_color(self) -> QColor:
+        """返回选中态卡片加深背景色。"""
+        if isDarkTheme():
+            # 按交互状态加深选中覆盖层，保持反馈一致且避免跨色系闪烁。
+            if self.isPressed:
+                return QColor(0, 0, 0, 92)
+            if self.isHover:
+                return QColor(0, 0, 0, 80)
+            return QColor(0, 0, 0, 70)
+
+        if self.isPressed:
+            return QColor(0, 0, 0, 32)
+        if self.isHover:
+            return QColor(0, 0, 0, 28)
+        return QColor(0, 0, 0, 24)
+
+    def _interaction_overlay_color(self) -> QColor:
+        """返回未选中时的交互覆盖层颜色。"""
+        if self.isPressed:
+            return QColor(0, 0, 0, 48) if isDarkTheme() else QColor(0, 0, 0, 12)
+        if self.isHover:
+            return QColor(0, 0, 0, 36) if isDarkTheme() else QColor(0, 0, 0, 6)
+        return QColor(0, 0, 0, 0)
+
+    def _hoverBackgroundColor(self) -> QColor:
+        """返回悬浮态基础背景色。"""
+        # 复用 CardWidget 的基础底色，避免 backgroundColor 在白系和黑系之间插值闪烁。
+        return self._normalBackgroundColor()
+
+    def _pressedBackgroundColor(self) -> QColor:
+        """返回按压态基础背景色。"""
+        # 保持基础背景稳定，按压反馈改由独立覆盖层承担。
+        return self._normalBackgroundColor()
 
     def paintEvent(self, event) -> None:
         """绘制卡片背景和选中竖条。
@@ -186,27 +216,33 @@ class CardNavigationItem(ElevatedCardWidget):
             无。
         """
         super().paintEvent(event)
-        if not self._is_selected:
-            return
 
         painter = QPainter(self)
         painter.setRenderHints(QPainter.RenderHint.Antialiasing)
 
-        # 选中态额外加深完整卡片轮廓，保留组件库原生卡片背景与悬浮阴影。
-        painter.setPen(QPen(self._selected_outline_color(), 1.5))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
+        # 绘制交互覆盖层，避免基础背景动画在白系和黑系之间插值产生闪烁。
+        painter.setPen(Qt.PenStyle.NoPen)
+        overlay_color = (
+            self._selected_background_color()
+            if self._is_selected
+            else self._interaction_overlay_color()
+        )
+        painter.setBrush(overlay_color)
         painter.drawRoundedRect(
             self.rect().adjusted(1, 1, -1, -1),
             self.borderRadius,
             self.borderRadius,
         )
 
+        if not self._is_selected:
+            return
+
         # 与组件库列表项一致，选中标记为居中的窄竖条。
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(themeColor()))
         height = self.height()
         padding_y = round(0.257 * height)
-        painter.drawRoundedRect(0, padding_y, 3, height - 2 * padding_y, 1.5, 1.5)
+        painter.drawRoundedRect(1, padding_y, 3, height - 2 * padding_y, 1.5, 1.5)
 
 
 class CardNavigationList(QWidget):

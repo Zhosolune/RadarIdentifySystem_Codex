@@ -105,13 +105,50 @@ def test_card_navigation_item_is_wrapped_by_transparent_hover_buffer() -> None:
     assert wrapper.autoFillBackground() is False
 
 
-def test_card_navigation_item_selected_outline_color_matches_theme_depth() -> None:
-    """选中态轮廓颜色应比组件库原生卡片边框更深。"""
+def test_card_navigation_item_selected_background_color_matches_theme_depth() -> None:
+    """选中态背景色应使用主题感知的深色覆盖层。"""
     _app()
     navigation_list = CardNavigationList()
     item = navigation_list.add_item("session", "Session A", "2026-06-23 09:34")
 
-    color = item._selected_outline_color()
+    color = item._selected_background_color()
 
-    assert color.alpha() == (92 if isDarkTheme() else 48)
-    assert color.red() == (255 if isDarkTheme() else 0)
+    assert color.alpha() == (70 if isDarkTheme() else 24)
+    assert color.red() == 0
+
+
+def test_card_navigation_item_hover_overlay_uses_dark_overlay_without_changing_base_card() -> None:
+    """悬浮态应通过独立覆盖层加深，同时保持基础卡片底色不变。"""
+    _app()
+    navigation_list = CardNavigationList()
+    item = navigation_list.add_item("session", "Session A", "2026-06-23 11:18")
+
+    hover_base_color = item._hoverBackgroundColor()
+    hover_overlay_color = item._interaction_overlay_color()
+    normal_base_color = item._normalBackgroundColor()
+
+    assert hover_base_color == normal_base_color
+    assert hover_overlay_color.red() == 0
+    assert hover_overlay_color.alpha() == 0
+
+    # 模拟 hover 状态，验证覆盖层承担加深反馈。
+    item.isHover = True
+    hover_overlay_color = item._interaction_overlay_color()
+
+    assert item._hoverBackgroundColor() == normal_base_color
+    assert hover_overlay_color.red() == 0
+    assert hover_overlay_color.alpha() == (36 if isDarkTheme() else 6)
+
+
+def test_card_navigation_item_selected_overlay_gets_darker_on_hover() -> None:
+    """选中态在悬浮时应继续加深覆盖层。"""
+    _app()
+    navigation_list = CardNavigationList()
+    item = navigation_list.add_item("session", "Session A", "2026-06-23 11:19")
+
+    base_selected_color = item._selected_background_color()
+
+    item.isHover = True
+    selected_hover_color = item._selected_background_color()
+
+    assert selected_hover_color.alpha() > base_selected_color.alpha()

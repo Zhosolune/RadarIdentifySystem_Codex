@@ -1,5 +1,50 @@
 # 变更记录
 
+- 时间：2026-06-23 11:55
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将卡片导航项的 hover/pressed 深色反馈改为独立覆盖层绘制，避免基础背景动画跨色系插值产生闪烁。
+- 原因：上一版直接覆写 `_hoverBackgroundColor()` 为黑色系叠层时，`CardWidget` 仍会从默认白系底色做 `backgroundColor` 动画，导致指针移入瞬间出现“先深后浅”的视觉跳变。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py::test_card_navigation_item_selected_background_color_matches_theme_depth tests/unit/test_card_navigation_list.py::test_card_navigation_item_hover_overlay_uses_dark_overlay_without_changing_base_card tests/unit/test_card_navigation_list.py::test_card_navigation_item_selected_overlay_gets_darker_on_hover -q --basetemp=.pytest_tmp_card_nav_hover_overlay_fix -p no:cacheprovider` 通过（3 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py` 通过；`git diff --check -- ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py docs/operateLog.md` 通过；VS Code Diagnostics 对 `card_navigation_list.py` 与 `test_card_navigation_list.py` 均无新增诊断。
+- 当前计划：
+  - [x] 将 hover/pressed 深色反馈从 `backgroundColor` 动画链中移出。
+  - [x] 在 `paintEvent()` 中统一绘制交互覆盖层和选中覆盖层。
+  - [x] 补充“基础底色不变、覆盖层承担加深反馈”的回归测试。
+  - [x] 完成目标测试、诊断、语法和 diff 检查。
+
+- 时间：2026-06-23 11:06
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为卡片导航项增加主题感知的 hover 深色背景，并让选中态在 hover/pressed 时继续加深。
+- 原因：当前 `CardWidget` 默认 hover 在暗色主题下为浅色提亮，不符合该导航卡片希望保持“深色压感”反馈的交互预期。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py::test_card_navigation_item_selected_background_color_matches_theme_depth tests/unit/test_card_navigation_list.py::test_card_navigation_item_hover_background_color_uses_dark_overlay -q --basetemp=.pytest_tmp_card_nav_hover_dark -p no:cacheprovider` 通过（2 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py` 通过；`git diff --check -- ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py docs/operateLog.md` 通过；VS Code Diagnostics 对 `card_navigation_list.py` 与 `test_card_navigation_list.py` 均无新增诊断。
+- 当前计划：
+  - [x] 核对 `CardWidget` 背景动画与 hover 颜色来源。
+  - [x] 在 `CardNavigationItem` 中覆写 hover/pressed 深色背景策略。
+  - [x] 补充 hover 深色背景的最小回归测试。
+  - [x] 运行目标测试、诊断和语法检查并回填结果。
+
+- 时间：2026-06-23 10:41
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将 Session 管理器卡片导航项选中态从深色轮廓改为深色背景，同时保留左侧主题色竖条。
+- 原因：当前选中态的深色轮廓视觉过重，需求调整为“竖条 + 背景色深色”的选中反馈。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py::test_card_navigation_item_selected_background_color_matches_theme_depth -q --basetemp=.pytest_tmp_card_nav_selected_background -p no:cacheprovider` 通过（1 passed, 1 warning，警告来自 qfluentwidgets/scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/card_navigation_list.py tests/unit/test_card_navigation_list.py` 通过；`git diff --check` 通过，仅提示 docs/operateLog.md、tests/unit/test_card_navigation_list.py 与 ui/components/card_navigation_list.py 下次 Git 处理时 LF 会替换为 CRLF。补充：整文件 `tests/unit/test_card_navigation_list.py` 当前为 4 passed、1 failed、1 warning，失败项是既有 `test_card_navigation_item_is_wrapped_by_transparent_hover_buffer`，当前实现仍直接插入 `CardNavigationItem`，与 10:11 日志中的透明容器断言不一致，和本次选中态背景改动无关。
+- 当前计划：
+  - [x] 核对当前卡片导航实现和本地 qfluentwidgets 样式参考。
+  - [x] 将选中态测试目标从轮廓深度调整为背景深度。
+  - [x] 将选中态绘制改为主题感知的深色背景覆盖层。
+  - [x] 运行目标测试、语法检查与空白检查并回填结果。
+
 - 时间：2026-06-23 10:11
 - 操作类型：[修改]
 - 影响文件：
