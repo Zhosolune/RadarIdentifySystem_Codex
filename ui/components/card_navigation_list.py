@@ -79,7 +79,7 @@ class CardNavigationItem(CardWidget):
             raise ValueError("导航项标题不能为空")
 
         self.key = key
-        self.title_label = BodyLabel("中文测试看看字体" + title, self)
+        self.title_label = BodyLabel(title, self)
         self.subtitle_label: CaptionLabel | None = None
         self.icon_widget: IconWidget | None = None
         self._is_selected = False
@@ -171,19 +171,8 @@ class CardNavigationItem(CardWidget):
 
     def _selected_background_color(self) -> QColor:
         """返回选中态卡片加深背景色。"""
-        if isDarkTheme():
-            # 按交互状态加深选中覆盖层，保持反馈一致且避免跨色系闪烁。
-            if self.isPressed:
-                return QColor(0, 0, 0, 92)
-            if self.isHover:
-                return QColor(0, 0, 0, 80)
-            return QColor(0, 0, 0, 70)
-
-        if self.isPressed:
-            return QColor(0, 0, 0, 32)
-        if self.isHover:
-            return QColor(0, 0, 0, 28)
-        return QColor(0, 0, 0, 24)
+        # 选中态保持固定覆盖层，不再叠加 hover/pressed 反馈。
+        return QColor(0, 0, 0, 70) if isDarkTheme() else QColor(0, 0, 0, 24)
 
     def _interaction_overlay_color(self) -> QColor:
         """返回未选中时的交互覆盖层颜色。"""

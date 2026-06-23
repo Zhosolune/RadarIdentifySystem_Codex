@@ -140,8 +140,8 @@ def test_card_navigation_item_hover_overlay_uses_dark_overlay_without_changing_b
     assert hover_overlay_color.alpha() == (36 if isDarkTheme() else 6)
 
 
-def test_card_navigation_item_selected_overlay_gets_darker_on_hover() -> None:
-    """选中态在悬浮时应继续加深覆盖层。"""
+def test_card_navigation_item_selected_overlay_stays_stable_on_hover() -> None:
+    """选中态在悬浮时应保持固定覆盖层，不再响应 hover 加深。"""
     _app()
     navigation_list = CardNavigationList()
     item = navigation_list.add_item("session", "Session A", "2026-06-23 11:19")
@@ -151,4 +151,4 @@ def test_card_navigation_item_selected_overlay_gets_darker_on_hover() -> None:
     item.isHover = True
     selected_hover_color = item._selected_background_color()
 
-    assert selected_hover_color.alpha() > base_selected_color.alpha()
+    assert selected_hover_color == base_selected_color

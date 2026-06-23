@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
@@ -69,6 +70,42 @@ def _routes_for_window(window: MainWindow) -> list[str]:
         for item in qrouter.history
         if item.stacked is window.stackedWidget
     ]
+
+
+class _FakeDialogButton:
+    """测试用弹窗按钮桩对象。"""
+
+    def __init__(self) -> None:
+        self.text = ""
+
+    def setText(self, text: str) -> None:
+        """记录按钮文本。"""
+        self.text = text
+
+
+class _FakeMessageBox:
+    """测试用 MessageBox 桩对象。"""
+
+    accepted = False
+
+    def __init__(self, title: str, content: str, parent=None) -> None:
+        self.title = title
+        self.content = content
+        self.parent = parent
+        self.yesButton = _FakeDialogButton()
+        self.cancelButton = _FakeDialogButton()
+
+    def exec(self) -> bool:
+        """返回预设的弹窗结果。"""
+        return self.accepted
+
+
+@pytest.fixture(autouse=True)
+def _stub_restore_message_box(monkeypatch: MonkeyPatch) -> None:
+    """默认使用弹窗桩，避免恢复提示阻塞测试进程。"""
+    _FakeMessageBox.accepted = False
+    monkeypatch.setattr("ui.main_window.MessageBox", _FakeMessageBox)
+    monkeypatch.setattr("ui.controllers.session_manager_controller.MessageBox", _FakeMessageBox)
 
 
 def test_main_window_creates_independent_session_interfaces(
@@ -289,16 +326,18 @@ def test_session_drawer_config_change_is_persisted(
         _dispose_window(window)
 
 
-def test_main_window_restores_session_interfaces_from_registry(
+def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home_by_default(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """主窗口启动时应从 registry 恢复动态 session 页面并激活记录的 session。"""
+    """主窗口启动恢复时应默认停留主页，并保留上次活跃 session 供详情查看。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
+    _FakeMessageBox.accepted = False
+    monkeypatch.setattr("ui.main_window.MessageBox", _FakeMessageBox)
     store = SessionStore(tmp_path)
     first_session = ProcessingSession(
         session_id="session_restore_a",
@@ -316,11 +355,52 @@ def test_main_window_restores_session_interfaces_from_registry(
 
     window = MainWindow(session_registry=SessionRegistry(store))
     try:
+        QApplication.processEvents()
         first_interface = window.session_interface("session_restore_a")
         second_interface = window.session_interface("session_restore_b")
 
         assert first_interface is not None
         assert second_interface is not None
+        assert window.stackedWidget.currentWidget() is window.homeInterface
+        assert window.session_registry.active_session_id == "session_restore_a"
+        assert window.homeInterface.session_manager_panel.current_session_id() == "session_restore_a"
+    finally:
+        _dispose_window(window)
+
+
+def test_main_window_restores_session_and_jumps_after_user_accepts_resume(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """用户确认恢复时，主窗口应跳转到上次活跃 session 页面。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    _FakeMessageBox.accepted = True
+    monkeypatch.setattr("ui.main_window.MessageBox", _FakeMessageBox)
+    store = SessionStore(tmp_path)
+    first_session = ProcessingSession(
+        session_id="session_restore_a",
+        source_path="E:/data/a.xlsx",
+        source_type="excel",
+    )
+    second_session = ProcessingSession(
+        session_id="session_restore_b",
+        source_path="E:/data/b.xlsx",
+        source_type="excel",
+    )
+    store.upsert_session(first_session)
+    store.upsert_session(second_session)
+    store.set_active_session_id("session_restore_a")
+
+    window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        QApplication.processEvents()
+        first_interface = window.session_interface("session_restore_a")
+
+        assert first_interface is not None
         assert window.stackedWidget.currentWidget() is first_interface
         assert window.session_registry.active_session_id == "session_restore_a"
     finally:
@@ -405,6 +485,75 @@ def test_home_session_manager_lists_created_session(
 
         titles = window.homeInterface.session_manager_panel.session_titles()
         assert session.display_name in titles
+    finally:
+        _dispose_window(window)
+
+
+def test_main_window_close_session_keeps_card_and_registry_entry(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """关闭 session 时应仅关闭动态页面，保留卡片与注册表数据。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
+    try:
+        session = ProcessingSession(
+            session_id="session_close_only",
+            source_path="E:/data/close.xlsx",
+            source_type="excel",
+            display_name="close.xlsx",
+        )
+
+        window.create_session_from_parsed(session)
+        window.homeInterface.session_manager_panel.sessionCloseRequested.emit(session.session_id)
+
+        panel = window.homeInterface.session_manager_panel
+        assert window.session_interface(session.session_id) is None
+        assert window.session_registry.get(session.session_id) is not None
+        assert session.display_name in panel.session_titles()
+        assert panel.current_session_id() == session.session_id
+        assert panel.enable_action.text() == "启用"
+        assert panel.enable_action.isEnabled() is True
+        assert panel.close_action.text() == "已关闭"
+        assert panel.close_action.isEnabled() is False
+        assert window.session_registry.active_session_id is None
+    finally:
+        _dispose_window(window)
+
+
+def test_main_window_delete_session_removes_card_and_persisted_data(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """删除 session 时应移除卡片、动态页面和持久化数据。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    _FakeMessageBox.accepted = True
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
+    try:
+        session = ProcessingSession(
+            session_id="session_delete_all",
+            source_path="E:/data/delete.xlsx",
+            source_type="excel",
+            display_name="delete.xlsx",
+        )
+
+        window.create_session_from_parsed(session)
+        window.homeInterface.session_manager_panel.sessionDeleteRequested.emit(session.session_id)
+
+        panel = window.homeInterface.session_manager_panel
+        assert window.session_interface(session.session_id) is None
+        assert window.session_registry.get(session.session_id) is None
+        assert session.display_name not in panel.session_titles()
+        with pytest.raises(FileNotFoundError):
+            window.session_registry.store.load_session(session.session_id)
     finally:
         _dispose_window(window)
 

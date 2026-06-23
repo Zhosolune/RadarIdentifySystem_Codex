@@ -228,6 +228,40 @@ class SessionRegistry:
             self.store.save_import_cache(session)
         return session
 
+    def rename(self, session_id: str, display_name: str) -> ProcessingSession:
+        """重命名指定 session 并同步持久化。
+
+        Args:
+            session_id [str]: 需要重命名的 session 唯一标识。
+            display_name [str]: 新的展示名称，去除首尾空白后不能为空。
+
+        Returns:
+            ProcessingSession: 已更新名称的 session 对象。
+
+        Raises:
+            KeyError: 当 session_id 不在当前注册表中时抛出。
+            ValueError: 当 display_name 为空白字符串时抛出。
+            OSError: 当持久化写入失败时抛出。
+        """
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise KeyError(session_id)
+
+        new_display_name = display_name.strip()
+        if not new_display_name:
+            raise ValueError("session 名称不能为空")
+
+        old_display_name = session.display_name
+        session.display_name = new_display_name
+        try:
+            self.store.upsert_session(session)
+        except Exception:
+            # 持久化失败时恢复旧名称，避免内存和磁盘状态分叉。
+            session.display_name = old_display_name
+            raise
+
+        return session
+
     def activate(self, session_id: str) -> ProcessingSession:
         """激活指定 session。
 
@@ -272,6 +306,25 @@ class SessionRegistry:
         session.last_opened_at = new_last_opened_at
         self.active_session_id = session_id
         return session
+
+    def set_active_session_id(self, session_id: str | None) -> None:
+        """显式同步当前活动 session id。
+
+        Args:
+            session_id: 需要写入的活动 session id；传入 None 表示清空活动项。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: 当 session_id 不为 None 且不在当前注册表中时抛出。
+            OSError: 当持久化活动 id 写入失败时抛出。
+        """
+        if session_id is not None and session_id not in self._sessions:
+            raise KeyError(session_id)
+
+        self.store.set_active_session_id(session_id)
+        self.active_session_id = session_id
 
     def close(self, session_id: str, delete_persisted: bool = True) -> None:
         """关闭指定 session。

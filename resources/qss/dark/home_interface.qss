@@ -51,6 +51,31 @@ QWidget#homeRightPlaceholderText {
     background: transparent;
 }
 
+QWidget#sessionDetailContent,
+QWidget#sessionDetailMetrics,
+QFrame#sessionDetailCommandBar,
+QWidget#sessionDetailInfoRow {
+    background: transparent;
+    border: none;
+}
+
+QWidget#sessionDetailInfoPanel {
+    background-color: transparent;
+    border: none;
+}
+
+QLabel#sessionDetailName {
+    background: transparent;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+}
+
+QLabel#sessionDetailTime,
+QLabel#sessionDetailInfoTitle {
+    color: rgba(255, 255, 255, 0.60);
+}
+
 /* 滚动内容容器透明 */
 QWidget#cardNavigationContent,
 QWidget#homeLeftScrollContent {

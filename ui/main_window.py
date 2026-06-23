@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import QWidget, QApplication, QAbstractButton
 from PyQt6.QtGui import QIcon
 from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
-    InfoBar, InfoBarPosition, SystemThemeListener, SplashScreen
+    MessageBox, SystemThemeListener, SplashScreen
 )
 from qfluentwidgets.common.router import qrouter
 
@@ -21,6 +21,7 @@ from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession
 from runtime.session_config_factory import create_session_config_from_global
 from runtime.session_registry import SessionRegistry
+from ui.controllers.session_manager_controller import SessionManagerController
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.model_manager_interface import ModelManagerInterface
@@ -57,13 +58,17 @@ class MainWindow(FluentWindow):
 
         self.themeListener = SystemThemeListener(self)
 
-        self.connectSignalToSlot()
-
         self._session_interfaces: dict[str, SliceInterface] = {}
+        self._pending_restore_session_id: str | None = None
         self.session_registry = session_registry or SessionRegistry()
+        self._session_manager_controller = SessionManagerController(
+            self.homeInterface.session_manager_panel,
+            self,
+        )
         self.initNavigation()
         self.restore_session_interfaces()
         self._enable_pointing_hand_cursor()
+        QTimer.singleShot(0, self._prompt_restore_last_active_session)
 
         timer = QTimer()
         timer.singleShot(1000, self.splashScreen.finish)
@@ -122,10 +127,10 @@ class MainWindow(FluentWindow):
             self.homeInterface, FluentIcon.HOME, "主页",
             position=NavigationItemPosition.TOP,
         )
-        self.addSubInterface(
-            self.sliceInterface, FluentIcon.PIE_SINGLE, "切片处理",
-            position=NavigationItemPosition.TOP,
-        )
+        # self.addSubInterface(
+        #     self.sliceInterface, FluentIcon.PIE_SINGLE, "切片处理",
+        #     position=NavigationItemPosition.TOP,
+        # )
 
         # 设置页
         self.addSubInterface(
@@ -141,11 +146,16 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM,
         )
 
-    def create_session_interface(self, session: ProcessingSession) -> SliceInterface:
+    def create_session_interface(
+        self,
+        session: ProcessingSession,
+        activate: bool = True,
+    ) -> SliceInterface:
         """创建或复用指定 session 对应的切片页面。
 
         Args:
             session [ProcessingSession]: 需要绑定到切片页面的处理会话。
+            activate [bool]: 是否在创建后立即切换到该页面，默认为 True。
 
         Returns:
             SliceInterface: 已创建或已存在的动态切片页面。
@@ -156,7 +166,8 @@ class MainWindow(FluentWindow):
         existing_interface = self._session_interfaces.get(session.session_id)
         if existing_interface is not None:
             # 已有页面时直接激活，避免为同一 session 重复创建导航项。
-            self.activate_session_interface(session.session_id)
+            if activate:
+                self._switch_to_session_interface(session.session_id)
             return existing_interface
 
         interface = SliceInterface(
@@ -174,7 +185,8 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.TOP,
         )
         self._session_interfaces[session.session_id] = interface
-        self.activate_session_interface(session.session_id)
+        if activate:
+            self._switch_to_session_interface(session.session_id)
         return interface
 
     def create_session_from_parsed(self, session: ProcessingSession) -> SliceInterface:
@@ -200,7 +212,7 @@ class MainWindow(FluentWindow):
             if not interface_existed:
                 self.close_session_interface(session.session_id)
             raise
-        self.refresh_session_manager_panel()
+        self.refresh_session_manager_panel(selected_session_id=session.session_id)
         signal_bus.session_registered.emit(session.session_id)
         signal_bus.session_activated.emit(session.session_id)
         return interface
@@ -240,19 +252,27 @@ class MainWindow(FluentWindow):
         restored_ids: list[str] = []
         active_session_id = self.session_registry.active_session_id
         for session in restored_sessions:
-            self.create_session_interface(session)
+            self.create_session_interface(session, activate=False)
             restored_ids.append(session.session_id)
 
-        if active_session_id:
-            self.activate_session_interface(active_session_id)
-        self.refresh_session_manager_panel()
+        self._pending_restore_session_id = (
+            active_session_id
+            if active_session_id in self._session_interfaces
+            else None
+        )
+        # 启动后始终先回到主页，避免直接跳进上次活跃 session。
+        self.switchTo(self.homeInterface)
+        self.refresh_session_manager_panel(selected_session_id=active_session_id)
         return restored_ids
 
-    def refresh_session_manager_panel(self) -> None:
+    def refresh_session_manager_panel(
+        self,
+        selected_session_id: str | None = None,
+    ) -> None:
         """刷新主页 session 管理器列表。
 
         Args:
-            无。
+            selected_session_id [str | None]: 刷新后优先选中的 session id。
 
         Returns:
             None: 无返回值。
@@ -265,8 +285,15 @@ class MainWindow(FluentWindow):
             False
         """
         if hasattr(self.homeInterface, "session_manager_panel"):
+            preferred_session_id = (
+                selected_session_id
+                or self.homeInterface.session_manager_panel.current_session_id()
+                or self.session_registry.active_session_id
+            )
             self.homeInterface.session_manager_panel.set_sessions(
-                self.session_registry.all_sessions()
+                self.session_registry.all_sessions(),
+                selected_session_id=preferred_session_id,
+                enabled_session_ids=set(self._session_interfaces),
             )
 
     def activate_session_interface(self, session_id: str) -> None:
@@ -285,8 +312,57 @@ class MainWindow(FluentWindow):
         if interface is None:
             return
 
+        if self.session_registry.get(session_id) is not None:
+            # 同步持久化活跃会话并刷新主页详情选中项。
+            self.session_registry.activate(session_id)
+            self.refresh_session_manager_panel(selected_session_id=session_id)
+            signal_bus.session_activated.emit(session_id)
+
+        self._switch_to_session_interface(session_id)
+
+    def _switch_to_session_interface(self, session_id: str) -> None:
+        """仅切换到指定 session 页面，不修改注册表状态。"""
+        interface = self._session_interfaces.get(session_id)
+        if interface is None:
+            return
+
         # 复用 FluentWindow 的导航切换逻辑，同步堆栈页与导航选中项。
         self.switchTo(interface)
+
+    def _prompt_restore_last_active_session(self) -> None:
+        """在启动后询问是否跳转到上次活跃 session。"""
+        if not self._pending_restore_session_id:
+            return
+
+        pending_session_id = self._pending_restore_session_id
+        self._pending_restore_session_id = None
+        session = self.session_registry.get(pending_session_id)
+        if session is None:
+            return
+
+        # 弹出恢复确认框，让用户决定是否跳转到上次活跃 session。
+        message_box = MessageBox(
+            "恢复上次 Session",
+            f"检测到上次活跃 Session：{session.display_name}。\n是否现在跳转到该 Session？",
+            self,
+        )
+        message_box.yesButton.setText("跳转")
+        message_box.cancelButton.setText("留在主页")
+
+        if message_box.exec():
+            self.activate_session_interface(pending_session_id)
+        else:
+            self.refresh_session_manager_panel(selected_session_id=pending_session_id)
+
+    def set_session_navigation_text(self, session_id: str, text: str) -> None:
+        """同步更新动态导航项文案。"""
+        interface = self._session_interfaces.get(session_id)
+        if interface is None:
+            return
+
+        navigation_item = self.navigationInterface.widget(interface.objectName())
+        navigation_item.setText(text)
+        navigation_item.setToolTip(text)
 
     def close_session_interface(self, session_id: str) -> None:
         """关闭并移除指定 session 的动态切片页面。
@@ -328,13 +404,6 @@ class MainWindow(FluentWindow):
         self.move(w//2 - self.width()//2, h//2 - self.height()//2)
         self.show()
         QApplication.processEvents()
-
-
-    def connectSignalToSlot(self) -> None:
-        """连接信号到槽函数。"""
-        self.homeInterface.session_manager_panel.sessionActivated.connect(
-            self.activate_session_interface
-        )
 
     # ------------------------------------------------------------------
     # 生命周期

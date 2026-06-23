@@ -1,5 +1,93 @@
 # 变更记录
 
+- 时间：2026-06-23 16:57
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_card_navigation_list.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：删除 Session 详情中的重复时间信息并将标题固定为“数据包信息”，同时取消选中态导航卡片的 hover 加深反馈。
+- 原因：Session 名称和创建时间已经在左侧卡片导航项中体现，详情区重复展示会增加视觉噪音；选中态卡片继续响应 hover 会破坏稳定的当前态识别。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py -q -k "detail_view or card_click_only_switches_detail_selection" --basetemp=.pytest_tmp_session_detail_title -p no:cacheprovider` 通过（2 passed, 2 deselected, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_card_navigation_list.py -q -k "selected_background_color_matches_theme_depth or selected_overlay_stays_stable_on_hover" --basetemp=.pytest_tmp_selected_hover_fix -p no:cacheprovider` 通过（2 passed, 5 deselected, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/session_manager_panel.py ui/components/card_navigation_list.py tests/unit/test_session_manager_panel.py tests/unit/test_card_navigation_list.py` 通过；VS Code Diagnostics 对相关文件无新增诊断。
+- 当前计划：
+  - [x] 删除详情区重复的 Session 时间信息并固定标题文案。
+  - [x] 取消选中态导航项的 hover 加深效果。
+  - [x] 更新对应回归测试并完成验证。
+
+- 时间：2026-06-23 16:16
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\session_manager_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按项目控制器分层约束，将 Session 管理面板的启用、关闭、重命名、删除、跳转逻辑从主窗口抽离到 `ui/controllers/session_manager_controller.py`，并将面板启用信号更名为 `sessionEnableRequested`。
+- 原因：代码审查发现 `ui/main_window.py` 新增的面板动作槽函数承担了具体交互编排，违背了项目中“控件槽函数落在 `ui/controllers/`”的约束，也弱化了主窗口对动态页面生命周期的单一职责边界。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py tests/unit/test_main_window_sessions.py -q --basetemp=.pytest_tmp_review_structure_fix2 -p no:cacheprovider` 通过（17 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/controllers/session_manager_controller.py ui/main_window.py ui/components/session_manager_panel.py runtime/session_registry.py tests/unit/test_session_manager_panel.py tests/unit/test_main_window_sessions.py` 通过；VS Code Diagnostics 对新增和修改文件无新增诊断。
+- 当前计划：
+  - [x] 审查未提交代码中的 Session 管理交互是否违反分层约束。
+  - [x] 将 Session 管理面板动作槽函数抽离到独立控制器。
+  - [x] 收敛面板信号命名，使“启用页面”语义与“跳转页面”语义分离。
+  - [x] 修正测试中的弹窗 mock 路径并完成回归验证。
+
+- 时间：2026-06-23 15:59
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修正 Session 管理器中关闭与删除的语义分离，按动态页面启用状态切换“启用/已启用”“关闭/已关闭”动作，并将详情区文件信息改为同一行 `key：value` 展示。
+- 原因：此前“关闭”误删了注册表中的 session，导致效果与删除几乎一致；同时详情区动作缺少互斥状态反馈，文件信息的 key 与 value 分行显示也不利于快速浏览。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py tests/unit/test_main_window_sessions.py -q --basetemp=.pytest_tmp_session_action_semantics -p no:cacheprovider` 通过（17 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/session_manager_panel.py ui/main_window.py runtime/session_registry.py tests/unit/test_session_manager_panel.py tests/unit/test_main_window_sessions.py` 通过；VS Code Diagnostics 对上述改动文件无新增诊断。
+- 当前计划：
+  - [x] 重构 Session 管理器中启用、关闭、删除的行为边界。
+  - [x] 让详情动作按动态页面启用状态互斥切换文案和禁用态。
+  - [x] 将文件名、文件大小、文件路径、备注信息改为同一行 `key：value` 展示。
+  - [x] 补充关闭与删除分叉语义的回归测试。
+
+- 时间：2026-06-23 15:36
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将 Session 详情区仪表盘卡片改为按 `(可用宽度 + 间距) // (96 + 间距)` 截断取整计算列数，并据此反算卡片宽度。
+- 原因：相比“寻找最接近 96px”的启发式策略，直接按目标宽度和间距公式反推列数更简单、更稳定，也更符合详情页卡片布局的可预期性要求。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py -q --basetemp=.pytest_tmp_session_manager_metric_layout_formula -p no:cacheprovider` 通过（3 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/session_manager_panel.py tests/unit/test_session_manager_panel.py` 通过；VS Code Diagnostics 对 `session_manager_panel.py` 与 `test_session_manager_panel.py` 无新增诊断。
+- 当前计划：
+  - [x] 设计详情区指标卡按截断取整公式自适应列数的计算策略。
+  - [x] 在 `SessionManagerPanel` 中实现重排逻辑并在尺寸变化时自动刷新。
+  - [x] 补充列数与卡片宽度的目标测试。
+
+- 时间：2026-06-23 15:01
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\dialogs\rename_session_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：准备重构启动默认页与 Session 管理器交互，补充恢复弹窗、详情命令栏和导入数据详情视图。
+- 原因：当前启动时会直接跳到上次活跃 session，且 Session 管理器卡片点击立即切页，不符合新的交互要求；同时详情区仍为占位态，缺少会话操作入口和导入数据摘要展示。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py tests/unit/test_main_window_sessions.py -q --basetemp=.pytest_tmp_session_manager_launch_resume -p no:cacheprovider` 通过（13 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/session_manager_panel.py ui/main_window.py runtime/session_registry.py ui/dialogs/rename_session_dialog.py tests/unit/test_session_manager_panel.py tests/unit/test_main_window_sessions.py` 通过；`git diff --check -- ui/components/session_manager_panel.py ui/main_window.py runtime/session_registry.py ui/dialogs/rename_session_dialog.py resources/qss/light/home_interface.qss resources/qss/dark/home_interface.qss tests/unit/test_session_manager_panel.py tests/unit/test_main_window_sessions.py docs/operateLog.md` 通过，仅提示部分文件下次 Git 处理时 LF 会替换为 CRLF；VS Code Diagnostics 对 `session_manager_panel.py`、`main_window.py`、`session_registry.py`、`rename_session_dialog.py` 及新增/修改测试文件均无新增诊断。
+- 当前计划：
+  - [x] 将主窗口恢复逻辑调整为默认停留主页，并在存在上次活跃 session 时弹出 MessageBox 询问是否跳转。
+  - [x] 让 Session 管理器卡片点击只切换详情，不再直接跳转到切片页面。
+  - [x] 为 Session 详情区增加 CommandBar、主题色跳转按钮和导入数据摘要卡片。
+  - [x] 为启用、关闭、重命名、删除动作补齐信号与主窗口处理逻辑。
+  - [x] 更新样式、测试与诊断结果。
+
 - 时间：2026-06-23 14:13
 - 操作类型：[修改]
 - 影响文件：
