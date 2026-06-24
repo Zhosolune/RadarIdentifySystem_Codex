@@ -18,6 +18,7 @@ except ImportError:
     ort = None
 
 from core.recognition import InferenceService
+from core.recognition import TraceLogEntry
 from core.models.cluster_result import ClusterItem
 from core.models.pulse_batch import COL_TOA, COL_PA
 from infra.plotting.engine import rasterize_dimension
@@ -25,6 +26,31 @@ from infra.plotting.utils import _BASE_SPECS, build_dtoa_series, resolve_dtoa_sp
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _emit_or_collect_message(
+    message: str,
+    *args,
+    logger_name: str,
+    pathname: str,
+    func_name: str,
+    write_log: bool,
+    trace_messages: list[TraceLogEntry] | None,
+) -> None:
+    """输出或收集预测日志。"""
+    rendered_message = message % args if args else message
+    if write_log:
+        LOGGER.info(rendered_message)
+        return
+    if trace_messages is not None:
+        trace_messages.append(
+            TraceLogEntry(
+                logger_name=logger_name,
+                pathname=pathname,
+                func_name=func_name,
+                message=rendered_message,
+            )
+        )
 
 
 class OnnxInferenceService(InferenceService):
@@ -81,11 +107,18 @@ class OnnxInferenceService(InferenceService):
         else:
             LOGGER.error(f"找不到 PA 模型文件: {self._pa_model_path}")
 
-    def predict_pa(self, cluster: ClusterItem) -> tuple[int, float, dict[int, float]]:
+    def predict_pa(
+        self,
+        cluster: ClusterItem,
+        write_log: bool = True,
+        trace_messages: list[TraceLogEntry] | None = None,
+    ) -> tuple[int, float, dict[int, float]]:
         """预测 PA 特征。
         
         Args:
             cluster: 待预测的簇对象。
+            write_log: 是否立即输出预测日志。
+            trace_messages: 静默模式下用于收集日志消息的列表。
             
         Returns:
             (类别标签, 置信度, 各类别置信度字典)
@@ -114,17 +147,27 @@ class OnnxInferenceService(InferenceService):
             raw_output = self._pa_model.run(None, {input_name: img_tensor})[0]
             t1 = time.perf_counter()
 
-            LOGGER.info(
+            _emit_or_collect_message(
                 "PA ONNX 原始输出 (logits): [%s]",
                 ", ".join(f"{v:.4f}" for v in raw_output[0]),
+                logger_name=LOGGER.name,
+                pathname=__file__,
+                func_name="predict_pa",
+                write_log=write_log,
+                trace_messages=trace_messages,
             )
 
             # 4. Softmax 与后处理
             pred = np.exp(raw_output) / np.sum(np.exp(raw_output), axis=1, keepdims=True)
 
-            LOGGER.info(
+            _emit_or_collect_message(
                 "PA Softmax 概率: [%s]",
                 ", ".join(f"{p:.4f}" for p in pred[0]),
+                logger_name=LOGGER.name,
+                pathname=__file__,
+                func_name="predict_pa",
+                write_log=write_log,
+                trace_messages=trace_messages,
             )
 
             # 合并负样本 (5, 6, 7, 8 -> 5)
@@ -149,11 +192,17 @@ class OnnxInferenceService(InferenceService):
 
             conf_dict = {i: float(c) for i, c in enumerate(pred[0, :6]) if np.round(c, 4) > 0}
 
-            LOGGER.info(
+            _emit_or_collect_message(
                 "PA 预测完成: label=%d, conf=%.4f, 各类别概率=%s, 耗时=%.1fms",
-                label, conf,
+                label,
+                conf,
                 ", ".join(f"{k}={v:.4f}" for k, v in sorted(conf_dict.items())),
                 (t1 - t0) * 1000,
+                logger_name=LOGGER.name,
+                pathname=__file__,
+                func_name="predict_pa",
+                write_log=write_log,
+                trace_messages=trace_messages,
             )
             return label, conf, conf_dict
 
@@ -161,8 +210,25 @@ class OnnxInferenceService(InferenceService):
             LOGGER.error(f"PA 预测异常: {e}", exc_info=True)
             return -1, 0.0, {}
 
-    def predict_dtoa(self, cluster: ClusterItem) -> tuple[int, float, dict[int, float]]:
-        """预测 DTOA 特征。"""
+    def predict_dtoa(
+        self,
+        cluster: ClusterItem,
+        write_log: bool = True,
+        trace_messages: list[TraceLogEntry] | None = None,
+    ) -> tuple[int, float, dict[int, float]]:
+        """预测 DTOA 特征。
+
+        Args:
+            cluster: 待预测的簇对象。
+            write_log: 是否立即输出预测日志。
+            trace_messages: 静默模式下用于收集日志消息的列表。
+
+        Returns:
+            tuple[int, float, dict[int, float]]: 预测标签、置信度与置信度字典。
+
+        Raises:
+            无显式抛出异常。
+        """
         if self._dtoa_model is None:
             LOGGER.warning("DTOA 模型未加载，跳过预测")
             return -1, 0.0, {}
@@ -188,17 +254,27 @@ class OnnxInferenceService(InferenceService):
             raw_output = self._dtoa_model.run(None, {input_name: img_tensor})[0]
             t1 = time.perf_counter()
 
-            LOGGER.info(
+            _emit_or_collect_message(
                 "DTOA ONNX 原始输出 (logits): [%s]",
                 ", ".join(f"{v:.4f}" for v in raw_output[0]),
+                logger_name=LOGGER.name,
+                pathname=__file__,
+                func_name="predict_dtoa",
+                write_log=write_log,
+                trace_messages=trace_messages,
             )
 
             # Softmax 与后处理
             pred = np.exp(raw_output) / np.sum(np.exp(raw_output), axis=1, keepdims=True)
 
-            LOGGER.info(
+            _emit_or_collect_message(
                 "DTOA Softmax 概率: [%s]",
                 ", ".join(f"{p:.4f}" for p in pred[0]),
+                logger_name=LOGGER.name,
+                pathname=__file__,
+                func_name="predict_dtoa",
+                write_log=write_log,
+                trace_messages=trace_messages,
             )
 
             if pred.shape[1] > 6:
@@ -215,11 +291,17 @@ class OnnxInferenceService(InferenceService):
 
             conf_dict = {i: float(c) for i, c in enumerate(pred[0, :6]) if np.round(c, 4) > 0}
 
-            LOGGER.info(
+            _emit_or_collect_message(
                 "DTOA 预测完成: label=%d, conf=%.4f, 各类别概率=%s, 耗时=%.1fms",
-                label, conf,
+                label,
+                conf,
                 ", ".join(f"{k}={v:.4f}" for k, v in sorted(conf_dict.items())),
                 (t1 - t0) * 1000,
+                logger_name=LOGGER.name,
+                pathname=__file__,
+                func_name="predict_dtoa",
+                write_log=write_log,
+                trace_messages=trace_messages,
             )
             return label, conf, conf_dict
 

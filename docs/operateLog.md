@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-06-24 15:34
+- 操作类型：[修改]
+- 影响文件：
+  - `core/recognition.py`
+  - `infra/onnx_service.py`
+  - `tests/unit/test_recognition_parallel.py`
+- 变更摘要：将并发识别的日志回放从纯文本输出升级为结构化 `LogRecord` 回放，恢复旧版 `module_path` 与 `funcName` 头信息，并保持串行/并发路径日志头一致。
+- 原因：用户要求并发识别不仅消息内容和顺序与旧版一致，连日志头中的模块路径与函数名也必须保持旧版结构，便于沿用现有日志检索与问题排查习惯。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_recognition_parallel.py tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_log_header_replay -p no:cacheprovider` 通过（7 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/recognition.py infra/onnx_service.py tests/unit/test_recognition_parallel.py` 通过；VS Code Diagnostics 对相关修改文件无新增诊断。
+
+- 时间：2026-06-24 15:11
+- 操作类型：[重构]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `core/recognition.py`
+  - `infra/onnx_service.py`
+  - `tests/unit/test_recognition_parallel.py`（新增）
+- 变更摘要：实现“聚类串行、单切片内簇识别并发”的识别优化；新增静默预测与顺序日志回放机制，恢复旧版详细日志结构，并保证并发与单簇回退路径都按簇顺序连续输出日志且有效簇编号稳定。
+- 原因：用户确认采用单切片内簇级并发识别方案，希望提升识别吞吐，同时要求日志在并发场景下仍保持可读性，不出现同一类别日志被其他簇穿插。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_recognition_parallel.py tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_parallel_cluster_log_fix -p no:cacheprovider` 通过（7 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/recognition.py runtime/threading/identify_worker.py infra/onnx_service.py tests/unit/test_identify_worker_clustering_params.py tests/unit/test_recognition_parallel.py` 通过；VS Code Diagnostics 对相关修改文件无新增诊断。
+
 - 时间：2026-06-24 11:26
 - 操作类型：[重构]
 - 影响文件：

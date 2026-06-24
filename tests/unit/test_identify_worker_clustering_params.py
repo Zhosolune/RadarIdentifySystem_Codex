@@ -38,8 +38,15 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
             return [], np.array([0, 1])
         return [], np.array([])
 
-    def fake_recognize_clusters(clusters, inference_service, recognize_params, start_index):
+    def fake_recognize_clusters_parallel(
+        clusters,
+        inference_service,
+        recognize_params,
+        start_index,
+        max_workers=None,
+    ):
         """跳过识别逻辑，保持测试聚焦于聚类参数传递。"""
+        del clusters, inference_service, recognize_params, max_workers
         return [], [], [], start_index
 
     monkeypatch.setattr(
@@ -47,8 +54,8 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.recognize_clusters",
-        fake_recognize_clusters,
+        "runtime.threading.identify_worker.recognize_clusters_parallel",
+        fake_recognize_clusters_parallel,
     )
     worker = IdentifyWorker(
         session=ProcessingSession(),

@@ -12,7 +12,7 @@ from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.cluster_result import ClusterItem, ClusteringResult, SliceClusterResult
 from core.models.recognition_result import ClusterRecognition, RecognitionResult, SliceRecognitionResult
 from core.clustering import process_dimension_clustering
-from core.recognition import InferenceService, recognize_clusters
+from core.recognition import InferenceService, recognize_clusters_parallel
 
 
 LOGGER = logging.getLogger(__name__)
@@ -215,7 +215,7 @@ class IdentifyWorker(QThread):
         current_cluster_id += len(cf_clusters)
 
         # ── 2. CF 维度识别 ──
-        cf_valid, cf_invalid, cf_recs, current_valid_idx = recognize_clusters(
+        cf_valid, cf_invalid, cf_recs, current_valid_idx = recognize_clusters_parallel(
             cf_clusters, inference_service, recognize_params, current_valid_idx
         )
         all_valid_clusters.extend(cf_valid)
@@ -252,7 +252,7 @@ class IdentifyWorker(QThread):
                 cluster.points_indices = pw_input_indices[cluster.points_indices]
 
             # ── 5. PW 维度识别 ──
-            pw_valid, pw_invalid, pw_recs, current_valid_idx = recognize_clusters(
+            pw_valid, pw_invalid, pw_recs, current_valid_idx = recognize_clusters_parallel(
                 pw_clusters, inference_service, recognize_params, current_valid_idx
             )
             all_valid_clusters.extend(pw_valid)
