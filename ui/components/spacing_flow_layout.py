@@ -2,6 +2,7 @@
 
 基于 FlowLayout 扩展，以卡片数最多的行为基准计算间距，
 所有行共用同一间距，实现类似 CSS ``justify-content: space-between`` 的效果。
+支持可配置的边缘内边距，为控件阴影等溢出绘制区域预留空间。
 """
 
 from __future__ import annotations
@@ -15,7 +16,22 @@ class SpacingFlowLayout(FlowLayout):
 
     第一遍按默认间距分行并找出卡片最多的行作为基准行，
     以该行均摊剩余空间后得到的间距作为全布局统一间距。
+
+    Attributes:
+        edge_padding: 右侧底部额外预留空间（px），用于避免控件阴影
+            等 QGraphicsEffect 溢出绘制被父容器裁剪。
     """
+
+    def __init__(self, parent=None, needAni=False, isTight=False, edge_padding=0):
+        """
+        Args:
+            parent: 父容器。
+            needAni: 是否启用移动动画。
+            isTight: 隐藏控件时是否紧贴排列。
+            edge_padding: 右侧和底部为阴影等效果预留的额外像素。
+        """
+        super().__init__(parent, needAni, isTight)
+        self.edge_padding = edge_padding
 
     def _doLayout(self, rect: QRect, move: bool) -> int:
         """先分行→以最多卡片行为基准算统一间距→统一放置所有行。"""
@@ -35,7 +51,9 @@ class SpacingFlowLayout(FlowLayout):
         if not visible_items:
             return margin.top() + margin.bottom()
 
-        available_width = rect.width() - margin.left() - margin.right()
+        # 预留边缘空间，避免阴影等效果被裁剪。
+        available_width = (rect.width() - margin.left() - margin.right()
+                           - self.edge_padding * 2)
 
         # 第一遍：按默认间距分行，记录每行累计宽度（含默认间距）。
         rows: list[tuple[list[tuple[int, object, int]], int]] = []
@@ -60,7 +78,6 @@ class SpacingFlowLayout(FlowLayout):
         # 以卡片数最多的行作为基准计算统一间距。
         max_cards = max(len(r[0]) for r in rows)
         if max_cards > 1:
-            # 找到卡片数等于 max_cards 的第一行作为基准。
             for row_items, row_cards_width in rows:
                 if len(row_items) == max_cards:
                     remaining = available_width - row_cards_width
@@ -75,8 +92,8 @@ class SpacingFlowLayout(FlowLayout):
             space_x = default_space_x
 
         # 第二遍：所有行用统一间距放置控件。
-        x_base = rect.x() + margin.left()
-        y = rect.y() + margin.top()
+        x_base = rect.x() + margin.left() + self.edge_padding
+        y = rect.y() + margin.top() + self.edge_padding
         row_height = 0
 
         for row_items, _row_cards_width in rows:
@@ -107,4 +124,5 @@ class SpacingFlowLayout(FlowLayout):
             self._aniGroup.stop()
             self._aniGroup.start()
 
-        return y - space_y + row_height + margin.bottom() - rect.y()
+        return (y - space_y + row_height + margin.bottom()
+                + self.edge_padding - rect.y())

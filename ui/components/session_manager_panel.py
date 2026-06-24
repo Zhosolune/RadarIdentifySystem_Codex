@@ -205,7 +205,9 @@ class SessionManagerPanel(SimpleCardWidget):
         self._detail_layout.addWidget(self._detail_content, 1)
 
         # 组装指标卡区域，使用均分间距流式布局自动换行。
-        self._metrics_layout = SpacingFlowLayout(self._detail_metrics_widget, needAni=False, isTight=False)
+        self._metrics_layout = SpacingFlowLayout(
+            self._detail_metrics_widget, needAni=False, isTight=False, edge_padding=2
+        )
         self._metrics_layout.setContentsMargins(0, 8, 0, 8)
         self._metrics_layout.setHorizontalSpacing(10)
         self._metrics_layout.setVerticalSpacing(10)
