@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-06-24 16:00
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/controllers/identify_controller.py`
+  - `tests/unit/test_navigation_controls.py`
+  - `docs/operateLog.md`
+- 变更摘要：修复“图像展示模式”切换无效问题；将 `plot.onlyShowIdentified` 正式接入聚类结果展示链路，支持在“仅展示识别后结果”和“展示全部聚类结果”之间即时切换；补充导航回归测试，覆盖全部簇浏览与模式切换后的标题/按钮状态刷新。
+- 原因：用户反馈切换“展示全部聚类结果”与“仅展示识别后结果”时界面始终只显示识别通过的簇，根因是控制器长期硬编码只读取 `valid_clusters`，配置项虽然可写入但没有参与实际渲染与翻页逻辑。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_plot_show_mode_fix -p no:cacheprovider` 通过（6 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/controllers/identify_controller.py tests/unit/test_navigation_controls.py` 通过；VS Code Diagnostics 对相关修改文件无新增诊断。
+
+- 时间：2026-06-24 15:44
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/components/spacing_flow_layout.py`
+- 变更摘要：修复各行间距不统一问题，改为以卡片数最多的行作为基准计算统一间距，所有行共用同一 `space_x`；新增 `edge_padding` 参数，在可用宽度和起始坐标中预留边缘空间，避免控件阴影被父容器裁剪。
+- 原因：之前各行独立计算间距，末行卡片少时间距与首行不一致，视觉不整齐；`QGraphicsDropShadowEffect` 渲染超出控件 bounds，最右侧卡片阴影被裁剪。
+- 测试状态：[待测试]
+
 - 时间：2026-06-24 15:34
 - 操作类型：[修改]
 - 影响文件：

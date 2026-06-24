@@ -9,8 +9,11 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import InfoBar, InfoBarPosition
+from qfluentwidgets import InfoBar, InfoBarPosition, qconfig
+from app.app_config import appConfig
 from app.signal_bus import signal_bus
+from core.models.cluster_result import ClusterItem, SliceClusterResult
+from core.models.processing_session import ProcessingSession
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
 from runtime.workflows.identify_workflow import IdentifyWorkflow
@@ -77,6 +80,11 @@ class IdentifyController(QObject):
         # 绑定全局生命周期信号
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
+
+        # 监听展示模式变化，并立即刷新当前聚类结果。
+        appConfig.plotOnlyShowIdentified.valueChanged.connect(
+            self._on_plot_show_mode_changed
+        )
 
     def handle_identify(self) -> None:
         """处理识别按钮点击事件。
@@ -290,6 +298,80 @@ class IdentifyController(QObject):
         self._current_cluster_index += 1
         self.load_cluster_image(self.view._slice_controller.current_slice_index)
 
+    def _on_plot_show_mode_changed(self, mode: str) -> None:
+        """响应聚类展示模式变化。"""
+        LOGGER.info(
+            "切换聚类展示模式为 %s",
+            mode,
+            extra={"session_id": self.view._session.session_id},
+        )
+        # 重置浏览索引，避免从较大索引切到较小结果集时越界。
+        self.refresh_cluster_view_state(reset_index=True)
+
+    def _is_identified_only_mode(self) -> bool:
+        """返回当前是否仅展示识别通过的聚类结果。"""
+        return str(qconfig.get(appConfig.plotOnlyShowIdentified)) == "IDENTIFIED_ONLY"
+
+    def _get_slice_cluster_result(
+        self,
+        session: ProcessingSession,
+        current_slice_index: int,
+    ) -> SliceClusterResult | None:
+        """获取当前切片的聚类结果。"""
+        if session.cluster_result is None:
+            return None
+        return session.cluster_result.slice_results.get(current_slice_index)
+
+    def _build_cluster_recognition_map(
+        self,
+        session: ProcessingSession,
+        current_slice_index: int,
+    ) -> dict[int, ClusterRecognition]:
+        """构建簇索引到识别结果的映射。"""
+        if session.recognition_result is None:
+            return {}
+
+        slice_recognition = session.recognition_result.slice_results.get(current_slice_index)
+        if slice_recognition is None:
+            return {}
+
+        cluster_map: dict[int, ClusterRecognition] = {}
+        # 合并有效簇和无效簇，便于“展示全部”模式读取识别状态。
+        for cluster_rec in [
+            *slice_recognition.valid_clusters,
+            *slice_recognition.invalid_clusters,
+        ]:
+            cluster_map[cluster_rec.cluster_index] = cluster_rec
+        return cluster_map
+
+    def _get_display_clusters(
+        self,
+        session: ProcessingSession,
+        current_slice_index: int,
+    ) -> list[tuple[ClusterItem, ClusterRecognition | None]]:
+        """按当前展示模式返回可浏览的簇列表。"""
+        slice_cluster_result = self._get_slice_cluster_result(session, current_slice_index)
+        if slice_cluster_result is None or not slice_cluster_result.clusters:
+            return []
+
+        recognition_map = self._build_cluster_recognition_map(session, current_slice_index)
+        if self._is_identified_only_mode():
+            # 仅保留识别通过的簇，顺序跟随聚类结果列表。
+            return [
+                (cluster, recognition_map[cluster.cluster_idx])
+                for cluster in slice_cluster_result.clusters
+                if (
+                    cluster.cluster_idx in recognition_map
+                    and recognition_map[cluster.cluster_idx].is_valid
+                )
+            ]
+
+        # 展示全部模式下，同时保留已有识别状态，便于标题展示。
+        return [
+            (cluster, recognition_map.get(cluster.cluster_idx))
+            for cluster in slice_cluster_result.clusters
+        ]
+
     def update_cluster_navigation_buttons(self, current_slice_index: int) -> None:
         """更新聚类类别导航按钮可用状态。
 
@@ -301,16 +383,16 @@ class IdentifyController(QObject):
 
         """
         session = self.view._session
-        if not session or not session.is_slice_recognized(current_slice_index):
+        if not session:
             self._set_cluster_navigation_enabled(False, False)
             return
 
-        rec_res = session.recognition_result.slice_results.get(current_slice_index)
-        if not rec_res or not rec_res.valid_clusters:
+        display_clusters = self._get_display_clusters(session, current_slice_index)
+        if not display_clusters:
             self._set_cluster_navigation_enabled(False, False)
             return
-            
-        total = len(rec_res.valid_clusters)
+
+        total = len(display_clusters)
         self._set_cluster_navigation_enabled(
             self._current_cluster_index > 0,
             self._current_cluster_index < total - 1,
@@ -335,11 +417,11 @@ class IdentifyController(QObject):
         self.view.navigation_control_card.next_cluster_button.setEnabled(next_enabled)
 
     def load_cluster_image(self, current_slice_index: int, reset_index: bool = False) -> None:
-        """加载并展示当前切片下指定索引的有效识别聚类结果图像。
+        """加载并展示当前切片下指定索引的聚类结果图像。
 
         功能描述：
-            校验切片与识别结果的有效性，约束类别索引后同步调用门面获取渲染图像，
-            若切片无效或无结果则主动清空中间显示区域。
+            按当前展示模式从聚类结果中筛选可浏览簇，约束类别索引后同步调用门面获取渲染图像，
+            若当前切片无可显示结果则主动清空中间显示区域。
 
         Args:
             current_slice_index (int): 需要加载图像的切片索引。
@@ -350,44 +432,50 @@ class IdentifyController(QObject):
             self._current_cluster_index = 0
             
         session = self.view._session
-        if not session or not session.is_slice_recognized(current_slice_index):
+        if not session:
             self.clear_cluster_ui()
             self.update_cluster_navigation_buttons(current_slice_index)
             return
 
-        rec_res = session.recognition_result.slice_results.get(current_slice_index)
-        if not rec_res or not rec_res.valid_clusters:
+        slice_cluster_result = self._get_slice_cluster_result(session, current_slice_index)
+        display_clusters = self._get_display_clusters(session, current_slice_index)
+        if slice_cluster_result is None or not display_clusters:
             self.clear_cluster_ui()
             self.update_cluster_navigation_buttons(current_slice_index)
             return
-            
-        valid_clusters_info = rec_res.valid_clusters
-            
+
         # 约束索引范围
         if self._current_cluster_index < 0:
             self._current_cluster_index = 0
-        elif self._current_cluster_index >= len(valid_clusters_info):
-            self._current_cluster_index = len(valid_clusters_info) - 1
-            
+        elif self._current_cluster_index >= len(display_clusters):
+            self._current_cluster_index = len(display_clusters) - 1
+
         self.update_cluster_navigation_buttons(current_slice_index)
-        
+
+        target_cluster, target_rec = display_clusters[self._current_cluster_index]
+
         # 同步获取聚类图像并更新界面
-        LOGGER.info(f"加载切片 {current_slice_index + 1} 的有效识别簇 {self._current_cluster_index + 1} 图像", extra={"session_id": session.session_id})
-        
-        # 拿到对应识别结果
-        target_rec = valid_clusters_info[self._current_cluster_index]
-        
-        # 去聚类结果中找到这个簇的数据点
-        cluster_res = session.cluster_result.slice_results.get(current_slice_index)
-        target_cluster = next(c for c in cluster_res.clusters if c.cluster_idx == target_rec.cluster_index)
-        
+        cluster_type = "有效识别簇" if self._is_identified_only_mode() else "聚类簇"
+        LOGGER.info(
+            "加载切片 %d 的%s %d 图像",
+            current_slice_index + 1,
+            cluster_type,
+            self._current_cluster_index + 1,
+            extra={"session_id": session.session_id},
+        )
+
         bundle = render_cluster_images(
             cluster_points=target_cluster.points,
             band=session.band,
             time_range=target_cluster.time_ranges
         )
         self._update_cluster_ui_with_bundle(
-            bundle, target_rec, len(valid_clusters_info), len(cluster_res.clusters)
+            bundle=bundle,
+            cluster=target_cluster,
+            cluster_rec=target_rec,
+            display_index=self._current_cluster_index + 1,
+            display_total=len(display_clusters),
+            total_all=len(slice_cluster_result.clusters),
         )
 
     def clear_cluster_ui(self) -> None:
@@ -429,35 +517,21 @@ class IdentifyController(QObject):
     def _update_cluster_ui_with_bundle(
         self,
         bundle: RenderedImageBundle,
-        cluster_rec: ClusterRecognition,
-        total_valid: int,
+        cluster: ClusterItem,
+        cluster_rec: ClusterRecognition | None,
+        display_index: int,
+        display_total: int,
         total_all: int,
     ) -> None:
-        """使用指定的聚类图像包更新聚类结果 UI。
-
-        功能描述：
-            根据传入的图像数据字典，逐个将维度图像转换为 QImage 并展示到对应的图像卡片中。
-            同时在标题中展示维度、有效类别索引与全局聚类索引。
-
-        Args:
-            bundle (RenderedImageBundle): 渲染后的聚类图像数据包。
-            cluster_rec (ClusterRecognition): 正在展示的有效簇的识别结果模型。
-            total_valid (int): 当前切片通过识别的有效簇总数。
-            total_all (int): 当前切片聚类产生的全部簇总数。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
-        """
+        """使用指定的聚类图像包更新聚类结果 UI。"""
         # 更新中间标题文本
         if hasattr(self.view, 'cluster_title_label'):
-            valid_idx = (cluster_rec.valid_cluster_index or 0) + 1
-            title_text = (
-                f"{cluster_rec.dim_name}维聚类结果  "
-                f"第{valid_idx}/{total_valid}类  "
-                f"总第{cluster_rec.cluster_index}/{total_all}类"
+            title_text = self._build_cluster_title(
+                cluster=cluster,
+                cluster_rec=cluster_rec,
+                display_index=display_index,
+                display_total=display_total,
+                total_all=total_all,
             )
             self.view.cluster_title_label.setText(title_text)
         
@@ -488,3 +562,26 @@ class IdentifyController(QObject):
                 
                 # 设置图像到卡片
                 cards[dim_name].set_image(q_image)
+
+    def _build_cluster_title(
+        self,
+        cluster: ClusterItem,
+        cluster_rec: ClusterRecognition | None,
+        display_index: int,
+        display_total: int,
+        total_all: int,
+    ) -> str:
+        """构建聚类结果标题文本。"""
+        if self._is_identified_only_mode() and cluster_rec is not None:
+            valid_idx = (cluster_rec.valid_cluster_index or 0) + 1
+            return (
+                f"{cluster_rec.dim_name}维聚类结果  "
+                f"第{valid_idx}/{display_total}类  "
+                f"总第{cluster_rec.cluster_index}/{total_all}类"
+            )
+
+        return (
+            f"{cluster.dim_name}维聚类结果  "
+            f"第{display_index}/{display_total}类  "
+            f"总第{cluster.cluster_idx}/{total_all}类"
+        )
