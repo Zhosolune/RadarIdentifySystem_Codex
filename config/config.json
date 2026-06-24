@@ -50,7 +50,7 @@
         "userModelRootDir": "C:\\Users\\lenovo\\.RadarIdentifySystem\\models"
     },
     "plot": {
-        "onlyShowIdentified": "ALL",
+        "onlyShowIdentified": "IDENTIFIED_ONLY",
         "order": "CF,PW,PA,DTOA,DOA",
         "scaleMode": "STRETCH"
     },

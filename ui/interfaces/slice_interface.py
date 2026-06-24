@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from PyQt6.QtGui import QColor
 from qfluentwidgets import TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, SimpleCardWidget, ScrollArea, qconfig
 
@@ -94,6 +94,17 @@ class SliceInterface(QFrame):
         # 初始化控制器，将业务逻辑抽离
         self._slice_controller = SliceController(self)
         self._identify_controller = IdentifyController(self)
+
+    def _configure_header_title_label(self, label: QLabel) -> None:
+        """配置标题标签的稳定宽度策略。"""
+        # 允许标题在空间不足时被压缩，避免长文本反向撑大整列宽度。
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setFixedHeight(25)
+        label.setMinimumWidth(0)
+        label.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
 
     def _init_layout(self) -> None:
         """初始化三栏主布局。
@@ -191,8 +202,7 @@ class SliceInterface(QFrame):
         
         self.slice_title_label = QLabel("第0个切片数据  原始图像", column)
         self.slice_title_label.setObjectName("sliceLeftTitle")
-        self.slice_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.slice_title_label.setFixedHeight(25)
+        self._configure_header_title_label(self.slice_title_label)
         
         self.next_slice_button = TransparentToolButton(CustomIcon.CHEVRONS_RIGHT.colored(themeColor(), QColor("white")), column)
         self.next_slice_button.setFixedSize(25, 25)
@@ -249,8 +259,7 @@ class SliceInterface(QFrame):
 
         self.cluster_title_label = QLabel("暂无聚类结果", column)
         self.cluster_title_label.setObjectName("sliceMiddleTitle")
-        self.cluster_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.cluster_title_label.setFixedHeight(25)
+        self._configure_header_title_label(self.cluster_title_label)
         
         self.next_cluster_button = TransparentToolButton(CustomIcon.CHEVRON_RIGHT.colored(themeColor(), QColor("white")), column)
         self.next_cluster_button.setFixedSize(25, 25)

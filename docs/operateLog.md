@@ -1,5 +1,15 @@
 # 变更记录
 
+- 时间：2026-06-24 16:14
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/interfaces/slice_interface.py`
+  - `tests/unit/test_slice_interface.py`
+  - `docs/operateLog.md`
+- 变更摘要：修复图像展示区域宽度仍会随标题文本长度变化的问题；为切片页左右两列标题标签统一增加横向压缩策略（`minimumWidth=0` + `QSizePolicy.Ignored`），阻断长标题通过 `minimumSizeHint` 反向撑开列宽；补充界面级回归测试验证标题变长前后图像列宽保持稳定。
+- 原因：用户明确要求图像展示区域宽度必须稳定，当前普通 `QLabel` 的默认最小尺寸策略会让长标题通过 `minimumSizeHint` 反向撑开列宽。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_slice_interface.py -q --basetemp=.pytest_tmp_slice_title_width_fix -p no:cacheprovider` 中 2 个用例断言通过（命令退出码因沙箱拦截外部输入法配置文件访问而变为 1，非测试断言失败）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py` 通过；VS Code Diagnostics 对相关修改文件无新增诊断。
+
 - 时间：2026-06-24 16:00
 - 操作类型：[修改]
 - 影响文件：
