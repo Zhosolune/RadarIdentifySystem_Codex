@@ -16,6 +16,27 @@ from core.models.slice_result import PreprocessResult
 from infra.session_store import SessionStore
 
 
+class _RecordingRLock:
+    """测试用可重入锁记录器。"""
+
+    def __init__(self) -> None:
+        """初始化锁状态记录。"""
+        self.depth = 0
+        self.enter_calls = 0
+        self.max_depth = 0
+
+    def __enter__(self) -> "_RecordingRLock":
+        """进入锁上下文并记录嵌套层级。"""
+        self.depth += 1
+        self.enter_calls += 1
+        self.max_depth = max(self.max_depth, self.depth)
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        """退出锁上下文并回退层级计数。"""
+        self.depth -= 1
+
+
 def test_session_store_writes_index_session_and_config(tmp_path: Path) -> None:
     """保存 session 时应写入索引、元数据和配置文件。"""
     store = SessionStore(tmp_path)
@@ -41,6 +62,21 @@ def test_session_store_writes_index_session_and_config(tmp_path: Path) -> None:
     assert restored.recognition_result is None
     assert restored.merge_result is None
     assert restored.restored_from_store is True
+
+
+def test_session_store_upsert_uses_reentrant_lock_for_index_update(
+    tmp_path: Path,
+) -> None:
+    """保存 session 时应通过同一把可重入锁包裹索引更新。"""
+    store = SessionStore(tmp_path)
+    recording_lock = _RecordingRLock()
+    store._lock = recording_lock
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+
+    store.upsert_session(session)
+
+    assert recording_lock.enter_calls >= 3
+    assert recording_lock.max_depth >= 2
 
 
 def test_session_store_round_trips_import_cache(tmp_path: Path) -> None:

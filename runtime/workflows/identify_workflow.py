@@ -93,6 +93,7 @@ class IdentifyWorkflow(QObject):
         super().__init__(parent)
         self._worker: Optional[IdentifyWorker] = None
         self._active_slice_index: int | None = None
+        self._active_session_id: str | None = None
         self._inference_service: Optional[object] = None
 
     def is_running(self) -> bool:
@@ -162,6 +163,8 @@ class IdentifyWorkflow(QObject):
                 parent=self
             )
             self._active_slice_index = slice_index
+            # 记录当前运行 session，便于完成回调和调试定位。
+            self._active_session_id = session_id
             self._worker.progress_signal.connect(self._on_worker_progress)
             self._worker.finished_signal.connect(self._on_worker_finished)
             self._worker.start()
@@ -218,7 +221,4 @@ class IdentifyWorkflow(QObject):
             self._worker.deleteLater()
             self._worker = None
         self._active_slice_index = None
-
-
-# 全局工作流实例（简化生命周期管理）
-identify_workflow = IdentifyWorkflow()
+        self._active_session_id = None

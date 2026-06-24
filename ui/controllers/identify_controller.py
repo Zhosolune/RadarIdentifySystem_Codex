@@ -13,7 +13,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
-from runtime.workflows.identify_workflow import identify_workflow
+from runtime.workflows.identify_workflow import IdentifyWorkflow
 from core.models.recognition_result import ClusterRecognition
 from ui.dialogs.processing_dialog import ProcessingDialog
 if TYPE_CHECKING:
@@ -51,6 +51,8 @@ class IdentifyController(QObject):
         """
         super().__init__(view)
         self.view = view
+        # 为当前 session 页面创建独立识别工作流，允许不同 session 并行处理。
+        self._workflow = IdentifyWorkflow(self)
         self._processing_dialog = None
         self._current_cluster_index = 0
         self._connect_signals()
@@ -126,10 +128,21 @@ class IdentifyController(QObject):
         self.update_cluster_navigation_buttons(slice_index)
         
         # 启动识别工作流，参数由 runtime 层内部自行获取
-        identify_workflow.start_identify(
+        self._workflow.start_identify(
             self.view._session,
             slice_index=slice_index,
         )
+
+    def is_identifying_running(self) -> bool:
+        """返回当前 session 页面是否仍有识别任务在运行。
+
+        Returns:
+            bool: 当前页面的识别工作流仍在执行时返回 True。
+
+        Raises:
+            无。
+        """
+        return self._workflow.is_running()
 
     def _validate_enabled_models(self) -> bool:
         """校验 PA/DTOA 启用模型是否完整可用。

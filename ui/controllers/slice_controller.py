@@ -16,7 +16,6 @@ from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_slice_images
 from app.app_config import appConfig, qconfig
 from runtime.workflows.slice_workflow import slice_workflow
-from runtime.workflows.identify_workflow import identify_workflow
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
@@ -389,7 +388,7 @@ class SliceController(QObject):
         if not session:
             LOGGER.debug("无有效会话，跳过自动识别")
             return
-        if identify_workflow.is_running():
+        if self.view._identify_controller.is_identifying_running():
             LOGGER.info("识别工作流正在运行，跳过本次自动识别")
             return
         if session.is_slice_recognized(self._current_slice_index):

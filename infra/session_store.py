@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -237,6 +238,8 @@ class SessionStore:
 
         self.root_dir = root_dir or get_session_config_dir()
         self.root_dir.mkdir(parents=True, exist_ok=True)
+        # 串行化索引与 session 文件读写，避免并发读改写互相覆盖。
+        self._lock = threading.RLock()
 
     def load_index(self) -> SessionIndex:
         """读取 session 索引。
@@ -256,25 +259,26 @@ class SessionStore:
             True
         """
 
-        index_path = self.root_dir / "index.json"
-        if not index_path.exists():
-            return SessionIndex()
-
-        try:
-            with index_path.open("r", encoding="utf-8") as file:
-                payload = json.load(file)
-            if not isinstance(payload, dict):
+        with self._lock:
+            index_path = self.root_dir / "index.json"
+            if not index_path.exists():
                 return SessionIndex()
-            index = SessionIndex.from_dict(payload)
-            if index.active_session_id is not None:
-                index.active_session_id = self._validate_session_id(
-                    index.active_session_id,
-                )
-            for entry in index.sessions:
-                entry.session_id = self._validate_session_id(entry.session_id)
-            return index
-        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
-            return SessionIndex()
+
+            try:
+                with index_path.open("r", encoding="utf-8") as file:
+                    payload = json.load(file)
+                if not isinstance(payload, dict):
+                    return SessionIndex()
+                index = SessionIndex.from_dict(payload)
+                if index.active_session_id is not None:
+                    index.active_session_id = self._validate_session_id(
+                        index.active_session_id,
+                    )
+                for entry in index.sessions:
+                    entry.session_id = self._validate_session_id(entry.session_id)
+                return index
+            except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+                return SessionIndex()
 
     def save_index(self, index: SessionIndex) -> None:
         """保存 session 索引。
@@ -293,8 +297,9 @@ class SessionStore:
             >>> store.save_index(SessionIndex())
         """
 
-        self.root_dir.mkdir(parents=True, exist_ok=True)
-        self._write_json(self.root_dir / "index.json", index.to_dict())
+        with self._lock:
+            self.root_dir.mkdir(parents=True, exist_ok=True)
+            self._write_json(self.root_dir / "index.json", index.to_dict())
 
     def upsert_session(self, session: ProcessingSession) -> None:
         """新增或更新 session 持久化内容。
@@ -316,22 +321,30 @@ class SessionStore:
             True
         """
 
-        session_dir = self._session_dir(session.session_id)
-        session_dir.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            session_dir = self._session_dir(session.session_id)
+            session_dir.mkdir(parents=True, exist_ok=True)
 
-        # 仅保存元数据和模型选择，不写入任何计算产物。
-        self._write_json(session_dir / "session.json", self._session_to_metadata(session))
-        self._write_json(session_dir / "config.json", session.config_snapshot.to_dict())
+            # 保存 session 元数据与配置快照。
+            self._write_json(
+                session_dir / "session.json",
+                self._session_to_metadata(session),
+            )
+            self._write_json(
+                session_dir / "config.json",
+                session.config_snapshot.to_dict(),
+            )
 
-        index = self.load_index()
-        entry = self._session_to_index_entry(session)
-        for index_pos, existing_entry in enumerate(index.sessions):
-            if existing_entry.session_id == session.session_id:
-                index.sessions[index_pos] = entry
-                break
-        else:
-            index.sessions.append(entry)
-        self.save_index(index)
+            # 在同一把锁内完成索引更新，避免并发 upsert 丢失条目。
+            index = self.load_index()
+            entry = self._session_to_index_entry(session)
+            for index_pos, existing_entry in enumerate(index.sessions):
+                if existing_entry.session_id == session.session_id:
+                    index.sessions[index_pos] = entry
+                    break
+            else:
+                index.sessions.append(entry)
+            self.save_index(index)
 
     def load_session(self, session_id: str) -> ProcessingSession:
         """按 id 恢复单个 session。
@@ -354,36 +367,37 @@ class SessionStore:
             True
         """
 
-        requested_session_id = self._validate_session_id(session_id)
-        session_dir = self._session_dir(requested_session_id)
-        metadata = self._read_json(session_dir / "session.json")
-        config_payload = self._read_json(session_dir / "config.json")
-        model_payload = metadata.get("model_selection")
-        metadata_session_id = self._validate_session_id(
-            _require_string_session_id(metadata["session_id"]),
-        )
-        if metadata_session_id != requested_session_id:
-            raise ValueError("session 元数据 id 与请求 id 不一致")
+        with self._lock:
+            requested_session_id = self._validate_session_id(session_id)
+            session_dir = self._session_dir(requested_session_id)
+            metadata = self._read_json(session_dir / "session.json")
+            config_payload = self._read_json(session_dir / "config.json")
+            model_payload = metadata.get("model_selection")
+            metadata_session_id = self._validate_session_id(
+                _require_string_session_id(metadata["session_id"]),
+            )
+            if metadata_session_id != requested_session_id:
+                raise ValueError("session 元数据 id 与请求 id 不一致")
 
-        session = ProcessingSession(
-            session_id=requested_session_id,
-            source_path=str(metadata["source_path"]),
-            source_type=str(metadata["source_type"]),
-            created_at=datetime.fromisoformat(str(metadata["created_at"])),
-            display_name=str(metadata["display_name"]),
-            last_opened_at=datetime.fromisoformat(str(metadata["last_opened_at"])),
-            restored_from_store=True,
-            config_snapshot=SessionConfigSnapshot.from_dict(config_payload),
-            model_selection=SessionModelSelection.from_dict(model_payload),
-        )
+            session = ProcessingSession(
+                session_id=requested_session_id,
+                source_path=str(metadata["source_path"]),
+                source_type=str(metadata["source_type"]),
+                created_at=datetime.fromisoformat(str(metadata["created_at"])),
+                display_name=str(metadata["display_name"]),
+                last_opened_at=datetime.fromisoformat(str(metadata["last_opened_at"])),
+                restored_from_store=True,
+                config_snapshot=SessionConfigSnapshot.from_dict(config_payload),
+                model_selection=SessionModelSelection.from_dict(model_payload),
+            )
 
-        # 明确保持计算产物为空，避免把持久化层扩展为结果保存系统。
-        session.raw_batch = None
-        session.slice_result = None
-        session.cluster_result = None
-        session.recognition_result = None
-        session.merge_result = None
-        return session
+            # 明确保持计算产物为空，避免把持久化层扩展为结果保存系统。
+            session.raw_batch = None
+            session.slice_result = None
+            session.cluster_result = None
+            session.recognition_result = None
+            session.merge_result = None
+            return session
 
     def save_import_cache(self, session: ProcessingSession) -> None:
         """保存 session 的导入与预处理缓存。
@@ -404,40 +418,41 @@ class SessionStore:
             True
         """
 
-        if session.raw_batch is None or session.preprocess_result is None:
-            raise ValueError("保存导入缓存前必须完成导入与预处理")
-        if session.dashboard_info is None:
-            raise ValueError("保存导入缓存前必须存在仪表盘信息")
+        with self._lock:
+            if session.raw_batch is None or session.preprocess_result is None:
+                raise ValueError("保存导入缓存前必须完成导入与预处理")
+            if session.dashboard_info is None:
+                raise ValueError("保存导入缓存前必须存在仪表盘信息")
 
-        cache_path = self._import_cache_path(session.session_id)
-        metadata = {
-            "schema_version": 1,
-            "raw_batch": {
-                "source_path": session.raw_batch.source_path,
-                "source_type": session.raw_batch.source_type,
-                "total_pulses": session.raw_batch.total_pulses,
-            },
-            "preprocess_result": {
-                "total_pulses": session.preprocess_result.total_pulses,
-                "filtered_pulses": session.preprocess_result.filtered_pulses,
-                "toa_flip_count": session.preprocess_result.toa_flip_count,
-                "time_range": session.preprocess_result.time_range,
-                "estimated_slice_count": (
-                    session.preprocess_result.estimated_slice_count
-                ),
-                "band": session.preprocess_result.band,
-            },
-            "dashboard_info": asdict(session.dashboard_info),
-        }
+            cache_path = self._import_cache_path(session.session_id)
+            metadata = {
+                "schema_version": 1,
+                "raw_batch": {
+                    "source_path": session.raw_batch.source_path,
+                    "source_type": session.raw_batch.source_type,
+                    "total_pulses": session.raw_batch.total_pulses,
+                },
+                "preprocess_result": {
+                    "total_pulses": session.preprocess_result.total_pulses,
+                    "filtered_pulses": session.preprocess_result.filtered_pulses,
+                    "toa_flip_count": session.preprocess_result.toa_flip_count,
+                    "time_range": session.preprocess_result.time_range,
+                    "estimated_slice_count": (
+                        session.preprocess_result.estimated_slice_count
+                    ),
+                    "band": session.preprocess_result.band,
+                },
+                "dashboard_info": asdict(session.dashboard_info),
+            }
 
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        # 数组交给 npz 存储，结构化元信息以 JSON 字符串随包写入。
-        np.savez_compressed(
-            cache_path,
-            raw_data=session.raw_batch.data,
-            preprocess_data=session.preprocess_result.data,
-            metadata=np.array(json.dumps(metadata, ensure_ascii=False)),
-        )
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            # 数组交给 npz 存储，结构化元信息以 JSON 字符串随包写入。
+            np.savez_compressed(
+                cache_path,
+                raw_data=session.raw_batch.data,
+                preprocess_data=session.preprocess_result.data,
+                metadata=np.array(json.dumps(metadata, ensure_ascii=False)),
+            )
 
     def load_import_cache(self, session: ProcessingSession) -> bool:
         """读取 session 的导入缓存并恢复运行态数据。
@@ -458,66 +473,67 @@ class SessionStore:
             False
         """
 
-        cache_path = self._import_cache_path(session.session_id)
-        if not cache_path.exists():
-            return False
+        with self._lock:
+            cache_path = self._import_cache_path(session.session_id)
+            if not cache_path.exists():
+                return False
 
-        try:
-            with np.load(cache_path, allow_pickle=False) as cache:
-                metadata = json.loads(str(cache["metadata"].item()))
-                if int(metadata.get("schema_version", 0)) != 1:
-                    return False
-                raw_data = np.array(cache["raw_data"])
-                preprocess_data = np.array(cache["preprocess_data"])
+            try:
+                with np.load(cache_path, allow_pickle=False) as cache:
+                    metadata = json.loads(str(cache["metadata"].item()))
+                    if int(metadata.get("schema_version", 0)) != 1:
+                        return False
+                    raw_data = np.array(cache["raw_data"])
+                    preprocess_data = np.array(cache["preprocess_data"])
 
-            raw_payload = metadata["raw_batch"]
-            preprocess_payload = metadata["preprocess_result"]
-            dashboard_payload = metadata["dashboard_info"]
-            dashboard_info = ExcelDashboardInfo(
-                total_pulses=int(dashboard_payload["total_pulses"]),
-                removed_pulses=int(dashboard_payload["removed_pulses"]),
-                amplitude_dropped_pulses=int(
-                    dashboard_payload["amplitude_dropped_pulses"]
-                ),
-                duration=float(dashboard_payload["duration"]),
-                band=dashboard_payload["band"],
-                estimated_slice_count=int(
-                    dashboard_payload["estimated_slice_count"]
-                ),
-            )
-            preprocess_result = PreprocessResult(
-                data=preprocess_data,
-                total_pulses=int(preprocess_payload["total_pulses"]),
-                filtered_pulses=int(preprocess_payload["filtered_pulses"]),
-                toa_flip_count=int(preprocess_payload["toa_flip_count"]),
-                time_range=float(preprocess_payload["time_range"]),
-                estimated_slice_count=int(
-                    preprocess_payload["estimated_slice_count"]
-                ),
-                band=preprocess_payload["band"],
-                dashboard_info=dashboard_info,
-            )
-
-            with session.lock:
-                # 只恢复导入/预处理产物，下游结果仍由对应流程重新产生。
-                session.raw_batch = PulseBatch(
-                    data=raw_data,
-                    source_path=str(raw_payload["source_path"]),
-                    source_type=str(raw_payload["source_type"]),
-                    total_pulses=int(raw_payload["total_pulses"]),
+                raw_payload = metadata["raw_batch"]
+                preprocess_payload = metadata["preprocess_result"]
+                dashboard_payload = metadata["dashboard_info"]
+                dashboard_info = ExcelDashboardInfo(
+                    total_pulses=int(dashboard_payload["total_pulses"]),
+                    removed_pulses=int(dashboard_payload["removed_pulses"]),
+                    amplitude_dropped_pulses=int(
+                        dashboard_payload["amplitude_dropped_pulses"]
+                    ),
+                    duration=float(dashboard_payload["duration"]),
+                    band=dashboard_payload["band"],
+                    estimated_slice_count=int(
+                        dashboard_payload["estimated_slice_count"]
+                    ),
                 )
-                session.preprocess_result = preprocess_result
-                session.dashboard_info = dashboard_info
-                session.stage = ProcessingStage.PREPROCESSED
-            return True
-        except (
-            OSError,
-            json.JSONDecodeError,
-            KeyError,
-            TypeError,
-            ValueError,
-        ):
-            return False
+                preprocess_result = PreprocessResult(
+                    data=preprocess_data,
+                    total_pulses=int(preprocess_payload["total_pulses"]),
+                    filtered_pulses=int(preprocess_payload["filtered_pulses"]),
+                    toa_flip_count=int(preprocess_payload["toa_flip_count"]),
+                    time_range=float(preprocess_payload["time_range"]),
+                    estimated_slice_count=int(
+                        preprocess_payload["estimated_slice_count"]
+                    ),
+                    band=preprocess_payload["band"],
+                    dashboard_info=dashboard_info,
+                )
+
+                with session.lock:
+                    # 只恢复导入/预处理产物，下游结果仍由对应流程重新产生。
+                    session.raw_batch = PulseBatch(
+                        data=raw_data,
+                        source_path=str(raw_payload["source_path"]),
+                        source_type=str(raw_payload["source_type"]),
+                        total_pulses=int(raw_payload["total_pulses"]),
+                    )
+                    session.preprocess_result = preprocess_result
+                    session.dashboard_info = dashboard_info
+                    session.stage = ProcessingStage.PREPROCESSED
+                return True
+            except (
+                OSError,
+                json.JSONDecodeError,
+                KeyError,
+                TypeError,
+                ValueError,
+            ):
+                return False
 
     def list_sessions(self) -> list[SessionIndexEntry]:
         """按索引顺序列出 session 条目。
@@ -559,20 +575,21 @@ class SessionStore:
             True
         """
 
-        sessions: list[ProcessingSession] = []
-        for entry in self.load_index().sessions:
-            try:
-                sessions.append(self.load_session(entry.session_id))
-            except (
-                FileNotFoundError,
-                OSError,
-                json.JSONDecodeError,
-                KeyError,
-                TypeError,
-                ValueError,
-            ):
-                continue
-        return sessions
+        with self._lock:
+            sessions: list[ProcessingSession] = []
+            for entry in self.load_index().sessions:
+                try:
+                    sessions.append(self.load_session(entry.session_id))
+                except (
+                    FileNotFoundError,
+                    OSError,
+                    json.JSONDecodeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
+                    continue
+            return sessions
 
     def delete_session(self, session_id: str) -> None:
         """删除 session 目录并更新索引。
@@ -592,17 +609,18 @@ class SessionStore:
             >>> store.delete_session("missing")
         """
 
-        session_dir = self._session_dir(session_id)
-        if session_dir.exists():
-            shutil.rmtree(session_dir)
+        with self._lock:
+            session_dir = self._session_dir(session_id)
+            if session_dir.exists():
+                shutil.rmtree(session_dir)
 
-        index = self.load_index()
-        index.sessions = [
-            entry for entry in index.sessions if entry.session_id != session_id
-        ]
-        if index.active_session_id == session_id:
-            index.active_session_id = None
-        self.save_index(index)
+            index = self.load_index()
+            index.sessions = [
+                entry for entry in index.sessions if entry.session_id != session_id
+            ]
+            if index.active_session_id == session_id:
+                index.active_session_id = None
+            self.save_index(index)
 
     def set_active_session_id(self, session_id: str | None) -> None:
         """持久化当前活动 session id。
@@ -623,11 +641,12 @@ class SessionStore:
             >>> store.set_active_session_id(None)
         """
 
-        index = self.load_index()
-        index.active_session_id = (
-            None if session_id is None else self._validate_session_id(session_id)
-        )
-        self.save_index(index)
+        with self._lock:
+            index = self.load_index()
+            index.active_session_id = (
+                None if session_id is None else self._validate_session_id(session_id)
+            )
+            self.save_index(index)
 
     def _validate_session_id(self, session_id: str) -> str:
         """校验 session id 是否为单段安全目录名。"""

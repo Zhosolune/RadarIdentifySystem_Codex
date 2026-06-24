@@ -141,3 +141,65 @@ def test_identify_workflow_injects_session_params_and_models(
     assert service_args["pa_path"] == "E:/models/pa.onnx"
     assert service_args["dtoa_path"] == "E:/models/dtoa.onnx"
     assert service_args["temp_dir"]
+
+
+def test_multiple_identify_workflow_instances_can_start_in_parallel(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """不同 workflow 实例应可各自启动识别线程。"""
+    started_sessions: list[str] = []
+
+    class FakeSignal:
+        """测试用信号桩。"""
+
+        def connect(self, _slot) -> None:
+            """忽略信号连接。"""
+            return None
+
+    class FakeWorker:
+        """测试用识别线程桩。"""
+
+        progress_signal = FakeSignal()
+        finished_signal = FakeSignal()
+
+        def __init__(self, **kwargs) -> None:
+            """记录当前启动的 session。"""
+            self._session_id = kwargs["session"].session_id
+            self._running = False
+
+        def isRunning(self) -> bool:
+            """返回当前线程运行状态。"""
+            return self._running
+
+        def start(self) -> None:
+            """标记线程已启动。"""
+            self._running = True
+            started_sessions.append(self._session_id)
+
+    monkeypatch.setattr(
+        "runtime.workflows.identify_workflow.IdentifyWorker",
+        FakeWorker,
+    )
+    monkeypatch.setattr(
+        "runtime.workflows.identify_workflow.get_cached_inference_service",
+        lambda **kwargs: {"service_args": kwargs},
+    )
+
+    session_a = ProcessingSession(session_id="session_a")
+    session_a.slice_result = object()
+    session_a.model_selection.pa_model_path = "E:/models/pa_a.onnx"
+    session_a.model_selection.dtoa_model_path = "E:/models/dtoa_a.onnx"
+    session_b = ProcessingSession(session_id="session_b")
+    session_b.slice_result = object()
+    session_b.model_selection.pa_model_path = "E:/models/pa_b.onnx"
+    session_b.model_selection.dtoa_model_path = "E:/models/dtoa_b.onnx"
+
+    workflow_a = IdentifyWorkflow()
+    workflow_b = IdentifyWorkflow()
+
+    workflow_a.start_identify(session_a, slice_index=0)
+    workflow_b.start_identify(session_b, slice_index=1)
+
+    assert started_sessions == ["session_a", "session_b"]
+    assert workflow_a.is_running() is True
+    assert workflow_b.is_running() is True

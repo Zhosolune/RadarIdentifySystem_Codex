@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import replace
 from datetime import datetime
 
@@ -40,6 +41,8 @@ class SessionRegistry:
             True
         """
         self.store = store or SessionStore()
+        # 串行化内存注册表与 active id 更新，避免并发修改破坏一致性。
+        self._lock = threading.RLock()
         self._sessions: dict[str, ProcessingSession] = {}
         self.active_session_id: str | None = None
 
@@ -58,9 +61,10 @@ class SessionRegistry:
             >>> registry.active_session is None
             True
         """
-        if self.active_session_id is None:
-            return None
-        return self._sessions.get(self.active_session_id)
+        with self._lock:
+            if self.active_session_id is None:
+                return None
+            return self._sessions.get(self.active_session_id)
 
     def register(
         self,
@@ -86,37 +90,38 @@ class SessionRegistry:
             >>> registry.register(session, persist=False) is session
             True
         """
-        old_last_opened_at = session.last_opened_at
-        new_last_opened_at = datetime.now()
-        old_persisted_session = self._load_persisted_session_or_none(
-            session.session_id,
-        )
-        old_active_session_id = self.store.load_index().active_session_id
+        with self._lock:
+            old_last_opened_at = session.last_opened_at
+            new_last_opened_at = datetime.now()
+            old_persisted_session = self._load_persisted_session_or_none(
+                session.session_id,
+            )
+            old_active_session_id = self.store.load_index().active_session_id
 
-        if persist:
-            # upsert 只保存 session 内容，active id 由 registry 显式同步。
-            persisted_session = replace(session, last_opened_at=new_last_opened_at)
-            try:
-                self.store.upsert_session(persisted_session)
-                self.store.set_active_session_id(session.session_id)
-                if self._has_import_cache_payload(session):
-                    self.store.save_import_cache(session)
-            except Exception:
-                # 持久化未完整成功时恢复磁盘与调用前对象状态。
-                self._restore_persisted_session(
-                    session.session_id,
-                    old_persisted_session,
-                )
-                self._restore_active_session_id(old_active_session_id)
-                session.last_opened_at = old_last_opened_at
-                raise
-        else:
+            if persist:
+                # upsert 只保存 session 内容，active id 由 registry 显式同步。
+                persisted_session = replace(session, last_opened_at=new_last_opened_at)
+                try:
+                    self.store.upsert_session(persisted_session)
+                    self.store.set_active_session_id(session.session_id)
+                    if self._has_import_cache_payload(session):
+                        self.store.save_import_cache(session)
+                except Exception:
+                    # 持久化未完整成功时恢复磁盘与调用前对象状态。
+                    self._restore_persisted_session(
+                        session.session_id,
+                        old_persisted_session,
+                    )
+                    self._restore_active_session_id(old_active_session_id)
+                    session.last_opened_at = old_last_opened_at
+                    raise
+            else:
+                session.last_opened_at = new_last_opened_at
+
             session.last_opened_at = new_last_opened_at
-
-        session.last_opened_at = new_last_opened_at
-        self._sessions[session.session_id] = session
-        self.active_session_id = session.session_id
-        return session
+            self._sessions[session.session_id] = session
+            self.active_session_id = session.session_id
+            return session
 
     def restore(self) -> list[ProcessingSession]:
         """从持久化存储恢复全部 session。
@@ -139,27 +144,28 @@ class SessionRegistry:
             >>> isinstance(registry.restore(), list)
             True
         """
-        restored_sessions = self.store.load_all_sessions()
-        for session in restored_sessions:
-            # 导入缓存缺失或损坏时保留元数据恢复结果，不阻断页面恢复。
-            self.store.load_import_cache(session)
-        restored_mapping = {
-            session.session_id: session
-            for session in restored_sessions
-        }
+        with self._lock:
+            restored_sessions = self.store.load_all_sessions()
+            for session in restored_sessions:
+                # 导入缓存缺失或损坏时保留元数据恢复结果，不阻断页面恢复。
+                self.store.load_import_cache(session)
+            restored_mapping = {
+                session.session_id: session
+                for session in restored_sessions
+            }
 
-        active_session_id = self.store.load_index().active_session_id
-        restored_active_session_id = (
-            active_session_id
-            if active_session_id in restored_mapping
-            else None
-        )
-        if active_session_id is not None and restored_active_session_id is None:
-            self.store.set_active_session_id(None)
+            active_session_id = self.store.load_index().active_session_id
+            restored_active_session_id = (
+                active_session_id
+                if active_session_id in restored_mapping
+                else None
+            )
+            if active_session_id is not None and restored_active_session_id is None:
+                self.store.set_active_session_id(None)
 
-        self._sessions = restored_mapping
-        self.active_session_id = restored_active_session_id
-        return self.all_sessions()
+            self._sessions = restored_mapping
+            self.active_session_id = restored_active_session_id
+            return self.all_sessions()
 
     def get(self, session_id: str) -> ProcessingSession | None:
         """按 id 获取 session。
@@ -178,7 +184,8 @@ class SessionRegistry:
             >>> registry.get("missing") is None
             True
         """
-        return self._sessions.get(session_id)
+        with self._lock:
+            return self._sessions.get(session_id)
 
     def all_sessions(self) -> list[ProcessingSession]:
         """返回当前内存中的全部 session。
@@ -194,7 +201,8 @@ class SessionRegistry:
             >>> registry.all_sessions()
             []
         """
-        return list(self._sessions.values())
+        with self._lock:
+            return list(self._sessions.values())
 
     def persist_session(self, session_id: str) -> ProcessingSession:
         """持久化当前内存中的指定 session。
@@ -218,15 +226,16 @@ class SessionRegistry:
             >>> registry.persist_session("demo") is session
             True
         """
-        session = self._sessions.get(session_id)
-        if session is None:
-            raise KeyError(session_id)
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise KeyError(session_id)
 
-        self.store.upsert_session(session)
-        if self._has_import_cache_payload(session):
-            # 配置保存或重新导入后的显式持久化要同步覆盖导入缓存。
-            self.store.save_import_cache(session)
-        return session
+            self.store.upsert_session(session)
+            if self._has_import_cache_payload(session):
+                # 配置保存或重新导入后的显式持久化要同步覆盖导入缓存。
+                self.store.save_import_cache(session)
+            return session
 
     def rename(self, session_id: str, display_name: str) -> ProcessingSession:
         """重命名指定 session 并同步持久化。
@@ -243,24 +252,25 @@ class SessionRegistry:
             ValueError: 当 display_name 为空白字符串时抛出。
             OSError: 当持久化写入失败时抛出。
         """
-        session = self._sessions.get(session_id)
-        if session is None:
-            raise KeyError(session_id)
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise KeyError(session_id)
 
-        new_display_name = display_name.strip()
-        if not new_display_name:
-            raise ValueError("session 名称不能为空")
+            new_display_name = display_name.strip()
+            if not new_display_name:
+                raise ValueError("session 名称不能为空")
 
-        old_display_name = session.display_name
-        session.display_name = new_display_name
-        try:
-            self.store.upsert_session(session)
-        except Exception:
-            # 持久化失败时恢复旧名称，避免内存和磁盘状态分叉。
-            session.display_name = old_display_name
-            raise
+            old_display_name = session.display_name
+            session.display_name = new_display_name
+            try:
+                self.store.upsert_session(session)
+            except Exception:
+                # 持久化失败时恢复旧名称，避免内存和磁盘状态分叉。
+                session.display_name = old_display_name
+                raise
 
-        return session
+            return session
 
     def activate(self, session_id: str) -> ProcessingSession:
         """激活指定 session。
@@ -284,28 +294,29 @@ class SessionRegistry:
             >>> registry.activate("demo") is session
             True
         """
-        session = self._sessions.get(session_id)
-        if session is None:
-            raise KeyError(session_id)
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise KeyError(session_id)
 
-        old_last_opened_at = session.last_opened_at
-        new_last_opened_at = datetime.now()
-        old_persisted_session = self._load_persisted_session_or_none(session_id)
-        old_active_session_id = self.store.load_index().active_session_id
-        persisted_session = replace(session, last_opened_at=new_last_opened_at)
-        try:
-            self.store.upsert_session(persisted_session)
-            self.store.set_active_session_id(session_id)
-        except Exception:
-            # 激活持久化失败时恢复内存与磁盘打开时间，并保留原 active id。
-            self._restore_persisted_session(session_id, old_persisted_session)
-            self._restore_active_session_id(old_active_session_id)
-            session.last_opened_at = old_last_opened_at
-            raise
+            old_last_opened_at = session.last_opened_at
+            new_last_opened_at = datetime.now()
+            old_persisted_session = self._load_persisted_session_or_none(session_id)
+            old_active_session_id = self.store.load_index().active_session_id
+            persisted_session = replace(session, last_opened_at=new_last_opened_at)
+            try:
+                self.store.upsert_session(persisted_session)
+                self.store.set_active_session_id(session_id)
+            except Exception:
+                # 激活持久化失败时恢复内存与磁盘打开时间，并保留原 active id。
+                self._restore_persisted_session(session_id, old_persisted_session)
+                self._restore_active_session_id(old_active_session_id)
+                session.last_opened_at = old_last_opened_at
+                raise
 
-        session.last_opened_at = new_last_opened_at
-        self.active_session_id = session_id
-        return session
+            session.last_opened_at = new_last_opened_at
+            self.active_session_id = session_id
+            return session
 
     def set_active_session_id(self, session_id: str | None) -> None:
         """显式同步当前活动 session id。
@@ -320,11 +331,12 @@ class SessionRegistry:
             KeyError: 当 session_id 不为 None 且不在当前注册表中时抛出。
             OSError: 当持久化活动 id 写入失败时抛出。
         """
-        if session_id is not None and session_id not in self._sessions:
-            raise KeyError(session_id)
+        with self._lock:
+            if session_id is not None and session_id not in self._sessions:
+                raise KeyError(session_id)
 
-        self.store.set_active_session_id(session_id)
-        self.active_session_id = session_id
+            self.store.set_active_session_id(session_id)
+            self.active_session_id = session_id
 
     def close(self, session_id: str, delete_persisted: bool = True) -> None:
         """关闭指定 session。
@@ -349,54 +361,56 @@ class SessionRegistry:
             >>> registry.active_session is None
             True
         """
-        was_active = self.active_session_id == session_id
-        remaining_session_ids = [
-            current_session_id
-            for current_session_id in self._sessions
-            if current_session_id != session_id
-        ]
-        next_active_session_id = (
-            remaining_session_ids[-1]
-            if remaining_session_ids
-            else None
-        )
-        persisted_deleted = False
-        had_persisted_session = self._can_load_persisted_session(session_id)
+        with self._lock:
+            was_active = self.active_session_id == session_id
+            remaining_session_ids = [
+                current_session_id
+                for current_session_id in self._sessions
+                if current_session_id != session_id
+            ]
+            next_active_session_id = (
+                remaining_session_ids[-1]
+                if remaining_session_ids
+                else None
+            )
+            persisted_deleted = False
+            had_persisted_session = self._can_load_persisted_session(session_id)
 
-        if delete_persisted:
-            # 仅删除 session 元数据目录，不触碰任何计算结果存储。
-            try:
-                self.store.delete_session(session_id)
-                persisted_deleted = True
-            except Exception:
-                if (
-                    had_persisted_session
-                    and not self._can_load_persisted_session(session_id)
-                ):
-                    self._reconcile_after_persisted_close(session_id)
-                raise
+            if delete_persisted:
+                # 仅删除 session 元数据目录，不触碰任何计算结果存储。
+                try:
+                    self.store.delete_session(session_id)
+                    persisted_deleted = True
+                except Exception:
+                    if (
+                        had_persisted_session
+                        and not self._can_load_persisted_session(session_id)
+                    ):
+                        self._reconcile_after_persisted_close(session_id)
+                    raise
 
-        if was_active:
-            try:
-                self.store.set_active_session_id(next_active_session_id)
-            except Exception:
-                if persisted_deleted:
-                    self._reconcile_after_persisted_close(session_id)
-                raise
+            if was_active:
+                try:
+                    self.store.set_active_session_id(next_active_session_id)
+                except Exception:
+                    if persisted_deleted:
+                        self._reconcile_after_persisted_close(session_id)
+                    raise
 
-        self._sessions.pop(session_id, None)
-        if was_active:
-            self.active_session_id = next_active_session_id
+            self._sessions.pop(session_id, None)
+            if was_active:
+                self.active_session_id = next_active_session_id
 
     def _reconcile_after_persisted_close(self, session_id: str) -> None:
         """按磁盘删除结果同步 close 失败后的内存状态。"""
-        self._sessions.pop(session_id, None)
-        persisted_active_session_id = self.store.load_index().active_session_id
-        self.active_session_id = (
-            persisted_active_session_id
-            if persisted_active_session_id in self._sessions
-            else None
-        )
+        with self._lock:
+            self._sessions.pop(session_id, None)
+            persisted_active_session_id = self.store.load_index().active_session_id
+            self.active_session_id = (
+                persisted_active_session_id
+                if persisted_active_session_id in self._sessions
+                else None
+            )
 
     def _load_persisted_session_or_none(
         self,

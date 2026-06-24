@@ -1,5 +1,19 @@
 # 变更记录
 
+- 时间：2026-06-24 11:26
+- 操作类型：[重构]
+- 影响文件：
+  - `runtime/workflows/identify_workflow.py`
+  - `ui/controllers/identify_controller.py`
+  - `ui/controllers/slice_controller.py`
+  - `runtime/session_registry.py`
+  - `infra/session_store.py`
+  - `tests/unit/test_identify_worker_clustering_params.py`
+  - `tests/unit/test_session_store.py`
+- 变更摘要：准备将识别工作流从全局单例改为 session 级实例，并为 session 注册表与持久化存储补充并发保护，消除多 session 并行识别时的全局串行与索引覆盖风险。
+- 原因：代码审查确认不同 session 的识别请求当前共享同一个 `IdentifyWorkflow`，且 `SessionRegistry`/`SessionStore` 对共享索引文件缺少互斥保护，不满足“不同 session 可并行处理”的目标。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_session_store.py tests/unit/test_session_registry.py -q --basetemp=.pytest_tmp_parallel_identify_fix -p no:cacheprovider` 通过（72 passed, 1 warning，警告来自 `qfluentwidgets/common/image_utils.py` 中 scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/workflows/identify_workflow.py ui/controllers/identify_controller.py ui/controllers/slice_controller.py runtime/session_registry.py infra/session_store.py tests/unit/test_identify_worker_clustering_params.py tests/unit/test_session_store.py` 通过；VS Code Diagnostics 对相关修改文件无新增诊断。
+
 - 时间：2026-06-24 10:59
 - 操作类型：[重构]
 - 影响文件：
