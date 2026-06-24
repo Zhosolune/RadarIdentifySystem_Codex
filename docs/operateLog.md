@@ -1,5 +1,17 @@
 # 变更记录
 
+- 时间：2026-06-24 09:47
+- 操作类型：[新增|修改]
+- 影响文件：
+  - `core/models/processing_session.py`
+  - `ui/components/session_manager_panel.py`
+  - `ui/controllers/session_manager_controller.py`
+  - `tests/unit/test_processing_session.py`
+  - `tests/unit/test_session_manager_panel.py`
+- 变更摘要：详情区新增 Session ID 行；Session 关闭再启用时调用 `reset_to_imported()` 清空导入后所有产物，避免聚类图像残留。
+- 原因：详情区缺少 session_id 标识；关闭再启用后旧产物残留导致聚类结果图像误显示。
+- 测试状态：[已测试] `pytest tests/unit/test_processing_session.py tests/unit/test_session_manager_panel.py` 通过（10 passed, 1 warning）；`py_compile` 通过；GetDiagnostics 无新增问题。
+
 - 时间：2026-06-23 16:57
 - 操作类型：[修改]
 - 影响文件：

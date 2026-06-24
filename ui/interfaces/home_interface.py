@@ -181,7 +181,8 @@ class HomeInterface(QFrame):
         header_layout.setContentsMargins(20, 8, 8, 7)
         header_layout.setSpacing(8)
 
-        title_label = BodyLabel("预留面板", card)
+        title_label = BodyLabel("预留全速处理面板", card)
+        title_label.setFixedHeight(34)
         title_label.setObjectName("homeRightPlaceholderTitle")
         setFont(title_label, 14)
         header_layout.addWidget(title_label)
@@ -194,16 +195,21 @@ class HomeInterface(QFrame):
         separator.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         root_layout.addWidget(separator)
 
+        body_layout = QVBoxLayout(card)
+        body_layout.setContentsMargins(8, 7, 8, 8)
+        body_layout.setSpacing(0)
         body_widget = QWidget(card)
         body_widget.setObjectName("homeRightPlaceholderBody")
         body_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
-        body_layout = QVBoxLayout(body_widget)
-        body_layout.setContentsMargins(20, 20, 20, 20)
-        body_layout.setSpacing(0)
+        content_layout = QVBoxLayout(body_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
 
-        placeholder_label = BodyLabel("右侧下半区占位", body_widget)
+        placeholder_label = BodyLabel("预留全速处理面板", body_widget)
         placeholder_label.setObjectName("homeRightPlaceholderText")
         placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        body_layout.addWidget(placeholder_label, 1)
-        root_layout.addWidget(body_widget, 1)
+        content_layout.addWidget(placeholder_label, 1)
+
+        body_layout.addWidget(body_widget)
+        root_layout.addLayout(body_layout)
         return card

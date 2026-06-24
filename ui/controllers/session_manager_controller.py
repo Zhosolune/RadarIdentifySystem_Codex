@@ -68,6 +68,8 @@ class SessionManagerController(QObject):
             return
 
         try:
+            # 重置到预处理完成状态，清空旧产物避免聚类图像残留。
+            session.reset_to_preprocessed_state()
             # 创建动态页面但不立即跳转。
             self.main_window.create_session_interface(session, activate=False)
         except Exception as exc:

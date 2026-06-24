@@ -148,3 +148,38 @@ def test_slice_processing_state_records_failure() -> None:
 
     assert slice_state.cluster_status == SliceProcessStatus.FAILED
     assert slice_state.last_cluster_error == "mock error"
+
+
+def test_reset_to_imported_clears_downstream_products() -> None:
+    """关闭再启用时应清空导入后所有产物并回退到 IMPORTED。
+
+    Args:
+        无。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        无。
+    """
+    session = ProcessingSession()
+    # 模拟导入完成后推进到聚类阶段。
+    session.stage = ProcessingStage.CLUSTERED
+    session.slice_result = SliceResult(
+        slices=[
+            SingleSlice(index=0, data=np.empty((0, 5)), time_range=(0.0, 250.0)),
+        ]
+    )
+    session.reset_slice_processing_states(1)
+
+    # 执行重置。
+    session.reset_to_imported()
+
+    # 保留导入产物，清空下游。
+    assert session.stage == ProcessingStage.IMPORTED
+    assert session.preprocess_result is None
+    assert session.slice_result is None
+    assert session.cluster_result is None
+    assert session.slice_processing_states == {}
+    assert session.recognition_result is None
+    assert session.merge_result is None

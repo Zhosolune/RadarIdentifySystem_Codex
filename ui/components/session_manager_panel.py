@@ -154,6 +154,7 @@ class SessionManagerPanel(SimpleCardWidget):
         self._detail_name_label.setObjectName("sessionDetailName")
         setFont(self._detail_name_label, 16)
 
+        self._session_id_value_label = CaptionLabel("--", self._detail_info_widget)
         self._file_name_value_label = CaptionLabel("--", self._detail_info_widget)
         self._file_size_value_label = CaptionLabel("--", self._detail_info_widget)
         self._file_path_value_label = CaptionLabel("--", self._detail_info_widget)
@@ -212,6 +213,7 @@ class SessionManagerPanel(SimpleCardWidget):
         info_layout = QVBoxLayout(self._detail_info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
         info_layout.setSpacing(5)
+        info_layout.addWidget(self._create_info_row("Session ID", self._session_id_value_label))
         info_layout.addWidget(self._create_info_row("文件名", self._file_name_value_label))
         info_layout.addWidget(self._create_info_row("文件大小", self._file_size_value_label))
         info_layout.addWidget(self._create_info_row("文件路径", self._file_path_value_label))
@@ -430,6 +432,7 @@ class SessionManagerPanel(SimpleCardWidget):
         if not has_session:
             # 清空详情内容。
             self._detail_name_label.setText("数据包信息")
+            self._session_id_value_label.setText("--")
             self._file_name_value_label.setText("--")
             self._file_size_value_label.setText("--")
             self._file_path_value_label.setText("--")
@@ -440,6 +443,8 @@ class SessionManagerPanel(SimpleCardWidget):
         file_path = Path(session.source_path) if session.source_path else None
         # 保持固定标题，仅刷新基础文件信息。
         self._detail_name_label.setText("数据包信息")
+        # 刷新 session_id。
+        self._session_id_value_label.setText(session.session_id)
         # 刷新基础文件信息。
         self._file_name_value_label.setText(file_path.name if file_path else "--")
         self._file_size_value_label.setText(self._format_source_file_size(file_path))

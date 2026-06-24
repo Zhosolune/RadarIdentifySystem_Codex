@@ -281,6 +281,36 @@ class ProcessingSession:
         self.recognition_result = None
         self.merge_result = None
 
+    def reset_to_preprocessed_state(self) -> None:
+        """重置到预处理完成状态，清空所有下游产物。
+
+        功能描述：
+            保留 raw_batch 和 dashboard_info，清空预处理及之后的所有阶段产物，
+            将 stage 回退到 PREPROCESSED。用于 session 关闭再启用时避免旧产物残留。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> session = ProcessingSession()
+            >>> session.stage = ProcessingStage.CLUSTERED
+            >>> session.reset_to_preprocessed_status()
+            >>> session.stage.name
+            'PREPROCESSE    D'
+        """
+        # 清空预处理及下游所有产物。
+        # self.preprocess_result = None
+        self.slice_result = None
+        self.cluster_result = None
+        self.slice_processing_states = {}
+        self.recognition_result = None
+        self.merge_result = None
+        # 回退阶段到预处理完成。
+        self.stage = ProcessingStage.PREPROCESSED
+
     def get_slice_processing_state(self, slice_index: int) -> SliceProcessingState:
         """获取指定切片的局部状态。
 

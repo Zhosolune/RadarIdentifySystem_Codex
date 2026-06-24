@@ -52,8 +52,7 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
     panel.set_sessions([session], enabled_session_ids={"session_a"})
 
     item = panel.session_nav.item("session_a")
-    assert item.title_label.text().startswith("\u4e2d\u6587\u6d4b\u8bd5\u770b\u770b\u5b57\u4f53")
-    assert item.title_label.text().endswith("A.xlsx")
+    assert item.title_label.text() == "A.xlsx"
     assert item.subtitle_label is not None
     assert item.subtitle_label.text() == "2026-06-22 12:30"
     assert item.title_label.font().families() == UNIFIED_NAVIGATION_FONT_FAMILIES
@@ -63,6 +62,7 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
     assert panel.current_session_id() == "session_a"
     assert panel.session_detail_placeholder.text() == "请选择一个 Session 查看详情"
     assert panel._detail_name_label.text() == "数据包信息"
+    assert panel._session_id_value_label.text() == "session_a"
     assert panel._file_name_value_label.text() == "A.xlsx"
     assert panel._file_size_value_label.text() == "9 B"
     assert panel._file_path_value_label.text() == str(source_file)
@@ -81,7 +81,7 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
         for label in title_labels
         if label.objectName() == "sessionDetailInfoTitle"
     ]
-    assert info_titles == ["文件名：", "文件大小：", "文件路径：", "备注信息："]
+    assert info_titles == ["Session ID：", "文件名：", "文件大小：", "文件路径：", "备注信息："]
     assert panel.session_titles() == ["A.xlsx"]
 
 
