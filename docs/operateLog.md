@@ -1,5 +1,30 @@
 # 变更记录
 
+- 时间：2026-06-24 10:59
+- 操作类型：[重构]
+- 影响文件：
+  - `ui/components/spacing_flow_layout.py`（新增）
+  - `ui/components/session_manager_panel.py`
+- 变更摘要：将 `SpacingFlowLayout` 从 `session_manager_panel.py` 抽离为独立组件 `spacing_flow_layout.py`；修复行间距均分仅对首行生效的 bug（移除 `remaining < card_width_sample` 条件，改为只要有剩余空间且行内卡片多于 1 张即均分间距）。
+- 原因：内联通用组件违反单一职责原则；末行卡片较少时剩余空间大于单卡宽度导致不触发均分。
+- 测试状态：[待测试]
+
+- 时间：2026-06-24 10:54
+- 操作类型：[新增]
+- 影响文件：
+  - `ui/components/session_manager_panel.py`
+- 变更摘要：新增 `SpacingFlowLayout`，继承 `FlowLayout`，在行末剩余空间不足以容纳一张卡片时自动将剩余空间均分到该行卡片间距中，实现类似 CSS `justify-content: space-between` 的自适应间距效果。
+- 原因：默认流式布局右端留空不美观，用户期望间距自适应拉伸填充。
+- 测试状态：[待测试]
+
+- 时间：2026-06-24 10:51
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/components/session_manager_panel.py`
+- 变更摘要：指标卡布局从 QGridLayout + 手动列数计算切换为 FlowLayout，卡片宽度改为按最长内容自然宽度测量确定（不低于 96px），同 session 内卡片宽度固定不变。
+- 原因：旧方案按可用宽度均分导致卡片宽度随容器变化而不稳定；改用流式布局自动换行并基于内容测量统一宽度后，卡片视觉更整齐。
+- 测试状态：[待测试]
+
 - 时间：2026-06-24 09:47
 - 操作类型：[新增|修改]
 - 影响文件：
