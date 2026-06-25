@@ -385,6 +385,7 @@ class SessionStore:
                 source_type=str(metadata["source_type"]),
                 created_at=datetime.fromisoformat(str(metadata["created_at"])),
                 display_name=str(metadata["display_name"]),
+                remark=str(metadata.get("remark", "无")),
                 last_opened_at=datetime.fromisoformat(str(metadata["last_opened_at"])),
                 restored_from_store=True,
                 config_snapshot=SessionConfigSnapshot.from_dict(config_payload),
@@ -708,6 +709,7 @@ class SessionStore:
             "source_type": session.source_type,
             "created_at": session.created_at.isoformat(),
             "display_name": session.display_name,
+            "remark": session.remark,
             "last_opened_at": session.last_opened_at.isoformat(),
             "model_selection": session.model_selection.to_dict(),
         }

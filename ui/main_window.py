@@ -202,19 +202,38 @@ class MainWindow(FluentWindow):
             OSError: 当 session 持久化写入失败时由注册表抛出。
             ValueError: 当 session_id 非法时由持久化层抛出。
         """
+        interface = self.add_session_from_import(session)
+        self.activate_session_interface(session.session_id)
+        return interface
+
+    def add_session_from_import(self, session: ProcessingSession) -> SliceInterface:
+        """注册解析完成的 session 并在主页中选中。
+
+        Args:
+            session [ProcessingSession]: 主页解析完成后等待确认导入的处理会话。
+
+        Returns:
+            SliceInterface: 绑定该 session 的动态切片页面。
+
+        Raises:
+            OSError: 当 session 持久化写入失败时由注册表抛出。
+            ValueError: 当 session_id 非法时由持久化层抛出。
+        """
         session.config_snapshot = create_session_config_from_global()
         interface_existed = session.session_id in self._session_interfaces
-        interface = self.create_session_interface(session)
+        interface = self.create_session_interface(session, activate=False)
         try:
-            self.session_registry.register(session)
+            # 后台准备动态页面，但保持主页停留和原 active session 不变。
+            self.session_registry.register(session, activate=False)
         except Exception:
             # 注册失败时只回滚本次创建的 UI 页面，避免留下未持久化的动态页。
             if not interface_existed:
                 self.close_session_interface(session.session_id)
             raise
+        # 保持停留主页，仅在管理器中选中新建 session。
+        self.switchTo(self.homeInterface)
         self.refresh_session_manager_panel(selected_session_id=session.session_id)
         signal_bus.session_registered.emit(session.session_id)
-        signal_bus.session_activated.emit(session.session_id)
         return interface
 
     def session_interface(self, session_id: str) -> SliceInterface | None:

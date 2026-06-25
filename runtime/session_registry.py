@@ -70,12 +70,14 @@ class SessionRegistry:
         self,
         session: ProcessingSession,
         persist: bool = True,
+        activate: bool = True,
     ) -> ProcessingSession:
         """注册 session 并设为 active。
 
         Args:
             session [ProcessingSession]: 需要注册的 session 对象。
             persist [bool]: 是否同步写入持久化存储，默认为 True。
+            activate [bool]: 是否同步设为 active session，默认为 True。
 
         Returns:
             ProcessingSession: 已注册的原 session 对象。
@@ -103,7 +105,8 @@ class SessionRegistry:
                 persisted_session = replace(session, last_opened_at=new_last_opened_at)
                 try:
                     self.store.upsert_session(persisted_session)
-                    self.store.set_active_session_id(session.session_id)
+                    if activate:
+                        self.store.set_active_session_id(session.session_id)
                     if self._has_import_cache_payload(session):
                         self.store.save_import_cache(session)
                 except Exception:
@@ -120,7 +123,8 @@ class SessionRegistry:
 
             session.last_opened_at = new_last_opened_at
             self._sessions[session.session_id] = session
-            self.active_session_id = session.session_id
+            if activate:
+                self.active_session_id = session.session_id
             return session
 
     def restore(self) -> list[ProcessingSession]:

@@ -118,6 +118,7 @@ class ProcessingSession:
         source_type (str): 数据来源类型，"excel" / "bin" / "mat"。
         created_at (datetime): 会话创建时间戳。
         display_name (str): 会话展示名称，默认使用源文件名或 session_id。
+        remark (str): 会话备注信息，未填写时使用“无”。
         last_opened_at (datetime): 最近打开时间戳。
         restored_from_store (bool): 是否由持久化存储恢复。
         config_snapshot (SessionConfigSnapshot): 当前 session 的子配置快照。
@@ -149,6 +150,7 @@ class ProcessingSession:
     source_type: str = "unknown"
     created_at: datetime = field(default_factory=datetime.now)
     display_name: str = ""
+    remark: str = "无"
     last_opened_at: datetime = field(default_factory=datetime.now)
     restored_from_store: bool = False
     config_snapshot: SessionConfigSnapshot = field(default_factory=SessionConfigSnapshot.default)

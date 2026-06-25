@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     Action,
+    AdaptiveFlowLayout,
     BodyLabel,
     CaptionLabel,
     CommandBar,
@@ -25,7 +26,6 @@ from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
 from ui.components.card_navigation_list import CardNavigationList
 from ui.components.import_dashboard_panel import DashboardCard, DashboardMetric, format_dashboard_duration
-from ui.components.spacing_flow_layout import SpacingFlowLayout
 
 
 class SessionManagerPanel(SimpleCardWidget):
@@ -52,7 +52,6 @@ class SessionManagerPanel(SimpleCardWidget):
     sessionRenameRequested = pyqtSignal(str)
     sessionDeleteRequested = pyqtSignal(str)
     sessionJumpRequested = pyqtSignal(str)
-    _DETAIL_METRIC_TARGET_WIDTH = 96
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化 session 管理面板。
@@ -78,7 +77,6 @@ class SessionManagerPanel(SimpleCardWidget):
         self._selected_session_id: str | None = None
         self._enabled_session_ids: set[str] = set()
         self._metric_cards: list[DashboardCard] = []
-        self._metric_card_width: int = self._DETAIL_METRIC_TARGET_WIDTH
 
         # 创建标题标签。
         self.session_title_label = BodyLabel("Session 管理", self)
@@ -204,13 +202,14 @@ class SessionManagerPanel(SimpleCardWidget):
         self._detail_layout.addWidget(self.session_detail_placeholder, 1)
         self._detail_layout.addWidget(self._detail_content, 1)
 
-        # 组装指标卡区域，使用均分间距流式布局自动换行。
-        self._metrics_layout = SpacingFlowLayout(
-            self._detail_metrics_widget, needAni=False, isTight=False, edge_padding=2
+        # 组装指标卡区域，使用自适应流式布局按行均分卡片宽度。
+        self._metrics_layout = AdaptiveFlowLayout(
+            self._detail_metrics_widget, needAni=True, isTight=True
         )
-        self._metrics_layout.setContentsMargins(0, 8, 0, 8)
+        self._metrics_layout.setContentsMargins(3, 8, 3, 8)
         self._metrics_layout.setHorizontalSpacing(10)
         self._metrics_layout.setVerticalSpacing(10)
+        self._metrics_layout.setWidgetMinimumWidth(110)
 
         # 文件详情区域。
         info_layout = QVBoxLayout(self._detail_info_widget)
@@ -510,33 +509,17 @@ class SessionManagerPanel(SimpleCardWidget):
         ]
 
     def _refresh_metric_cards(self, metrics: list[DashboardMetric]) -> None:
-        """重建详情区中的仪表盘卡片，按最长内容确定统一宽度。
-
-        所有卡片先按自然内容宽度渲染，取最大值（不低于96px）作为统一
-        固定宽度应用到每张卡片，此后该 session 内卡片宽度不再变化。
-        """
+        """重建详情区中的仪表盘卡片，宽度交给 AdaptiveFlowLayout 按行均分。"""
         # 清空旧卡片。
         for card in self._metric_cards:
             self._metrics_layout.removeWidget(card)
             card.deleteLater()
         self._metric_cards.clear()
 
-        # 先创建所有卡片并测量自然内容宽度。
-        max_content_width = self._DETAIL_METRIC_TARGET_WIDTH
+        # 创建卡片并加入流式布局，宽度由布局按行均分。
         for metric in metrics:
             card = DashboardCard(metric, self._detail_metrics_widget)
-            card.adjustSize()  # 强制计算布局，确保 sizeHint 准确。
-            hint_width = card.sizeHint().width()
-            if hint_width > max_content_width:
-                max_content_width = hint_width
             self._metric_cards.append(card)
-
-        # 确定统一宽度：不低于 96px，不超过内容最长卡片的自然宽度。
-        self._metric_card_width = max(self._DETAIL_METRIC_TARGET_WIDTH, max_content_width)
-
-        # 统一设置固定宽度后加入流式布局。
-        for card in self._metric_cards:
-            card.setFixedWidth(self._metric_card_width)
             self._metrics_layout.addWidget(card)
 
     def _format_source_file_size(self, file_path: Path | None) -> str:

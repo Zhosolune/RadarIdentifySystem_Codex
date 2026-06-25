@@ -292,6 +292,79 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
         _dispose_window(window)
 
 
+def test_main_window_add_session_from_import_stays_on_home_and_persists_remark(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """导入面板创建 session 时应停留主页并持久化备注。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
+    received_registered: list[str] = []
+    received_activated: list[str] = []
+    try:
+        session = ProcessingSession(
+            session_id="session_from_import_panel",
+            source_path="E:/data/imported.xlsx",
+            source_type="excel",
+            display_name="imported.xlsx",
+            remark="导入备注",
+        )
+        dashboard_info = ExcelDashboardInfo(
+            total_pulses=1,
+            removed_pulses=0,
+            amplitude_dropped_pulses=0,
+            duration=0.0,
+            band="C波段",
+            estimated_slice_count=0,
+        )
+        session.raw_batch = PulseBatch(
+            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            session.source_path,
+            "excel",
+            1,
+        )
+        session.preprocess_result = PreprocessResult(
+            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            total_pulses=1,
+            filtered_pulses=0,
+            toa_flip_count=0,
+            time_range=0.0,
+            estimated_slice_count=0,
+            band="C波段",
+            dashboard_info=dashboard_info,
+        )
+        session.dashboard_info = dashboard_info
+        signal_bus.session_registered.connect(received_registered.append)
+        signal_bus.session_activated.connect(received_activated.append)
+
+        interface = window.add_session_from_import(session)
+        persisted_session = window.session_registry.store.load_session(session.session_id)
+
+        assert window.session_registry.get(session.session_id) is session
+        assert window.session_registry.active_session_id is None
+        assert window.session_interface(session.session_id) is interface
+        assert window.stackedWidget.currentWidget() is window.homeInterface
+        assert window.homeInterface.session_manager_panel.current_session_id() == session.session_id
+        assert received_registered == [session.session_id]
+        assert received_activated == []
+        assert persisted_session.display_name == "imported.xlsx"
+        assert persisted_session.remark == "导入备注"
+    finally:
+        try:
+            signal_bus.session_registered.disconnect(received_registered.append)
+        except TypeError:
+            pass
+        try:
+            signal_bus.session_activated.disconnect(received_activated.append)
+        except TypeError:
+            pass
+        _dispose_window(window)
+
+
 def test_session_drawer_config_change_is_persisted(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
@@ -584,7 +657,10 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
     received_registered: list[str] = []
     received_activated: list[str] = []
 
-    def _raise_page_error(_session: ProcessingSession) -> None:
+    def _raise_page_error(
+        _session: ProcessingSession,
+        activate: bool = True,
+    ) -> None:
         """模拟动态页面创建失败。"""
         raise RuntimeError("page creation failed")
 

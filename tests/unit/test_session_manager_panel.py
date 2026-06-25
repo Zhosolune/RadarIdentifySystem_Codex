@@ -141,18 +141,15 @@ def test_session_manager_panel_updates_action_states_by_enabled_sessions() -> No
     assert panel.jump_button.isEnabled() is True
 
 
-def test_session_manager_panel_metric_layout_tracks_detail_width() -> None:
-    """详情区指标卡列数应按截断取整公式随宽度变化。"""
+def test_session_manager_panel_metric_layout_uses_adaptive_flow() -> None:
+    """详情区指标卡应使用 AdaptiveFlowLayout 按行均分宽度。"""
+    from qfluentwidgets.components.layout import AdaptiveFlowLayout
+
     _app()
     panel = SessionManagerPanel()
 
-    three_columns, three_width = panel._metric_layout_spec(320, 6)
-    four_columns, four_width = panel._metric_layout_spec(420, 6)
-    six_columns, six_width = panel._metric_layout_spec(620, 6)
-
-    assert three_columns == 3
-    assert three_width == 100
-    assert four_columns == 4
-    assert four_width == 97
-    assert six_columns == 5
-    assert six_width == 116
+    # 布局应为 AdaptiveFlowLayout，最小宽度设为 110。
+    assert isinstance(panel._metrics_layout, AdaptiveFlowLayout)
+    assert panel._metrics_layout.widgetMinimumWidth() == 110
+    assert panel._metrics_layout.needAni is True
+    assert panel._metrics_layout.isTight is True

@@ -21,15 +21,15 @@ from PyQt6.QtWidgets import (
 )
 
 from qfluentwidgets import (
+    AdaptiveFlowLayout,
     BodyLabel,
     CaptionLabel,
     FluentIcon,
+    PrimaryPushButton,
     SimpleCardWidget,
     TransparentPushButton,
     setFont,
 )
-from qfluentwidgets.components.widgets import PrimaryPushButton
-from qfluentwidgets.components.layout import AdaptiveFlowLayout
 
 from ui.components.edge_tab_view import EdgeTabWidget
 
@@ -208,81 +208,6 @@ class DashboardSkeletonWidget(QWidget):
             # 高度保持设计尺寸，宽度不超过当前内容区。
             block.setFixedWidth(min(target_width, available_width))
 
-
-class DashboardFlowLayout(AdaptiveFlowLayout):
-    """仪表盘指标卡自适应流式布局。
-
-    在组件库 AdaptiveFlowLayout 的均分逻辑基础上限制每行最多 5 张卡片。
-    """
-
-    _MAX_CARDS_PER_ROW = 6
-
-    def _doLayout(self, rect: QRect, move: bool) -> int:
-        """根据容器宽度均分卡片宽度，并限制每行最多 5 张。"""
-        ani_restart = False
-        margin = self.contentsMargins()
-        space_x = self.horizontalSpacing()
-        space_y = self.verticalSpacing()
-        available_width = max(0, rect.width() - margin.left() - margin.right())
-
-        if self.widgetMinimumWidth() + space_x > 0:
-            cards_per_row = max(
-                1,
-                (available_width + space_x) // (self.widgetMinimumWidth() + space_x),
-            )
-        else:
-            cards_per_row = 1
-        cards_per_row = min(cards_per_row, self._MAX_CARDS_PER_ROW)
-
-        if cards_per_row > 1:
-            card_width = (
-                available_width - (cards_per_row - 1) * space_x
-            ) // cards_per_row
-        else:
-            card_width = available_width
-
-        maximum_width = self.widgetMaximumWidth()
-        if maximum_width is not None and card_width > maximum_width:
-            card_width = maximum_width
-
-        x = rect.x() + margin.left()
-        y = rect.y() + margin.top()
-        row_height = 0
-        column_index = 0
-
-        for index, item in enumerate(self._items):
-            if item.widget() and not item.widget().isVisible() and self.isTight:
-                continue
-
-            if column_index >= cards_per_row:
-                x = rect.x() + margin.left()
-                y = y + row_height + space_y
-                row_height = 0
-                column_index = 0
-
-            if move:
-                # 只调整宽度，高度仍由卡片自身 sizeHint 决定。
-                target_size = QSize(card_width, item.sizeHint().height())
-                target = QRect(QPoint(x, y), target_size)
-
-                if not self.needAni:
-                    item.setGeometry(target)
-                elif index < len(self._anis) and target != self._anis[index].endValue():
-                    self._anis[index].stop()
-                    self._anis[index].setEndValue(target)
-                    ani_restart = True
-
-            x = x + card_width + space_x
-            row_height = max(row_height, item.sizeHint().height())
-            column_index += 1
-
-        if self.needAni and ani_restart:
-            self._aniGroup.stop()
-            self._aniGroup.start()
-
-        return y + row_height + margin.bottom() - rect.y()
-
-
 class _DashboardPageWidget(QWidget):
     """仪表盘单个标签页内容。"""
 
@@ -313,14 +238,14 @@ class _DashboardPageWidget(QWidget):
 
         metrics_container = QWidget(self)
         metrics_container.setObjectName("dashboardMetricsContainer")
-        flow_layout = DashboardFlowLayout(metrics_container, needAni=False, isTight=True)
+        flow_layout = AdaptiveFlowLayout(metrics_container, needAni=True, isTight=True)
         flow_layout.setContentsMargins(10, 8, 10, 8)
         flow_layout.setHorizontalSpacing(10)
         flow_layout.setVerticalSpacing(10)
-        flow_layout.setWidgetMinimumWidth(90)
+        flow_layout.setWidgetMinimumWidth(110)
 
         for metric in metrics:
-            # 指标卡宽度交给 DashboardFlowLayout 按行均分。
+            # 指标卡宽度交给 AdaptiveFlowLayout 按行均分。
             flow_layout.addWidget(DashboardCard(metric, metrics_container))
 
         action_layout = QHBoxLayout()

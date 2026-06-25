@@ -1,5 +1,31 @@
 # 变更记录
 
+- 时间：2026-06-25 10:30
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/components/session_manager_panel.py`
+  - `ui/components/spacing_flow_layout.py`
+  - `tests/unit/test_session_manager_panel.py`
+- 变更摘要：将 Session 详情区指标卡片布局从 `SpacingFlowLayout`（固定宽度 + 动态间距）改为 `AdaptiveFlowLayout`（按行均分宽度），与导入仪表盘卡片布局策略保持一致；移除 `_DETAIL_METRIC_TARGET_WIDTH` 常量和手动测量固定宽度的逻辑，移除自定义行末剩余空间自动均分到间距的流式布局，卡片宽度改为由布局按容器宽度自适应均分。
+- 原因：用户要求两个面板的卡片布局策略统一，避免详情区卡片宽度固定不变而与导入仪表盘表现不一致。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_manager_panel.py -q --basetemp=.pytest_tmp_detail_adaptive_layout2 -p no:cacheprovider` 通过（4 passed, 1 warning）；`py_compile` 通过；VS Code Diagnostics 无新增诊断。
+
+- 时间：2026-06-24 16:45
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\dialogs\create_session_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将导入仪表盘中的“新建Session并导入”改为弹出创建 Session 对话框，支持自定义名称与备注；名称留空时默认使用文件名，备注留空时默认写入“无”；创建后只在 Session 管理器中新增并选中该 Session，不主动跳转到对应页面，同时补齐 `remark` 字段与持久化恢复链路。
+- 原因：用户要求导入入口先确认 Session 元信息，并保持主页停留，只把新 Session 添加到管理器供后续手动跳转。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_main_window_sessions.py tests/unit/test_session_event_isolation.py -q --basetemp=.pytest_tmp_import_session_dialog -p no:cacheprovider` 输出显示 `20 passed, 1 warning`；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/processing_session.py infra/session_store.py runtime/session_registry.py ui/dialogs/create_session_dialog.py ui/controllers/home_controller.py ui/main_window.py tests/unit/test_main_window_sessions.py tests/unit/test_session_event_isolation.py` 通过；VS Code Diagnostics 对相关文件无新增问题。
+
 - 时间：2026-06-24 16:14
 - 操作类型：[修改]
 - 影响文件：

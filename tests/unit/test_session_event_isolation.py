@@ -357,6 +357,26 @@ def test_home_import_action_delegates_to_window_session_creation(
 ) -> None:
     """主页导入按钮应委托窗口创建 session 页面。"""
 
+    class _FakeCreateSessionDialog:
+        """测试用创建 Session 对话框桩对象。"""
+
+        def __init__(self, default_display_name: str, parent=None) -> None:
+            """记录默认名称和父组件。"""
+            self.default_display_name = default_display_name
+            self.parent = parent
+
+        def exec(self) -> bool:
+            """返回确认结果。"""
+            return True
+
+        def get_session_name(self) -> str:
+            """返回自定义名称。"""
+            return ""
+
+        def get_session_remark(self) -> str:
+            """返回自定义备注。"""
+            return "测试备注"
+
     class _Window:
         """记录主页控制器委托创建的 session。"""
 
@@ -364,7 +384,7 @@ def test_home_import_action_delegates_to_window_session_creation(
             """初始化记录容器。"""
             self.created: list[ProcessingSession] = []
 
-        def create_session_from_parsed(self, session: ProcessingSession) -> None:
+        def add_session_from_import(self, session: ProcessingSession) -> None:
             """记录被委托创建的 session。"""
             self.created.append(session)
 
@@ -392,7 +412,13 @@ def test_home_import_action_delegates_to_window_session_creation(
         "ui.controllers.home_controller.InfoBar.success",
         lambda **kwargs: None,
     )
+    monkeypatch.setattr(
+        "ui.controllers.home_controller.CreateSessionDialog",
+        _FakeCreateSessionDialog,
+    )
 
     HomeController.import_current_session(controller)
 
     assert view.window().created == [controller._last_import_session]
+    assert controller._last_import_session.display_name == "a.xlsx"
+    assert controller._last_import_session.remark == "测试备注"

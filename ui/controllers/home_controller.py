@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, Qt, QTimer
@@ -15,6 +16,7 @@ from infra.import_file_list_manager import ImportFileListManager
 from runtime.workflows.import_workflow import import_workflow
 from ui.components import DashboardMetric, DashboardPage
 from ui.components.import_dashboard_panel import format_dashboard_duration
+from ui.dialogs.create_session_dialog import CreateSessionDialog
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
@@ -262,14 +264,30 @@ class HomeController(QObject):
             return
 
         window = self.view.window()
-        if window is None or not hasattr(window, "create_session_from_parsed"):
-            self._show_top_warning("导入失败", "当前窗口不支持创建 Session 页面。")
+        if window is None or not hasattr(window, "add_session_from_import"):
+            self._show_top_warning("导入失败", "当前窗口不支持创建 Session。")
             return
 
-        window.create_session_from_parsed(self._last_import_session)
+        default_display_name = (
+            Path(self._last_import_session.source_path).name
+            if self._last_import_session.source_path
+            else self._last_import_session.display_name
+        )
+        dialog = CreateSessionDialog(default_display_name, window)
+        if not dialog.exec():
+            return
+
+        # 应用自定义名称，留空时回退到源文件名。
+        session_name = dialog.get_session_name().strip() or default_display_name
+        # 归一化备注文本，保持与详情面板默认值一致。
+        session_remark = dialog.get_session_remark().strip() or "无"
+        self._last_import_session.display_name = session_name
+        self._last_import_session.remark = session_remark
+
+        window.add_session_from_import(self._last_import_session)
         InfoBar.success(
             title="已导入",
-            content=f"Session {self._last_import_session.session_id} 已创建。",
+            content=f"Session {self._last_import_session.display_name} 已创建并选中。",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,
