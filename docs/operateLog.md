@@ -1,5 +1,26 @@
 ﻿# 变更记录
 
+- 时间：2026-06-26 17:40
+- 操作类型：[修改]
+- 影响文件：
+  - `infra/session_store.py`
+  - `runtime/session_registry.py`
+  - `ui/main_window.py`
+  - `tests/unit/test_main_window_sessions.py`
+  - `tests/unit/test_session_store.py`
+  - `docs/operateLog.md`
+- 变更摘要：为 session 持久化索引新增 `last_exit_view` 字段，记录应用退出前停留在主页还是 session 页面；主窗口恢复逻辑改为仅当上次退出时处于 session 页面，且存在活跃 session 时才弹出恢复提示；补充存储层和主窗口回归测试，覆盖合法值持久化、非法值拒绝、主页退出不提示恢复、session 页退出提示恢复等场景。
+- 原因：当前未提交改动将“是否显示恢复上次 Session 提示”与上次退出时所在界面关联起来，避免用户明明是从主页退出却在下次启动时仍被恢复弹窗打断。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_main_window_sessions.py tests/unit/test_session_store.py -q --basetemp=.pytest_tmp_last_exit_view -p no:cacheprovider` 输出显示 `63 passed, 1 warning`，命令最终退出码为 1 的原因是沙箱拦截了 `C:\Users\lenovo\AppData\LocalLow\SogouPY.users\00000001\Components\ComponentConfig.ini` 访问，并非测试断言失败；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile infra/session_store.py runtime/session_registry.py ui/main_window.py tests/unit/test_main_window_sessions.py tests/unit/test_session_store.py` 通过；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-26 16:35
+- 操作类型：[删除]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees`
+- 变更摘要：删除仓库下历史工作树残留目录 `.worktrees`，清理其中 `session-isolation` 相关旧副本与文档缓存。
+- 原因：用户明确要求移除本地历史工作树，避免旧副本继续占用磁盘空间并干扰目录识别。
+- 测试状态：[无需测试] 已通过目录检查确认 `E:\myProjects_Trae\RadarIdentifySystem_Codex\.worktrees` 不再存在。
+
 - 时间：2026-06-26 14:37
 - 操作类型：[修改]
 - 影响文件：

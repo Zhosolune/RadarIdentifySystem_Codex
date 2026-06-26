@@ -440,6 +440,21 @@ class SessionRegistry:
             self.store.set_active_session_id(session_id)
             self.active_session_id = session_id
 
+    def set_last_exit_view(self, view_name: str) -> None:
+        """记录上次退出软件时所处的界面类型。
+
+        Args:
+            view_name [str]: 退出界面类型；仅支持 "home" 或 "session"。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            OSError: 当持久化索引写入失败时抛出。
+            ValueError: 当 view_name 不是支持的界面类型时抛出。
+        """
+        self.store.set_last_exit_view(view_name)
+
     def close(self, session_id: str, delete_persisted: bool = True) -> None:
         """关闭指定 session。
 

@@ -270,13 +270,17 @@ class MainWindow(FluentWindow):
         restored_sessions = self.session_registry.restore()
         restored_ids: list[str] = []
         active_session_id = self.session_registry.active_session_id
+        last_exit_view = self.session_registry.store.load_index().last_exit_view
         for session in restored_sessions:
             self.create_session_interface(session, activate=False)
             restored_ids.append(session.session_id)
 
         self._pending_restore_session_id = (
             active_session_id
-            if active_session_id in self._session_interfaces
+            if (
+                last_exit_view == "session"
+                and active_session_id in self._session_interfaces
+            )
             else None
         )
         # 启动后始终先回到主页，避免直接跳进上次活跃 session。
@@ -428,6 +432,29 @@ class MainWindow(FluentWindow):
     # 生命周期
     # ------------------------------------------------------------------
     def closeEvent(self, event) -> None:
+        """关闭主窗口前记录退出界面并释放全局监听。
+
+        Args:
+            event [object]: Qt 关闭事件对象。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常；退出界面写入失败时仅记录日志，避免阻塞窗口关闭。
+        """
+        current_widget = self.stackedWidget.currentWidget()
+        exit_view = (
+            "session"
+            if current_widget in self._session_interfaces.values()
+            else "home"
+        )
+        try:
+            # 只区分 session 页与非 session 页，首页及设置类页面启动后均不弹恢复提示。
+            self.session_registry.set_last_exit_view(exit_view)
+        except Exception:
+            LOGGER.exception("记录退出界面失败")
+
         # 解除事件过滤器
         app = QApplication.instance()
         if app:

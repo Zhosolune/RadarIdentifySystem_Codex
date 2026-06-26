@@ -160,6 +160,24 @@ def test_session_store_persists_active_session_id(tmp_path: Path) -> None:
     assert reloaded_store.load_index().active_session_id == session.session_id
 
 
+def test_session_store_persists_last_exit_view(tmp_path: Path) -> None:
+    """设置退出界面类型时应写入索引并可重新加载。"""
+    store = SessionStore(tmp_path)
+
+    store.set_last_exit_view("session")
+
+    reloaded_store = SessionStore(tmp_path)
+    assert reloaded_store.load_index().last_exit_view == "session"
+
+
+def test_session_store_rejects_invalid_last_exit_view(tmp_path: Path) -> None:
+    """退出界面类型只允许保存首页或 session 页。"""
+    store = SessionStore(tmp_path)
+
+    with pytest.raises(ValueError):
+        store.set_last_exit_view("settings")
+
+
 @pytest.mark.parametrize("session_id", ["", "..", "a/b"])
 def test_session_store_rejects_invalid_active_session_id(
     tmp_path: Path,

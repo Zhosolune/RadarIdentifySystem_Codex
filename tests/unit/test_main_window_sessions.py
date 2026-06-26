@@ -87,8 +87,10 @@ class _FakeMessageBox:
     """测试用 MessageBox 桩对象。"""
 
     accepted = False
+    created_count = 0
 
     def __init__(self, title: str, content: str, parent=None) -> None:
+        type(self).created_count += 1
         self.title = title
         self.content = content
         self.parent = parent
@@ -104,6 +106,7 @@ class _FakeMessageBox:
 def _stub_restore_message_box(monkeypatch: MonkeyPatch) -> None:
     """默认使用弹窗桩，避免恢复提示阻塞测试进程。"""
     _FakeMessageBox.accepted = False
+    _FakeMessageBox.created_count = 0
     monkeypatch.setattr("ui.main_window.MessageBox", _FakeMessageBox)
     monkeypatch.setattr("ui.controllers.session_manager_controller.MessageBox", _FakeMessageBox)
 
@@ -425,6 +428,7 @@ def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home
     store.upsert_session(first_session)
     store.upsert_session(second_session)
     store.set_active_session_id("session_restore_a")
+    store.set_last_exit_view("home")
 
     window = MainWindow(session_registry=SessionRegistry(store))
     try:
@@ -437,6 +441,7 @@ def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home
         assert window.stackedWidget.currentWidget() is window.homeInterface
         assert window.session_registry.active_session_id == "session_restore_a"
         assert window.homeInterface.session_manager_panel.current_session_id() == "session_restore_a"
+        assert _FakeMessageBox.created_count == 0
     finally:
         _dispose_window(window)
 
@@ -467,6 +472,7 @@ def test_main_window_restores_session_and_jumps_after_user_accepts_resume(
     store.upsert_session(first_session)
     store.upsert_session(second_session)
     store.set_active_session_id("session_restore_a")
+    store.set_last_exit_view("session")
 
     window = MainWindow(session_registry=SessionRegistry(store))
     try:
@@ -476,8 +482,102 @@ def test_main_window_restores_session_and_jumps_after_user_accepts_resume(
         assert first_interface is not None
         assert window.stackedWidget.currentWidget() is first_interface
         assert window.session_registry.active_session_id == "session_restore_a"
+        assert _FakeMessageBox.created_count == 1
     finally:
         _dispose_window(window)
+
+
+def test_main_window_records_home_exit_view_without_restore_prompt(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """在主页退出后再次启动时，即使存在 active session 也不应弹恢复提示。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(
+        session_id="session_exit_from_home",
+        source_path="E:/data/home.xlsx",
+        source_type="excel",
+    )
+
+    first_window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        first_window.create_session_from_parsed(session)
+        first_window.switchTo(first_window.homeInterface)
+        first_window.close()
+        QApplication.processEvents()
+
+        assert store.load_index().last_exit_view == "home"
+    finally:
+        qrouter.history = [
+            item
+            for item in qrouter.history
+            if item.stacked is not first_window.stackedWidget
+        ]
+        qrouter.stackHistories.pop(first_window.stackedWidget, None)
+        sip.delete(first_window)
+        QApplication.processEvents()
+
+    second_window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        QApplication.processEvents()
+
+        assert second_window.stackedWidget.currentWidget() is second_window.homeInterface
+        assert second_window.session_registry.active_session_id == session.session_id
+        assert _FakeMessageBox.created_count == 0
+    finally:
+        _dispose_window(second_window)
+
+
+def test_main_window_records_session_exit_view_and_prompts_on_next_start(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """在 session 页面退出后再次启动时，应弹出恢复跳转提示。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(
+        session_id="session_exit_from_page",
+        source_path="E:/data/page.xlsx",
+        source_type="excel",
+    )
+
+    first_window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        first_window.create_session_from_parsed(session)
+        first_window.close()
+        QApplication.processEvents()
+
+        assert store.load_index().last_exit_view == "session"
+    finally:
+        qrouter.history = [
+            item
+            for item in qrouter.history
+            if item.stacked is not first_window.stackedWidget
+        ]
+        qrouter.stackHistories.pop(first_window.stackedWidget, None)
+        sip.delete(first_window)
+        QApplication.processEvents()
+
+    _FakeMessageBox.accepted = False
+    _FakeMessageBox.created_count = 0
+    second_window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        QApplication.processEvents()
+
+        assert second_window.stackedWidget.currentWidget() is second_window.homeInterface
+        assert second_window.session_registry.active_session_id == session.session_id
+        assert _FakeMessageBox.created_count == 1
+    finally:
+        _dispose_window(second_window)
 
 
 def test_main_window_restores_import_cache_for_sessions(
