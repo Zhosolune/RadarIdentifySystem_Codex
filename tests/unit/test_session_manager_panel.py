@@ -153,3 +153,24 @@ def test_session_manager_panel_metric_layout_uses_adaptive_flow() -> None:
     assert panel._metrics_layout.widgetMinimumWidth() == 110
     assert panel._metrics_layout.needAni is True
     assert panel._metrics_layout.isTight is True
+
+
+def test_session_manager_panel_uses_single_metadata_edit_action() -> None:
+    """点击编辑信息动作时应复用重命名信号发出当前 session id。"""
+    _app()
+    panel = SessionManagerPanel()
+    session = ProcessingSession(
+        session_id="session_a",
+        display_name="A.xlsx",
+        created_at=datetime(2026, 6, 22, 12, 30),
+    )
+    requested_session_ids: list[str] = []
+
+    panel.set_sessions([session])
+    panel.sessionRenameRequested.connect(requested_session_ids.append)
+    panel.rename_action.trigger()
+
+    assert requested_session_ids == ["session_a"]
+    assert len(panel.session_command_bar.actions()) == 4
+    assert panel.rename_action.text() == "编辑信息"
+    assert panel.rename_action.isEnabled() is True

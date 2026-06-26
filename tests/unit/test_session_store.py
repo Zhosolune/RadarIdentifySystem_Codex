@@ -555,3 +555,17 @@ def test_session_store_load_all_sessions_skips_broken_entries(
     assert [session.session_id for session in restored_sessions] == [
         valid_session.session_id,
     ]
+
+
+def test_session_store_updates_remark_metadata(tmp_path: Path) -> None:
+    """更新备注时应只改写 session 元数据并保留索引顺序。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    store.upsert_session(session)
+
+    updated = store.update_session_remark(session.session_id, "新的备注")
+
+    assert updated.remark == "新的备注"
+    restored = store.load_session(session.session_id)
+    assert restored.remark == "新的备注"
+    assert [entry.session_id for entry in store.load_index().sessions] == [session.session_id]

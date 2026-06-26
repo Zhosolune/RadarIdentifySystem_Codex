@@ -276,6 +276,104 @@ class SessionRegistry:
 
             return session
 
+    def update_metadata(
+        self,
+        session_id: str,
+        display_name: str,
+        remark: str,
+    ) -> ProcessingSession:
+        """更新指定 session 的名称和备注并同步持久化。
+
+        Args:
+            session_id [str]: 需要更新元数据的 session 唯一标识。
+            display_name [str]: 新的展示名称，去除首尾空白后不能为空。
+            remark [str]: 新备注文本；首尾空白会被移除，空文本会保存为“无”。
+
+        Returns:
+            ProcessingSession: 已更新元数据的 session 对象。
+
+        Raises:
+            KeyError: 当 session_id 不在当前注册表中时抛出。
+            ValueError: 当名称为空或备注不是字符串时抛出。
+            OSError: 当持久化写入失败时抛出。
+
+        Example:
+            >>> registry = SessionRegistry()
+            >>> session = ProcessingSession(session_id="demo")
+            >>> registry.register(session, persist=False)
+            ProcessingSession(id=demo, stage=CREATED, band=None, slices=0, src='')
+            >>> registry.update_metadata("demo", "新名称", "备注")
+            Traceback (most recent call last):
+            ...
+            FileNotFoundError: ...
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise KeyError(session_id)
+
+            new_display_name = display_name.strip()
+            if not new_display_name:
+                raise ValueError("session 名称不能为空")
+            new_remark = self._normalize_remark(remark)
+            old_display_name = session.display_name
+            old_remark = session.remark
+            session.display_name = new_display_name
+            session.remark = new_remark
+            try:
+                # 一次 upsert 同步名称和备注，避免分别落盘的半提交。
+                self.store.upsert_session(session)
+            except Exception:
+                # 写盘失败时回滚内存元数据。
+                session.display_name = old_display_name
+                session.remark = old_remark
+                raise
+
+            return session
+
+    def update_remark(self, session_id: str, remark: str) -> ProcessingSession:
+        """更新指定 session 的备注并同步持久化。
+
+        Args:
+            session_id [str]: 需要更新备注的 session 唯一标识。
+            remark [str]: 新备注文本；首尾空白会被移除，空文本会保存为“无”。
+
+        Returns:
+            ProcessingSession: 已更新备注的内存 session 对象。
+
+        Raises:
+            KeyError: 当 session_id 不在当前注册表中时抛出。
+            ValueError: 当备注不是字符串或 session_id 非法时抛出。
+            OSError: 当持久化写入失败时抛出。
+
+        Example:
+            >>> registry = SessionRegistry()
+            >>> session = ProcessingSession(session_id="demo")
+            >>> registry.register(session, persist=False)
+            ProcessingSession(id=demo, stage=CREATED, band=None, slices=0, src='')
+            >>> registry.update_remark("demo", "备注")
+            Traceback (most recent call last):
+            ...
+            FileNotFoundError: ...
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise KeyError(session_id)
+
+            new_remark = self._normalize_remark(remark)
+            old_remark = session.remark
+            session.remark = new_remark
+            try:
+                # 由持久化层负责重写 session 元数据，保持磁盘读写入口集中。
+                self.store.update_session_remark(session_id, new_remark)
+            except Exception:
+                # 写盘失败时回滚内存备注，避免 UI 与磁盘状态分叉。
+                session.remark = old_remark
+                raise
+
+            return session
+
     def activate(self, session_id: str) -> ProcessingSession:
         """激活指定 session。
 
@@ -456,6 +554,13 @@ class SessionRegistry:
         except FileNotFoundError:
             return False
         return True
+
+    def _normalize_remark(self, remark: str) -> str:
+        """规范化备注文本，空白备注统一保存为“无”。"""
+        if not isinstance(remark, str):
+            raise ValueError("session 备注必须是字符串")
+        normalized_remark = remark.strip()
+        return normalized_remark or "无"
 
     def _has_import_cache_payload(self, session: ProcessingSession) -> bool:
         """判断 session 是否具备写入导入缓存的最小数据。"""

@@ -1,4 +1,35 @@
-# 变更记录
+﻿# 变更记录
+
+- 时间：2026-06-26 14:37
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/components/session_manager_panel.py`
+  - `ui/controllers/session_manager_controller.py`
+  - `ui/dialogs/rename_session_dialog.py`
+  - `ui/dialogs/edit_session_remark_dialog.py`
+  - `runtime/session_registry.py`
+  - `tests/unit/test_session_manager_panel.py`
+  - `tests/unit/test_session_manager_controller.py`
+  - `tests/unit/test_session_registry.py`
+- 变更摘要：将 Session 重命名和备注编辑合并为详情区单个“编辑信息”动作与同一个元数据编辑对话框。
+- 原因：用户要求减少动作入口，避免名称和备注分别编辑造成操作割裂。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_store.py tests/unit/test_session_registry.py tests/unit/test_session_manager_panel.py tests/unit/test_session_manager_controller.py -q --basetemp=.pytest_tmp_session_metadata_full -p no:cacheprovider` 通过（78 passed, 1 warning，warning 来自 qfluentwidgets/scipy 旧导入）。
+
+- 时间：2026-06-26 14:15
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/components/session_manager_panel.py`
+  - `ui/controllers/session_manager_controller.py`
+  - `ui/dialogs/edit_session_remark_dialog.py`
+  - `runtime/session_registry.py`
+  - `infra/session_store.py`
+  - `tests/unit/test_session_manager_panel.py`
+  - `tests/unit/test_session_registry.py`
+  - `tests/unit/test_session_store.py`
+  - `tests/unit/test_session_manager_controller.py`
+- 变更摘要：为 Session 管理器补充详情区备注编辑入口，并贯通 controller、registry 与持久化链路。
+- 原因：用户需要在 Session 管理器中直接维护会话备注，并确保重启恢复后备注保持一致。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_store.py tests/unit/test_session_registry.py tests/unit/test_session_manager_panel.py tests/unit/test_session_manager_controller.py -q --basetemp=.pytest_tmp_session_remark_full -p no:cacheprovider` 通过（77 passed, 1 warning，warning 来自 qfluentwidgets/scipy 旧导入）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile infra/session_store.py runtime/session_registry.py ui/components/session_manager_panel.py ui/controllers/session_manager_controller.py ui/dialogs/edit_session_remark_dialog.py tests/unit/test_session_store.py tests/unit/test_session_registry.py tests/unit/test_session_manager_panel.py tests/unit/test_session_manager_controller.py` 通过。
 
 - 时间：2026-06-25 10:30
 - 操作类型：[修改]

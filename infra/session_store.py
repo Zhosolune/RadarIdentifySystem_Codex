@@ -346,6 +346,35 @@ class SessionStore:
                 index.sessions.append(entry)
             self.save_index(index)
 
+    def update_session_remark(self, session_id: str, remark: str) -> ProcessingSession:
+        """更新指定 session 的备注并写回元数据文件。
+
+        Args:
+            session_id [str]: 需要更新备注的 session 唯一标识。
+            remark [str]: 新备注文本；首尾空白会被移除，空文本会保存为“无”。
+
+        Returns:
+            ProcessingSession: 已写回持久化存储的 session 对象。
+
+        Raises:
+            FileNotFoundError: 当目标 session 元数据不存在时抛出。
+            OSError: 当 session 元数据读写失败时抛出。
+            ValueError: 当 session_id 非法、元数据不合法或 remark 不是字符串时抛出。
+
+        Example:
+            >>> store = SessionStore(Path("config/sessions"))
+            >>> isinstance(store, SessionStore)
+            True
+        """
+        with self._lock:
+            # 复用既有加载逻辑，确保 session_id 校验、配置快照和模型选择恢复一致。
+            session = self.load_session(session_id)
+            # 备注允许清空，统一落盘为界面已有的“无”占位。
+            session.remark = self._normalize_remark(remark)
+            # 复用 upsert 维持 session.json、config.json 与 index.json 的一致写入。
+            self.upsert_session(session)
+            return session
+
     def load_session(self, session_id: str) -> ProcessingSession:
         """按 id 恢复单个 session。
 
@@ -700,6 +729,13 @@ class SessionStore:
             created_at=session.created_at,
             last_opened_at=session.last_opened_at,
         )
+
+    def _normalize_remark(self, remark: str) -> str:
+        """规范化备注文本，空白备注统一保存为“无”。"""
+        if not isinstance(remark, str):
+            raise ValueError("session 备注必须是字符串")
+        normalized_remark = remark.strip()
+        return normalized_remark or "无"
 
     def _session_to_metadata(self, session: ProcessingSession) -> dict[str, Any]:
         """从 session 构造元数据 JSON 字典。"""

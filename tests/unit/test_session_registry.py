@@ -547,3 +547,40 @@ def test_create_session_config_from_global_returns_independent_snapshot() -> Non
         assert qconfig.get(appConfig.algorithmEpsilonCF) == changed_eps_cf
     finally:
         qconfig.set(appConfig.algorithmEpsilonCF, original_eps_cf, save=False)
+
+
+def test_update_remark_persists_and_refreshes_memory(tmp_path: Path) -> None:
+    """更新备注时应同步内存 session 与持久化元数据。"""
+    store = SessionStore(tmp_path)
+    registry = SessionRegistry(store)
+    session = registry.register(_make_session("session-a", "a.xlsx"))
+
+    updated = registry.update_remark(session.session_id, "  新备注  ")
+
+    assert updated is session
+    assert session.remark == "新备注"
+    assert store.load_session(session.session_id).remark == "新备注"
+
+
+def test_update_remark_rejects_unknown_session(tmp_path: Path) -> None:
+    """更新不存在的 session 备注时应抛出 KeyError。"""
+    registry = SessionRegistry(SessionStore(tmp_path))
+
+    with pytest.raises(KeyError, match="missing"):
+        registry.update_remark("missing", "备注")
+
+
+def test_update_metadata_persists_name_and_remark_together(tmp_path: Path) -> None:
+    """更新 session 元数据时应一次同步名称、备注和持久化内容。"""
+    store = SessionStore(tmp_path)
+    registry = SessionRegistry(store)
+    session = registry.register(_make_session("session-a", "a.xlsx"))
+
+    updated = registry.update_metadata(session.session_id, "???", " ??? ")
+
+    assert updated is session
+    assert session.display_name == "???"
+    assert session.remark == "???"
+    restored = store.load_session(session.session_id)
+    assert restored.display_name == "???"
+    assert restored.remark == "???"

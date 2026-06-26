@@ -127,7 +127,8 @@ class SessionManagerPanel(SimpleCardWidget):
         self.session_command_bar.setButtonTight(True)
         self.enable_action = Action(FluentIcon.ACCEPT, "启用")
         self.close_action = Action(FluentIcon.CLOSE, "关闭")
-        self.rename_action = Action(FluentIcon.EDIT, "重命名")
+        self.edit_remark_action = Action(FluentIcon.EDIT, "编辑备注")
+        self.rename_action = Action(FluentIcon.EDIT, "编辑信息")
         self.delete_action = Action(FluentIcon.DELETE, "删除")
         self.delete_action.setProperty("danger", True)
         self.session_command_bar.addActions(
@@ -255,6 +256,10 @@ class SessionManagerPanel(SimpleCardWidget):
         # 发射关闭动作信号。
         self.close_action.triggered.connect(
             lambda _checked=False: self._emit_action_for_selected(self.sessionCloseRequested)
+        )
+        # 发射备注编辑动作信号。
+        self.edit_remark_action.triggered.connect(
+            lambda _checked=False: self._emit_action_for_selected(self.sessionRemarkEditRequested)
         )
         # 发射重命名动作信号。
         self.rename_action.triggered.connect(

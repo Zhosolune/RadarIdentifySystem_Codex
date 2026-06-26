@@ -51,6 +51,7 @@ class SessionManagerController(QObject):
         # 连接关闭页面请求。
         self.view.sessionCloseRequested.connect(self._on_session_close_requested)
         # 连接重命名请求。
+        # 连接备注编辑请求。
         self.view.sessionRenameRequested.connect(self._on_session_rename_requested)
         # 连接删除请求。
         self.view.sessionDeleteRequested.connect(self._on_session_delete_requested)
@@ -104,12 +105,26 @@ class SessionManagerController(QObject):
         self._show_top_success("已关闭", f"Session {session.display_name} 的切片处理页面已关闭。")
 
     def _on_session_rename_requested(self, session_id: str) -> None:
-        """处理“重命名 Session”请求。"""
+        """处理“编辑 Session 信息”请求。
+
+        Args:
+            session_id [str]: 需要编辑元数据的 session 唯一标识。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常；更新失败会转为顶部提示。
+
+        Example:
+            >>> isinstance(SessionManagerController, type)
+            True
+        """
         session = self.main_window.session_registry.get(session_id)
         if session is None:
             return
 
-        dialog = RenameSessionDialog(session.display_name, self.main_window)
+        dialog = RenameSessionDialog(session.display_name, session.remark, self.main_window)
         if not dialog.exec():
             return
 
@@ -117,20 +132,26 @@ class SessionManagerController(QObject):
         if not new_name:
             self._show_top_warning("名称无效", "Session 名称不能为空。")
             return
-        if new_name == session.display_name:
+
+        new_remark = dialog.get_remark()
+        if new_name == session.display_name and new_remark.strip() == session.remark:
             return
 
         try:
-            # 同步更新注册表和导航文案。
-            self.main_window.session_registry.rename(session_id, new_name)
+            # registry 负责一次性更新名称和备注，避免分步提交导致状态分叉。
+            self.main_window.session_registry.update_metadata(
+                session_id,
+                new_name,
+                new_remark,
+            )
             self.main_window.set_session_navigation_text(session_id, new_name)
         except Exception as exc:
-            self._show_top_warning("重命名失败", str(exc))
+            self._show_top_warning("信息更新失败", str(exc))
             return
 
         self.main_window.refresh_session_manager_panel(selected_session_id=session_id)
         signal_bus.session_metadata_changed.emit(session_id)
-        self._show_top_success("已重命名", f"Session 已更新为 {new_name}。")
+        self._show_top_success("信息已更新", f"Session {session.display_name} 的信息已更新。")
 
     def _on_session_delete_requested(self, session_id: str) -> None:
         """处理“删除 Session”请求。"""
