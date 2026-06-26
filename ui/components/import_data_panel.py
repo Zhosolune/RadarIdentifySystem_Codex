@@ -59,6 +59,9 @@ class _FileTableWidget(TableWidget):
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
                 )
 
+        # 让覆盖式滚动条仅贴合项目视口区域，避免覆盖到表头。
+        self._adjust_overlay_scroll_bars()
+
     def _apply_header_divider_style(self, header: QHeaderView) -> None:
         """仅覆盖表头边框，保留组件库表格主体默认样式。"""
         header.setStyleSheet("""
@@ -91,6 +94,8 @@ class _FileTableWidget(TableWidget):
                 self.setItem(row, column, item)
 
         self._apply_column_widths()
+        # 数据量变化后同步刷新覆盖式滚动条区域。
+        self._adjust_overlay_scroll_bars()
 
     def resizeEvent(self, event) -> None:
         """在表格尺寸变化时按配置比例重新分配列宽。
@@ -103,6 +108,8 @@ class _FileTableWidget(TableWidget):
         """
         super().resizeEvent(event)
         self._apply_column_widths()
+        # 跟随视口区域重设滚动条，避免表头被覆盖。
+        self._adjust_overlay_scroll_bars()
 
     def _apply_column_widths(self) -> None:
         """按配置比例设置文件名、修改日期、大小三列宽度。"""
@@ -120,6 +127,34 @@ class _FileTableWidget(TableWidget):
                 width = max(1, available_width * stretch // total_stretch)
                 used_width += width
             self.setColumnWidth(column, width)
+
+    def _adjust_overlay_scroll_bars(self) -> None:
+        """让 Fluent 覆盖式滚动条仅覆盖表格项目视口区域。"""
+        scroll_delegate = getattr(self, "scrollDelagate", None)
+        if scroll_delegate is None:
+            return
+
+        viewport_rect = self.viewport().geometry()
+        if not viewport_rect.isValid():
+            return
+
+        vertical_bar = getattr(scroll_delegate, "vScrollBar", None)
+        if vertical_bar is not None:
+            vertical_bar.setGeometry(
+                viewport_rect.right() - 11,
+                viewport_rect.top(),
+                12,
+                viewport_rect.height(),
+            )
+
+        horizontal_bar = getattr(scroll_delegate, "hScrollBar", None)
+        if horizontal_bar is not None:
+            horizontal_bar.setGeometry(
+                viewport_rect.left(),
+                viewport_rect.bottom() - 11,
+                viewport_rect.width(),
+                12,
+            )
 
 
 class ImportDataPanel(SimpleCardWidget):

@@ -1,5 +1,14 @@
 ﻿# 变更记录
 
+- 时间：2026-06-26 17:46
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/components/import_data_panel.py`
+  - `docs/operateLog.md`
+- 变更摘要：修正导入数据面板中文件信息表格的 Fluent 覆盖式滚动条几何区域，使其跟随 `viewport()` 仅覆盖表格项目区，不再覆盖表头；在初始化、数据刷新和尺寸变化后同步重算滚动条位置。
+- 原因：用户反馈文件信息表格中的滚动条覆盖到了表头区域，期望滚动条只在表格项目之间滑动，避免干扰表头显示与交互。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/import_data_panel.py` 通过；VS Code Diagnostics 对 `ui/components/import_data_panel.py` 无新增问题。
+
 - 时间：2026-06-26 17:40
 - 操作类型：[修改]
 - 影响文件：
