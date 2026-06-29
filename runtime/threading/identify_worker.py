@@ -272,12 +272,18 @@ class IdentifyWorker(QThread):
         else:
             final_unprocessed_idx = list(cf_unprocessed_idx)
 
-        # 组装聚类结果
+        # 组装聚类结果，并按簇索引保存，避免“展示全部”时按识别状态分组显示。
+        ordered_clusters = sorted(
+            [
+                *all_valid_clusters,
+                *cf_invalid,
+                *(pw_invalid if "pw_invalid" in locals() else []),
+            ],
+            key=lambda cluster: cluster.cluster_idx,
+        )
         cluster_result = SliceClusterResult(
             slice_idx=slice_data.index,
-            clusters=all_valid_clusters
-            + cf_invalid
-            + (pw_invalid if "pw_invalid" in locals() else []),
+            clusters=ordered_clusters,
             unprocessed_points=points[final_unprocessed_idx]
             if len(final_unprocessed_idx) > 0
             else np.array([]),

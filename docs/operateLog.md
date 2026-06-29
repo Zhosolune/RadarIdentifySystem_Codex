@@ -1,5 +1,15 @@
 ﻿# 变更记录
 
+- 时间：2026-06-29 10:06
+- 操作类型：[修改]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `tests/unit/test_identify_worker_clustering_params.py`
+  - `docs/operateLog.md`
+- 变更摘要：识别线程保存单切片聚类结果时改为按 `cluster_idx` 升序保存全部簇，并补充有效簇与无效簇交错场景的回归测试。
+- 原因：展示全部聚类结果时 UI 按 `SliceClusterResult.clusters` 顺序浏览，旧保存逻辑会先保存识别通过簇再保存未通过簇，导致图像显示顺序不再跟随原始簇索引。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_cluster_order -p no:cacheprovider` 输出 `11 passed, 1 warning`；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py tests/unit/test_identify_worker_clustering_params.py` 通过。
+
 - 时间：2026-06-29 09:32
 - 操作类型：[修改]
 - 影响文件：
