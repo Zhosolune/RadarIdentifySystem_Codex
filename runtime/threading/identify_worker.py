@@ -2,35 +2,65 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
+from typing import Any
+
 import numpy as np
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from app.logger import bind_session_log_context, unbind_session_log_context
-from core.models.algorithm_params import ClusteringParams, RecognitionParams
-from core.models.processing_session import ProcessingSession, ProcessingStage
-from core.models.cluster_result import ClusterItem, ClusteringResult, SliceClusterResult
-from core.models.recognition_result import ClusterRecognition, RecognitionResult, SliceRecognitionResult
 from core.clustering import process_dimension_clustering
+from core.models.algorithm_params import ClusteringParams, RecognitionParams
+from core.models.cluster_result import ClusterItem, ClusterState, SliceClusterResult
+from core.models.pulse_batch import COL_DOA
+from core.models.recognition_result import ClusterRecognition, SliceRecognitionResult
 from core.recognition import InferenceService, recognize_clusters_parallel
 
 
 LOGGER = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class IdentifyWorkerResult:
+    """识别线程执行结果。
+
+    Attributes:
+        success [bool]: 线程是否执行成功。
+        cluster_result [SliceClusterResult | None]: 当前切片的聚类结果，失败时为 None。
+        recognition_result [SliceRecognitionResult | None]: 当前切片的识别结果，失败时为 None。
+        failed_phase [str]: 失败发生的阶段名称，成功时为空字符串。
+        error_message [str]: 失败消息，成功时为空字符串。
+    """
+
+    success: bool
+    cluster_result: SliceClusterResult | None = None
+    recognition_result: SliceRecognitionResult | None = None
+    failed_phase: str = ""
+    error_message: str = ""
+
+
 class IdentifyWorker(QThread):
     """识别（聚类+识别）后台工作线程。
 
-    在子线程中执行对所有切片的级联聚类与识别分析，防止阻塞主界面。
+    功能描述：
+        作为 runtime/threading 层的具体执行单元，在子线程中编排单个切片的
+        CF/PW/DOA 聚类与识别流程，并把结果交回当前 session。该类只调用
+        core 暴露的聚类与识别能力，不直接实现 DBSCAN 或模型判定算法。
+
+    Attributes:
+        finished_signal [pyqtSignal]: 线程完成信号，参数为 session_id 和执行结果对象。
+        progress_signal [pyqtSignal]: 线程进度信号，参数为 session_id、阶段名、当前进度和总进度。
     """
 
-    finished_signal = pyqtSignal(str, bool, str)
-    progress_signal = pyqtSignal(str, int, int)
+    finished_signal = pyqtSignal(str, object)
+    progress_signal = pyqtSignal(str, str, int, int)
 
     def __init__(
         self,
-        session: ProcessingSession,
+        session_id: str,
         slice_index: int,
+        slice_data: Any,
         inference_service: InferenceService,
         cluster_params: ClusteringParams,
         recognize_params: RecognitionParams,
@@ -39,8 +69,9 @@ class IdentifyWorker(QThread):
         """初始化识别（聚类）工作线程。
 
         Args:
-            session [ProcessingSession]: 当前流程所依附的会话上下文。
+            session_id [str]: 当前流程所属的会话 ID，仅用于日志和回调归属。
             slice_index [int]: 需要进行识别聚类的切片索引。
+            slice_data [Any]: 需要执行聚类与识别的单切片数据对象。
             inference_service [InferenceService]: 注入的防腐层推理服务。
             cluster_params [ClusteringParams]: 当前 session 的聚类参数快照。
             recognize_params [RecognitionParams]: 当前 session 的识别参数快照。
@@ -53,30 +84,46 @@ class IdentifyWorker(QThread):
             无显式抛出异常。
         """
         super().__init__(parent)
-        self._session = session
+        self._session_id = session_id
         self._slice_index = slice_index
+        self._slice_data = slice_data
         self._inference_service = inference_service
         self._cluster_params = cluster_params
         self._recognize_params = recognize_params
+        self._current_phase = "validation"
+        self._recognition_progress_emitted = False
 
     def run(self) -> None:
-        """执行级联聚类逻辑。
+        """执行当前切片的聚类与识别线程任务。
 
-        对指定的切片数据进行 CF/PW 维度的密度聚类。
-        将结果存入 ClusteringResult 中并更新 session。
+        功能描述：
+            校验 session 切片状态，读取 workflow 注入的参数快照，调用本线程内
+            的单切片流程编排方法生成聚类与识别结果，并在持锁状态下写回 session。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            RuntimeError: 当 session 尚未完成切片时抛出，并由本方法捕获后发出失败信号。
+            ValueError: 当目标切片索引越界时抛出，并由本方法捕获后发出失败信号。
+
+        Example:
+            >>> hasattr(IdentifyWorker, "finished_signal")
+            True
         """
-        session_id = self._session.session_id
+        session_id = self._session_id
         # 绑定会话日志上下文，使本线程内 clustering/recognition/onnx_service 日志自动带上 session_id
         log_token = bind_session_log_context(session_id)
         try:
-            if not self._session.is_sliced or self._session.slice_result is None:
-                raise RuntimeError("数据尚未完成切片，无法进行聚类/识别")
-
-            slices = self._session.slice_result.slices
-            if self._slice_index < 0 or self._slice_index >= len(slices):
+            # 校验切片数据存在，避免线程空跑。
+            if self._slice_data is None:
+                raise RuntimeError("目标切片数据为空，无法进行聚类/识别")
+            # 校验切片索引合法，避免后续日志和结果落位错乱。
+            if self._slice_index < 0:
                 raise ValueError(f"切片索引 {self._slice_index} 无效或越界")
-
-            target_slice = slices[self._slice_index]
 
             LOGGER.info("开始聚类处理，当前切片: %d", self._slice_index, extra={"session_id": session_id})
 
@@ -101,106 +148,153 @@ class IdentifyWorker(QThread):
                 extra={"session_id": session_id},
             )
             
-            # 如果 session 中还没有结果容器，则初始化
-            with self._session.lock:
-                if self._session.cluster_result is None:
-                    self._session.cluster_result = ClusteringResult()
-                if self._session.recognition_result is None:
-                    self._session.recognition_result = RecognitionResult()
-                # 标记当前切片状态
-                self._session.mark_slice_cluster_running(self._slice_index)
-                self._session.mark_slice_recognition_running(self._slice_index)
-
-            self.progress_signal.emit(session_id, 0, 1)
+            # 标记当前阶段为聚类，用于异常时回传失败阶段。
+            self._current_phase = "clustering"
+            # 发射流程起始进度，通知 workflow 当前已进入聚类阶段。
+            self.progress_signal.emit(session_id, "clustering", 0, 2)
             
             # 对当前切片执行级联聚类与识别
             slice_cluster_res, slice_recognition_res = self._cluster_and_recognize_slice(
-                slice_data=target_slice,
+                slice_data=self._slice_data,
                 inference_service=self._inference_service,
                 cluster_params=clustering_params,
                 recognize_params=recognition_params,
             )
+            # 记录聚类阶段输出规模，便于观察不同参数下的聚类密度。
             LOGGER.info("切片 %d 聚类完成，产生 %d 个簇", 
                         self._slice_index, len(slice_cluster_res.clusters), extra={"session_id": session_id})
             
-            with self._session.lock:
-                # 写入当前切片聚类和识别结果
-                self._session.cluster_result.slice_results[self._slice_index] = slice_cluster_res
-                self._session.recognition_result.slice_results[self._slice_index] = slice_recognition_res
-                
-                # 更新当前切片状态
-                self._session.mark_slice_cluster_succeeded(self._slice_index)
-                self._session.mark_slice_recognition_succeeded(self._slice_index)
-
-                # 仅在全量切片均完成后推进全局阶段
-                if self._session.are_all_slices_clustered() and self._session.is_recognized:
-                    self._session.stage = ProcessingStage.RECOGNIZED
-                else:
-                    self._session.stage = ProcessingStage.SLICED
-            
+            # 记录最终有效簇数量，便于和 UI 展示及 session 结果核对。
             LOGGER.info("切片 %d 聚类与识别处理完成，产生 %d 个有效簇", 
                         self._slice_index, len(slice_recognition_res.valid_clusters), extra={"session_id": session_id})
-            
-            self.finished_signal.emit(session_id, True, "")
+
+            # 发射完成进度，通知 workflow 可以进入写回与阶段推进。
+            self.progress_signal.emit(session_id, "done", 2, 2)
+            self.finished_signal.emit(
+                session_id,
+                IdentifyWorkerResult(
+                    success=True,
+                    cluster_result=slice_cluster_res,
+                    recognition_result=slice_recognition_res,
+                ),
+            )
 
         except Exception as e:
-            if self._slice_index >= 0:
-                with self._session.lock:
-                    # 记录当前切片失败状态
-                    self._session.mark_slice_cluster_failed(self._slice_index, str(e))
-                    self._session.mark_slice_recognition_failed(self._slice_index, str(e))
             LOGGER.error("聚类与识别过程失败: %s", e, exc_info=True, extra={"session_id": session_id})
-            self.finished_signal.emit(session_id, False, str(e))
+            self.finished_signal.emit(
+                session_id,
+                IdentifyWorkerResult(
+                    success=False,
+                    failed_phase=self._current_phase,
+                    error_message=str(e),
+                ),
+            )
         finally:
             # 复位会话日志上下文，防止线程复用导致 session_id 泄漏
             unbind_session_log_context(log_token)
 
     def _cluster_and_recognize_slice(
         self,
-        slice_data,
+        slice_data: Any,
         inference_service: InferenceService,
         cluster_params: ClusteringParams | None = None,
         recognize_params: RecognitionParams | None = None,
     ) -> tuple[SliceClusterResult, SliceRecognitionResult]:
-        """对单个切片执行级联聚类与识别编排。
-
-        编排逻辑：
-            1. CF 维度聚类 -> 产出 CF 簇。
-            2. CF 簇识别 -> 成功簇保留；失败簇打散。
-            3. CF 未聚类点 + CF 失败簇散点 -> PW 维度聚类 -> 产出 PW 簇。
-            4. PW 簇识别 -> 成功簇保留；失败簇打散。
-            5. 最终组装聚类结果和识别结果。
+        """编排单切片 CF/PW/DOA 聚类与识别流程。
 
         Args:
-            slice_data: 单个切片数据。
-            inference_service: 推理服务实现。
-            cluster_params: 聚类参数。
-            recognize_params: 识别参数。
+            slice_data [Any]: 单切片数据对象，需提供 ``index``、``data`` 和 ``time_range`` 字段。
+            inference_service [InferenceService]: 推理服务实现，用于 PA/DTOA 识别。
+            cluster_params [ClusteringParams | None]: 聚类参数；为 ``None`` 时使用默认参数。
+            recognize_params [RecognitionParams | None]: 识别参数；为 ``None`` 时使用默认参数。
 
         Returns:
-            包含聚类结果与识别结果的元组。
+            tuple[SliceClusterResult, SliceRecognitionResult]: 当前切片聚类结果和识别结果。
 
         Raises:
-            无。
+            无显式抛出异常，底层聚类或识别异常会向上透传。
+
+        Example:
+            >>> from types import SimpleNamespace
+            >>> data = SimpleNamespace(index=0, data=np.empty((0, 5)), time_range=(0.0, 1.0))
+            >>> worker = IdentifyWorker("demo", 0, data, object(), ClusteringParams(), RecognitionParams())
+            >>> cluster_res, rec_res = worker._cluster_and_recognize_slice(data, object())
+            >>> cluster_res.slice_idx, rec_res.slice_index
+            (0, 0)
         """
         cluster_params = cluster_params or ClusteringParams()
         recognize_params = recognize_params or RecognitionParams()
-
-        all_valid_clusters: list[ClusterItem] = []
-        all_recognitions: list[ClusterRecognition] = []
-        recycled_indices = set()
-
         points = slice_data.data
+        # 空切片直接返回空结果，避免后续聚类函数对空矩阵做无意义处理。
         if len(points) == 0:
             return (
                 SliceClusterResult(slice_data.index, [], np.array([]), np.array([])),
                 SliceRecognitionResult(slice_data.index, [], []),
             )
 
-        current_cluster_id = 1
-        current_valid_idx = 0
+        # 创建结果装配器，统一维护最终 cluster_idx、识别记录和回收点索引。
+        builder = _IdentifyResultBuilder()
+        # CF维度聚类与识别
+        next_cluster_id, pw_input_indices = self._process_cf_stage(
+            points=points,
+            slice_index=slice_data.index,
+            time_range=slice_data.time_range,
+            builder=builder,
+            inference_service=inference_service,
+            cluster_params=cluster_params,
+            recognize_params=recognize_params,
+            start_cluster_id=1,
+        )
+        # PW维度聚类与识别
+        self._process_pw_stage(
+            points=points,
+            slice_index=slice_data.index,
+            time_range=slice_data.time_range,
+            pw_input_indices=pw_input_indices,
+            builder=builder,
+            inference_service=inference_service,
+            cluster_params=cluster_params,
+            recognize_params=recognize_params,
+            start_cluster_id=next_cluster_id,
+        )
 
-        # ── 1. CF 维度聚类 ──
+        return self._build_slice_results(
+            slice_index=slice_data.index,
+            points=points,
+            builder=builder,
+        )
+
+    def _process_cf_stage(
+        self,
+        points: np.ndarray,
+        slice_index: int,
+        time_range: tuple[float, float],
+        builder: "_IdentifyResultBuilder",
+        inference_service: InferenceService,
+        cluster_params: ClusteringParams,
+        recognize_params: RecognitionParams,
+        start_cluster_id: int,
+    ) -> tuple[int, np.ndarray]:
+        """执行 CF 聚类、一次识别和 CF-DOA 复检。
+
+        Args:
+            points [np.ndarray]: 当前切片的全量点集。
+            slice_index [int]: 当前切片索引。
+            time_range [tuple[float, float]]: 当前切片时间范围。
+            builder [_IdentifyResultBuilder]: 最终结果装配器。
+            inference_service [InferenceService]: 推理服务实现。
+            cluster_params [ClusteringParams]: 当前 session 聚类参数快照。
+            recognize_params [RecognitionParams]: 当前 session 识别参数快照。
+            start_cluster_id [int]: 当前阶段起始簇编号。
+
+        Returns:
+            tuple[int, np.ndarray]: 下一阶段起始簇编号和 PW 阶段输入点索引数组。
+
+        Raises:
+            无显式抛出异常，底层聚类或识别异常会向上透传。
+        """
+        # 进入 CF 聚类阶段，后续若失败则可明确标记为 clustering 阶段失败。
+        self._current_phase = "clustering"
         cf_clusters, cf_unprocessed_idx = process_dimension_clustering(
             points=points,
             dim_name="CF",
@@ -208,98 +302,611 @@ class IdentifyWorker(QThread):
             epsilon=cluster_params.eps_cf,
             min_pts=cluster_params.min_pts_cf,
             min_cluster_size=cluster_params.min_cluster_size,
-            slice_idx=slice_data.index,
-            time_range=slice_data.time_range,
-            start_cluster_id=current_cluster_id,
+            slice_idx=slice_index,
+            time_range=time_range,
+            start_cluster_id=start_cluster_id,
         )
-        current_cluster_id += len(cf_clusters)
-
-        # ── 2. CF 维度识别 ──
-        cf_valid, cf_invalid, cf_recs, current_valid_idx = recognize_clusters_parallel(
-            cf_clusters, inference_service, recognize_params, current_valid_idx
+        # 预留下一阶段起始簇编号，避免 PW 阶段沿用已分配的临时编号。
+        next_cluster_id = start_cluster_id + len(cf_clusters)
+        # 对 CF 聚类结果做第一次识别，区分有效簇与无效簇。
+        cf_valid, cf_invalid, cf_recognitions, _ = self._recognize_clusters(
+            clusters=cf_clusters,
+            inference_service=inference_service,
+            recognize_params=recognize_params,
+            start_index=len(builder.valid_recognitions),
         )
-        all_valid_clusters.extend(cf_valid)
-        all_recognitions.extend(cf_recs)
-
-        # 收集 CF 识别失败的点，准备汇入 PW
-        for c in cf_invalid:
-            recycled_indices.update(c.points_indices)
-
-        # ── 3. 准备 PW 维度的点云 ──
-        # PW 聚类的输入点 = CF 未能聚类的点 + CF 识别失败被拆散的点
-        pw_input_indices = list(set(cf_unprocessed_idx) | recycled_indices)
-
-        if len(pw_input_indices) > 0:
-            pw_input_indices = np.array(pw_input_indices)
-            pw_points = points[pw_input_indices]
-
-            # ── 4. PW 维度聚类 ──
-            pw_clusters, pw_unprocessed_local_idx = process_dimension_clustering(
-                points=pw_points,
-                dim_name="PW",
-                dim_idx=1,
-                epsilon=cluster_params.eps_pw,
-                min_pts=cluster_params.min_pts_pw,
-                min_cluster_size=cluster_params.min_cluster_size,
-                slice_idx=slice_data.index,
-                time_range=slice_data.time_range,
-                start_cluster_id=current_cluster_id,
-            )
-            current_cluster_id += len(pw_clusters)
-
-            # 映射回原始 points 的全局索引
-            for cluster in pw_clusters:
-                cluster.points_indices = pw_input_indices[cluster.points_indices]
-
-            # ── 5. PW 维度识别 ──
-            pw_valid, pw_invalid, pw_recs, current_valid_idx = recognize_clusters_parallel(
-                pw_clusters, inference_service, recognize_params, current_valid_idx
-            )
-            all_valid_clusters.extend(pw_valid)
-            all_recognitions.extend(pw_recs)
-
-            for c in pw_invalid:
-                recycled_indices.update(c.points_indices)
-
-            # 计算最终无用点
-            valid_indices = set()
-            for c in all_valid_clusters:
-                valid_indices.update(c.points_indices)
-
-            final_unprocessed_idx = list(
-                set(range(len(points))) - valid_indices - recycled_indices
-            )
-        else:
-            final_unprocessed_idx = list(cf_unprocessed_idx)
-
-        # 组装聚类结果，并按簇索引保存，避免“展示全部”时按识别状态分组显示。
-        ordered_clusters = sorted(
-            [
-                *all_valid_clusters,
-                *cf_invalid,
-                *(pw_invalid if "pw_invalid" in locals() else []),
-            ],
-            key=lambda cluster: cluster.cluster_idx,
+        # 对 CF 一次识别通过的簇继续做 DOA 复检，并回收 DOA 失败子簇点。
+        cf_doa_recycled_indices = self._append_doa_results_for_valid_clusters(
+            builder=builder,
+            valid_clusters=cf_valid,
+            source_recognition_map=self._recognition_map(cf_recognitions),
+            inference_service=inference_service,
+            cluster_params=cluster_params,
+            recognize_params=recognize_params,
+            recycle_failed_children=True,
         )
+        # 合并 CF 阶段未走通的所有点，作为 PW 阶段的输入。
+        pw_input_indices = self._merge_pw_input_indices(
+            cf_unprocessed_idx=cf_unprocessed_idx,
+            cf_invalid_clusters=cf_invalid,
+            cf_doa_recycled_indices=cf_doa_recycled_indices,
+        )
+        return next_cluster_id, pw_input_indices
+
+    def _process_pw_stage(
+        self,
+        points: np.ndarray,
+        slice_index: int,
+        time_range: tuple[float, float],
+        pw_input_indices: np.ndarray,
+        builder: "_IdentifyResultBuilder",
+        inference_service: InferenceService,
+        cluster_params: ClusteringParams,
+        recognize_params: RecognitionParams,
+        start_cluster_id: int,
+    ) -> None:
+        """执行 PW 聚类、一次识别和 PW-DOA 复检。
+
+        Args:
+            points [np.ndarray]: 当前切片的全量点集。
+            slice_index [int]: 当前切片索引。
+            time_range [tuple[float, float]]: 当前切片时间范围。
+            pw_input_indices [np.ndarray]: 需要进入 PW 阶段的原始点索引数组。
+            builder [_IdentifyResultBuilder]: 最终结果装配器。
+            inference_service [InferenceService]: 推理服务实现。
+            cluster_params [ClusteringParams]: 当前 session 聚类参数快照。
+            recognize_params [RecognitionParams]: 当前 session 识别参数快照。
+            start_cluster_id [int]: 当前阶段起始簇编号。
+
+        Returns:
+            None: 无返回值，结果会直接写入 builder。
+
+        Raises:
+            无显式抛出异常，底层聚类或识别异常会向上透传。
+        """
+        # 如果 CF 阶段已经吃掉全部有效点，则无需再进入 PW。
+        if len(pw_input_indices) == 0:
+            return
+
+        # 从原始切片点集中抽取 PW 需要继续处理的子集。
+        pw_points = points[pw_input_indices]
+        # 标记重新进入聚类阶段，便于异常时区分失败来源。
+        self._current_phase = "clustering"
+        pw_clusters, _ = process_dimension_clustering(
+            points=pw_points,
+            dim_name="PW",
+            dim_idx=1,
+            epsilon=cluster_params.eps_pw,
+            min_pts=cluster_params.min_pts_pw,
+            min_cluster_size=cluster_params.min_cluster_size,
+            slice_idx=slice_index,
+            time_range=time_range,
+            start_cluster_id=start_cluster_id,
+        )
+        for cluster in pw_clusters:
+            # PW 输入是回收点子集，需要把局部索引映射回原始切片数据索引。
+            cluster.points_indices = pw_input_indices[cluster.points_indices]
+
+        # 对 PW 聚类结果做一次识别，后续再按原始 PW 顺序处理最终输出。
+        pw_valid, pw_invalid, pw_recognitions, _ = self._recognize_clusters(
+            clusters=pw_clusters,
+            inference_service=inference_service,
+            recognize_params=recognize_params,
+            start_index=len(builder.valid_recognitions),
+        )
+        self._append_final_pw_results(
+            builder=builder,
+            pw_clusters=pw_clusters,
+            pw_valid=pw_valid,
+            pw_invalid=pw_invalid,
+            pw_recognitions=pw_recognitions,
+            inference_service=inference_service,
+            cluster_params=cluster_params,
+            recognize_params=recognize_params,
+        )
+
+    def _merge_pw_input_indices(
+        self,
+        cf_unprocessed_idx: np.ndarray,
+        cf_invalid_clusters: list[ClusterItem],
+        cf_doa_recycled_indices: set[int],
+    ) -> np.ndarray:
+        """合并 PW 阶段需要继续处理的原始点索引。
+
+        Args:
+            cf_unprocessed_idx [np.ndarray]: CF 聚类后仍未进入任何簇的点索引。
+            cf_invalid_clusters [list[ClusterItem]]: CF 一次识别失败簇列表。
+            cf_doa_recycled_indices [set[int]]: CF-DOA 复检失败后回收的点索引集合。
+
+        Returns:
+            np.ndarray: 排序后的 PW 阶段输入点索引数组。
+
+        Raises:
+            无显式抛出异常。
+        """
+        # 合并三类输入：CF 未聚类点、CF 一次识别失败簇、CF-DOA 复检失败子簇。
+        pw_input_indices = (
+            set(int(index) for index in cf_unprocessed_idx.tolist())
+            | self._collect_cluster_indices(cf_invalid_clusters)
+            | cf_doa_recycled_indices
+        )
+        # 返回排序后的 numpy 索引数组，保证后续 PW 聚类输入稳定可复现。
+        return np.array(sorted(pw_input_indices), dtype=int)
+
+    def _append_final_pw_results(
+        self,
+        builder: "_IdentifyResultBuilder",
+        pw_clusters: list[ClusterItem],
+        pw_valid: list[ClusterItem],
+        pw_invalid: list[ClusterItem],
+        pw_recognitions: list[ClusterRecognition],
+        inference_service: InferenceService,
+        cluster_params: ClusteringParams,
+        recognize_params: RecognitionParams,
+    ) -> None:
+        """按 PW 聚类原始顺序追加 PW 识别和 PW-DOA 结果。
+
+        Args:
+            builder [_IdentifyResultBuilder]: 最终结果装配器。
+            pw_clusters [list[ClusterItem]]: PW 聚类产生的原始簇列表。
+            pw_valid [list[ClusterItem]]: PW 一次识别通过的簇列表。
+            pw_invalid [list[ClusterItem]]: PW 一次识别失败的簇列表。
+            pw_recognitions [list[ClusterRecognition]]: PW 一次识别记录列表。
+            inference_service [InferenceService]: 推理服务实现。
+            cluster_params [ClusteringParams]: 当前 session 聚类参数快照。
+            recognize_params [RecognitionParams]: 当前 session 识别参数快照。
+
+        Returns:
+            None: 无返回值，结果会直接写入 builder。
+
+        Raises:
+            无显式抛出异常，底层 DOA 聚类或识别异常会向上透传。
+        """
+        # 先构建查询映射，避免在循环中反复线性查找识别结果。
+        pw_rec_map = self._recognition_map(pw_recognitions)
+        pw_valid_map = {cluster.cluster_idx: cluster for cluster in pw_valid}
+        pw_invalid_map = {cluster.cluster_idx: cluster for cluster in pw_invalid}
+        # 按 PW 聚类原始编号顺序输出，保持“展示全部聚类结果”时的浏览顺序稳定。
+        for cluster in sorted(pw_clusters, key=lambda item: item.cluster_idx):
+            if cluster.cluster_idx in pw_invalid_map:
+                rec = pw_rec_map.get(cluster.cluster_idx)
+                if rec is not None:
+                    # PW 一次识别失败已经处于末轮流程，直接作为最终无效结果。
+                    builder.append_invalid(cluster, rec)
+                continue
+
+            valid_cluster = pw_valid_map.get(cluster.cluster_idx)
+            if valid_cluster is None:
+                # 忽略没有识别记录的异常分支，避免污染最终输出。
+                continue
+            # PW 识别通过簇仍需执行 DOA 检查，保持 CF/PW 两段流程对称。
+            pw_doa_recycled = self._append_doa_results_for_valid_clusters(
+                builder=builder,
+                valid_clusters=[valid_cluster],
+                source_recognition_map=pw_rec_map,
+                inference_service=inference_service,
+                cluster_params=cluster_params,
+                recognize_params=recognize_params,
+                recycle_failed_children=False,
+            )
+            builder.recycled_indices.update(pw_doa_recycled)
+
+    def _append_doa_results_for_valid_clusters(
+        self,
+        builder: "_IdentifyResultBuilder",
+        valid_clusters: list[ClusterItem],
+        source_recognition_map: dict[int, ClusterRecognition],
+        inference_service: InferenceService,
+        cluster_params: ClusteringParams,
+        recognize_params: RecognitionParams,
+        recycle_failed_children: bool,
+    ) -> set[int]:
+        """对一次识别通过的簇执行 DOA 复检并追加最终结果。
+
+        Args:
+            builder [_IdentifyResultBuilder]: 最终结果装配器。
+            valid_clusters [list[ClusterItem]]: 当前维度一次识别通过的簇列表。
+            source_recognition_map [dict[int, ClusterRecognition]]: 当前维度一次识别记录映射。
+            inference_service [InferenceService]: 推理服务实现。
+            cluster_params [ClusteringParams]: 当前 session 聚类参数快照。
+            recognize_params [RecognitionParams]: 当前 session 识别参数快照。
+            recycle_failed_children [bool]: 是否把 DOA 识别失败子簇回收到下一阶段输入。
+
+        Returns:
+            set[int]: 需要回收的原始点索引集合。
+
+        Raises:
+            无显式抛出异常，底层聚类或识别异常会向上透传。
+        """
+        recycled_indices: set[int] = set()
+        # 按当前簇编号顺序处理，保持最终编号分配和 UI 浏览顺序稳定。
+        for cluster in sorted(valid_clusters, key=lambda item: item.cluster_idx):
+            source_rec = source_recognition_map.get(cluster.cluster_idx)
+            if source_rec is None:
+                # 没有找到一次识别记录时，跳过该簇以避免构造不完整最终结果。
+                continue
+
+            # 基于父簇点集再次执行 DOA 聚类，判断是否存在需要拆分的方位子类。
+            doa_children = self._cluster_doa_children(cluster, cluster_params)
+            if len(doa_children) <= 1:
+                # 未拆出多个子簇时，保留父簇作为最终有效结果。
+                builder.append_valid(cluster, source_rec)
+                continue
+
+            for offset, child in enumerate(doa_children):
+                # 临时索引用于本轮复识别结果映射，最终追加时会重新分配连续索引。
+                child.cluster_idx = builder.next_cluster_id + offset
+            # 对拆出的 DOA 子簇再次识别，筛选真正保留的最终子簇。
+            doa_valid, doa_invalid, doa_recognitions, _ = self._recognize_clusters(
+                clusters=doa_children,
+                inference_service=inference_service,
+                recognize_params=recognize_params,
+                start_index=len(builder.valid_recognitions),
+            )
+            doa_rec_map = self._recognition_map(doa_recognitions)
+            for child in doa_valid:
+                rec = doa_rec_map.get(child.cluster_idx)
+                if rec is not None:
+                    # 仅把二次识别通过的 DOA 子簇写入最终有效结果。
+                    builder.append_valid(child, rec)
+
+            for child in doa_invalid:
+                rec = doa_rec_map.get(child.cluster_idx)
+                if rec is None:
+                    # 没有识别记录时忽略，避免写入缺失标签的无效簇。
+                    continue
+                if recycle_failed_children:
+                    # CF 阶段的 DOA 失败子簇不能直接判死，需要回收到 PW 再试一次。
+                    recycled_indices.update(int(index) for index in child.points_indices)
+                    continue
+                # PW 阶段已经是末轮，DOA 失败子簇直接进入最终无效结果。
+                builder.append_invalid(child, rec)
+                # 同步记录回收点，避免这些点再被误算成“未处理点”。
+                recycled_indices.update(int(index) for index in child.points_indices)
+
+        return recycled_indices
+
+    def _cluster_doa_children(
+        self,
+        parent_cluster: ClusterItem,
+        cluster_params: ClusteringParams,
+    ) -> list[ClusterItem]:
+        """复用核心单维聚类函数生成 DOA 子簇。
+
+        Args:
+            parent_cluster [ClusterItem]: 已通过一次识别的 CF 或 PW 父簇。
+            cluster_params [ClusteringParams]: 当前 session 聚类参数快照。
+
+        Returns:
+            list[ClusterItem]: DOA 维度聚类得到的子簇列表，点索引已映射回原始切片。
+
+        Raises:
+            无显式抛出异常，底层聚类异常会向上透传。
+
+        Example:
+            >>> worker = IdentifyWorker("demo", 0, object(), object(), ClusteringParams(), RecognitionParams())
+            >>> isinstance(worker._cluster_doa_children, object)
+            True
+        """
+        # DOA 子簇生成仍属于聚类阶段，异常时需要按 clustering 归类。
+        self._current_phase = "clustering"
+        doa_clusters, _ = process_dimension_clustering(
+            points=parent_cluster.points,
+            dim_name="DOA",
+            dim_idx=COL_DOA,
+            epsilon=cluster_params.eps_doa,
+            min_pts=cluster_params.min_pts_doa,
+            min_cluster_size=cluster_params.min_cluster_size,
+            slice_idx=parent_cluster.slice_idx,
+            time_range=parent_cluster.time_ranges,
+            start_cluster_id=parent_cluster.cluster_idx,
+        )
+        for cluster in doa_clusters:
+            # DOA 聚类输入是父簇点集，需要把局部索引映射回原始切片数据索引。
+            cluster.points_indices = parent_cluster.points_indices[cluster.points_indices]
+        return doa_clusters
+
+    def _recognize_clusters(
+        self,
+        clusters: list[ClusterItem],
+        inference_service: InferenceService,
+        recognize_params: RecognitionParams,
+        start_index: int,
+    ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
+        """执行簇识别并在首次识别前发出阶段进度。
+
+        Args:
+            clusters [list[ClusterItem]]: 当前阶段待识别的簇列表。
+            inference_service [InferenceService]: 推理服务实现。
+            recognize_params [RecognitionParams]: 当前 session 识别参数快照。
+            start_index [int]: 当前阶段有效簇起始编号。
+
+        Returns:
+            tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
+                识别通过簇、识别失败簇、识别记录列表以及下一个有效簇起始编号。
+
+        Raises:
+            无显式抛出异常，底层识别异常会向上透传。
+        """
+        # 标记当前进入识别阶段，供 workflow 在失败时区分状态写回。
+        self._current_phase = "recognition"
+        if not self._recognition_progress_emitted:
+            # 首次进入识别阶段时发一次进度，避免多轮 DOA 复检重复刷状态。
+            self.progress_signal.emit(self._session_id, "recognition", 1, 2)
+            self._recognition_progress_emitted = True
+        return recognize_clusters_parallel(
+            clusters,
+            inference_service,
+            recognize_params,
+            start_index,
+        )
+
+    def _build_slice_results(
+        self,
+        slice_index: int,
+        points: np.ndarray,
+        builder: "_IdentifyResultBuilder",
+    ) -> tuple[SliceClusterResult, SliceRecognitionResult]:
+        """根据结果收集器构建单切片最终输出。
+
+        Args:
+            slice_index [int]: 当前切片索引。
+            points [np.ndarray]: 当前切片的全量点集。
+            builder [_IdentifyResultBuilder]: 已完成装配的最终结果收集器。
+
+        Returns:
+            tuple[SliceClusterResult, SliceRecognitionResult]: 单切片最终聚类结果和识别结果。
+
+        Raises:
+            无显式抛出异常。
+        """
+        # 收集最终有效簇覆盖的原始点索引，用于反推出真正未处理点。
+        valid_indices = self._collect_valid_indices(builder.clusters)
+        # 从全量点中扣除有效点和回收点，剩余部分才是最终未处理点。
+        final_unprocessed_idx = sorted(
+            set(range(len(points))) - valid_indices - builder.recycled_indices
+        )
+        # 构造最终聚类结果，供 session 和 UI 直接消费。
         cluster_result = SliceClusterResult(
-            slice_idx=slice_data.index,
-            clusters=ordered_clusters,
+            slice_idx=slice_index,
+            clusters=builder.clusters,
             unprocessed_points=points[final_unprocessed_idx]
-            if len(final_unprocessed_idx) > 0
+            if final_unprocessed_idx
             else np.array([]),
-            recycled_points=points[list(recycled_indices)]
-            if len(recycled_indices) > 0
+            recycled_points=points[sorted(builder.recycled_indices)]
+            if builder.recycled_indices
             else np.array([]),
         )
-
-        # 组装识别结果
-        valid_recs = [r for r in all_recognitions if r.is_valid]
-        invalid_recs = [r for r in all_recognitions if not r.is_valid]
-
+        # 构造最终识别结果，区分最终有效和最终无效两类识别记录。
         recognition_result = SliceRecognitionResult(
-            slice_index=slice_data.index,
-            valid_clusters=valid_recs,
-            invalid_clusters=invalid_recs,
+            slice_index=slice_index,
+            valid_clusters=builder.valid_recognitions,
+            invalid_clusters=builder.invalid_recognitions,
         )
-
         return cluster_result, recognition_result
+
+    @staticmethod
+    def _recognition_map(
+        recognitions: list[ClusterRecognition],
+    ) -> dict[int, ClusterRecognition]:
+        """按簇索引构建识别记录映射。
+
+        Args:
+            recognitions [list[ClusterRecognition]]: 识别记录列表。
+
+        Returns:
+            dict[int, ClusterRecognition]: 以簇编号为键的识别记录映射。
+
+        Raises:
+            无显式抛出异常。
+        """
+        # 使用簇编号作为键，供 CF/PW/DOA 各阶段快速回查原识别记录。
+        return {rec.cluster_index: rec for rec in recognitions}
+
+    @staticmethod
+    def _collect_cluster_indices(clusters: list[ClusterItem]) -> set[int]:
+        """收集簇内点在原始切片数据中的索引。
+
+        Args:
+            clusters [list[ClusterItem]]: 聚类簇列表。
+
+        Returns:
+            set[int]: 簇内所有原始点索引集合。
+
+        Raises:
+            无显式抛出异常。
+        """
+        indices: set[int] = set()
+        for cluster in clusters:
+            # 把簇内所有点索引拍平成集合，供 PW 输入合并使用。
+            indices.update(int(index) for index in cluster.points_indices)
+        return indices
+
+    @staticmethod
+    def _collect_valid_indices(clusters: list[ClusterItem]) -> set[int]:
+        """收集最终有效簇点在原始切片数据中的索引。
+
+        Args:
+            clusters [list[ClusterItem]]: 最终聚类簇列表。
+
+        Returns:
+            set[int]: 最终有效簇覆盖的原始点索引集合。
+
+        Raises:
+            无显式抛出异常。
+        """
+        indices: set[int] = set()
+        for cluster in clusters:
+            if cluster.state is ClusterState.VALID:
+                # 仅统计最终有效簇覆盖的点，用于反推未处理点集合。
+                indices.update(int(index) for index in cluster.points_indices)
+        return indices
+
+
+class _IdentifyResultBuilder:
+    """维护识别线程单切片最终输出的索引和结果列表。
+
+    功能描述：
+        该辅助类只负责最终结果装配：为最终保留的有效/无效簇分配连续
+        ``cluster_idx``，同步重建 ``ClusterRecognition``，并收集最终回收点索引。
+
+    Attributes:
+        clusters [list[ClusterItem]]: 最终展示用聚类簇列表，顺序即 UI 浏览顺序。
+        valid_recognitions [list[ClusterRecognition]]: 最终识别通过的识别记录列表。
+        invalid_recognitions [list[ClusterRecognition]]: 最终识别未通过的识别记录列表。
+        recycled_indices [set[int]]: 最终确认无效并回收的原始切片点索引集合。
+        next_cluster_id [int]: 下一个可分配的最终簇编号。
+    """
+
+    def __init__(self) -> None:
+        """初始化结果收集器。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> builder = _IdentifyResultBuilder()
+            >>> builder.next_cluster_id
+            1
+        """
+        # 收集最终展示簇列表，顺序即最终浏览顺序。
+        self.clusters: list[ClusterItem] = []
+        # 收集最终有效识别记录，顺序与最终有效簇编号一致。
+        self.valid_recognitions: list[ClusterRecognition] = []
+        # 收集最终无效识别记录，供“展示全部聚类结果”模式使用。
+        self.invalid_recognitions: list[ClusterRecognition] = []
+        # 记录已经被判定为无效并回收的原始点索引。
+        self.recycled_indices: set[int] = set()
+        # 维护最终连续簇编号，避免中间阶段编号出现空洞。
+        self.next_cluster_id: int = 1
+
+    def append_valid(
+        self,
+        cluster: ClusterItem,
+        recognition: ClusterRecognition,
+    ) -> ClusterRecognition:
+        """追加最终有效簇，并重建最终识别记录。
+
+        Args:
+            cluster [ClusterItem]: 需要作为最终有效结果保留的簇。
+            recognition [ClusterRecognition]: 与该簇对应的最近一次识别记录。
+
+        Returns:
+            ClusterRecognition: 按最终簇编号和有效序号重建后的识别记录。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> builder = _IdentifyResultBuilder()
+            >>> builder.next_cluster_id
+            1
+        """
+        # 计算当前有效簇在最终有效结果中的顺序编号。
+        valid_idx = len(self.valid_recognitions)
+        # 最终簇编号只在结果装配阶段分配，避免中间失败子类造成编号空洞。
+        cluster.cluster_idx = self.next_cluster_id
+        cluster.valid_cluster_idx = valid_idx
+        cluster.state = ClusterState.VALID
+        cluster.pa_label = recognition.pa_label
+        cluster.dtoa_label = recognition.dtoa_label
+        cluster.joint_prob = recognition.joint_prob
+        # 先把簇对象写入最终簇列表，再同步重建对应识别记录。
+        self.clusters.append(cluster)
+        shifted_rec = self._shift_recognition_index(
+            recognition,
+            new_cluster_index=self.next_cluster_id,
+            valid_cluster_index=valid_idx,
+            is_valid=True,
+        )
+        self.valid_recognitions.append(shifted_rec)
+        # 推进最终簇编号，为下一个最终结果预留编号。
+        self.next_cluster_id += 1
+        return shifted_rec
+
+    def append_invalid(
+        self,
+        cluster: ClusterItem,
+        recognition: ClusterRecognition,
+    ) -> ClusterRecognition:
+        """追加最终无效簇，并重建最终识别记录。
+
+        Args:
+            cluster [ClusterItem]: 需要作为最终无效结果保留的簇。
+            recognition [ClusterRecognition]: 与该簇对应的最近一次识别记录。
+
+        Returns:
+            ClusterRecognition: 按最终簇编号重建后的无效识别记录。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> builder = _IdentifyResultBuilder()
+            >>> builder.invalid_recognitions
+            []
+        """
+        # 无效簇也进入最终展示列表，供“展示全部聚类结果”模式浏览。
+        cluster.cluster_idx = self.next_cluster_id
+        cluster.valid_cluster_idx = None
+        cluster.state = ClusterState.INVALID
+        cluster.pa_label = recognition.pa_label
+        cluster.dtoa_label = recognition.dtoa_label
+        cluster.joint_prob = recognition.joint_prob
+        # 无效簇也要保留到最终簇列表，供全部结果浏览模式使用。
+        self.clusters.append(cluster)
+        shifted_rec = self._shift_recognition_index(
+            recognition,
+            new_cluster_index=self.next_cluster_id,
+            valid_cluster_index=None,
+            is_valid=False,
+        )
+        self.invalid_recognitions.append(shifted_rec)
+        # 无效结果对应点进入回收集合，避免再被标记为未处理点。
+        self.recycled_indices.update(int(index) for index in cluster.points_indices)
+        # 推进最终簇编号，保持有效/无效簇共用同一套连续编号。
+        self.next_cluster_id += 1
+        return shifted_rec
+
+    @staticmethod
+    def _shift_recognition_index(
+        recognition: ClusterRecognition,
+        new_cluster_index: int,
+        valid_cluster_index: int | None,
+        is_valid: bool,
+    ) -> ClusterRecognition:
+        """复制识别记录，并替换为最终簇索引与最终有效序号。
+
+        Args:
+            recognition [ClusterRecognition]: 原始识别记录。
+            new_cluster_index [int]: 重排后的最终簇编号。
+            valid_cluster_index [int | None]: 重排后的最终有效簇序号；无效簇时为 None。
+            is_valid [bool]: 当前结果是否属于最终有效簇。
+
+        Returns:
+            ClusterRecognition: 重建后的最终识别记录对象。
+
+        Raises:
+            无显式抛出异常。
+        """
+        # 复制识别记录并重写索引字段，避免修改中间阶段原始识别对象。
+        return ClusterRecognition(
+            slice_index=recognition.slice_index,
+            dim_name=recognition.dim_name,
+            cluster_index=new_cluster_index,
+            valid_cluster_index=valid_cluster_index,
+            pa_label=recognition.pa_label,
+            pa_confidence=recognition.pa_confidence,
+            dtoa_label=recognition.dtoa_label,
+            dtoa_confidence=recognition.dtoa_confidence,
+            is_valid=is_valid,
+            joint_prob=recognition.joint_prob,
+            pa_conf_dict=dict(recognition.pa_conf_dict),
+            dtoa_conf_dict=dict(recognition.dtoa_conf_dict),
+        )

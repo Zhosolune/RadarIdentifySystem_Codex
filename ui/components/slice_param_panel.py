@@ -9,15 +9,18 @@ from PyQt6.QtWidgets import QVBoxLayout, QWidget
 from qfluentwidgets import (
     BoolValidator,
     FluentIcon,
+    RangeValidator,
     ScrollArea,
     SwitchSettingCard,
     SettingCardGroup,
 )
 
-from app.session_config_item import SessionConfigItem
+from app.session_config_item import SessionConfigItem, SessionConfigWriter
 from core.models.processing_session import ProcessingSession
+from .double_spin_box_setting_card import DoubleSpinBoxSettingCard
 from .export_option_card import ExportOptionCard
 from .model_selection_card import ModelSelectionCard
+from .spin_box_setting_card import SpinBoxSettingCard
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +35,7 @@ class SliceParamPanel(QWidget):
         session: 当前切片页面所属的处理 session。
         auto_recognize_item: 绑定到当前 session 子配置的自动识别设置项。
         auto_recognize_card: 切换下一片时自动识别的设置卡。
+        clustering_group: 当前 session 聚类参数设置组。
         model_selection_card: 当前页面使用的 PA 与 DTOA 模型选择卡。
         export_path_card: 导出路径与自动保存设置卡。
         drawer_scroll_area: 支持内容溢出的滚动区域。
@@ -71,6 +75,7 @@ class SliceParamPanel(QWidget):
 
         self.session: ProcessingSession = session
         self._on_config_changed = on_config_changed
+        self._session_config_writer = SessionConfigWriter()
         self.auto_recognize_item: SessionConfigItem = SessionConfigItem(
             self.session.config_snapshot,
             "business.auto_recognize_next_slice",
@@ -97,8 +102,165 @@ class SliceParamPanel(QWidget):
         self._sync_initial_model_selection()
         self.model_selection_card.modelChanged.connect(self._on_model_changed)
         self.export_path_card: ExportOptionCard = ExportOptionCard(self)
+        self.clustering_group: SettingCardGroup = self._create_clustering_group()
 
         self._init_layout()
+
+    def _create_clustering_group(self) -> SettingCardGroup:
+        """创建绑定当前 session 子配置的聚类参数设置组。
+
+        Args:
+            无。
+
+        Returns:
+            SettingCardGroup: 包含 CF/PW/DOA 聚类参数卡片的设置组。
+
+        Raises:
+            ValueError: 当 session 配置字段路径不存在时抛出。
+
+        Example:
+            >>> from PyQt6.QtWidgets import QApplication
+            >>> app = QApplication.instance() or QApplication([])
+            >>> panel = SliceParamPanel(ProcessingSession())
+            >>> panel.clustering_group.titleLabel.text()
+            '聚类参数配置'
+        """
+        group = SettingCardGroup("聚类参数配置", self.drawer_scroll_widget if hasattr(self, "drawer_scroll_widget") else self)
+        self.clustering_eps_cf_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "clustering.eps_cf",
+            2.0,
+            validator=RangeValidator(0.01, 50.0),
+            on_changed=self._on_config_changed,
+        )
+        self.clustering_min_pts_cf_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "clustering.min_pts_cf",
+            2,
+            validator=RangeValidator(1, 9999),
+            on_changed=self._on_config_changed,
+        )
+        self.clustering_eps_pw_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "clustering.eps_pw",
+            0.2,
+            validator=RangeValidator(0.01, 10.0),
+            on_changed=self._on_config_changed,
+        )
+        self.clustering_min_pts_pw_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "clustering.min_pts_pw",
+            2,
+            validator=RangeValidator(1, 9999),
+            on_changed=self._on_config_changed,
+        )
+        self.clustering_eps_doa_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "clustering.eps_doa",
+            16.8,
+            validator=RangeValidator(0.01, 50.0),
+            on_changed=self._on_config_changed,
+        )
+        self.clustering_min_pts_doa_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "clustering.min_pts_doa",
+            2,
+            validator=RangeValidator(1, 9999),
+            on_changed=self._on_config_changed,
+        )
+        self.clustering_clip_doa_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "clustering.clip_threshold_doa",
+            95.0,
+            validator=RangeValidator(0.0, 100.0),
+            on_changed=self._on_config_changed,
+        )
+
+        self.clustering_eps_cf_card = DoubleSpinBoxSettingCard(
+            icon=FluentIcon.SETTING,
+            configItem=self.clustering_eps_cf_item,
+            title="CF聚类半径",
+            content="DBSCAN 算法中 CF 维度的核心邻域半径容差值",
+            unit="MHz",
+            decimals=2,
+            singleStep=0.01,
+            parent=group,
+            config_writer=self._session_config_writer,
+        )
+        self.clustering_min_pts_cf_card = SpinBoxSettingCard(
+            icon=FluentIcon.PEOPLE,
+            configItem=self.clustering_min_pts_cf_item,
+            title="CF核心点最小点数",
+            content="DBSCAN 算法中构成一个聚类核心对象所需要的最少点数",
+            unit="个",
+            parent=group,
+            config_writer=self._session_config_writer,
+        )
+        self.clustering_eps_pw_card = DoubleSpinBoxSettingCard(
+            icon=FluentIcon.SETTING,
+            configItem=self.clustering_eps_pw_item,
+            title="PW聚类半径",
+            content="DBSCAN 算法中 PW 维度的核心邻域半径容差值",
+            unit="μs",
+            decimals=2,
+            singleStep=0.01,
+            parent=group,
+            config_writer=self._session_config_writer,
+        )
+        self.clustering_min_pts_pw_card = SpinBoxSettingCard(
+            icon=FluentIcon.PEOPLE,
+            configItem=self.clustering_min_pts_pw_item,
+            title="PW核心点最小点数",
+            content="DBSCAN 算法中构成一个聚类核心对象所需要的最少点数",
+            unit="个",
+            parent=group,
+            config_writer=self._session_config_writer,
+        )
+        self.clustering_eps_doa_card = DoubleSpinBoxSettingCard(
+            icon=FluentIcon.PEOPLE,
+            configItem=self.clustering_eps_doa_item,
+            title="DOA聚类半径",
+            content="DBSCAN 算法中 DOA 维度的核心邻域半径容差值",
+            unit="°",
+            decimals=2,
+            singleStep=0.1,
+            parent=group,
+            config_writer=self._session_config_writer,
+        )
+        self.clustering_min_pts_doa_card = SpinBoxSettingCard(
+            icon=FluentIcon.PEOPLE,
+            configItem=self.clustering_min_pts_doa_item,
+            title="DOA核心点最小点数",
+            content="DBSCAN 算法中构成一个聚类核心对象所需要的最少点数",
+            unit="个",
+            parent=group,
+            config_writer=self._session_config_writer,
+        )
+        self.clustering_clip_doa_card = DoubleSpinBoxSettingCard(
+            icon=FluentIcon.PEOPLE,
+            configItem=self.clustering_clip_doa_item,
+            title="DOA限幅阈值",
+            content="DBSCAN 算法中 DOA 维度的限幅阈值",
+            unit="%",
+            decimals=2,
+            singleStep=1.0,
+            parent=group,
+            config_writer=self._session_config_writer,
+        )
+
+        for card in [
+            self.clustering_eps_cf_card,
+            self.clustering_min_pts_cf_card,
+            self.clustering_eps_pw_card,
+            self.clustering_min_pts_pw_card,
+            self.clustering_eps_doa_card,
+            self.clustering_min_pts_doa_card,
+            self.clustering_clip_doa_card,
+        ]:
+            # 将 session 级参数卡加入同一设置组，保持抽屉中参数结构清晰。
+            group.addSettingCard(card)
+
+        return group
 
     def _sync_initial_model_selection(self) -> None:
         """将模型卡片的初始选择复制到当前 session。"""
@@ -156,8 +318,8 @@ class SliceParamPanel(QWidget):
         self.cards_group.addSettingCard(self.model_selection_card)
         self.cards_group.addSettingCard(self.export_path_card)
 
-        # TODO: 其他设置卡组可添加到此。
-
+        self.clustering_group.setParent(self.drawer_scroll_widget)
+        self.drawer_scroll_layout.addWidget(self.clustering_group)
         self.drawer_scroll_layout.addWidget(self.cards_group)
         self.drawer_scroll_layout.addStretch(1)
         self.drawer_scroll_area.setWidget(self.drawer_scroll_widget)

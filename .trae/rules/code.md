@@ -33,15 +33,15 @@ class MyClass:
     详细描述类的职责、设计思路、生命周期，以及与其它类的协作关系。
     
     Attributes:
-        attr1: 属性含义。
-        attr2: 属性含义，默认值及作用。
+        attr1 [type]: 属性含义。
+        attr2 [type]: 属性含义，默认值及作用。
     """
 
     def __init__(self, param1: str, param2: int = 0) -> None:
         """
         Args:
-            param1: 参数含义。
-            param2: 参数含义，默认0，表示不超时。
+            param1 [type]: 参数含义。
+            param2 [type]: 参数含义，默认0，表示不超时。
         """
         self.attr1 = param1
         self.attr2 = param2
@@ -59,11 +59,11 @@ def function_name(arg1: Type1, arg2: Type2 = default) -> ReturnType:
     前置条件和后置条件。
 
     Args:
-        arg1: 参数1的含义，必须包含约束（如取值范围、格式）。
-        arg2: 参数2的含义，默认值的含义。
+        arg1 [type]: 参数1的含义，必须包含约束（如取值范围、格式）。
+        arg2 [type]: 参数2的含义，默认值的含义。
 
     Returns:
-        返回值的含义，如果是复杂结构，需说明结构组成。
+        返回值的含义和类型，如果是复杂结构，需说明结构组成。
         如果返回 None，写 "None: 无返回值"。
 
     Raises:
@@ -97,7 +97,7 @@ def function_name(arg1: Type1, arg2: Type2 = default) -> ReturnType:
 
 ## 七、代码注释
 
-为函数内关键操作代码编写行内注释，注明其功能、作用或目的，注释均使用简体中文，简洁精炼。
+为函数内代码编写详尽的行内注释，注明其功能、作用或目的，注释均使用简体中文，简洁精炼。
 
 ## 八、代码质量检查
 

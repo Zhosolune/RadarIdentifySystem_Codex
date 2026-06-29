@@ -10,16 +10,15 @@ class ClusteringParams:
     """聚类算法参数。
 
     功能描述：
-        封装 CF/PW 级联聚类流程使用的输入参数，并预留 DOA 聚类参数。
-        当前算法流程只消费 CF/PW 参数，DOA 参数暂不接入聚类计算。
+        封装 CF/PW 级联聚类流程以及识别通过簇的 DOA 二次聚类参数。
 
     Attributes:
         eps_cf: CF 维度 DBSCAN 邻域半径。
         min_pts_cf: CF 维度 DBSCAN 核心点最小样本数。
         eps_pw: PW 维度 DBSCAN 邻域半径。
         min_pts_pw: PW 维度 DBSCAN 核心点最小样本数。
-        eps_doa: DOA 维度 DBSCAN 邻域半径，当前仅作为参数契约保留。
-        min_pts_doa: DOA 维度 DBSCAN 核心点最小样本数，当前仅作为参数契约保留。
+        eps_doa: DOA 维度 DBSCAN 邻域半径。
+        min_pts_doa: DOA 维度 DBSCAN 核心点最小样本数。
         clip_threshold_doa: DOA 限幅阈值，当前仅作为参数契约保留。
         min_cluster_size: 聚类有效判定的最小点数。
     """

@@ -12,65 +12,13 @@ from app.logger import bind_session_log_context, unbind_session_log_context
 from app.model_bootstrap import get_cached_inference_service
 from app.signal_bus import signal_bus
 from core.models.algorithm_params import ClusteringParams, RecognitionParams
-from core.models.processing_session import ProcessingSession
-from runtime.threading.identify_worker import IdentifyWorker
+from core.models.cluster_result import ClusteringResult
+from core.models.processing_session import ProcessingSession, ProcessingStage
+from core.models.recognition_result import RecognitionResult
+from runtime.threading.identify_worker import IdentifyWorker, IdentifyWorkerResult
 
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _cluster_params_from_session(session: ProcessingSession) -> ClusteringParams:
-    """从 session 子配置组装聚类参数。
-
-    Args:
-        session [ProcessingSession]: 当前识别流程所属 session。
-
-    Returns:
-        ClusteringParams: 根据 session 子配置生成的聚类参数。
-
-    Raises:
-        无显式抛出异常。
-
-    Example:
-        >>> session = ProcessingSession()
-        >>> _cluster_params_from_session(session).eps_cf
-        2.0
-    """
-    cfg = session.config_snapshot.clustering
-    return ClusteringParams(
-        eps_cf=cfg.eps_cf,
-        min_pts_cf=cfg.min_pts_cf,
-        eps_pw=cfg.eps_pw,
-        min_pts_pw=cfg.min_pts_pw,
-        eps_doa=cfg.eps_doa,
-        min_pts_doa=cfg.min_pts_doa,
-        clip_threshold_doa=cfg.clip_threshold_doa,
-    )
-
-
-def _recognition_params_from_session(session: ProcessingSession) -> RecognitionParams:
-    """从 session 子配置组装识别参数。
-
-    Args:
-        session [ProcessingSession]: 当前识别流程所属 session。
-
-    Returns:
-        RecognitionParams: 根据 session 子配置生成的识别参数。
-
-    Raises:
-        无显式抛出异常。
-
-    Example:
-        >>> session = ProcessingSession()
-        >>> _recognition_params_from_session(session).max_candidates
-        5
-    """
-    cfg = session.config_snapshot.recognition
-    return RecognitionParams(
-        tolerance=cfg.tolerance,
-        min_confidence=cfg.min_confidence,
-        max_candidates=cfg.max_candidates,
-    )
 
 
 class IdentifyWorkflow(QObject):
@@ -81,23 +29,42 @@ class IdentifyWorkflow(QObject):
     严格遵守单一职责原则，只负责调度，不负责具体线程计算。
 
     Attributes:
-        _worker (IdentifyWorker | None): 绑定的后台识别（聚类）任务子线程实例。
+        _worker [IdentifyWorker | None]: 绑定的后台识别（聚类）任务子线程实例。
     """
 
     def __init__(self, parent: QObject | None = None) -> None:
         """初始化工作流实例。
 
         Args:
-            parent (QObject | None, optional): Qt 挂载父节点。
+            parent [QObject | None]: Qt 挂载父节点。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
         """
         super().__init__(parent)
+        # 持有当前运行中的识别线程实例。
         self._worker: Optional[IdentifyWorker] = None
+        # 记录当前运行的切片索引，供线程回调落位结果时使用。
         self._active_slice_index: int | None = None
+        # 记录当前运行的 session_id，供进度与完成回调做归属校验。
         self._active_session_id: str | None = None
+        # 缓存当前运行的 session 引用，由 workflow 统一维护写回。
+        self._active_session: ProcessingSession | None = None
+        # 缓存当前线程使用的推理服务，避免重复初始化。
         self._inference_service: Optional[object] = None
 
     def is_running(self) -> bool:
-        """返回工作流当前是否正在运行。"""
+        """返回工作流当前是否正在运行。
+
+        Returns:
+            bool: 当前存在运行中的识别线程时返回 True。
+
+        Raises:
+            无显式抛出异常。
+        """
         return self._worker is not None and self._worker.isRunning()
 
     @pyqtSlot(ProcessingSession, int)
@@ -113,20 +80,32 @@ class IdentifyWorkflow(QObject):
             聚类与识别参数由当前 session 子配置组装后注入 Worker。
 
         Args:
-            session (ProcessingSession): 目标数据会话。
-            slice_index (int): 切片索引。
+            session [ProcessingSession]: 目标数据会话。
+            slice_index [int]: 切片索引。
             
         Returns:
-            None
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常；前置条件不满足时会记录日志后直接返回。
         """
         session_id = session.session_id
         # 绑定会话日志上下文，使本主线程段日志（模型路径、推理服务创建等）归属当前 session
         log_token = bind_session_log_context(session_id)
         try:
+            # 校验切片阶段前置条件，避免在无切片数据时启动线程。
             if not session.is_sliced:
                 LOGGER.warning("切片尚未完成，无法启动识别", extra={"session_id": session_id})
                 return
+            if session.slice_result is None or not (0 <= slice_index < session.slice_result.slice_count):
+                LOGGER.warning(
+                    "切片索引越界，无法启动识别：%s",
+                    slice_index,
+                    extra={"session_id": session_id},
+                )
+                return
 
+            # 避免同一 workflow 实例重复启动并发线程。
             if self._worker is not None and self._worker.isRunning():
                 LOGGER.warning("识别工作流正在运行，忽略本次请求", extra={"session_id": session_id})
                 return
@@ -140,12 +119,40 @@ class IdentifyWorkflow(QObject):
                 return
 
             temp_dir = qconfig.get(appConfig.logDir)
-            # 从 model_bootstrap 获取缓存的推理服务，内部自动处理复用或重建
+            # 获取缓存推理服务，由 app 层负责模型实例复用或重建。
             self._inference_service = get_cached_inference_service(
                 pa_path=pa_path, dtoa_path=dtoa_path, temp_dir=temp_dir
             )
+            clustering_config = session.config_snapshot.clustering
+            recognition_config = session.config_snapshot.recognition
+            # 按当前 session 快照构造聚类参数对象，避免跨函数来回跳转。
+            cluster_params = ClusteringParams(
+                eps_cf=clustering_config.eps_cf,
+                min_pts_cf=clustering_config.min_pts_cf,
+                eps_pw=clustering_config.eps_pw,
+                min_pts_pw=clustering_config.min_pts_pw,
+                eps_doa=clustering_config.eps_doa,
+                min_pts_doa=clustering_config.min_pts_doa,
+                clip_threshold_doa=clustering_config.clip_threshold_doa,
+            )
+            # 按当前 session 快照构造识别参数对象，保证线程只接收值对象。
+            recognize_params = RecognitionParams(
+                tolerance=recognition_config.tolerance,
+                min_confidence=recognition_config.min_confidence,
+                max_candidates=recognition_config.max_candidates,
+            )
 
-            # 发送流程开始全局信号
+            with session.lock:
+                # 初始化识别阶段结果容器，由 workflow 统一维护 session 写入。
+                if session.cluster_result is None:
+                    session.cluster_result = ClusteringResult()
+                if session.recognition_result is None:
+                    session.recognition_result = RecognitionResult()
+                # 先把聚类状态置为运行中，识别状态保持待开始，等线程进入识别阶段再推进。
+                session.mark_slice_cluster_running(slice_index)
+                session.mark_slice_recognition_pending(slice_index)
+
+            # 发射阶段开始事件，通知 UI 和其它监听者进入 identifying 流程。
             signal_bus.stage_started.emit(session_id, "identifying", slice_index)
             LOGGER.info(
                 "发射识别开始事件，当前切片: %d",
@@ -153,18 +160,20 @@ class IdentifyWorkflow(QObject):
                 extra={"session_id": session_id},
             )
 
-            # 挂载计算线程，并在线程结束时挂接回调
+            # 创建纯执行线程，并把当前 session 的算法参数快照注入线程。
             self._worker = IdentifyWorker(
-                session=session,
+                session_id=session_id,
                 slice_index=slice_index,
+                slice_data=session.slice_result.slices[slice_index],
                 inference_service=self._inference_service,
-                cluster_params=_cluster_params_from_session(session),
-                recognize_params=_recognition_params_from_session(session),
+                cluster_params=cluster_params,
+                recognize_params=recognize_params,
                 parent=self
             )
             self._active_slice_index = slice_index
-            # 记录当前运行 session，便于完成回调和调试定位。
+            # 记录当前运行上下文，便于完成回调和调试定位。
             self._active_session_id = session_id
+            self._active_session = session
             self._worker.progress_signal.connect(self._on_worker_progress)
             self._worker.finished_signal.connect(self._on_worker_finished)
             self._worker.start()
@@ -172,53 +181,164 @@ class IdentifyWorkflow(QObject):
             # 复位会话日志上下文（Worker 子线程有独立绑定，互不影响）
             unbind_session_log_context(log_token)
 
-    @pyqtSlot(str, int, int)
-    def _on_worker_progress(self, session_id: str, current: int, total: int) -> None:
+    @pyqtSlot(str, str, int, int)
+    def _on_worker_progress(
+        self,
+        session_id: str,
+        phase: str,
+        current: int,
+        total: int,
+    ) -> None:
         """子线程进度回调。
 
         用于在识别（聚类）耗时任务时向外通知进度。
 
         Args:
-            session_id (str): 会话唯一ID。
-            current (int): 当前已处理的切片数。
-            total (int): 总切片数。
-        """
-        # 如果需要在 UI 上显示进度，可通过 signal_bus 增加进度信号
-        # 这里暂时只记录日志
-        pass
+            session_id [str]: 会话唯一 ID。
+            phase [str]: 当前阶段名称。
+            current [int]: 当前进度值。
+            total [int]: 总进度值。
 
-    @pyqtSlot(str, bool, str)
-    def _on_worker_finished(self, session_id: str, success: bool, error_msg: str) -> None:
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        LOGGER.info(
+            "识别线程进度更新：phase=%s, current=%d, total=%d",
+            phase,
+            current,
+            total,
+            extra={"session_id": session_id},
+        )
+        # 仅当活动上下文匹配且线程已进入识别阶段时，才推进识别状态。
+        if (
+            phase == "recognition"
+            and session_id == self._active_session_id
+            and self._active_session is not None
+            and self._active_slice_index is not None
+        ):
+            with self._active_session.lock:
+                # 把当前切片识别状态推进为运行中，保持 cluster/recognition 状态语义分离。
+                self._active_session.mark_slice_recognition_running(
+                    self._active_slice_index
+                )
+
+    @pyqtSlot(str, object)
+    def _on_worker_finished(
+        self,
+        session_id: str,
+        result: IdentifyWorkerResult,
+    ) -> None:
         """子线程完成回调。
 
         解析后台任务发送过来的处理结果并向全局发送相应的流程终态事件，
         并释放线程资源。
 
         Args:
-            session_id (str): 执行会话的唯一ID。
-            success (bool): 标志线程执行是否成功。
-            error_msg (str): 如果执行失败附带的报错信息。
+            session_id [str]: 执行会话的唯一 ID。
+            result [IdentifyWorkerResult]: 线程执行结果对象。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
         """
-        # 发送处理结果相关的生命周期信号
-        if success:
-            signal_bus.stage_finished.emit(session_id, "identifying", self._active_slice_index)
+        active_session = self._active_session
+        active_slice_index = self._active_slice_index
+
+        # 容错处理：如果运行上下文已经丢失，则仅清理线程引用，避免悬空状态写回。
+        if active_session is None or active_slice_index is None:
+            LOGGER.warning("识别线程回调到达时缺少活动 session 上下文", extra={"session_id": session_id})
+            self._cleanup_worker_context()
+            return
+
+        with active_session.lock:
+            if result.success:
+                # 确保 session 结果容器存在，再由 workflow 统一写回当前切片结果。
+                if active_session.cluster_result is None:
+                    active_session.cluster_result = ClusteringResult()
+                if active_session.recognition_result is None:
+                    active_session.recognition_result = RecognitionResult()
+
+                if result.cluster_result is not None:
+                    active_session.cluster_result.slice_results[active_slice_index] = (
+                        result.cluster_result
+                    )
+                if result.recognition_result is not None:
+                    active_session.recognition_result.slice_results[active_slice_index] = (
+                        result.recognition_result
+                    )
+
+                # 线程成功后统一推进当前切片状态。
+                active_session.mark_slice_cluster_succeeded(active_slice_index)
+                active_session.mark_slice_recognition_succeeded(active_slice_index)
+                # 仅当全量切片都已完成识别时，才推进全局阶段到 RECOGNIZED。
+                active_session.stage = (
+                    ProcessingStage.RECOGNIZED
+                    if active_session.are_all_slices_clustered()
+                    and active_session.is_recognized
+                    else ProcessingStage.SLICED
+                )
+            else:
+                # 聚类失败一定意味着当前切片本轮处理失败。
+                active_session.mark_slice_cluster_failed(
+                    active_slice_index,
+                    result.error_message,
+                )
+                if result.failed_phase == "recognition":
+                    # 只有在线程已经进入识别阶段后，才把识别状态标记为失败。
+                    active_session.mark_slice_recognition_failed(
+                        active_slice_index,
+                        result.error_message,
+                    )
+                else:
+                    # 如果失败发生在聚类阶段，则识别状态仍保持未开始。
+                    active_session.mark_slice_recognition_pending(
+                        active_slice_index
+                    )
+                active_session.stage = ProcessingStage.SLICED
+
+        # 发射处理结果相关的生命周期信号，供 UI 和其它监听方刷新状态。
+        if result.success:
+            signal_bus.stage_finished.emit(session_id, "identifying", active_slice_index)
             LOGGER.info(
                 "发射识别完成事件，当前切片: %s",
-                self._active_slice_index,
+                active_slice_index,
                 extra={"session_id": session_id},
             )
         else:
-            signal_bus.stage_failed.emit(session_id, "identifying", self._active_slice_index, error_msg)
+            signal_bus.stage_failed.emit(
+                session_id,
+                "identifying",
+                active_slice_index,
+                result.error_message,
+            )
             LOGGER.error(
-                "发射识别失败事件，当前切片: %s, 错误: %s",
-                self._active_slice_index,
-                error_msg,
+                "发射识别失败事件，当前切片: %s, 阶段: %s, 错误: %s",
+                active_slice_index,
+                result.failed_phase,
+                result.error_message,
                 extra={"session_id": session_id},
             )
-        
-        # 释放线程对象
+        self._cleanup_worker_context()
+
+    def _cleanup_worker_context(self) -> None:
+        """释放线程对象并清空当前运行上下文。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
         if self._worker is not None:
+            # 延迟销毁线程对象，遵循 Qt 对象生命周期管理方式。
             self._worker.deleteLater()
             self._worker = None
+        # 清空活动运行上下文，避免后续回调误写旧 session。
         self._active_slice_index = None
         self._active_session_id = None
+        self._active_session = None

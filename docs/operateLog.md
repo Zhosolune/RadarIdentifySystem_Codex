@@ -1,4 +1,109 @@
-﻿# 变更记录
+﻿﻿# 变更记录
+- 时间：2026-06-29 17:09
+- 操作类型：[修改]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `runtime/workflows/identify_workflow.py`
+  - `docs/operateLog.md`
+- 变更摘要：纠正 `identify_worker.py` 与 `identify_workflow.py` 中最近补写的类级、函数级 docstring 说明格式，将 `Args:`、`Attributes:` 等参数项统一恢复为项目要求的 `参数名 [type]: 说明` 写法，并保留已补齐的中文行内注释与返回值说明。
+- 原因：用户指出上一轮注释修正未遵守项目规则文件中约定的 `[type]` 样式，要求直接按规范纠正，避免文档格式继续偏离仓库基线。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py runtime/workflows/identify_workflow.py` 通过；VS Code Diagnostics 对两个文件均无新增问题。
+
+- 时间：2026-06-29 17:01
+- 操作类型：[修改]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `docs/operateLog.md`
+- 变更摘要：继续统一补齐 `identify_worker.py` 中剩余函数的函数级 docstring，覆盖 `CF/PW/DOA` 阶段方法、结果汇总方法、静态工具方法和结果装配器方法，并将不规范的参数说明格式统一为项目要求的 Google 风格。
+- 原因：用户指出文件内仍有大量函数缺少完整文档注释，上一轮仅补齐了行内注释仍不满足项目规范与阅读需求。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py` 通过；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-29 16:58
+- 操作类型：[修改]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `docs/operateLog.md`
+- 变更摘要：补齐 `identify_worker.py` 主流程、CF/PW/DOA 分支、索引回收、结果装配等关键代码段的中文行内注释，明确阶段切换、点集流转、最终结果构建和编号重排语义。
+- 原因：用户指出此前只补充了 docstring，大部分关键代码仍缺少行内注释，不符合项目对“详尽中文注释”的约束要求。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py` 通过；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-29 16:54
+- 操作类型：[重构]
+- 影响文件：
+  - `runtime/workflows/identify_workflow.py`
+  - `docs/operateLog.md`
+- 变更摘要：删除 `identify_workflow.py` 文件顶部的 `_cluster_params_from_session()` 与 `_recognition_params_from_session()` helper，将 session 配置到参数对象的映射内联到 `start_identify()` 中，减少低复用包装函数和跨函数跳转。
+- 原因：用户要求避免为单一调用点保留独立 helper，直接在启动识别流程处构造参数对象，提升 workflow 主流程的直观性。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/workflows/identify_workflow.py tests/unit/test_identify_worker_clustering_params.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_inline_identify_params -p no:cacheprovider` 输出 `9 passed, 1 warning`；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-29 16:45
+- 操作类型：[重构]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `docs/operateLog.md`
+- 变更摘要：按算法主流程重排 `IdentifyWorker` 方法顺序为 `CF阶段 -> PW阶段 -> DOA复检 -> 最终结果汇总`，并提炼 `CF`/`PW` 阶段方法与最终结果构建方法，去掉原先过薄的通用套壳调用，使主流程更短、更贴近算法语义。
+- 原因：用户反馈 `identify_worker.py` 当前流程表达过于啰嗦，存在多处“套壳调用”影响阅读；本次通过方法重排和主流程压缩提升可读性，同时保持现有算法行为不变。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_identify_worker_simplify -p no:cacheprovider` 输出 `9 passed, 1 warning`；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-29 15:57
+- 操作类型：[重构]
+- 影响文件：
+  - `core/models/processing_session.py`
+  - `runtime/threading/identify_worker.py`
+  - `runtime/workflows/identify_workflow.py`
+  - `tests/unit/test_identify_worker_clustering_params.py`
+  - `docs/operateLog.md`
+- 变更摘要：重构识别链路职责边界，将 `IdentifyWorker` 收口为只负责切片聚类与识别计算、返回结果对象；由 `IdentifyWorkflow` 统一接管 session 结果写回、切片状态迁移和阶段推进，同时补充识别阶段进度回调与切片识别 pending 状态，避免线程直接修改 session 真相。
+- 原因：依据项目 `runtime -> core` 与 `Workflow 统一写 Session` 的分层契约，修正识别线程既做计算又写业务状态的职责越界问题，使运行时线程层与工作流层职责清晰、符合项目文档约束。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py runtime/workflows/identify_workflow.py core/models/processing_session.py tests/unit/test_identify_worker_clustering_params.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_identify_refactor_core -p no:cacheprovider` 输出 `9 passed, 1 warning`；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-29 15:39
+- 操作类型：[修改]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `docs/operateLog.md`
+- 变更摘要：进行中：补齐识别 Worker 中本次新增编排与结果装配函数的函数级文档和关键流程注释。
+- 原因：用户指出此前改动没有严格遵守 AGENTS 中关于函数级注释、docstring 和关键代码行内注释的规范。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_worker_docs_all -p no:cacheprovider` 输出 `52 passed, 1 warning`；`git diff --check` 通过。
+- 时间：2026-06-29 14:49
+- 操作类型：[重构]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `tests/unit/test_identify_worker_clustering_params.py`
+  - `docs/operateLog.md`
+- 变更摘要：删除冗余 core pipeline 层，恢复 `workflow -> worker -> core` 链路；单切片流程仍由 Worker 编排，DOA 子类生成复用 `core.clustering.process_dimension_clustering`。
+- 原因：依据 `docs/目录结构与分层约束.md` 和 `docs/算法参数对象规则.md`，Worker 应执行流程编排并将参数对象传给 core，core 只提供纯算法能力；避免在 core 和 worker 之间新增重复编排层。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/algorithm_params.py runtime/threading/identify_worker.py ui/components/slice_param_panel.py tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_worker_orchestration_all -p no:cacheprovider` 输出 `52 passed, 1 warning`。
+- 时间：2026-06-29 14:01
+- 操作类型：[修改]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `tests/unit/test_identify_worker_clustering_params.py`
+  - `docs/operateLog.md`
+- 变更摘要：重排 CF/PW 与 DOA 二次聚类识别流程，使 CF 通过识别后立即 DOA 分裂并将 DOA 未通过子类回收到 PW 输入，PW 通过识别后再执行同样流程。
+- 原因：用户指出当前统一末尾 DOA 的流程不符合业务链路，应按 CF 成功识别 -> DOA -> 回收失败子类 -> PW -> PW 成功识别 -> DOA 的顺序处理。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/algorithm_params.py runtime/threading/identify_worker.py ui/components/slice_param_panel.py tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_flow_reorder_all -p no:cacheprovider` 输出 `52 passed, 1 warning`。
+- 时间：2026-06-29 11:33
+- 操作类型：[修改]
+- 影响文件：
+  - `runtime/threading/identify_worker.py`
+  - `tests/unit/test_identify_worker_clustering_params.py`
+  - `docs/operateLog.md`
+- 变更摘要：调整 DOA 二次聚类结果重新参与识别，最终仅保留 DOA 识别通过簇，并按父簇索引复用与后续顺延规则重排簇索引。
+- 原因：用户明确要求 DOA 聚类后再次识别，且子类索引需从父簇索引开始占位，后续簇索引顺延。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py tests/unit/test_identify_worker_clustering_params.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_doa_reidentify_all -p no:cacheprovider` 输出 `52 passed, 1 warning`。
+- 时间：2026-06-29 11:17
+- 操作类型：[修改]
+- 影响文件：
+  - `core/models/algorithm_params.py`
+  - `runtime/threading/identify_worker.py`
+  - `ui/components/slice_param_panel.py`
+  - `tests/unit/test_identify_worker_clustering_params.py`
+  - `tests/unit/test_slice_param_panel.py`
+  - `docs/operateLog.md`
+- 变更摘要：为识别通过簇增加基于 DOA 的 DBSCAN 二次聚类，并将全部聚类参数同步到切片页面抽屉中以 session 子配置读写。
+- 原因：用户要求识别通过的聚类继续按 DOA 聚类，且 CF/PW/DOA 聚类参数需要在 slice_interface 抽屉内按 session 独立配置。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py -q --basetemp=.pytest_tmp_doa_session_params -p no:cacheprovider` 输出 `43 passed, 1 warning`；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/algorithm_params.py runtime/threading/identify_worker.py ui/components/slice_param_panel.py tests/unit/test_identify_worker_clustering_params.py tests/unit/test_slice_param_panel.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_doa_navigation -p no:cacheprovider` 输出 `9 passed, 1 warning`。
 
 - 时间：2026-06-29 10:06
 - 操作类型：[修改]

@@ -14,8 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.app_config import appConfig
 from core.models.processing_session import ProcessingSession
 from ui.components import SliceParamPanel
+from ui.components.double_spin_box_setting_card import DoubleSpinBoxSettingCard
 from ui.components.export_option_card import ExportOptionCard
 from ui.components.model_selection_card import ModelSelectionCard
+from ui.components.spin_box_setting_card import SpinBoxSettingCard
 
 
 _APP: QApplication | None = None
@@ -32,7 +34,7 @@ def _app() -> QApplication:
 
 
 def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
-    """参数面板应集中持有抽屉中的三类卡片。"""
+    """参数面板应集中持有抽屉中的配置卡片。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -54,6 +56,11 @@ def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
     )
     assert panel.auto_recognize_card.parent() is panel.cards_group
     assert panel.auto_recognize_item.value is True
+    assert panel.clustering_group.parent() is panel.drawer_scroll_widget
+    assert isinstance(panel.clustering_eps_cf_card, DoubleSpinBoxSettingCard)
+    assert isinstance(panel.clustering_min_pts_cf_card, SpinBoxSettingCard)
+    assert isinstance(panel.clustering_eps_doa_card, DoubleSpinBoxSettingCard)
+    assert isinstance(panel.clustering_min_pts_doa_card, SpinBoxSettingCard)
     assert isinstance(panel.model_selection_card, ModelSelectionCard)
     assert panel.model_selection_card.parent() is panel.cards_group
     assert isinstance(panel.export_path_card, ExportOptionCard)
@@ -107,6 +114,36 @@ def test_slice_param_panel_logs_auto_recognize_changes(
     panel.auto_recognize_card.setChecked(False)
 
     assert payloads == [("更新当前 Session 自动识别开关：关闭", "session-log")]
+
+
+def test_slice_param_panel_updates_session_clustering_params_only(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """聚类参数卡片应只修改当前 session 子配置。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    changed: list[str] = []
+    session = ProcessingSession()
+    session.config_snapshot.clustering.eps_doa = 16.8
+    session.config_snapshot.clustering.min_pts_doa = 2
+    global_eps_doa = qconfig.get(appConfig.algorithmEpsilonDOA)
+    global_min_pts_doa = qconfig.get(appConfig.algorithmMinPtsDOA)
+
+    panel = SliceParamPanel(
+        session=session,
+        on_config_changed=lambda: changed.append("saved"),
+    )
+    panel.clustering_eps_doa_card.spinBox.setValue(12.4)
+    panel.clustering_min_pts_doa_card.spinBox.setValue(5)
+
+    assert session.config_snapshot.clustering.eps_doa == 12.4
+    assert session.config_snapshot.clustering.min_pts_doa == 5
+    assert changed == ["saved", "saved"]
+    assert qconfig.get(appConfig.algorithmEpsilonDOA) == global_eps_doa
+    assert qconfig.get(appConfig.algorithmMinPtsDOA) == global_min_pts_doa
 
 
 def test_slice_param_panel_binds_model_selection_to_session(

@@ -435,6 +435,16 @@ class ProcessingSession:
         slice_state.recognition_status = SliceProcessStatus.RUNNING
         slice_state.last_recognition_error = None
 
+    def mark_slice_recognition_pending(self, slice_index: int) -> None:
+        """标记指定切片识别尚未开始。
+
+        Args:
+            slice_index (int): 切片索引。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.recognition_status = SliceProcessStatus.NOT_STARTED
+        slice_state.last_recognition_error = None
+
     def mark_slice_recognition_succeeded(self, slice_index: int) -> None:
         """标记指定切片识别成功。
 

@@ -13,10 +13,19 @@ from pytest import MonkeyPatch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.models.algorithm_params import ClusteringParams, RecognitionParams
-from core.models.cluster_result import ClusterItem, ClusterState
-from core.models.processing_session import ProcessingSession
-from core.models.recognition_result import ClusterRecognition
-from runtime.threading.identify_worker import IdentifyWorker
+from core.models.cluster_result import (
+    ClusterItem,
+    ClusterState,
+    ClusteringResult,
+    SliceClusterResult,
+)
+from core.models.processing_session import ProcessingSession, ProcessingStage, SliceProcessStatus
+from core.models.recognition_result import (
+    ClusterRecognition,
+    RecognitionResult,
+    SliceRecognitionResult,
+)
+from runtime.threading.identify_worker import IdentifyWorker, IdentifyWorkerResult
 from runtime.workflows.identify_workflow import IdentifyWorkflow
 
 
@@ -60,13 +69,6 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
         "runtime.threading.identify_worker.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
-    worker = IdentifyWorker(
-        session=ProcessingSession(),
-        slice_index=0,
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
     slice_data = SimpleNamespace(
         index=0,
         data=np.array(
@@ -76,6 +78,14 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
             ]
         ),
         time_range=(0.0, 1.0),
+    )
+    worker = IdentifyWorker(
+        session_id="session-test",
+        slice_index=0,
+        slice_data=slice_data,
+        inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
     )
 
     worker._cluster_and_recognize_slice(
@@ -136,6 +146,8 @@ def test_identify_worker_saves_all_clusters_by_cluster_index(
         """按维度返回固定聚类结果，用于稳定复现保存顺序。"""
         if kwargs["dim_name"] == "CF":
             return [cf_valid, cf_invalid], np.array([], dtype=int)
+        if kwargs["dim_name"] == "DOA":
+            return [], np.array([], dtype=int)
         return [pw_valid], np.array([], dtype=int)
 
     def fake_recognize_clusters_parallel(
@@ -161,6 +173,14 @@ def test_identify_worker_saves_all_clusters_by_cluster_index(
                 start_index + 1,
             )
 
+        if clusters and clusters[0].dim_name == "DOA":
+            recs = []
+            for offset, cluster in enumerate(clusters):
+                cluster.state = ClusterState.VALID
+                cluster.valid_cluster_idx = start_index + offset
+                recs.append(make_recognition(cluster, start_index + offset, True))
+            return clusters, [], recs, start_index + len(clusters)
+
         pw_valid.state = ClusterState.VALID
         pw_valid.valid_cluster_idx = start_index
         return (
@@ -178,17 +198,18 @@ def test_identify_worker_saves_all_clusters_by_cluster_index(
         "runtime.threading.identify_worker.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
-    worker = IdentifyWorker(
-        session=ProcessingSession(),
-        slice_index=0,
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
     slice_data = SimpleNamespace(
         index=0,
         data=np.zeros((3, 5), dtype=float),
         time_range=(0.0, 1.0),
+    )
+    worker = IdentifyWorker(
+        session_id="session-test",
+        slice_index=0,
+        slice_data=slice_data,
+        inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
     )
 
     cluster_result, recognition_result = worker._cluster_and_recognize_slice(
@@ -198,18 +219,187 @@ def test_identify_worker_saves_all_clusters_by_cluster_index(
         recognize_params=RecognitionParams(),
     )
 
-    assert [cluster.cluster_idx for cluster in cluster_result.clusters] == [1, 2, 3]
+    assert [cluster.cluster_idx for cluster in cluster_result.clusters] == [1, 2]
+    assert [cluster.dim_name for cluster in cluster_result.clusters] == [
+        "CF",
+        "PW",
+    ]
     assert [cluster.state for cluster in cluster_result.clusters] == [
         ClusterState.VALID,
-        ClusterState.INVALID,
         ClusterState.VALID,
     ]
     assert [
         recognition.cluster_index for recognition in recognition_result.valid_clusters
-    ] == [1, 3]
+    ] == [1, 2]
     assert [
         recognition.cluster_index for recognition in recognition_result.invalid_clusters
-    ] == [2]
+    ] == []
+
+
+def test_identify_worker_clusters_valid_results_by_doa(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """CF-DOA 未通过子类应回收到 PW，PW 通过类再执行 DOA 检查。"""
+    doa_calls: list[tuple[int, float, int]] = []
+    pw_input_doa_values: list[float] = []
+    points = np.array(
+        [
+            [1000.0, 1.0, 10.0, 20.0, 0.0],
+            [1000.0, 1.0, 11.0, 20.0, 1.0],
+            [1000.0, 1.0, 35.0, 20.0, 2.0],
+            [2000.0, 2.0, 40.0, 20.0, 3.0],
+            [3000.0, 3.0, 50.0, 20.0, 4.0],
+        ],
+        dtype=float,
+    )
+
+    def make_cluster(
+        cluster_idx: int,
+        dim_name: str,
+        source_points: np.ndarray,
+        points_indices: np.ndarray,
+    ) -> ClusterItem:
+        """构造测试聚类簇。"""
+        return ClusterItem(
+            cluster_idx=cluster_idx,
+            dim_name=dim_name,
+            points=source_points[points_indices],
+            points_indices=points_indices,
+            slice_idx=0,
+            time_ranges=(0.0, 1.0),
+        )
+
+    def make_recognition(
+        cluster: ClusterItem,
+        valid_cluster_index: int | None,
+        is_valid: bool,
+    ) -> ClusterRecognition:
+        """构造测试识别记录。"""
+        return ClusterRecognition(
+            slice_index=cluster.slice_idx,
+            dim_name=cluster.dim_name,
+            cluster_index=cluster.cluster_idx,
+            valid_cluster_index=valid_cluster_index,
+            pa_label=1 if is_valid else 5,
+            pa_confidence=0.9,
+            dtoa_label=1 if is_valid else 5,
+            dtoa_confidence=0.8,
+            is_valid=is_valid,
+        )
+
+    def fake_process_dimension_clustering(
+        **kwargs: Any,
+    ) -> tuple[list[ClusterItem], np.ndarray]:
+        """按流程阶段返回固定聚类结果。"""
+        if kwargs["dim_name"] == "CF":
+            source_points = kwargs["points"]
+            return (
+                [
+                    make_cluster(1, "CF", source_points, np.array([0, 1, 2])),
+                    make_cluster(2, "CF", source_points, np.array([3])),
+                ],
+                np.array([4], dtype=int),
+            )
+
+        if kwargs["dim_name"] == "DOA":
+            doa_calls.append((kwargs["dim_idx"], kwargs["epsilon"], kwargs["min_pts"]))
+            source_points = kwargs["points"]
+            if source_points[:, 2].tolist() == [10.0, 11.0, 35.0]:
+                return (
+                    [
+                        make_cluster(1, "DOA", source_points, np.array([0, 1])),
+                        make_cluster(2, "DOA", source_points, np.array([2])),
+                    ],
+                    np.array([], dtype=int),
+                )
+            return [make_cluster(1, "DOA", source_points, np.arange(len(source_points)))], np.array([], dtype=int)
+
+        pw_input_doa_values.extend(kwargs["points"][:, 2].tolist())
+        return (
+            [
+                make_cluster(3, "PW", kwargs["points"], np.array([0, 1])),
+                make_cluster(4, "PW", kwargs["points"], np.array([2])),
+            ],
+            np.array([], dtype=int),
+        )
+
+    def fake_recognize_clusters_parallel(
+        clusters: list[ClusterItem],
+        inference_service: object,
+        recognize_params: RecognitionParams,
+        start_index: int,
+        max_workers: int | None = None,
+    ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
+        """按维度模拟识别结果。"""
+        del inference_service, recognize_params, max_workers
+        if clusters and clusters[0].dim_name == "CF":
+            clusters[0].state = ClusterState.VALID
+            clusters[1].state = ClusterState.INVALID
+            return (
+                [clusters[0]],
+                [clusters[1]],
+                [
+                    make_recognition(clusters[0], start_index, True),
+                    make_recognition(clusters[1], None, False),
+                ],
+                start_index + 1,
+            )
+        if clusters and clusters[0].dim_name == "DOA":
+            clusters[0].state = ClusterState.VALID
+            clusters[0].valid_cluster_idx = start_index
+            recs = [make_recognition(clusters[0], start_index, True)]
+            if len(clusters) > 1:
+                clusters[1].state = ClusterState.INVALID
+                recs.append(make_recognition(clusters[1], None, False))
+                return [clusters[0]], [clusters[1]], recs, start_index + 1
+            return [clusters[0]], [], recs, start_index + 1
+
+        clusters[0].state = ClusterState.VALID
+        clusters[1].state = ClusterState.INVALID
+        return (
+            [clusters[0]],
+            [clusters[1]],
+            [
+                make_recognition(clusters[0], start_index, True),
+                make_recognition(clusters[1], None, False),
+            ],
+            start_index + 1,
+        )
+
+    monkeypatch.setattr(
+        "runtime.threading.identify_worker.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    monkeypatch.setattr(
+        "runtime.threading.identify_worker.recognize_clusters_parallel",
+        fake_recognize_clusters_parallel,
+    )
+    worker = IdentifyWorker(
+        session_id="session-test",
+        slice_index=0,
+        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 1.0)),
+        inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
+    )
+
+    cluster_result, recognition_result = worker._cluster_and_recognize_slice(
+        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 1.0)),
+        inference_service=object(),
+        cluster_params=ClusteringParams(eps_doa=16.8, min_pts_doa=2),
+        recognize_params=RecognitionParams(),
+    )
+
+    assert doa_calls == [(2, 16.8, 2), (2, 16.8, 2)]
+    assert sorted(pw_input_doa_values) == [35.0, 40.0, 50.0]
+    assert [cluster.cluster_idx for cluster in cluster_result.clusters] == [1, 2, 3]
+    assert [cluster.dim_name for cluster in cluster_result.clusters] == [
+        "DOA",
+        "PW",
+        "PW",
+    ]
+    assert [rec.cluster_index for rec in recognition_result.valid_clusters] == [1, 2]
+    assert [rec.cluster_index for rec in recognition_result.invalid_clusters] == [3]
 
 
 def test_identify_workflow_injects_session_params_and_models(
@@ -253,11 +443,20 @@ def test_identify_workflow_injects_session_params_and_models(
     )
 
     session = ProcessingSession(session_id="session_params")
-    session.slice_result = object()
+    session.slice_result = SimpleNamespace(
+        slice_count=3,
+        slices=[
+            SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0)),
+            SimpleNamespace(index=1, data=np.zeros((1, 5), dtype=float), time_range=(1.0, 2.0)),
+            SimpleNamespace(index=2, data=np.zeros((1, 5), dtype=float), time_range=(2.0, 3.0)),
+        ],
+    )
     session.model_selection.pa_model_path = "E:/models/pa.onnx"
     session.model_selection.dtoa_model_path = "E:/models/dtoa.onnx"
     session.config_snapshot.clustering.eps_cf = 7.0
     session.config_snapshot.clustering.min_pts_cf = 4
+    session.config_snapshot.clustering.eps_doa = 12.5
+    session.config_snapshot.clustering.min_pts_doa = 6
     session.config_snapshot.recognition.tolerance = 0.25
     workflow = IdentifyWorkflow()
 
@@ -267,8 +466,12 @@ def test_identify_workflow_injects_session_params_and_models(
     recognize_params = captured["recognize_params"]
     assert isinstance(cluster_params, ClusteringParams)
     assert isinstance(recognize_params, RecognitionParams)
+    assert captured["session_id"] == "session_params"
+    assert captured["slice_data"].index == 2
     assert cluster_params.eps_cf == 7.0
     assert cluster_params.min_pts_cf == 4
+    assert cluster_params.eps_doa == 12.5
+    assert cluster_params.min_pts_doa == 6
     assert recognize_params.tolerance == 0.25
     assert captured["started"] is True
     service_args = captured["inference_service"]["service_args"]
@@ -298,7 +501,7 @@ def test_multiple_identify_workflow_instances_can_start_in_parallel(
 
         def __init__(self, **kwargs) -> None:
             """记录当前启动的 session。"""
-            self._session_id = kwargs["session"].session_id
+            self._session_id = kwargs["session_id"]
             self._running = False
 
         def isRunning(self) -> bool:
@@ -320,11 +523,20 @@ def test_multiple_identify_workflow_instances_can_start_in_parallel(
     )
 
     session_a = ProcessingSession(session_id="session_a")
-    session_a.slice_result = object()
+    session_a.slice_result = SimpleNamespace(
+        slice_count=1,
+        slices=[SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0))],
+    )
     session_a.model_selection.pa_model_path = "E:/models/pa_a.onnx"
     session_a.model_selection.dtoa_model_path = "E:/models/dtoa_a.onnx"
     session_b = ProcessingSession(session_id="session_b")
-    session_b.slice_result = object()
+    session_b.slice_result = SimpleNamespace(
+        slice_count=2,
+        slices=[
+            SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0)),
+            SimpleNamespace(index=1, data=np.zeros((1, 5), dtype=float), time_range=(1.0, 2.0)),
+        ],
+    )
     session_b.model_selection.pa_model_path = "E:/models/pa_b.onnx"
     session_b.model_selection.dtoa_model_path = "E:/models/dtoa_b.onnx"
 
@@ -337,3 +549,94 @@ def test_multiple_identify_workflow_instances_can_start_in_parallel(
     assert started_sessions == ["session_a", "session_b"]
     assert workflow_a.is_running() is True
     assert workflow_b.is_running() is True
+
+
+def test_identify_workflow_writes_session_results_on_worker_success() -> None:
+    """识别结果应由 workflow 在主线程统一写回 session。"""
+    session = ProcessingSession(session_id="session_success")
+    session.slice_result = SimpleNamespace(slice_count=1, slices=[SimpleNamespace(index=0)])
+    workflow = IdentifyWorkflow()
+    workflow._active_session = session
+    workflow._active_session_id = session.session_id
+    workflow._active_slice_index = 0
+    workflow._worker = None
+
+    cluster_result = SliceClusterResult(
+        slice_idx=0,
+        clusters=[],
+        unprocessed_points=np.array([]),
+        recycled_points=np.array([]),
+    )
+    recognition_result = SliceRecognitionResult(
+        slice_index=0,
+        valid_clusters=[],
+        invalid_clusters=[],
+    )
+
+    workflow._on_worker_finished(
+        session.session_id,
+        IdentifyWorkerResult(
+            success=True,
+            cluster_result=cluster_result,
+            recognition_result=recognition_result,
+        ),
+    )
+
+    assert isinstance(session.cluster_result, ClusteringResult)
+    assert isinstance(session.recognition_result, RecognitionResult)
+    assert session.cluster_result.slice_results[0] is cluster_result
+    assert session.recognition_result.slice_results[0] is recognition_result
+    assert session.is_slice_clustered(0) is True
+    assert session.is_slice_recognized(0) is True
+    assert session.stage is ProcessingStage.RECOGNIZED
+
+
+def test_identify_workflow_marks_recognition_running_only_after_progress() -> None:
+    """识别状态应在收到识别阶段进度后再进入运行中。"""
+    session = ProcessingSession(session_id="session_progress")
+    session.slice_result = SimpleNamespace(slice_count=1, slices=[SimpleNamespace(index=0)])
+    workflow = IdentifyWorkflow()
+    workflow._active_session = session
+    workflow._active_session_id = session.session_id
+    workflow._active_slice_index = 0
+
+    with session.lock:
+        session.mark_slice_cluster_running(0)
+        session.mark_slice_recognition_pending(0)
+
+    workflow._on_worker_progress(session.session_id, "recognition", 1, 2)
+
+    assert session.get_slice_processing_state(0).cluster_status is SliceProcessStatus.RUNNING
+    assert (
+        session.get_slice_processing_state(0).recognition_status
+        is SliceProcessStatus.RUNNING
+    )
+
+
+def test_identify_workflow_keeps_recognition_not_started_when_clustering_fails() -> None:
+    """聚类阶段失败时不应把识别状态误记为失败。"""
+    session = ProcessingSession(session_id="session_failure")
+    session.slice_result = SimpleNamespace(slice_count=1, slices=[SimpleNamespace(index=0)])
+    workflow = IdentifyWorkflow()
+    workflow._active_session = session
+    workflow._active_session_id = session.session_id
+    workflow._active_slice_index = 0
+    workflow._worker = None
+
+    with session.lock:
+        session.mark_slice_cluster_running(0)
+        session.mark_slice_recognition_pending(0)
+
+    workflow._on_worker_finished(
+        session.session_id,
+        IdentifyWorkerResult(
+            success=False,
+            failed_phase="clustering",
+            error_message="cluster failed",
+        ),
+    )
+
+    state = session.get_slice_processing_state(0)
+    assert state.cluster_status is SliceProcessStatus.FAILED
+    assert state.recognition_status is SliceProcessStatus.NOT_STARTED
+    assert session.stage is ProcessingStage.SLICED
