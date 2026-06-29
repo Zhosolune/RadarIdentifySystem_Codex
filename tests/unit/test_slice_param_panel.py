@@ -85,6 +85,30 @@ def test_slice_param_panel_updates_session_auto_recognize_only(
     assert qconfig.get(appConfig.autoRecognizeNextSlice) == global_value
 
 
+def test_slice_param_panel_logs_auto_recognize_changes(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """自动识别开关变更时应记录当前 session 的日志。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    payloads: list[tuple[str, str]] = []
+    session = ProcessingSession(session_id="session-log")
+
+    def fake_info(message: str, value: str, extra: dict[str, str]) -> None:
+        """记录日志调用参数。"""
+        payloads.append((message % value, extra["session_id"]))
+
+    monkeypatch.setattr("ui.components.slice_param_panel.LOGGER.info", fake_info)
+    panel = SliceParamPanel(session=session)
+
+    panel.auto_recognize_card.setChecked(False)
+
+    assert payloads == [("更新当前 Session 自动识别开关：关闭", "session-log")]
+
+
 def test_slice_param_panel_binds_model_selection_to_session(
     monkeypatch: MonkeyPatch,
 ) -> None:

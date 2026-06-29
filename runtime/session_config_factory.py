@@ -7,6 +7,7 @@ from core.models.session_config import (
     ClusteringConfigSnapshot,
     ExtractConfigSnapshot,
     MergeConfigSnapshot,
+    PlotConfigSnapshot,
     RecognitionConfigSnapshot,
     SessionConfigSnapshot,
 )
@@ -69,5 +70,9 @@ def create_session_config_from_global() -> SessionConfigSnapshot:
             auto_recognize_next_slice=bool(qconfig.get(appConfig.autoRecognizeNextSlice)),
             export_dir_path=str(qconfig.get(appConfig.exportDirPath)),
             auto_export=bool(qconfig.get(appConfig.autoExport)),
+        ),
+        plot=PlotConfigSnapshot(
+            only_show_identified=str(qconfig.get(appConfig.plotOnlyShowIdentified)),
+            scale_mode=str(qconfig.get(appConfig.plotScaleMode)),
         ),
     )

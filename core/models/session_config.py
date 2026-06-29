@@ -216,6 +216,36 @@ class BusinessConfigSnapshot:
 
 
 @dataclass
+class PlotConfigSnapshot:
+    """绘图配置快照。
+
+    Attributes:
+        only_show_identified: 绘图展示模式，`ALL` 表示展示全部聚类结果，
+            `IDENTIFIED_ONLY` 表示仅展示识别后结果。
+        scale_mode: 图像拉伸模式，控制切片图像如何缩放展示。
+    """
+
+    only_show_identified: str = "IDENTIFIED_ONLY"
+    scale_mode: str = "STRETCH"
+
+    @classmethod
+    def default(cls) -> "PlotConfigSnapshot":
+        """返回绘图配置默认值。
+
+        Returns:
+            PlotConfigSnapshot: 新建的绘图配置默认快照。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> PlotConfigSnapshot.default().only_show_identified
+            'IDENTIFIED_ONLY'
+        """
+        return cls()
+
+
+@dataclass
 class SessionConfigSnapshot:
     """Session 子配置总快照。
 
@@ -226,6 +256,7 @@ class SessionConfigSnapshot:
         extract: 参数提取配置快照。
         merge: 合并配置快照。
         business: session 级业务配置快照。
+        plot: 绘图配置快照。
     """
 
     SCHEMA_VERSION = 1
@@ -236,6 +267,7 @@ class SessionConfigSnapshot:
     extract: ExtractConfigSnapshot = field(default_factory=ExtractConfigSnapshot.default)
     merge: MergeConfigSnapshot = field(default_factory=MergeConfigSnapshot.default)
     business: BusinessConfigSnapshot = field(default_factory=BusinessConfigSnapshot.default)
+    plot: PlotConfigSnapshot = field(default_factory=PlotConfigSnapshot.default)
 
     @classmethod
     def default(cls) -> "SessionConfigSnapshot":
@@ -279,6 +311,7 @@ class SessionConfigSnapshot:
             extract=_coerce_dataclass(ExtractConfigSnapshot, data.get("extract", {})),
             merge=_coerce_dataclass(MergeConfigSnapshot, data.get("merge", {})),
             business=_coerce_dataclass(BusinessConfigSnapshot, data.get("business", {})),
+            plot=_coerce_dataclass(PlotConfigSnapshot, data.get("plot", {})),
         )
 
     def to_dict(self) -> dict[str, Any]:

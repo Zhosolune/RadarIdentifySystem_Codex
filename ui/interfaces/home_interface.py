@@ -195,7 +195,7 @@ class HomeInterface(QFrame):
         separator.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         root_layout.addWidget(separator)
 
-        body_layout = QVBoxLayout(card)
+        body_layout = QVBoxLayout()
         body_layout.setContentsMargins(8, 7, 8, 8)
         body_layout.setSpacing(0)
         body_widget = QWidget(card)

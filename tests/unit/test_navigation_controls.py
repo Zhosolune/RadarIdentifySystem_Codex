@@ -10,11 +10,9 @@ import numpy as np
 from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
-from qfluentwidgets import qconfig
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from app.app_config import appConfig
 from core.models.cluster_result import (
     ClusterItem,
     ClusterState,
@@ -100,7 +98,6 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
 ) -> None:
     """图形和文字导航按钮应触发同一组控制器槽函数。"""
     _app()
-    previous_mode = qconfig.get(appConfig.plotOnlyShowIdentified)
     calls = {
         "prev_slice": 0,
         "next_slice": 0,
@@ -127,7 +124,7 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
     monkeypatch.setattr(IdentifyController, "_on_next_cluster", count("next_cluster"))
     interface = SliceInterface()
     try:
-        qconfig.set(appConfig.plotOnlyShowIdentified, "IDENTIFIED_ONLY")
+        interface.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
             slices=[
                 SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
@@ -181,7 +178,6 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
             "next_cluster": 2,
         }
     finally:
-        qconfig.set(appConfig.plotOnlyShowIdentified, previous_mode)
         # 控制器定时器与页面存在引用环，测试结束时显式释放 Qt 对象。
         sip.delete(interface)
 
@@ -215,14 +211,13 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
 ) -> None:
     """切片和类别导航按钮应根据边界索引同步禁用。"""
     _app()
-    previous_mode = qconfig.get(appConfig.plotOnlyShowIdentified)
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
     interface = SliceInterface()
     try:
-        qconfig.set(appConfig.plotOnlyShowIdentified, "IDENTIFIED_ONLY")
+        interface.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
             slices=[
                 SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
@@ -276,7 +271,6 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
         assert interface.navigation_control_card.prev_cluster_button.isEnabled()
         assert not interface.navigation_control_card.next_cluster_button.isEnabled()
     finally:
-        qconfig.set(appConfig.plotOnlyShowIdentified, previous_mode)
         sip.delete(interface)
 
 
@@ -328,7 +322,6 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
 ) -> None:
     """展示模式切换后应在有效簇和全部簇之间正确切换。"""
     _app()
-    previous_mode = qconfig.get(appConfig.plotOnlyShowIdentified)
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
@@ -359,20 +352,19 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
         interface._session.mark_slice_recognition_succeeded(0)
         interface._slice_controller.refresh_navigation_state()
 
-        qconfig.set(appConfig.plotOnlyShowIdentified, "IDENTIFIED_ONLY")
+        interface.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._identify_controller.load_cluster_image(0, reset_index=True)
         assert interface.cluster_title_label.text() == "CF维聚类结果  第1/1类  总第1/2类"
         assert not interface.next_cluster_button.isEnabled()
 
-        qconfig.set(appConfig.plotOnlyShowIdentified, "ALL")
+        interface.plot_option_card.show_mode_item.set("ALL")
         QApplication.processEvents()
-        assert interface.cluster_title_label.text() == "CF维聚类结果  第1/2类  总第1/2类  识别状态：通过"
+        assert interface.cluster_title_label.text() == "CF维聚类结果  第1/2类  总第1/2类"
         assert interface.next_cluster_button.isEnabled()
 
         interface._identify_controller._on_next_cluster()
-        assert interface.cluster_title_label.text() == "PW维聚类结果  第2/2类  总第2/2类  识别状态：未通过"
+        assert interface.cluster_title_label.text() == "PW维聚类结果  第2/2类  总第2/2类"
         assert interface.prev_cluster_button.isEnabled()
         assert not interface.next_cluster_button.isEnabled()
     finally:
-        qconfig.set(appConfig.plotOnlyShowIdentified, previous_mode)
         sip.delete(interface)

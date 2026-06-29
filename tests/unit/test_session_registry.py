@@ -541,6 +541,10 @@ def test_create_session_config_from_global_returns_independent_snapshot() -> Non
         )
         assert snapshot.business.export_dir_path == qconfig.get(appConfig.exportDirPath)
         assert snapshot.business.auto_export == qconfig.get(appConfig.autoExport)
+        assert snapshot.plot.only_show_identified == qconfig.get(
+            appConfig.plotOnlyShowIdentified
+        )
+        assert snapshot.plot.scale_mode == qconfig.get(appConfig.plotScaleMode)
 
         snapshot.clustering.eps_cf = original_eps_cf + 2.0
 

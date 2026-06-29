@@ -71,25 +71,71 @@ class SliceInterface(QFrame):
         self.setObjectName("sliceInterface")
         self._session = session or ProcessingSession()
         self._on_config_changed = on_config_changed
-        self.original_cf_card = SliceDimensionCard("载频", "originalCfCard", self)
-        self.original_pw_card = SliceDimensionCard("脉宽", "originalPwCard", self)
-        self.original_pa_card = SliceDimensionCard("幅度", "originalPaCard", self)
-        self.original_dtoa_card = SliceDimensionCard("一级差", "originalDtoaCard", self)
-        self.original_doa_card = SliceDimensionCard("方位角", "originalDoaCard", self)
+        self.original_cf_card = SliceDimensionCard(
+            "载频",
+            "originalCfCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.original_pw_card = SliceDimensionCard(
+            "脉宽",
+            "originalPwCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.original_pa_card = SliceDimensionCard(
+            "幅度",
+            "originalPaCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.original_dtoa_card = SliceDimensionCard(
+            "一级差",
+            "originalDtoaCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.original_doa_card = SliceDimensionCard(
+            "方位角",
+            "originalDoaCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
 
-        self.cluster_cf_card = SliceDimensionCard("载频", "clusterCfCard", self)
-        self.cluster_pw_card = SliceDimensionCard("脉宽", "clusterPwCard", self)
-        self.cluster_pa_card = SliceDimensionCard("幅度", "clusterPaCard", self)
-        self.cluster_dtoa_card = SliceDimensionCard("一级差", "clusterDtoaCard", self)
-        self.cluster_doa_card = SliceDimensionCard("方位角", "clusterDoaCard", self)
+        self.cluster_cf_card = SliceDimensionCard(
+            "载频",
+            "clusterCfCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.cluster_pw_card = SliceDimensionCard(
+            "脉宽",
+            "clusterPwCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.cluster_pa_card = SliceDimensionCard(
+            "幅度",
+            "clusterPaCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.cluster_dtoa_card = SliceDimensionCard(
+            "一级差",
+            "clusterDtoaCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.cluster_doa_card = SliceDimensionCard(
+            "方位角",
+            "clusterDoaCard",
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
 
         self._init_layout()
         StyleSheet.SLICE_INTERFACE.apply(self)
         qconfig.themeChanged.connect(self._update_icon_colors)
-        
-        # 监听绘图拉伸模式变化，以通知子卡片重新拉伸图片
-        from app.app_config import appConfig
-        appConfig.plotScaleMode.valueChanged.connect(self._on_plot_scale_mode_changed)
 
         # 初始化控制器，将业务逻辑抽离
         self._slice_controller = SliceController(self)
@@ -148,6 +194,10 @@ class SliceInterface(QFrame):
         self.next_slice_button.setIcon(CustomIcon.CHEVRONS_RIGHT.colored(light_color, dark_color))
         self.prev_cluster_button.setIcon(CustomIcon.CHEVRON_LEFT.colored(light_color, dark_color))
         self.next_cluster_button.setIcon(CustomIcon.CHEVRON_RIGHT.colored(light_color, dark_color))
+
+    def _current_plot_scale_mode(self) -> str:
+        """返回当前 session 的图像绘制模式。"""
+        return str(self._session.config_snapshot.plot.scale_mode)
 
     def _on_plot_scale_mode_changed(self, mode: str) -> None:
         """当绘图拉伸模式变更时，触发所有显示图片的重绘。"""
@@ -333,7 +383,14 @@ class SliceInterface(QFrame):
         option_cards_group = JitterFreeCardGroup(self.operate_panel_card)
 
         # 绘图选项卡
-        self.plot_option_card = PlotOptionCard(option_cards_group)
+        self.plot_option_card = PlotOptionCard(
+            session=self._session,
+            on_config_changed=self._on_config_changed,
+            parent=option_cards_group,
+        )
+        self.plot_option_card.scaleModeChanged.connect(
+            self._on_plot_scale_mode_changed
+        )
         
         # 重绘选项卡
         self.redraw_option_card = RedrawOptionCard(option_cards_group)

@@ -9,8 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import InfoBar, InfoBarPosition, qconfig
-from app.app_config import appConfig
+from qfluentwidgets import InfoBar, InfoBarPosition
 from app.signal_bus import signal_bus
 from core.models.cluster_result import ClusterItem, SliceClusterResult
 from core.models.processing_session import ProcessingSession
@@ -81,8 +80,8 @@ class IdentifyController(QObject):
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
 
-        # 监听展示模式变化，并立即刷新当前聚类结果。
-        appConfig.plotOnlyShowIdentified.valueChanged.connect(
+        # 监听当前 session 展示模式变化，并立即刷新当前聚类结果。
+        self.view.plot_option_card.showModeChanged.connect(
             self._on_plot_show_mode_changed
         )
 
@@ -310,7 +309,10 @@ class IdentifyController(QObject):
 
     def _is_identified_only_mode(self) -> bool:
         """返回当前是否仅展示识别通过的聚类结果。"""
-        return str(qconfig.get(appConfig.plotOnlyShowIdentified)) == "IDENTIFIED_ONLY"
+        return (
+            str(self.view._session.config_snapshot.plot.only_show_identified)
+            == "IDENTIFIED_ONLY"
+        )
 
     def _get_slice_cluster_result(
         self,

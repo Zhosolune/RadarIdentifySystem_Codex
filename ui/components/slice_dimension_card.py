@@ -1,11 +1,13 @@
 """切片维度卡片组件。"""
 
 from __future__ import annotations
+from collections.abc import Callable
+
 
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QPainterPath
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
-from qfluentwidgets import SimpleCardWidget, qconfig
+from qfluentwidgets import SimpleCardWidget
 
 
 class RoundedImageLabel(QLabel):
@@ -26,7 +28,12 @@ class RoundedImageLabel(QLabel):
         无。
     """
 
-    def __init__(self, radius: int = 4, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        radius: int = 4,
+        parent: QWidget | None = None,
+        scale_mode_getter: Callable[[], str] | None = None,
+    ) -> None:
         """初始化圆角图像标签。
 
         功能描述：
@@ -40,6 +47,7 @@ class RoundedImageLabel(QLabel):
         self._radius = radius
         self._source_image: QImage | None = None
         self._cached_pixmap: QPixmap | None = None
+        self._scale_mode_getter = scale_mode_getter
 
     def set_image(self, image: QImage) -> None:
         """设置源图像并触发更新。
@@ -75,9 +83,8 @@ class RoundedImageLabel(QLabel):
             return
             
         from ui.adapters.image_scaler import apply_scale_mode
-        from app.app_config import appConfig
-        
-        mode = qconfig.get(appConfig.plotScaleMode)
+
+        mode = self._scale_mode_getter() if self._scale_mode_getter else "STRETCH"
         scaled_qimage = apply_scale_mode(self._source_image, self.width(), self.height(), mode)
         self._cached_pixmap = QPixmap.fromImage(scaled_qimage)
         self.update()
@@ -125,7 +132,13 @@ class SliceDimensionCard(QWidget):
         ValueError: 当 `label_text` 或 `object_name` 为空字符串时抛出。
     """
 
-    def __init__(self, label_text: str, object_name: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        label_text: str,
+        object_name: str,
+        parent: QWidget | None = None,
+        scale_mode_getter: Callable[[], str] | None = None,
+    ) -> None:
         """初始化切片维度卡片组件。
 
         功能描述：
@@ -160,7 +173,11 @@ class SliceDimensionCard(QWidget):
         self.image_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # 添加用于显示圆角图像的 QLabel（内边距 0px，卡片外圆角 6px，故图片圆角设为 6px）
-        self.image_label = RoundedImageLabel(radius=6, parent=self.image_card)
+        self.image_label = RoundedImageLabel(
+            radius=6,
+            parent=self.image_card,
+            scale_mode_getter=scale_mode_getter,
+        )
         self.image_label.setObjectName("sliceImageLabel")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setScaledContents(True)

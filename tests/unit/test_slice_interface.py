@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from PyQt6 import sip
+from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
 
@@ -107,6 +108,48 @@ def test_header_title_length_does_not_change_image_column_width(
         left_column = interface.findChild(QWidget, "sliceLeftColumn")
         assert left_column is not None
         assert left_column.width() > 0
+    finally:
+        sip.delete(interface)
+
+
+def test_slice_interface_uses_session_scale_mode_for_image_updates(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """切片界面重绘图像时应读取当前 session 的绘制模式。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    used_modes: list[str] = []
+
+    def fake_apply_scale_mode(
+        q_image: QImage,
+        target_width: int,
+        target_height: int,
+        mode: str,
+    ) -> QImage:
+        """记录当前用于缩放的绘制模式。"""
+        used_modes.append(mode)
+        return q_image
+
+    monkeypatch.setattr(
+        "ui.adapters.image_scaler.apply_scale_mode",
+        fake_apply_scale_mode,
+    )
+
+    interface = SliceInterface()
+    try:
+        interface.show()
+        QApplication.processEvents()
+        test_image = QImage(16, 16, QImage.Format.Format_RGB32)
+
+        interface.original_cf_card.set_image(test_image)
+        assert used_modes[-1] == "STRETCH"
+
+        interface.plot_option_card.scale_mode_item.set("STRETCH_BILINEAR")
+        QApplication.processEvents()
+        assert used_modes[-1] == "STRETCH_BILINEAR"
     finally:
         sip.delete(interface)
 

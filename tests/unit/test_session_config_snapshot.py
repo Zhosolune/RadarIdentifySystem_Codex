@@ -16,11 +16,15 @@ def test_session_config_snapshot_round_trips_dict() -> None:
     snapshot = SessionConfigSnapshot.default()
     snapshot.clustering.eps_cf = 3.5
     snapshot.recognition.min_confidence = 0.72
+    snapshot.plot.only_show_identified = "ALL"
+    snapshot.plot.scale_mode = "STRETCH_BILINEAR"
 
     restored = SessionConfigSnapshot.from_dict(snapshot.to_dict())
 
     assert restored.clustering.eps_cf == 3.5
     assert restored.recognition.min_confidence == 0.72
+    assert restored.plot.only_show_identified == "ALL"
+    assert restored.plot.scale_mode == "STRETCH_BILINEAR"
     assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
 
 
@@ -34,12 +38,15 @@ def test_session_config_snapshot_fills_missing_fields() -> None:
             "extract": {},
             "merge": {},
             "business": {},
+            "plot": {},
         }
     )
 
     assert restored.clustering.eps_cf == 4.0
     assert restored.clustering.min_pts_cf == ClusteringConfigSnapshot.default().min_pts_cf
     assert restored.recognition.max_candidates == RecognitionConfigSnapshot.default().max_candidates
+    assert restored.plot.only_show_identified == "IDENTIFIED_ONLY"
+    assert restored.plot.scale_mode == "STRETCH"
 
 
 def test_session_config_snapshot_falls_back_invalid_schema_version() -> None:

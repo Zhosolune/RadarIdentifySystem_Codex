@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -17,6 +18,8 @@ from app.session_config_item import SessionConfigItem
 from core.models.processing_session import ProcessingSession
 from .export_option_card import ExportOptionCard
 from .model_selection_card import ModelSelectionCard
+
+LOGGER = logging.getLogger(__name__)
 
 
 class SliceParamPanel(QWidget):
@@ -87,6 +90,9 @@ class SliceParamPanel(QWidget):
         self.auto_recognize_item.valueChanged.connect(
             self.auto_recognize_card.setChecked
         )
+        self.auto_recognize_item.valueChanged.connect(
+            self._log_auto_recognize_changed
+        )
         self.model_selection_card: ModelSelectionCard = ModelSelectionCard(self)
         self._sync_initial_model_selection()
         self.model_selection_card.modelChanged.connect(self._on_model_changed)
@@ -114,6 +120,14 @@ class SliceParamPanel(QWidget):
 
         if self._on_config_changed:
             self._on_config_changed()
+
+    def _log_auto_recognize_changed(self, new_value: object) -> None:
+        """记录当前 session 的自动识别开关变化。"""
+        LOGGER.info(
+            "更新当前 Session 自动识别开关：%s",
+            "开启" if bool(new_value) else "关闭",
+            extra={"session_id": self.session.session_id},
+        )
 
     def _init_layout(self) -> None:
         """使用滚动区和无抖动卡片组排列参数设置卡片。"""

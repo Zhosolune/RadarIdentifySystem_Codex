@@ -14,7 +14,6 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from app.signal_bus import signal_bus
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_slice_images
-from app.app_config import appConfig, qconfig
 from runtime.workflows.slice_workflow import slice_workflow
 from ui.dialogs.processing_dialog import ProcessingDialog
 
@@ -151,7 +150,12 @@ class SliceController(QObject):
         is_adaptive = self.view.navigation_control_card.adaptive_slicing_checkbox.isChecked()
         current_mode = "自适应切片" if is_adaptive else "开始切片"
         
-        LOGGER.info(f"执行切片，拆分按钮模式: {current_mode}, 自动识别全局配置状态: {bool(qconfig.get(appConfig.autoRecognizeNextSlice))}")
+        LOGGER.info(
+            "执行切片，拆分按钮模式: %s，当前 Session 自动识别状态: %s",
+            current_mode,
+            bool(self.view._session.config_snapshot.business.auto_recognize_next_slice),
+            extra={"session_id": self.view._session.session_id},
+        )
 
         # 更新按钮状态
         self.view.navigation_control_card.start_slicing_button.setEnabled(False)
@@ -369,7 +373,7 @@ class SliceController(QObject):
         """根据自动识别开关判断是否需要触发识别工作流。
 
         功能描述：
-            读取全局自动识别配置，若开关已启用且当前切片未识别、工作流未运行，
+            读取当前 session 自动识别配置，若开关已启用且当前切片未识别、工作流未运行，
             则调用识别控制器启动识别流程。
 
         Args:
@@ -381,20 +385,34 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        if not qconfig.get(appConfig.autoRecognizeNextSlice):
-            LOGGER.debug("自动识别开关已关闭，跳过自动识别")
+        if not self.view._session.config_snapshot.business.auto_recognize_next_slice:
+            LOGGER.debug(
+                "当前 Session 自动识别开关已关闭，跳过自动识别",
+                extra={"session_id": self.view._session.session_id},
+            )
             return
         session = self.view._session
         if not session:
             LOGGER.debug("无有效会话，跳过自动识别")
             return
         if self.view._identify_controller.is_identifying_running():
-            LOGGER.info("识别工作流正在运行，跳过本次自动识别")
+            LOGGER.info(
+                "识别工作流正在运行，跳过本次自动识别",
+                extra={"session_id": session.session_id},
+            )
             return
         if session.is_slice_recognized(self._current_slice_index):
-            LOGGER.info("切片 %d 已完成识别，跳过自动识别", self._current_slice_index + 1)
+            LOGGER.info(
+                "切片 %d 已完成识别，跳过自动识别",
+                self._current_slice_index + 1,
+                extra={"session_id": session.session_id},
+            )
             return
-        LOGGER.info("自动识别开关已启用，触发切片 %d 的识别工作流", self._current_slice_index + 1)
+        LOGGER.info(
+            "当前 Session 自动识别开关已启用，触发切片 %d 的识别工作流",
+            self._current_slice_index + 1,
+            extra={"session_id": session.session_id},
+        )
         self.view._identify_controller.handle_identify()
 
     def _on_next_slice(self) -> None:

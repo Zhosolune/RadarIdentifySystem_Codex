@@ -1,5 +1,48 @@
 ﻿# 变更记录
 
+- 时间：2026-06-29 09:32
+- 操作类型：[修改]
+- 影响文件：
+  - `core/models/session_config.py`
+  - `runtime/session_config_factory.py`
+  - `ui/components/plot_option_card.py`
+  - `ui/components/slice_param_panel.py`
+  - `ui/components/slice_dimension_card.py`
+  - `ui/interfaces/slice_interface.py`
+  - `ui/controllers/slice_controller.py`
+  - `ui/controllers/identify_controller.py`
+  - `tests/unit/test_plot_option_card.py`
+  - `tests/unit/test_slice_param_panel.py`
+  - `tests/unit/test_slice_interface.py`
+  - `tests/unit/test_navigation_controls.py`
+  - `tests/unit/test_session_config_snapshot.py`
+  - `tests/unit/test_session_registry.py`
+  - `docs/operateLog.md`
+- 变更摘要：将 `slice_interface` 中生效的绘图配置 `plot.only_show_identified` 和 `plot.scale_mode` 全部切换为 session 级快照读写，移除对全局 `qconfig` 的依赖；同步让切片图像缩放、聚类结果展示过滤和自动识别判定都读取当前 session 配置，并为绘图选项与自动识别开关变更补充 session 维度日志记录。
+- 原因：绘图配置和自动识别配置在业务上都应以当前 session 为作用域，切片页面内的参数调整不能影响其它 session；同时自动识别配置项缺少日志，无法追踪用户切换行为。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_plot_option_card.py tests/unit/test_slice_param_panel.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py -q --basetemp=.pytest_tmp_session_scoped_plot -p no:cacheprovider` 输出 `47 passed, 1 warning`；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/session_config.py runtime/session_config_factory.py ui/components/plot_option_card.py ui/components/slice_param_panel.py ui/components/slice_dimension_card.py ui/interfaces/slice_interface.py ui/controllers/slice_controller.py ui/controllers/identify_controller.py tests/unit/test_plot_option_card.py tests/unit/test_slice_param_panel.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py` 通过；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-26 18:00
+- 操作类型：[修改]
+- 影响文件：
+  - `core/models/session_config.py`
+  - `runtime/session_config_factory.py`
+  - `tests/unit/test_session_config_snapshot.py`
+  - `tests/unit/test_session_registry.py`
+  - `docs/operateLog.md`
+- 变更摘要：为 session 配置快照新增 `plot` 子配置，并将全局配置中的 `plot.onlyShowIdentified` 映射为 `plot.only_show_identified`，使新建 session 时可以携带当前绘图展示模式；同步补充快照序列化与配置工厂回归测试。
+- 原因：需要把全局绘图配置 `plotOnlyShowIdentified` 纳入 `SessionConfigSnapshot`，避免 session 级配置只覆盖业务与算法参数而遗漏绘图展示模式。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py -q --basetemp=.pytest_tmp_session_plot_config -p no:cacheprovider` 输出 `32 passed, 1 warning`；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/session_config.py runtime/session_config_factory.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py` 通过；VS Code Diagnostics 对相关文件无新增问题。
+
+- 时间：2026-06-26 17:52
+- 操作类型：[修改]
+- 影响文件：
+  - `ui/interfaces/home_interface.py`
+  - `docs/operateLog.md`
+- 变更摘要：修复主页右下预留卡片 `homeRightPlaceholderCard` 的重复布局挂接问题，将 `body_layout` 改为普通子布局，消除 Qt 关于同一 `SimpleCardWidget` 重复添加 `QLayout` 的运行时警告。
+- 原因：终端日志出现 `QLayout: Attempting to add QLayout ... to SimpleCardWidget "homeRightPlaceholderCard", which already has a layout`，说明占位卡片在创建时向同一控件重复设置了布局。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/interfaces/home_interface.py` 通过；VS Code Diagnostics 对 `ui/interfaces/home_interface.py` 无新增问题；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_home_interface.py -q --basetemp=.pytest_tmp_home_placeholder_layout -p no:cacheprovider` 未通过，失败原因为既有断言 `homeLeftScrollArea is None` 与当前实现不符，和本次布局警告修复无直接关系。
+
 - 时间：2026-06-26 17:46
 - 操作类型：[修改]
 - 影响文件：
