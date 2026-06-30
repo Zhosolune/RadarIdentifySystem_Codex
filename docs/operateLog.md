@@ -1,4 +1,51 @@
 ﻿﻿# 变更记录
+- 时间：2026-06-30 16:54
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_identify_worker_clustering_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为 DOA 子聚类增加按簇点数降序排序、按累计点数阈值或最多三类进行裁剪的后处理。
+- 原因：DOA 聚类结果需要优先保留覆盖主要点数的大簇，丢弃未参与累计的小簇，降低后续识别对碎片化 DOA 子簇的处理。
+- 计划：
+  - [x] 补充 DOA 子簇按点数降序裁剪的失败测试。
+  - [x] 验证 RED 阶段测试按预期失败。
+  - [x] 在 DOA 子簇生成后应用 `clip_threshold_doa` 百分比和最多三类限制。
+  - [x] 运行识别线程相关测试。
+  - [x] 运行语法检查与差异检查。
+- 已完成：
+  - 新增 `test_identify_worker_keeps_largest_doa_clusters_until_clip_threshold`，验证按点数降序保留并在累计点数超过父簇点数的 `clip_threshold_doa%` 后停止。
+  - 新增 `test_identify_worker_keeps_at_most_three_doa_clusters`，验证累计未超过阈值时也最多保留点数最多的三个 DOA 子簇。
+  - 在 `IdentifyWorker._cluster_doa_children()` 返回前调用 `_clip_doa_clusters_by_size()`，只让裁剪后的 DOA 子簇进入后续识别流程。
+  - `_clip_doa_clusters_by_size()` 以父簇点数作为总数基准，排序稳定，触发阈值的当前簇会被保留后再停止。
+  - 确认未把 `is_doa=True` 距离度量变更混入本次改动，保持本次范围只包含 DOA 子簇排序与裁剪。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_keeps_largest_doa_clusters_until_clip_threshold tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_keeps_at_most_three_doa_clusters -q --basetemp=.pytest_tmp_doa_clip_red -p no:cacheprovider` 按预期失败；GREEN 目标测试通过（2 passed, 1 warning）；相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py tests/unit/test_recognition_parallel.py -q --basetemp=.pytest_tmp_doa_clip_final -p no:cacheprovider` 通过（14 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile runtime/threading/identify_worker.py tests/unit/test_identify_worker_clustering_params.py` 通过；`git diff --check -- runtime/threading/identify_worker.py tests/unit/test_identify_worker_clustering_params.py docs/operateLog.md` 通过，仅有 Git 换行提示。
+
+- 时间：2026-06-30 15:44
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：追溯当前项目识别算法流程，并梳理识别完成后的 Session 写回、状态推进、事件通知和 UI 刷新处理。
+- 原因：响应“追溯项目中的识别算法流程，并总结识别完成后软件做了哪些处理”的分析请求，保留恢复上下文。
+- 计划：
+  - [x] 定位识别入口、工作流、线程执行体、核心识别算法与 ONNX 推理服务。
+  - [x] 核对 CF/PW/DOA 聚类、PA/DTOA 推理、有效簇判定和结果装配逻辑。
+  - [x] 核对识别完成后的 session 写回、切片状态、全局阶段、信号和 UI 展示刷新。
+  - [x] 检查右下角分析结果表格是否已在识别完成后填充。
+- 已完成：
+  - 确认用户点击“开始识别”后由 `IdentifyController.handle_identify()` 校验切片与模型，启动 `IdentifyWorkflow.start_identify()`。
+  - 确认 `IdentifyWorkflow` 读取当前 session 的模型选择与算法参数快照，创建 `IdentifyWorker` 子线程执行单切片“聚类 + 识别”。
+  - 确认 `IdentifyWorker` 先按 CF 聚类并识别，再对有效 CF 簇做 DOA 复检；CF 未处理点、CF 识别失败点、CF-DOA 回收点进入 PW 阶段；PW 阶段识别后再做 DOA 复检并形成最终有效/无效结果。
+  - 确认 `core.recognition` 对每个簇调用 PA 与 DTOA ONNX 推理，计算 `joint_prob = pa_conf * 0.6 + dtoa_conf * 0.4`，并以 `pa_label != 5 or dtoa_label != 5` 判定有效。
+  - 确认识别完成后结果写回 `session.cluster_result.slice_results[slice_index]` 与 `session.recognition_result.slice_results[slice_index]`，并标记当前切片聚类/识别成功。
+  - 确认 UI 收到 `stage_finished(session_id, "identifying", slice_index)` 后关闭处理弹窗、恢复识别按钮、重置簇浏览索引、渲染当前切片第一个可展示簇并弹出成功提示。
+  - 确认右下角 `AnalysisResultCard` 当前只初始化静态指标行，未发现识别完成后自动填充表格结果列的调用。
+- 待完成：
+  - 无业务代码修改；如需让分析结果表格显示当前簇 PA/DTOA/联合概率，需另行实现 UI 填充逻辑。
+- 测试状态：[无需测试] 本次为代码追溯与文档记录，未修改运行逻辑。
+
 - 时间：2026-06-30 14:56
 - 操作类型：[修改]
 - 影响文件：

@@ -402,6 +402,145 @@ def test_identify_worker_clusters_valid_results_by_doa(
     assert [rec.cluster_index for rec in recognition_result.invalid_clusters] == [3]
 
 
+def test_identify_worker_keeps_largest_doa_clusters_until_clip_threshold(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """DOA 子簇应按点数降序保留，累计超过阈值后丢弃剩余小簇。"""
+
+    def make_cluster(
+        cluster_idx: int,
+        source_points: np.ndarray,
+        points_indices: np.ndarray,
+    ) -> ClusterItem:
+        """构造指定点索引的 DOA 测试簇。"""
+        return ClusterItem(
+            cluster_idx=cluster_idx,
+            dim_name="DOA",
+            points=source_points[points_indices],
+            points_indices=points_indices,
+            slice_idx=0,
+            time_ranges=(0.0, 1.0),
+        )
+
+    def fake_process_dimension_clustering(
+        **kwargs: Any,
+    ) -> tuple[list[ClusterItem], np.ndarray]:
+        """返回未按规模排序的 DOA 子簇，验证后处理会重新排序裁剪。"""
+        source_points = kwargs["points"]
+        return (
+            [
+                make_cluster(1, source_points, np.array([0, 1])),
+                make_cluster(2, source_points, np.array([2, 3, 4, 5, 6])),
+                make_cluster(3, source_points, np.array([7, 8, 9])),
+                make_cluster(4, source_points, np.array([10])),
+            ],
+            np.array([11], dtype=int),
+        )
+
+    monkeypatch.setattr(
+        "runtime.threading.identify_worker.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    parent_points = np.zeros((12, 5), dtype=float)
+    parent_cluster = ClusterItem(
+        cluster_idx=1,
+        dim_name="CF",
+        points=parent_points,
+        points_indices=np.arange(12),
+        slice_idx=0,
+        time_ranges=(0.0, 1.0),
+    )
+    worker = IdentifyWorker(
+        session_id="session-test",
+        slice_index=0,
+        slice_data=SimpleNamespace(index=0, data=parent_points, time_range=(0.0, 1.0)),
+        inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
+    )
+
+    doa_clusters = worker._cluster_doa_children(
+        parent_cluster,
+        ClusteringParams(clip_threshold_doa=60.0),
+    )
+
+    assert [cluster.cluster_size for cluster in doa_clusters] == [5, 3]
+    assert [cluster.points_indices.tolist() for cluster in doa_clusters] == [
+        [2, 3, 4, 5, 6],
+        [7, 8, 9],
+    ]
+
+
+def test_identify_worker_keeps_at_most_three_doa_clusters(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """DOA 子簇累计未超过阈值时也最多保留点数最多的三类。"""
+
+    def make_cluster(
+        cluster_idx: int,
+        source_points: np.ndarray,
+        points_indices: np.ndarray,
+    ) -> ClusterItem:
+        """构造指定点索引的 DOA 测试簇。"""
+        return ClusterItem(
+            cluster_idx=cluster_idx,
+            dim_name="DOA",
+            points=source_points[points_indices],
+            points_indices=points_indices,
+            slice_idx=0,
+            time_ranges=(0.0, 1.0),
+        )
+
+    def fake_process_dimension_clustering(
+        **kwargs: Any,
+    ) -> tuple[list[ClusterItem], np.ndarray]:
+        """返回四个 DOA 子簇，验证最多三类的截断规则。"""
+        source_points = kwargs["points"]
+        return (
+            [
+                make_cluster(1, source_points, np.array([0, 1])),
+                make_cluster(2, source_points, np.array([2, 3, 4, 5])),
+                make_cluster(3, source_points, np.array([6, 7, 8])),
+                make_cluster(4, source_points, np.array([9])),
+            ],
+            np.array([], dtype=int),
+        )
+
+    monkeypatch.setattr(
+        "runtime.threading.identify_worker.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    parent_points = np.zeros((10, 5), dtype=float)
+    parent_cluster = ClusterItem(
+        cluster_idx=1,
+        dim_name="PW",
+        points=parent_points,
+        points_indices=np.arange(10),
+        slice_idx=0,
+        time_ranges=(0.0, 1.0),
+    )
+    worker = IdentifyWorker(
+        session_id="session-test",
+        slice_index=0,
+        slice_data=SimpleNamespace(index=0, data=parent_points, time_range=(0.0, 1.0)),
+        inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
+    )
+
+    doa_clusters = worker._cluster_doa_children(
+        parent_cluster,
+        ClusteringParams(clip_threshold_doa=100.0),
+    )
+
+    assert [cluster.cluster_size for cluster in doa_clusters] == [4, 3, 2]
+    assert [cluster.points_indices.tolist() for cluster in doa_clusters] == [
+        [2, 3, 4, 5],
+        [6, 7, 8],
+        [0, 1],
+    ]
+
+
 def test_identify_workflow_injects_session_params_and_models(
     monkeypatch: MonkeyPatch,
 ) -> None:

@@ -604,7 +604,40 @@ class IdentifyWorker(QThread):
         for cluster in doa_clusters:
             # DOA 聚类输入是父簇点集，需要把局部索引映射回原始切片数据索引。
             cluster.points_indices = parent_cluster.points_indices[cluster.points_indices]
-        return doa_clusters
+        return self._clip_doa_clusters_by_size(
+            clusters=doa_clusters,
+            total_points=len(parent_cluster.points),
+            clip_threshold_percent=cluster_params.clip_threshold_doa,
+        )
+
+    def _clip_doa_clusters_by_size(
+        self,
+        clusters: list[ClusterItem],
+        total_points: int,
+        clip_threshold_percent: float,
+    ) -> list[ClusterItem]:
+        """按点数规模裁剪 DOA 子簇。"""
+        if not clusters or total_points <= 0:
+            return []
+
+        # 先按点数由多到少排序，点数相同时保留底层聚类返回的相对顺序。
+        sorted_clusters = sorted(
+            clusters,
+            key=lambda cluster: cluster.cluster_size,
+            reverse=True,
+        )
+        threshold_points = total_points * clip_threshold_percent / 100.0
+        kept_clusters: list[ClusterItem] = []
+        accumulated_points = 0
+
+        for cluster in sorted_clusters:
+            # 累加当前大簇后再判断停止条件，确保触发阈值的簇会被保留。
+            kept_clusters.append(cluster)
+            accumulated_points += cluster.cluster_size
+            if accumulated_points > threshold_points or len(kept_clusters) >= 3:
+                break
+
+        return kept_clusters
 
     def _recognize_clusters(
         self,
