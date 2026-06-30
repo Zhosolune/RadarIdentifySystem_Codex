@@ -5,14 +5,31 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 from PyQt6.QtGui import QColor
-from qfluentwidgets import TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor, SimpleCardWidget, ScrollArea, qconfig
+from qfluentwidgets import (
+    TransparentToolButton,
+    ToolTipFilter,
+    ToolTipPosition,
+    themeColor,
+    SimpleCardWidget,
+    ScrollArea,
+    qconfig,
+)
+from qfluentwidgets.common.style_sheet import addStyleSheet
 
 from app.custom_icon import CustomIcon
 from app.style_sheet import StyleSheet
 from core.models.processing_session import ProcessingSession
 from ui.components import (
+    AnalysisResultCard,
     DrawerPosition,
     JitterFreeCardGroup,
     NavigationControlCard,
@@ -402,7 +419,13 @@ class SliceInterface(QFrame):
         operate_panel_layout.addWidget(self.navigation_control_card)
         operate_panel_layout.addWidget(option_cards_group)
 
+        # 结果表格卡片
+        self.analysis_result_card = AnalysisResultCard(self.scroll_content_widget)
+        self.analysis_result_table = self.analysis_result_card.table
+        addStyleSheet(self.analysis_result_table, StyleSheet.SLICE_INTERFACE)
+
         self.scroll_content_layout.addWidget(self.operate_panel_card)
+        self.scroll_content_layout.addWidget(self.analysis_result_card)
         self.scroll_content_layout.addStretch(1)
 
         self.right_panel_scroll_area.setWidget(self.scroll_content_widget)

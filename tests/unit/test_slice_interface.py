@@ -10,10 +10,12 @@ from PyQt6 import sip
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
+from qfluentwidgets import TableWidget
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from ui.interfaces.slice_interface import SliceInterface
+from ui.components.analysis_result_card import AnalysisResultCard, RoundedAnalysisHeaderView
 
 
 _APP: QApplication | None = None
@@ -64,6 +66,60 @@ def test_slice_param_panel_is_mounted_in_matching_drawer(
     assert interface.slice_param_panel.export_path_card is not None
     # 控制器定时器与页面存在引用环，测试结束时显式释放 Qt 对象。
     sip.delete(interface)
+
+
+def test_analysis_result_table_is_mounted_in_right_bottom_card(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """分析结果表格应以卡片形式挂载到右侧面板底部。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    interface = SliceInterface()
+
+    try:
+        expected_labels = [
+            "载频/MHz",
+            "脉宽/us",
+            "PRI/us",
+            "DOA/°",
+            "PA预测结果",
+            "PA预测分类",
+            "DTOA预测结果",
+            "DTOA预测分类",
+            "联合预测概率",
+        ]
+
+        card = interface.findChild(AnalysisResultCard, "analysisResultCard")
+        table = interface.findChild(TableWidget, "analysisResultTable")
+
+        assert card is interface.analysis_result_card
+        assert table is interface.analysis_result_table
+        assert interface.scroll_content_layout.indexOf(card) > interface.scroll_content_layout.indexOf(
+            interface.operate_panel_card
+        )
+        assert table.columnCount() == 2
+        assert table.rowCount() == len(expected_labels)
+        assert table.horizontalHeaderItem(0).text() == "雷达信号"
+        assert table.horizontalHeaderItem(1).text() == "分析结果"
+        assert [table.item(row, 0).text() for row in range(table.rowCount())] == expected_labels
+        assert [table.item(row, 1).text() for row in range(table.rowCount())] == [""] * len(
+            expected_labels
+        )
+        assert isinstance(table.horizontalHeader(), RoundedAnalysisHeaderView)
+        assert table.horizontalHeader().corner_radius == 5
+        assert all(
+            table.item(row, column).font().pixelSize() == 14
+            for row in range(table.rowCount())
+            for column in range(table.columnCount())
+        )
+        assert table.verticalHeader().isHidden()
+        assert "selection-background-color: transparent" in table.styleSheet()
+        assert "QTableView#analysisResultTable" in table.styleSheet()
+    finally:
+        sip.delete(interface)
 
 
 def test_header_title_length_does_not_change_image_column_width(

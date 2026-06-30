@@ -1,4 +1,206 @@
 ﻿﻿# 变更记录
+- 时间：2026-06-30 14:56
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：通过自定义表头组件绘制分析结果表格整体表头左上角和右上角 5px 圆角，避免在 QSS 中让每个表头单元格都出现圆角。
+- 原因：Qt 表头的 QSS `border-radius` 作用在每个 section 上，无法只表达表头整体外侧两个上圆角；需要在表头绘制层按首尾 section 单独控制路径。
+- 计划：
+  - [x] 在分析结果卡片组件中接入自绘水平表头。
+  - [x] 让自绘表头使用主题色、白色文字和主题感知边框色。
+  - [x] 将测试从内容字号 QSS 断言改为运行时字体角色和自绘表头断言。
+  - [x] 运行相关测试、语法检查和差异检查。
+- 已完成：
+  - 新增 `RoundedAnalysisHeaderView`，只在第一个表头 section 绘制左上圆角、最后一个 section 绘制右上圆角，中间 section 保持直角。
+  - `AnalysisResultCard` 使用 `RoundedAnalysisHeaderView` 作为水平表头，圆角半径为 5px。
+  - 保持用户已修改的深浅主题 `slice_interface.qss` 不变，圆角逻辑由组件代码承担。
+  - 更新切片界面测试，验证挂载后的表格使用自绘表头且内容项字体仍为 14px。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_rounded_header_final -p no:cacheprovider` 通过（12 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile app/style_sheet.py ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py` 通过；`git diff --check -- app/style_sheet.py ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py docs/operateLog.md` 通过，仅有 Git 换行提示；运行时确认 `rounded header: True`、`radius: 5`、`item font: 14`。
+
+- 时间：2026-06-30 14:19
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\slice_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\slice_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复分析结果表格内容区字号未生效问题，将内容单元格字体改为通过 `Qt.FontRole` 提供，并继续由 `slice_interface.qss` 管理表头和框线样式。
+- 原因：`qfluentwidgets.TableItemDelegate.initStyleOption()` 绘制内容单元格时会执行 `option.font = index.data(Qt.FontRole) or getFont(13)`，因此内容区字号不会由 `QTableView` 的 QSS 字体规则决定；同时父级 `SliceInterface` QSS 没有进入表格自身样式源，需对表格追加页面 QSS 以命中表头和框线规则。
+- 计划：
+  - [x] 检查本地 QSS、`StyleSheet.SLICE_INTERFACE` 实际加载内容、运行时父级/表格 styleSheet。
+  - [x] 补充失败测试，验证表格自身样式源应同时包含组件库默认样式和 `slice_interface.qss` 中的目标规则。
+  - [x] 用 `addStyleSheet()` 将 `StyleSheet.SLICE_INTERFACE` 追加到分析结果表格自身样式源。
+  - [x] 修正深浅主题 `slice_interface.qss` 中表格内容字体为 14px。
+  - [x] 将内容单元格字体改为通过 `QTableWidgetItem.setFont(getFont(14))` 提供。
+  - [x] 运行相关测试、语法检查和差异检查。
+  - [x] 将本条日志更新为最终测试状态。
+- 已完成：
+  - 确认 `StyleSheet.SLICE_INTERFACE.path()` 当前加载 Qt 资源路径，且加载内容中已有 `analysisResultTable`。
+  - 确认 `SliceInterface.styleSheet()` 中存在 `analysisResultTable` 规则，但 `analysis_result_table.styleSheet()` 中没有该规则。
+  - 确认 `resources/qss/light|dark/slice_interface.qss` 里表格主体字体当前为 `font: 16px --FontFamilies`，不符合内容 14px 要求。
+  - 查阅 `qfluentwidgets` 表格实现：`TableItemDelegate.initStyleOption()` 优先读取 `Qt.FontRole`，没有字体角色时回退 `getFont(13)`，这才是内容区字号不响应 QSS 的根因。
+  - 写入运行时样式断言，RED 阶段按预期失败：表格自身样式缺少 `QTableView#analysisResultTable`，且本地 QSS 缺少 `font: 14px --FontFamilies`。
+  - 在 `SliceInterface` 中对 `analysis_result_table` 使用 `addStyleSheet(..., StyleSheet.SLICE_INTERFACE)`，让表格自身样式保留组件库默认规则并追加页面 QSS。
+  - 将深浅主题 `slice_interface.qss` 的表格主体字体修正为 `font: 14px --FontFamilies`，并补齐 `gridline-color`。
+  - 在 `AnalysisResultCard` 中通过 `_create_centered_item()` 为每个内容项设置 `getFont(14)`，让组件库 delegate 通过 `Qt.FontRole` 使用 14px 内容字体。
+  - 修正 `StyleSheet.path()`：本地 QSS 存在时优先读取本地文件，否则回退到编译资源，避免开发阶段被旧 `resource_rc.py` 覆盖。
+  - GREEN 阶段目标测试通过：内容项字体单测 `1 passed, 1 warning`；运行时样式目标测试 `2 passed, 1 warning`，warning 来自 qfluentwidgets 对 scipy 旧导入。
+  - 完整相关验证通过：`test_analysis_result_card.py`、`test_slice_interface.py`、`test_navigation_controls.py` 共 `12 passed, 1 warning`；`py_compile` 通过；`git diff --check` 仅提示 Git 下次处理时会将 LF 替换为 CRLF。
+  - 运行时证据：`analysis_result_table.item(0, 0).font().pixelSize() == 14`；`analysis_result_table.styleSheet()` 同时包含组件库默认 `selection-background-color: transparent`、`QTableView#analysisResultTable`、QSS 中的 `font: 14px`、表头 `font: 16px` 和灰色 `gridline-color`。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_slice_interface.py::test_analysis_result_table_is_mounted_in_right_bottom_card tests/unit/test_analysis_result_card.py::test_analysis_result_card_applies_theme_aware_table_styles -q --basetemp=.pytest_tmp_analysis_style_runtime_red -p no:cacheprovider` 按预期失败；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py::test_analysis_result_card_applies_theme_aware_table_styles tests/unit/test_slice_interface.py::test_analysis_result_table_is_mounted_in_right_bottom_card -q --basetemp=.pytest_tmp_analysis_style_runtime_green3 -p no:cacheprovider` 通过（2 passed, 1 warning）；完整相关验证：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_analysis_style_runtime_full -p no:cacheprovider` 通过（12 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile app/style_sheet.py ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py` 通过；`git diff --check -- app/style_sheet.py ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py resources/qss/light/slice_interface.qss resources/qss/dark/slice_interface.qss docs/operateLog.md` 通过，仅有 LF 将被 Git 转为 CRLF 的提示。
+
+- 时间：2026-06-30 13:58
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\style_sheet.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\slice_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\slice_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\analysis_result_card.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\analysis_result_card.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按用户要求取消独立 `analysis_result_card.qss`，将分析结果表格样式维护到深浅主题 `slice_interface.qss` 中。
+- 原因：切片页面局部表格样式应与切片页面 QSS 一起维护，避免为单个右侧表格额外创建 QSS 文件和样式枚举。
+- 计划：
+  - [x] 核对当前 QSS 样式系统、组件内样式调用和现有测试。
+  - [x] 补充测试，先验证当前仍存在独立 QSS 文件和独立样式枚举时失败。
+  - [x] 删除独立 QSS 文件和 `StyleSheet.ANALYSIS_RESULT_CARD`。
+  - [x] 将深浅主题表格样式迁移到 `slice_interface.qss`。
+  - [x] 清理 `AnalysisResultCard` 对独立 QSS 的依赖。
+  - [x] 运行相关测试、语法检查和差异检查。
+  - [x] 将本条日志更新为最终测试状态。
+- 已完成：
+  - 确认 `SliceInterface` 已应用 `StyleSheet.SLICE_INTERFACE`，可通过页面 QSS 覆盖子控件 `QTableView#analysisResultTable`。
+  - 确认组件不应直接重置 `TableWidget` 的 styleSheet，避免破坏组件库默认样式。
+  - 写入测试约束样式必须存在于两个 `slice_interface.qss` 中，且旧的独立 `analysis_result_card.qss` 不应存在；RED 阶段按预期失败，失败原因为旧独立 QSS 文件仍存在。
+  - 删除独立 `analysis_result_card.qss` 文件和 `StyleSheet.ANALYSIS_RESULT_CARD` 枚举。
+  - 将浅色/深色表格样式块追加到对应的 `slice_interface.qss`，选择器限定为 `QTableView#analysisResultTable`。
+  - 清理 `AnalysisResultCard` 中的独立 QSS 导入和注释，组件保持只负责结构。
+  - GREEN 阶段目标测试通过：`1 passed, 1 warning`，warning 来自 qfluentwidgets 对 scipy 旧导入。
+  - 完整相关验证通过：`test_analysis_result_card.py`、`test_slice_interface.py`、`test_navigation_controls.py` 共 `12 passed, 1 warning`；`py_compile` 通过；`git diff --check` 仅提示 Git 下次处理时会将 LF 替换为 CRLF。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py::test_analysis_result_card_applies_theme_aware_table_styles -q --basetemp=.pytest_tmp_analysis_slice_qss_red2 -p no:cacheprovider` 按预期失败，失败原因为旧独立 QSS 文件仍存在；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py::test_analysis_result_card_applies_theme_aware_table_styles -q --basetemp=.pytest_tmp_analysis_slice_qss_green -p no:cacheprovider` 通过（1 passed, 1 warning）；完整相关验证：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_analysis_slice_qss_full -p no:cacheprovider` 通过（12 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile app/style_sheet.py ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py` 通过；`git diff --check -- app/style_sheet.py ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py resources/qss/light/slice_interface.qss resources/qss/dark/slice_interface.qss docs/operateLog.md` 通过，仅有 LF 将被 Git 转为 CRLF 的提示。
+
+- 时间：2026-06-30 11:04
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\style_sheet.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\analysis_result_card.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\analysis_result_card.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：进行中：将分析结果表格样式从组件内联 `setStyleSheet` 迁移到项目 QSS 文件和 `StyleSheet` 枚举管理。
+- 原因：用户要求使用 QSS 文件管理样式，避免组件代码中直接维护表头颜色、字体和框线样式字符串。
+- 计划：
+  - [x] 核对 `app/style_sheet.py` 与 `resources/qss/light|dark` 的现有样式管理方式。
+  - [x] 补充 QSS 管理测试，先验证当前缺少样式枚举和 QSS 文件时失败。
+  - [ ] 新增深浅主题 QSS 文件并在 `StyleSheet` 枚举中注册。
+  - [ ] 移除 `AnalysisResultCard` 中的动态内联样式，改为应用 QSS。
+  - [ ] 运行组件、页面、导航相关测试以及语法/差异检查。
+  - [ ] 将本条日志更新为最终测试状态。
+- 已完成：
+  - 确认现有样式通过 `StyleSheet.<NAME>.apply(widget)` 加载 `resources/qss/<theme>/<name>.qss`。
+  - 确认当前 `AnalysisResultCard` 仍使用 `_apply_theme_styles()` 和 `setStyleSheet()` 动态生成样式，需迁移。
+  - 根据用户反馈修正方案：不能重置 `TableWidget` 样式，应通过 `addStyleSheet()` 追加局部 QSS，保留组件库默认 `FluentStyleSheet.TABLE_VIEW`。
+  - 写入 QSS 管理测试，RED 阶段按预期失败，原因是 `StyleSheet.ANALYSIS_RESULT_CARD` 尚未注册。
+- 待完成：
+  - 添加 QSS 文件并清理组件内联样式。
+  - 验证并更新测试状态。
+- 测试状态：[待测试]
+
+- 时间：2026-06-30 10:50
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：调整分析结果表格主题样式，表头 16px、内容 14px，表头使用主题色和白字，表格框线改为深浅主题兼容的灰色。
+- 原因：用户要求右下分析结果表格的文字层级和框线颜色与主题兼容，避免默认白色框线在浅色/深色主题下表现不一致。
+- 计划：
+  - [x] 检查 `AnalysisResultCard` 当前结构和现有测试。
+  - [x] 补充样式断言测试，先验证当前缺少主题样式时失败。
+  - [x] 在组件内部实现动态主题样式，并监听主题切换刷新。
+  - [x] 运行组件、页面和导航相关测试以及语法/差异检查。
+  - [x] 将本条日志更新为最终测试状态。
+- 已完成：
+  - 确认样式应继续封装在 `AnalysisResultCard` 内部，`SliceInterface` 不参与表格样式细节。
+  - 确认可使用 `themeColor()` 获取当前主题色，并用 `isDarkTheme()` 区分深浅主题灰色框线。
+  - 写入 `test_analysis_result_card_applies_theme_aware_table_styles`，RED 阶段按预期失败，原因是表格样式中尚无 `font-size: 14px`。
+  - 在 `AnalysisResultCard` 中新增 `_apply_theme_styles()` 和 `_table_grid_color()`，局部设置表格字体、表头主题色白字、灰色框线，并连接 `qconfig.themeChanged` 刷新。
+  - GREEN 阶段目标样式测试通过：`1 passed, 1 warning`，warning 来自 qfluentwidgets 对 scipy 旧导入。
+  - 完整相关验证通过：`test_analysis_result_card.py`、`test_slice_interface.py`、`test_navigation_controls.py` 共 `12 passed, 1 warning`；`py_compile` 通过；`git diff --check` 仅提示 Git 下次处理时会将 LF 替换为 CRLF。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py::test_analysis_result_card_applies_theme_aware_table_styles -q --basetemp=.pytest_tmp_analysis_style_red -p no:cacheprovider` 按预期失败；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py::test_analysis_result_card_applies_theme_aware_table_styles -q --basetemp=.pytest_tmp_analysis_style_green -p no:cacheprovider` 通过（1 passed, 1 warning）；完整相关验证：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_analysis_style_full -p no:cacheprovider` 通过（12 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py` 通过；`git diff --check -- ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py docs/operateLog.md` 通过，仅有 LF 将被 Git 转为 CRLF 的提示。
+
+- 时间：2026-06-30 10:33
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按 review 反馈将右下分析结果表格从 `SliceInterface` 内联实现抽离为 `ui/components` 独立组件，并让页面层只负责挂载。
+- 原因：表格结构和样式属于可复用 UI 组件职责，直接写在页面文件中会扩大 `slice_interface.py` 的布局职责，不符合现有组件组织方式。
+- 计划：
+  - [x] 核对 `ui/components` 组件导出方式、现有卡片组件和 `TableWidget` 用法。
+  - [x] 补充组件化边界测试，先验证当前缺少独立组件时失败。
+  - [x] 新增 `AnalysisResultCard` 组件并从 `ui/components/__init__.py` 导出。
+  - [x] 精简 `slice_interface.py`，移除表格构造细节，只挂载组件实例。
+  - [x] 运行相关单测、语法检查和差异检查。
+  - [x] 将本条日志更新为最终测试状态。
+- 已完成：
+  - 确认 `PlotOptionCard`、`ImportDataPanel` 等组件均位于 `ui/components` 并由包入口统一导出。
+  - 确认 `TableWidget` 的初始化、表头设置、行数据填充可在独立组件内部封装。
+  - 新增 `test_analysis_result_card.py` 并更新 `test_slice_interface.py`，RED 阶段失败原因为 `ui.components.analysis_result_card` 模块不存在。
+  - 新增 `AnalysisResultCard` 组件，封装 `TableWidget` 初始化、表头、默认指标行、只读和无滚动条配置。
+  - 更新 `ui/components/__init__.py` 导出组件，并将 `slice_interface.py` 改为只实例化和挂载组件。
+  - GREEN 阶段目标测试通过：`test_analysis_result_card.py` 与页面挂载目标用例共 `2 passed, 1 warning`，warning 来自 qfluentwidgets 对 scipy 旧导入。
+  - 将组件测试改为从 `ui.components` 包入口导入 `AnalysisResultCard`，同步覆盖组件导出。
+  - 完整相关验证通过：`test_analysis_result_card.py`、`test_slice_interface.py`、`test_navigation_controls.py` 共 `11 passed, 1 warning`；`py_compile` 通过；`git diff --check` 仅提示 Git 下次处理时会将 LF 替换为 CRLF。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py::test_analysis_result_table_is_mounted_in_right_bottom_card -q --basetemp=.pytest_tmp_analysis_component_red -p no:cacheprovider` 按预期失败，失败原因为缺少 `ui.components.analysis_result_card` 模块；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py::test_analysis_result_table_is_mounted_in_right_bottom_card -q --basetemp=.pytest_tmp_analysis_component_green -p no:cacheprovider` 通过（2 passed, 1 warning）；完整相关验证：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_analysis_component_final -p no:cacheprovider` 通过（11 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/analysis_result_card.py ui/components/__init__.py ui/interfaces/slice_interface.py tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py` 通过；`git diff --check -- ui/components/analysis_result_card.py ui/components/__init__.py ui/interfaces/slice_interface.py tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py docs/operateLog.md` 通过，仅有 LF 将被 Git 转为 CRLF 的提示。
+
+- 时间：2026-06-30 10:22
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在切片页面右侧整体布局的右下区域新增分析结果卡片表格，表格为 2 列 10 行，包含 1 行表头和 9 行指标内容。
+- 原因：用户要求在 `slice_interface.py` 右下方补充与截图结构一致的分析结果表格，并使用组件库卡片与表格组件承载。
+- 计划：
+  - [x] 读取 `slice_interface.py`、现有表格组件用法和操作日志。
+  - [x] 补充界面结构测试，先验证缺少表格时失败。
+  - [x] 使用 `SimpleCardWidget` 和 `TableWidget` 实现右下表格。
+  - [x] 运行目标测试、语法检查和差异检查。
+  - [x] 将本条日志更新为最终测试状态。
+- 已完成：
+  - 确认当前右侧面板通过 `ScrollArea` 包含操作卡片，底部存在可放置新卡片的整体布局位置。
+  - 确认组件库表格在 `ui/components/import_data_panel.py` 中已有 `TableWidget` 用法可复用。
+  - 写入 `test_analysis_result_table_is_mounted_in_right_bottom_card`，RED 阶段按预期失败，失败原因为 `SliceInterface` 尚未提供 `analysis_result_card` 属性。
+  - 在 `slice_interface.py` 中新增 `analysisResultCard` 与 `analysisResultTable`，并将卡片放在右侧滚动内容伸缩空间之后以停靠右下区域。
+  - GREEN 阶段单测通过：`1 passed, 1 warning`，warning 来自 qfluentwidgets 对 scipy 旧导入。
+  - 相关验证通过：`test_slice_interface.py` 与 `test_navigation_controls.py` 共 `10 passed, 1 warning`；`py_compile` 通过；`git diff --check` 仅提示 Git 下次处理时会将 LF 替换为 CRLF。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_slice_interface.py::test_analysis_result_table_is_mounted_in_right_bottom_card -q --basetemp=.pytest_tmp_analysis_table_red -p no:cacheprovider` 按预期失败；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_slice_interface.py::test_analysis_result_table_is_mounted_in_right_bottom_card -q --basetemp=.pytest_tmp_analysis_table_green -p no:cacheprovider` 通过（1 passed, 1 warning）；完整相关验证：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q --basetemp=.pytest_tmp_analysis_table_full -p no:cacheprovider` 通过（10 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py` 通过；`git diff --check -- ui/interfaces/slice_interface.py tests/unit/test_slice_interface.py docs/operateLog.md` 通过，仅有 LF 将被 Git 转为 CRLF 的提示。
+
 - 时间：2026-06-30 10:12
 - 操作类型：[修改]
 - 影响文件：

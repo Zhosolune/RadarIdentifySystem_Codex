@@ -25,8 +25,8 @@ class StyleSheet(StyleSheetBase, Enum):
         """返回样式文件路径。
 
         功能描述：
-            优先返回已编译资源路径；若资源未编译，则回退到本地 `resources/qss` 文件，
-            便于开发阶段热更新与调试。
+            优先返回本地 `resources/qss` 文件，便于开发阶段热更新与调试；
+            若本地文件不存在，则回退到已编译资源路径。
 
         参数说明：
             theme (Theme): 主题模式，默认值为 `Theme.AUTO`。
@@ -40,9 +40,8 @@ class StyleSheet(StyleSheetBase, Enum):
 
         effective_theme = qconfig.theme if theme == Theme.AUTO else theme
         theme_name = effective_theme.value.lower()
-        resource_path = f":/RadarIdentifySystem/qss/{theme_name}/{self.value}.qss"
-        if QFile.exists(resource_path):
-            return resource_path
-
         local_qss_path = Path(__file__).resolve().parent.parent / "resources" / "qss" / theme_name / f"{self.value}.qss"
-        return str(local_qss_path).replace("\\", "/")
+        if local_qss_path.exists():
+            return str(local_qss_path).replace("\\", "/")
+
+        return f":/RadarIdentifySystem/qss/{theme_name}/{self.value}.qss"
