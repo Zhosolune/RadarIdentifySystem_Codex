@@ -1,4 +1,13 @@
 ﻿﻿# 变更记录
+- 时间：2026-06-30 10:12
+- 操作类型：[修改]
+- 影响文件：
+  - `core/clustering.py`
+  - `docs/operateLog.md`
+- 变更摘要：为 `run_1d_dbscan` 和 `process_dimension_clustering` 新增 `is_doa` 参数，DOA 维度聚类时使用环形距离度量替代欧氏距离；新增模块级函数 `_circular_doa_diff` 计算 0°~360° 环形角度距离。
+- 原因：DOA 是环形变量，直接使用欧氏距离会导致 1° 与 359° 被误判为远距离，需改用环形距离正确度量方位角差异。
+- 测试状态：[待测试] `py_compile` 通过；`_circular_doa_diff` 函数签名存在 `self` 参数但作为模块级函数被 lambda 两参调用，运行时会触发 TypeError，需修正。
+
 - 时间：2026-06-29 17:09
 - 操作类型：[修改]
 - 影响文件：

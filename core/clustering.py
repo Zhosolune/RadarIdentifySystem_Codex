@@ -17,7 +17,7 @@ from core.params_extract import extract_grouped_values
 logger = logging.getLogger(__name__)
 
 
-def run_1d_dbscan(data: np.ndarray, dim_idx: int, epsilon: float, min_pts: int) -> np.ndarray:
+def run_1d_dbscan(data: np.ndarray, dim_idx: int, epsilon: float, min_pts: int, is_doa: bool = False) -> np.ndarray:
     """使用 DBSCAN 算法对指定维度进行一维聚类。
 
     Args:
@@ -35,7 +35,20 @@ def run_1d_dbscan(data: np.ndarray, dim_idx: int, epsilon: float, min_pts: int) 
     dim_data = data[:, dim_idx].reshape(-1, 1)
     
     try:
-        dbscan = DBSCAN(eps=epsilon, min_samples=min_pts, metric='euclidean', n_jobs=1)
+        if not is_doa:
+            dbscan = DBSCAN(
+                eps=epsilon, 
+                min_samples=min_pts, 
+                metric='euclidean', 
+                n_jobs=1
+            )
+        else:
+            dbscan = DBSCAN(
+                eps=epsilon, 
+                min_samples=min_pts, 
+                metric=lambda a, b: _circular_doa_diff(float(a[0]), float(b[0])), 
+                n_jobs=1
+            )
         labels = dbscan.fit_predict(dim_data)
         return labels
     except Exception as e:
@@ -52,7 +65,8 @@ def process_dimension_clustering(
     min_cluster_size: int,
     slice_idx: int,
     time_range: tuple[float, float],
-    start_cluster_id: int
+    start_cluster_id: int,
+    is_doa: bool = False
 ) -> tuple[list[ClusterItem], np.ndarray]:
     """处理单一维度的聚类与校验逻辑。
 
@@ -70,6 +84,7 @@ def process_dimension_clustering(
         slice_idx (int): 当前切片索引，用于填充结果。
         time_range (tuple[float, float]): 当前切片的时间范围。
         start_cluster_id (int): 簇编号起始值，用于连续编号。
+        is_doa (bool, optional): 是否为 DOA 维度聚类。默认 False。
 
     Returns:
         tuple[list[ClusterItem], np.ndarray]:
@@ -80,7 +95,7 @@ def process_dimension_clustering(
     processed_indices = set()
     
     # 1. 运行一维 DBSCAN
-    labels = run_1d_dbscan(points, dim_idx, epsilon, min_pts)
+    labels = run_1d_dbscan(points, dim_idx, epsilon, min_pts, is_doa)
     unique_labels = np.unique(labels)
     
     current_cluster_id = start_cluster_id
@@ -130,3 +145,19 @@ def process_dimension_clustering(
     unprocessed_indices = list(all_indices - processed_indices)
     
     return clusters, np.array(unprocessed_indices)
+
+def _circular_doa_diff(a: float, b: float) -> float:
+        """计算两个DOA角度之间的环形距离
+
+        DOA是0°~360°的环形变量，0°和360°代表同一方向。
+        普通绝对值差 abs(1°-359°) = 358° 是错误的，环形距离应为 2°。
+
+        Args:
+            a: 角度值（度）
+            b: 角度值（度）
+
+        Returns:
+            float: 环形距离（度），范围 [0, 180]
+        """
+        diff = abs(float(a) - float(b))
+        return min(diff, 360 - diff)
