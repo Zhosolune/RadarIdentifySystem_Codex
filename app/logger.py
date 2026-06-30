@@ -204,7 +204,8 @@ def configure_logging(log_dir: str | Path | None = None) -> Path:
     # 获取日志文件路径（内部会自动创建日志目录）
     log_file = build_run_log_file_path(log_dir)
     formatter = logging.Formatter(
-        fmt="[%(asctime)s] [%(levelname)s] [%(session_id)s] [%(module_path)s] [%(funcName)s] %(message)s",
+        # fmt="[%(asctime)s] [%(levelname)s] [%(session_id)s] [%(module_path)s] [%(funcName)s] %(message)s",
+        fmt="[%(asctime)s][%(levelname)s][%(session_id)s][%(module_path)s][%(funcName)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     context_filter = RuntimeContextFilter()
