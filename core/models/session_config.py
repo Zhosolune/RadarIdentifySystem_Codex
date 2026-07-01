@@ -125,14 +125,30 @@ class ExtractConfigSnapshot:
     """参数提取配置快照。
 
     Attributes:
-        step: 提取步长。
-        smooth_window: 平滑窗口大小。
-        outlier_threshold: 异常值阈值。
+        eps_cf: CF 参数提取邻域半径。
+        min_pts_cf: CF 参数提取最小邻居点数。
+        threshold_ratio_cf: CF 参数提取门限率，单位为百分比。
+        eps_pw: PW 参数提取邻域半径。
+        min_pts_pw: PW 参数提取最小邻居点数。
+        threshold_ratio_pw: PW 参数提取门限率，单位为百分比。
+        eps_pri: PRI 参数提取邻域半径。
+        min_pts_pri: PRI 参数提取最小邻居点数。
+        threshold_ratio_pri: PRI 参数提取门限率，单位为百分比。
+        filter_threshold_pri: PRI 过滤门限。
+        harmonic_tolerance_pri: PRI 谐波抑制容差。
     """
 
-    step: int = 1
-    smooth_window: int = 5
-    outlier_threshold: float = 3.0
+    eps_cf: float = 2.0
+    min_pts_cf: int = 4
+    threshold_ratio_cf: float = 10.0
+    eps_pw: float = 0.2
+    min_pts_pw: int = 4
+    threshold_ratio_pw: float = 10.0
+    eps_pri: float = 0.2
+    min_pts_pri: int = 3
+    threshold_ratio_pri: float = 10.0
+    filter_threshold_pri: float = 2.0
+    harmonic_tolerance_pri: float = 0.1
 
     @classmethod
     def default(cls) -> "ExtractConfigSnapshot":
@@ -145,8 +161,8 @@ class ExtractConfigSnapshot:
             无显式抛出异常。
 
         Example:
-            >>> ExtractConfigSnapshot.default().smooth_window
-            5
+            >>> ExtractConfigSnapshot.default().min_pts_pri
+            3
         """
         return cls()
 

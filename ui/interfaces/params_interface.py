@@ -173,34 +173,139 @@ class ParamsInterface(ScrollArea):
         )
 
         # ── 提取参数组 ────────────────────────────────────────────────────────
-        self._extractGroup = SettingCardGroup("提取参数配置", self.settingScrollWidget)
-        self._extractGroup.addSettingCard(
-            SpinBoxSettingCard(
-                configItem=appConfig.extractStep,
-                icon=FluentIcon.FILTER,
-                title="特征点提取步长",
-                content="在时序域上抽取雷达信号特征的滑窗步长值",
-                parent=self._extractGroup,
-            )
+        self._extractCFGroup = SettingCardGroup(
+            "CF参数提取配置", self.settingScrollWidget
         )
-        self._extractGroup.addSettingCard(
-            SpinBoxSettingCard(
-                configItem=appConfig.extractSmoothWindow,
-                icon=FluentIcon.FILTER,
-                title="平滑滤波窗口大小",
-                content="对提取的包络或特征序列进行平滑处理时的窗口点数",
-                parent=self._extractGroup,
-            )
-        )
-        self._extractGroup.addSettingCard(
+        self._extractCFGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                configItem=appConfig.extractOutlierThreshold,
+                configItem=appConfig.extractEpsilonCF,
                 icon=FluentIcon.FILTER,
-                title="异常点剔除阈值",
-                content="特征提取阶段用于判断并剔除奇异值的相对误差限",
-                parent=self._extractGroup,
+                title="CF邻域半径",
+                content="CF 参数提取时的一维聚类邻域半径",
+                unit="MHz",
+                parent=self._extractCFGroup,
+                decimals=2,
+                singleStep=0.01,
+            )
+        )
+        self._extractCFGroup.addSettingCard(
+            SpinBoxSettingCard(
+                configItem=appConfig.extractMinPtsCF,
+                icon=FluentIcon.FILTER,
+                title="CF最小邻居点数",
+                content="CF 参数提取时形成有效邻域所需的最少邻居点数",
+                unit="个",
+                parent=self._extractCFGroup,
+            )
+        )
+        self._extractCFGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.extractThresholdRatioCF,
+                icon=FluentIcon.FILTER,
+                title="CF门限率",
+                content="CF 参数提取时过滤有效簇的点数比例门限",
+                unit="%",
+                parent=self._extractCFGroup,
                 decimals=1,
                 singleStep=0.5,
+            )
+        )
+        self._extractPWGroup = SettingCardGroup(
+            "PW参数提取配置", self.settingScrollWidget
+        )
+        self._extractPWGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.extractEpsilonPW,
+                icon=FluentIcon.FILTER,
+                title="PW邻域半径",
+                content="PW 参数提取时的一维聚类邻域半径",
+                unit="μs",
+                parent=self._extractPWGroup,
+                decimals=2,
+                singleStep=0.01,
+            )
+        )
+        self._extractPWGroup.addSettingCard(
+            SpinBoxSettingCard(
+                configItem=appConfig.extractMinPtsPW,
+                icon=FluentIcon.FILTER,
+                title="PW最小邻居点数",
+                content="PW 参数提取时形成有效邻域所需的最少邻居点数",
+                unit="个",
+                parent=self._extractPWGroup,
+            )
+        )
+        self._extractPWGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.extractThresholdRatioPW,
+                icon=FluentIcon.FILTER,
+                title="PW门限率",
+                content="PW 参数提取时过滤有效簇的点数比例门限",
+                unit="%",
+                parent=self._extractPWGroup,
+                decimals=1,
+                singleStep=0.5,
+            )
+        )
+        self._extractPRIGroup = SettingCardGroup(
+            "PRI参数提取配置", self.settingScrollWidget
+        )
+        self._extractPRIGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.extractEpsilonPRI,
+                icon=FluentIcon.FILTER,
+                title="PRI邻域半径",
+                content="PRI 参数提取时的一维聚类邻域半径",
+                unit="μs",
+                parent=self._extractPRIGroup,
+                decimals=2,
+                singleStep=0.01,
+            )
+        )
+        self._extractPRIGroup.addSettingCard(
+            SpinBoxSettingCard(
+                configItem=appConfig.extractMinPtsPRI,
+                icon=FluentIcon.FILTER,
+                title="PRI最小邻居点数",
+                content="PRI 参数提取时形成有效邻域所需的最少邻居点数",
+                unit="个",
+                parent=self._extractPRIGroup,
+            )
+        )
+        self._extractPRIGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.extractThresholdRatioPRI,
+                icon=FluentIcon.FILTER,
+                title="PRI门限率",
+                content="PRI 参数提取时过滤有效簇的点数比例门限",
+                unit="%",
+                parent=self._extractPRIGroup,
+                decimals=1,
+                singleStep=0.5,
+            )
+        )
+        self._extractPRIGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.extractFilterThresholdPRI,
+                icon=FluentIcon.FILTER,
+                title="PRI过滤门限",
+                content="PRI 参数提取时过滤过小间隔的时间门限",
+                unit="μs",
+                parent=self._extractPRIGroup,
+                decimals=2,
+                singleStep=0.01,
+            )
+        )
+        self._extractPRIGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.extractHarmonicTolerancePRI,
+                icon=FluentIcon.FILTER,
+                title="PRI谐波抑制容差",
+                content="PRI 参数提取时判断谐波关系的容差范围",
+                unit="μs",
+                parent=self._extractPRIGroup,
+                decimals=2,
+                singleStep=0.01,
             )
         )
 
@@ -313,10 +418,12 @@ class ParamsInterface(ScrollArea):
         self.cardGroupsLayout.setSpacing(28)
         self.cardGroupsLayout.setContentsMargins(36, 10, 36, 0)
 
-        # 依次添加四个参数组
+        # 依次添加参数组
         self.cardGroupsLayout.addWidget(self._clusterGroup)
         self.cardGroupsLayout.addWidget(self._recognizeGroup)
-        self.cardGroupsLayout.addWidget(self._extractGroup)
+        self.cardGroupsLayout.addWidget(self._extractCFGroup)
+        self.cardGroupsLayout.addWidget(self._extractPWGroup)
+        self.cardGroupsLayout.addWidget(self._extractPRIGroup)
         self.cardGroupsLayout.addWidget(self._mergeGroup)
 
     def resizeEvent(self, event) -> None:

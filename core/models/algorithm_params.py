@@ -60,14 +60,30 @@ class ExtractParams:
         封装参数提取阶段使用的控制参数，供后续提取逻辑统一消费。
 
     Attributes:
-        step (int): 提取步长。
-        smooth_window (int): 平滑窗口大小。
-        outlier_threshold (float): 离群值判定阈值。
+        eps_cf (float): CF 参数提取邻域半径。
+        min_pts_cf (int): CF 参数提取最小邻居点数。
+        threshold_ratio_cf (float): CF 参数提取门限率，单位为百分比。
+        eps_pw (float): PW 参数提取邻域半径。
+        min_pts_pw (int): PW 参数提取最小邻居点数。
+        threshold_ratio_pw (float): PW 参数提取门限率，单位为百分比。
+        eps_pri (float): PRI 参数提取邻域半径。
+        min_pts_pri (int): PRI 参数提取最小邻居点数。
+        threshold_ratio_pri (float): PRI 参数提取门限率，单位为百分比。
+        filter_threshold_pri (float): PRI 过滤门限。
+        harmonic_tolerance_pri (float): PRI 谐波抑制容差。
     """
 
-    step: int = 1
-    smooth_window: int = 5
-    outlier_threshold: float = 3.0
+    eps_cf: float = 2.0
+    min_pts_cf: int = 4
+    threshold_ratio_cf: float = 10.0
+    eps_pw: float = 0.2
+    min_pts_pw: int = 4
+    threshold_ratio_pw: float = 10.0
+    eps_pri: float = 0.2
+    min_pts_pri: int = 3
+    threshold_ratio_pri: float = 10.0
+    filter_threshold_pri: float = 2.0
+    harmonic_tolerance_pri: float = 0.1
 
 
 @dataclass(frozen=True, slots=True)

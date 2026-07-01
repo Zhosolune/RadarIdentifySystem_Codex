@@ -61,7 +61,7 @@ class RoundedAnalysisHeaderView(QHeaderView):
         painter.fillPath(path, themeColor())
         painter.setPen(QPen(border_color, 1))
         painter.drawPath(path)
-        painter.setPen(Qt.GlobalColor.white)
+        painter.setPen(Qt.GlobalColor.black if isDarkTheme() else Qt.GlobalColor.white)
         painter.setFont(getFont(15))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self._section_text(logicalIndex))
         painter.restore()

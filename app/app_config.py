@@ -109,23 +109,71 @@ class AppConfig(QConfig):
     )
 
     # 提取参数 ─────────────────────────────────────────────────────────────────
-    extractStep = ConfigItem(
+    extractEpsilonCF = ConfigItem(
         group="algorithm.extract",
-        name="step",
-        default=1,
-        validator=RangeValidator(1, 100),
+        name="epsilonCF",
+        default=2.0,
+        validator=RangeValidator(0.01, 50.0),
     )
-    extractSmoothWindow = ConfigItem(
+    extractMinPtsCF = ConfigItem(
         group="algorithm.extract",
-        name="smoothWindow",
-        default=5,
-        validator=RangeValidator(1, 99),
+        name="minPtsCF",
+        default=4,
+        validator=RangeValidator(1, 9999),
     )
-    extractOutlierThreshold = ConfigItem(
+    extractThresholdRatioCF = ConfigItem(
         group="algorithm.extract",
-        name="outlierThreshold",
-        default=3.0,
-        validator=RangeValidator(0.1, 10.0),
+        name="thresholdRatioCF",
+        default=10.0,
+        validator=RangeValidator(0.0, 100.0),
+    )
+    extractEpsilonPW = ConfigItem(
+        group="algorithm.extract",
+        name="epsilonPW",
+        default=0.2,
+        validator=RangeValidator(0.01, 10.0),
+    )
+    extractMinPtsPW = ConfigItem(
+        group="algorithm.extract",
+        name="minPtsPW",
+        default=4,
+        validator=RangeValidator(1, 9999),
+    )
+    extractThresholdRatioPW = ConfigItem(
+        group="algorithm.extract",
+        name="thresholdRatioPW",
+        default=10.0,
+        validator=RangeValidator(0.0, 100.0),
+    )
+    extractEpsilonPRI = ConfigItem(
+        group="algorithm.extract",
+        name="epsilonPRI",
+        default=0.2,
+        validator=RangeValidator(0.01, 10.0),
+    )
+    extractMinPtsPRI = ConfigItem(
+        group="algorithm.extract",
+        name="minPtsPRI",
+        default=3,
+        validator=RangeValidator(1, 9999),
+    )
+    extractThresholdRatioPRI = ConfigItem(
+        group="algorithm.extract",
+        name="thresholdRatioPRI",
+        default=10.0,
+        validator=RangeValidator(0.0, 100.0),
+    )
+    extractFilterThresholdPRI = ConfigItem(
+        group="algorithm.extract",
+        name="filterThresholdPRI",
+        default=2.0,
+        validator=RangeValidator(0.0, 100.0),
+    )
+    extractHarmonicTolerancePRI = ConfigItem(
+        group="algorithm.extract",
+        name="harmonicTolerancePRI",
+        default=0.1,
+        validator=RangeValidator(0.0, 10.0),
     )
 
     # 合并参数 ─────────────────────────────────────────────────────────────────

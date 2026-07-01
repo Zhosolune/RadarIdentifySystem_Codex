@@ -1,4 +1,33 @@
 ﻿﻿# 变更记录
+- 时间：2026-06-30 17:28
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\app_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\session_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：替换参数配置界面的旧提取参数卡片，新增 CF/PW/PRI 提取参数配置卡片组。
+- 原因：提取参数配置需要按 CF、PW、PRI 三类暴露邻域半径、最小邻居点数、门限率及 PRI 附加过滤参数。
+- 计划：
+  - [x] 编写参数配置界面提取参数卡片的失败测试。
+  - [x] 补齐全局配置项、运行时参数对象与 session 配置快照字段。
+  - [x] 替换 `ParamsInterface` 中旧提取参数卡片为 CF/PW/PRI 参数组。
+  - [x] 运行相关测试、语法检查和差异检查。
+- 已完成：
+  - 已确认当前旧提取参数仅包含步长、平滑窗口和异常点阈值 3 项。
+  - 已确认目标 CF/PW/PRI 提取参数配置项尚不存在，需要新增可持久化配置项。
+  - 新增 `tests/unit/test_params_interface.py`，验证旧提取卡片消失、新 CF/PW/PRI 参数组出现、提取参数默认值注册到全局配置。
+  - 在 `app.app_config.AppConfig` 中新增 CF、PW、PRI 提取参数 ConfigItem，默认值与界面需求一致。
+  - 扩展 `ExtractParams` 与 `ExtractConfigSnapshot`，并让 `get_extract_params()`、`create_session_config_from_global()` 读取新字段。
+  - 将 `ParamsInterface` 中旧 `_extractGroup` 替换为 `_extractCFGroup`、`_extractPWGroup`、`_extractPRIGroup` 三个配置组。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_params_interface.py -q --basetemp=.pytest_tmp_params_interface_red2 -p no:cacheprovider` 按预期失败（缺少 CF/PW/PRI 参数组与新 ConfigItem）；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_params_interface.py -q --basetemp=.pytest_tmp_params_interface_green -p no:cacheprovider` 通过（2 passed, 1 warning）；相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_params_interface.py tests/unit/test_session_config_snapshot.py tests/unit/test_session_registry.py -q --basetemp=.pytest_tmp_params_related -p no:cacheprovider` 通过（34 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile app/app_config.py core/models/algorithm_params.py core/models/session_config.py runtime/algorithm_params.py runtime/session_config_factory.py ui/interfaces/params_interface.py tests/unit/test_params_interface.py` 通过；`git diff --check -- app/app_config.py core/models/algorithm_params.py core/models/session_config.py runtime/algorithm_params.py runtime/session_config_factory.py ui/interfaces/params_interface.py tests/unit/test_params_interface.py docs/operateLog.md` 通过，仅有 Git 换行提示。
+
 - 时间：2026-06-30 16:54
 - 操作类型：[修改]
 - 影响文件：

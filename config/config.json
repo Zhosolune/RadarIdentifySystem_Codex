@@ -20,9 +20,17 @@
         "DpiScale": "Auto"
     },
     "algorithm.extract": {
-        "outlierThreshold": 3.0,
-        "smoothWindow": 5,
-        "step": 1
+        "epsilonCF": 2.0,
+        "epsilonPRI": 0.2,
+        "epsilonPW": 0.2,
+        "filterThresholdPRI": 2.0,
+        "harmonicTolerancePRI": 0.1,
+        "minPtsCF": 4,
+        "minPtsPRI": 3,
+        "minPtsPW": 4,
+        "thresholdRatioCF": 10.0,
+        "thresholdRatioPRI": 10.0,
+        "thresholdRatioPW": 10.0
     },
     "QFluentWidgets": {
         "FontFamilies": [
@@ -31,7 +39,7 @@
             "PingFang SC"
         ],
         "ThemeColor": "#ff4772c3",
-        "ThemeMode": "Auto"
+        "ThemeMode": "Dark"
     },
     "System": {
         "LogDir": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\logs"

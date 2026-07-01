@@ -89,9 +89,19 @@ def get_extract_params() -> ExtractParams:
 
     # 组装提取参数对象。
     return ExtractParams(
-        step=int(qconfig.get(appConfig.extractStep)),
-        smooth_window=int(qconfig.get(appConfig.extractSmoothWindow)),
-        outlier_threshold=float(qconfig.get(appConfig.extractOutlierThreshold)),
+        eps_cf=float(qconfig.get(appConfig.extractEpsilonCF)),
+        min_pts_cf=int(qconfig.get(appConfig.extractMinPtsCF)),
+        threshold_ratio_cf=float(qconfig.get(appConfig.extractThresholdRatioCF)),
+        eps_pw=float(qconfig.get(appConfig.extractEpsilonPW)),
+        min_pts_pw=int(qconfig.get(appConfig.extractMinPtsPW)),
+        threshold_ratio_pw=float(qconfig.get(appConfig.extractThresholdRatioPW)),
+        eps_pri=float(qconfig.get(appConfig.extractEpsilonPRI)),
+        min_pts_pri=int(qconfig.get(appConfig.extractMinPtsPRI)),
+        threshold_ratio_pri=float(qconfig.get(appConfig.extractThresholdRatioPRI)),
+        filter_threshold_pri=float(qconfig.get(appConfig.extractFilterThresholdPRI)),
+        harmonic_tolerance_pri=float(
+            qconfig.get(appConfig.extractHarmonicTolerancePRI)
+        ),
     )
 
 
