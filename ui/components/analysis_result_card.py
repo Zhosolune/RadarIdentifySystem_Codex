@@ -176,7 +176,7 @@ class AnalysisResultCard(SimpleCardWidget):
         self.table.setBorderVisible(True)
         self.table.setBorderRadius(4)
         self.table.setHorizontalHeader(
-            RoundedAnalysisHeaderView(Qt.Orientation.Horizontal, self.table)
+            RoundedAnalysisHeaderView(Qt.Orientation.Horizontal, self.table, 4)
         )
         self.table.verticalHeader().hide()
         self.table.verticalHeader().setDefaultSectionSize(36)

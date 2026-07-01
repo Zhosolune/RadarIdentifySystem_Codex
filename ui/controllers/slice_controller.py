@@ -348,7 +348,7 @@ class SliceController(QObject):
         self._load_slice_image(target_index)
         if hasattr(self.view, '_identify_controller'):
             self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
-            self._maybe_auto_recognize()
+            self._maybe_auto_recognize(self._current_slice_index)
 
     def _on_prev_slice(self) -> None:
         """处理上一片按钮点击。
@@ -369,7 +369,7 @@ class SliceController(QObject):
         if hasattr(self.view, '_identify_controller'):
             self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
 
-    def _maybe_auto_recognize(self) -> None:
+    def _maybe_auto_recognize(self, target_slice_index: int | None = None) -> None:
         """根据自动识别开关判断是否需要触发识别工作流。
 
         功能描述：
@@ -377,7 +377,7 @@ class SliceController(QObject):
             则调用识别控制器启动识别流程。
 
         Args:
-            无。
+            target_slice_index (int | None): 本次需要识别的 0-based 切片索引；为 None 时使用当前界面索引。
 
         Returns:
             None: 无返回值。
@@ -401,19 +401,26 @@ class SliceController(QObject):
                 extra={"session_id": session.session_id},
             )
             return
-        if session.is_slice_recognized(self._current_slice_index):
+        target_index = (
+            self._current_slice_index
+            if target_slice_index is None
+            else target_slice_index
+        )
+        if session.is_slice_recognized(target_index):
             LOGGER.info(
                 "切片 %d 已完成识别，跳过自动识别",
-                self._current_slice_index + 1,
+                target_index + 1,
                 extra={"session_id": session.session_id},
             )
             return
         LOGGER.info(
             "当前 Session 自动识别开关已启用，触发切片 %d 的识别工作流",
-            self._current_slice_index + 1,
+            target_index + 1,
             extra={"session_id": session.session_id},
         )
-        self.view._identify_controller.handle_identify()
+        self.view._identify_controller.handle_identify(
+            target_slice_index=target_index
+        )
 
     def _on_next_slice(self) -> None:
         """处理下一片按钮点击。
@@ -434,7 +441,7 @@ class SliceController(QObject):
         self._load_slice_image(self._current_slice_index + 1)
         if hasattr(self.view, '_identify_controller'):
             self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
-            self._maybe_auto_recognize()
+            self._maybe_auto_recognize(self._current_slice_index)
 
     def _update_navigation_buttons(self) -> None:
         """更新导航按钮可用状态。

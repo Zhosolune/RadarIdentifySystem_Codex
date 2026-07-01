@@ -12,9 +12,9 @@ from app.logger import bind_session_log_context, unbind_session_log_context
 from app.model_bootstrap import get_cached_inference_service
 from app.signal_bus import signal_bus
 from core.models.algorithm_params import ClusteringParams, RecognitionParams
-from core.models.cluster_result import ClusteringResult
+from core.models.cluster_result import ClusteringResult, SliceClusterResult
 from core.models.processing_session import ProcessingSession, ProcessingStage
-from core.models.recognition_result import RecognitionResult
+from core.models.recognition_result import RecognitionResult, SliceRecognitionResult
 from runtime.threading.identify_worker import IdentifyWorker, IdentifyWorkerResult
 
 
@@ -156,7 +156,7 @@ class IdentifyWorkflow(QObject):
             signal_bus.stage_started.emit(session_id, "identifying", slice_index)
             LOGGER.info(
                 "发射识别开始事件，当前切片: %d",
-                slice_index,
+                slice_index + 1,
                 extra={"session_id": session_id},
             )
 
@@ -263,13 +263,19 @@ class IdentifyWorkflow(QObject):
                 if active_session.recognition_result is None:
                     active_session.recognition_result = RecognitionResult()
 
-                if result.cluster_result is not None:
+                cluster_result, recognition_result = self._normalize_result_slice_index(
+                    result=result,
+                    active_slice_index=active_slice_index,
+                    session_id=session_id,
+                )
+
+                if cluster_result is not None:
                     active_session.cluster_result.slice_results[active_slice_index] = (
-                        result.cluster_result
+                        cluster_result
                     )
-                if result.recognition_result is not None:
+                if recognition_result is not None:
                     active_session.recognition_result.slice_results[active_slice_index] = (
-                        result.recognition_result
+                        recognition_result
                     )
 
                 # 线程成功后统一推进当前切片状态。
@@ -306,7 +312,7 @@ class IdentifyWorkflow(QObject):
             signal_bus.stage_finished.emit(session_id, "identifying", active_slice_index)
             LOGGER.info(
                 "发射识别完成事件，当前切片: %s",
-                active_slice_index,
+                active_slice_index + 1,
                 extra={"session_id": session_id},
             )
         else:
@@ -342,3 +348,36 @@ class IdentifyWorkflow(QObject):
         self._active_slice_index = None
         self._active_session_id = None
         self._active_session = None
+
+    def _normalize_result_slice_index(
+        self,
+        result: IdentifyWorkerResult,
+        active_slice_index: int,
+        session_id: str,
+    ) -> tuple[SliceClusterResult | None, SliceRecognitionResult | None]:
+        """统一 worker 结果对象中的切片索引。"""
+        cluster_result = result.cluster_result
+        recognition_result = result.recognition_result
+        if cluster_result is not None and cluster_result.slice_idx != active_slice_index:
+            LOGGER.warning(
+                "识别结果切片索引与启动索引不一致，已校正：result=%d, active=%d",
+                cluster_result.slice_idx,
+                active_slice_index,
+                extra={"session_id": session_id},
+            )
+            # 以 workflow 启动索引作为唯一写回口径，避免结果元数据和字典键漂移。
+            cluster_result.slice_idx = active_slice_index
+        if recognition_result is not None and recognition_result.slice_index != active_slice_index:
+            LOGGER.warning(
+                "识别记录切片索引与启动索引不一致，已校正：result=%d, active=%d",
+                recognition_result.slice_index,
+                active_slice_index,
+                extra={"session_id": session_id},
+            )
+            # SliceRecognitionResult 是冻结值对象，需要创建新实例替换索引字段。
+            recognition_result = SliceRecognitionResult(
+                slice_index=active_slice_index,
+                valid_clusters=recognition_result.valid_clusters,
+                invalid_clusters=recognition_result.invalid_clusters,
+            )
+        return cluster_result, recognition_result

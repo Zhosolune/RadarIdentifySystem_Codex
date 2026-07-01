@@ -730,6 +730,46 @@ def test_identify_workflow_writes_session_results_on_worker_success() -> None:
     assert session.stage is ProcessingStage.RECOGNIZED
 
 
+def test_identify_workflow_normalizes_worker_result_slice_index() -> None:
+    """worker 结果索引漂移时 workflow 应以启动索引统一结果元数据。"""
+    session = ProcessingSession(session_id="session_normalize")
+    session.slice_result = SimpleNamespace(
+        slice_count=2,
+        slices=[SimpleNamespace(index=0), SimpleNamespace(index=1)],
+    )
+    workflow = IdentifyWorkflow()
+    workflow._active_session = session
+    workflow._active_session_id = session.session_id
+    workflow._active_slice_index = 1
+    workflow._worker = None
+
+    cluster_result = SliceClusterResult(
+        slice_idx=99,
+        clusters=[],
+        unprocessed_points=np.array([]),
+        recycled_points=np.array([]),
+    )
+    recognition_result = SliceRecognitionResult(
+        slice_index=99,
+        valid_clusters=[],
+        invalid_clusters=[],
+    )
+
+    workflow._on_worker_finished(
+        session.session_id,
+        IdentifyWorkerResult(
+            success=True,
+            cluster_result=cluster_result,
+            recognition_result=recognition_result,
+        ),
+    )
+
+    assert session.cluster_result is not None
+    assert session.recognition_result is not None
+    assert session.cluster_result.slice_results[1].slice_idx == 1
+    assert session.recognition_result.slice_results[1].slice_index == 1
+
+
 def test_identify_workflow_marks_recognition_running_only_after_progress() -> None:
     """识别状态应在收到识别阶段进度后再进入运行中。"""
     session = ProcessingSession(session_id="session_progress")

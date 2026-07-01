@@ -1,4 +1,34 @@
-﻿﻿# 变更记录
+﻿# 变更记录
+- 时间：2026-07-01 10:51
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：统一切片切换自动识别的目标索引传递，避免 workflow 与 controller 日志索引口径漂移。
+- 原因：按钮切换与指定编号绘图两条自动识别入口应显式传递本次目标 0-based 切片索引，不能依赖识别控制器二次读取共享当前索引。
+- 计划：
+  - [x] 编写按钮切换自动识别显式传递目标索引的失败测试。
+  - [x] 编写指定编号绘图自动识别显式传递目标索引的失败测试。
+  - [x] 补充手动识别按钮忽略 `clicked(False)` 信号参数的失败测试。
+  - [x] 扩展 `IdentifyController.handle_identify()` 支持可选目标切片索引。
+  - [x] 修改 `SliceController._maybe_auto_recognize()` 使用显式目标索引触发识别。
+  - [x] 在 `IdentifyWorkflow` 写回前统一校正 worker 结果索引口径。
+  - [x] 运行聚焦测试、语法检查和差异检查。
+- 已完成：
+  - 已确认 workflow 本身不自增切片索引，现有偏差来自自动识别入口重新读取共享当前索引和 worker 结果元数据口径不够硬。
+  - 新增按钮下一片自动识别测试，验证切换后传入目标 0-based 索引。
+  - 新增指定编号绘图自动识别测试，验证用户 1-based 编号会转换为目标 0-based 索引再传给识别控制器。
+  - 新增手动识别按钮测试，防止 PyQt `clicked(False)` 被误当作切片索引 0。
+  - `IdentifyController.handle_identify()` 新增 `target_slice_index` 可选参数，手动入口继续读取当前界面索引。
+  - `SliceController._maybe_auto_recognize()` 新增目标索引参数，并在下一片、指定编号绘图入口显式传递当前目标索引。
+  - `IdentifyWorkflow` 在 worker 成功回调中校正结果对象的切片索引，识别结果冻结值对象通过重建实例完成校正。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_navigation_controls.py::test_next_slice_auto_recognize_passes_target_slice_index tests/unit/test_navigation_controls.py::test_redraw_auto_recognize_passes_target_slice_index -q --basetemp=.pytest_tmp_slice_index_red -p no:cacheprovider` 按预期失败（自动识别入口收到 None）；RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py::test_identify_workflow_normalizes_worker_result_slice_index -q --basetemp=.pytest_tmp_workflow_index_red -p no:cacheprovider` 按预期失败（结果对象索引仍为 99）；RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_navigation_controls.py::test_manual_recognize_button_uses_current_slice_index -q --basetemp=.pytest_tmp_manual_button_red -p no:cacheprovider` 按预期失败（clicked 参数 False 被传入 workflow）；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_navigation_controls.py::test_manual_recognize_button_uses_current_slice_index tests/unit/test_navigation_controls.py::test_next_slice_auto_recognize_passes_target_slice_index tests/unit/test_navigation_controls.py::test_redraw_auto_recognize_passes_target_slice_index tests/unit/test_identify_worker_clustering_params.py::test_identify_workflow_normalizes_worker_result_slice_index -q --basetemp=.pytest_tmp_slice_index_green3 -p no:cacheprovider` 通过（4 passed, 1 warning）；相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_navigation_controls.py tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_slice_index_related -p no:cacheprovider` 通过（21 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/controllers/slice_controller.py ui/controllers/identify_controller.py runtime/workflows/identify_workflow.py tests/unit/test_navigation_controls.py tests/unit/test_identify_worker_clustering_params.py` 通过；`git diff --check -- ui/controllers/slice_controller.py ui/controllers/identify_controller.py runtime/workflows/identify_workflow.py tests/unit/test_navigation_controls.py tests/unit/test_identify_worker_clustering_params.py docs/operateLog.md` 通过，仅有 Git 换行提示。
+
 - 时间：2026-06-30 17:28
 - 操作类型：[修改]
 - 影响文件：

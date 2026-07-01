@@ -63,7 +63,9 @@ class IdentifyController(QObject):
     def _connect_signals(self) -> None:
         """连接识别相关按钮点击事件。"""
         # 绑定按钮点击事件
-        self.view.navigation_control_card.start_recognition_button.clicked.connect(self.handle_identify)
+        self.view.navigation_control_card.start_recognition_button.clicked.connect(
+            lambda: self.handle_identify()
+        )
         
         # 绑定聚类结果类别导航按钮
         self.view.prev_cluster_button.clicked.connect(self._on_prev_cluster)
@@ -85,14 +87,14 @@ class IdentifyController(QObject):
             self._on_plot_show_mode_changed
         )
 
-    def handle_identify(self) -> None:
+    def handle_identify(self, target_slice_index: int | None = None) -> None:
         """处理识别按钮点击事件。
 
         功能描述：
             校验数据是否已切片，获取聚类参数并启动识别（聚类）工作流，同时更新按钮与弹窗状态。
 
         Args:
-            无。
+            target_slice_index (int | None): 需要识别的 0-based 切片索引；为 None 时读取当前界面切片索引。
 
         Returns:
             None: 无返回值。
@@ -125,8 +127,12 @@ class IdentifyController(QObject):
         if not self._validate_enabled_models():
             return
 
-        # 从 slice_controller 获取当前正在查看的切片索引
-        slice_index = self.view._slice_controller.current_slice_index
+        # 自动识别入口会显式传入目标索引，手动按钮入口继续读取当前界面索引。
+        slice_index = (
+            self.view._slice_controller.current_slice_index
+            if target_slice_index is None
+            else target_slice_index
+        )
 
         # 更新按钮状态
         self.view.navigation_control_card.start_recognition_button.setEnabled(False)
@@ -219,9 +225,8 @@ class IdentifyController(QObject):
 
         # 记录完成事件日志
         LOGGER.info(
-            "收到识别完成事件，当前切片: %s，界面切片: %d",
-            slice_index,
-            current_slice_index,
+            "收到识别完成事件，当前切片: %s",
+            slice_index + 1,
             extra={"session_id": session_id},
         )
 

@@ -125,7 +125,7 @@ class IdentifyWorker(QThread):
             if self._slice_index < 0:
                 raise ValueError(f"切片索引 {self._slice_index} 无效或越界")
 
-            LOGGER.info("开始聚类处理，当前切片: %d", self._slice_index, extra={"session_id": session_id})
+            LOGGER.info("开始聚类处理，当前切片: %d", self._slice_index + 1, extra={"session_id": session_id})
 
             # 使用 workflow 注入的 session 参数，避免读取全局配置。
             clustering_params = self._cluster_params
@@ -162,11 +162,11 @@ class IdentifyWorker(QThread):
             )
             # 记录聚类阶段输出规模，便于观察不同参数下的聚类密度。
             LOGGER.info("切片 %d 聚类完成，产生 %d 个簇", 
-                        self._slice_index, len(slice_cluster_res.clusters), extra={"session_id": session_id})
+                        self._slice_index + 1, len(slice_cluster_res.clusters), extra={"session_id": session_id})
             
             # 记录最终有效簇数量，便于和 UI 展示及 session 结果核对。
             LOGGER.info("切片 %d 聚类与识别处理完成，产生 %d 个有效簇", 
-                        self._slice_index, len(slice_recognition_res.valid_clusters), extra={"session_id": session_id})
+                        self._slice_index + 1, len(slice_recognition_res.valid_clusters), extra={"session_id": session_id})
 
             # 发射完成进度，通知 workflow 可以进入写回与阶段推进。
             self.progress_signal.emit(session_id, "done", 2, 2)

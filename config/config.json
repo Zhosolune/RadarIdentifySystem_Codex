@@ -39,7 +39,7 @@
             "PingFang SC"
         ],
         "ThemeColor": "#ff4772c3",
-        "ThemeMode": "Dark"
+        "ThemeMode": "Auto"
     },
     "System": {
         "LogDir": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\logs"
