@@ -15,7 +15,7 @@ class SessionRegistry:
 
     功能描述：
         注册表只保存当前进程内的 ``ProcessingSession`` 对象引用，并通过
-        ``SessionStore`` 同步轻量元数据、配置快照和 active session id。
+        ``SessionStore`` 同步轻量元数据、配置快照和导入缓存。
         它不接入 UI、不调度工作流，也不删除或保存任何计算结果存储。
 
     Attributes:
@@ -98,15 +98,12 @@ class SessionRegistry:
             old_persisted_session = self._load_persisted_session_or_none(
                 session.session_id,
             )
-            old_active_session_id = self.store.load_index().active_session_id
 
             if persist:
-                # upsert 只保存 session 内容，active id 由 registry 显式同步。
+                # upsert 只保存 session 内容，active id 仅作为运行期状态保留。
                 persisted_session = replace(session, last_opened_at=new_last_opened_at)
                 try:
                     self.store.upsert_session(persisted_session)
-                    if activate:
-                        self.store.set_active_session_id(session.session_id)
                     if self._has_import_cache_payload(session):
                         self.store.save_import_cache(session)
                 except Exception:
@@ -115,7 +112,6 @@ class SessionRegistry:
                         session.session_id,
                         old_persisted_session,
                     )
-                    self._restore_active_session_id(old_active_session_id)
                     session.last_opened_at = old_last_opened_at
                     raise
             else:
@@ -132,7 +128,7 @@ class SessionRegistry:
 
         功能描述：
             直接复用 ``SessionStore.load_all_sessions()`` 的容错逻辑，不自行遍历
-            索引加载单个 session。active id 只在恢复结果中存在时才生效。
+            索引加载单个 session。启动恢复不会读取或设置历史 active id。
 
         Args:
             无。
@@ -158,17 +154,8 @@ class SessionRegistry:
                 for session in restored_sessions
             }
 
-            active_session_id = self.store.load_index().active_session_id
-            restored_active_session_id = (
-                active_session_id
-                if active_session_id in restored_mapping
-                else None
-            )
-            if active_session_id is not None and restored_active_session_id is None:
-                self.store.set_active_session_id(None)
-
             self._sessions = restored_mapping
-            self.active_session_id = restored_active_session_id
+            self.active_session_id = None
             return self.all_sessions()
 
     def get(self, session_id: str) -> ProcessingSession | None:
@@ -404,15 +391,12 @@ class SessionRegistry:
             old_last_opened_at = session.last_opened_at
             new_last_opened_at = datetime.now()
             old_persisted_session = self._load_persisted_session_or_none(session_id)
-            old_active_session_id = self.store.load_index().active_session_id
             persisted_session = replace(session, last_opened_at=new_last_opened_at)
             try:
                 self.store.upsert_session(persisted_session)
-                self.store.set_active_session_id(session_id)
             except Exception:
-                # 激活持久化失败时恢复内存与磁盘打开时间，并保留原 active id。
+                # 激活持久化失败时恢复内存与磁盘打开时间。
                 self._restore_persisted_session(session_id, old_persisted_session)
-                self._restore_active_session_id(old_active_session_id)
                 session.last_opened_at = old_last_opened_at
                 raise
 
@@ -421,39 +405,22 @@ class SessionRegistry:
             return session
 
     def set_active_session_id(self, session_id: str | None) -> None:
-        """显式同步当前活动 session id。
+        """显式设置当前进程内的活动 session id。
 
         Args:
-            session_id: 需要写入的活动 session id；传入 None 表示清空活动项。
+            session_id: 需要设为活动项的 session id；传入 None 表示清空活动项。
 
         Returns:
             None: 无返回值。
 
         Raises:
             KeyError: 当 session_id 不为 None 且不在当前注册表中时抛出。
-            OSError: 当持久化活动 id 写入失败时抛出。
         """
         with self._lock:
             if session_id is not None and session_id not in self._sessions:
                 raise KeyError(session_id)
 
-            self.store.set_active_session_id(session_id)
             self.active_session_id = session_id
-
-    def set_last_exit_view(self, view_name: str) -> None:
-        """记录上次退出软件时所处的界面类型。
-
-        Args:
-            view_name [str]: 退出界面类型；仅支持 "home" 或 "session"。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            OSError: 当持久化索引写入失败时抛出。
-            ValueError: 当 view_name 不是支持的界面类型时抛出。
-        """
-        self.store.set_last_exit_view(view_name)
 
     def close(self, session_id: str, delete_persisted: bool = True) -> None:
         """关闭指定 session。
@@ -507,27 +474,16 @@ class SessionRegistry:
                     raise
 
             if was_active:
-                try:
-                    self.store.set_active_session_id(next_active_session_id)
-                except Exception:
-                    if persisted_deleted:
-                        self._reconcile_after_persisted_close(session_id)
-                    raise
+                self.active_session_id = next_active_session_id
 
             self._sessions.pop(session_id, None)
-            if was_active:
-                self.active_session_id = next_active_session_id
 
     def _reconcile_after_persisted_close(self, session_id: str) -> None:
         """按磁盘删除结果同步 close 失败后的内存状态。"""
         with self._lock:
             self._sessions.pop(session_id, None)
-            persisted_active_session_id = self.store.load_index().active_session_id
-            self.active_session_id = (
-                persisted_active_session_id
-                if persisted_active_session_id in self._sessions
-                else None
-            )
+            if self.active_session_id == session_id:
+                self.active_session_id = None
 
     def _load_persisted_session_or_none(
         self,
@@ -552,14 +508,6 @@ class SessionRegistry:
                 self.store.upsert_session(old_persisted_session)
         except Exception:
             # 保留原始异常语义，恢复失败只作为尽力清理结果。
-            return
-
-    def _restore_active_session_id(self, old_active_session_id: str | None) -> None:
-        """尽力恢复失败写盘前的持久化 active session id。"""
-        try:
-            self.store.set_active_session_id(old_active_session_id)
-        except Exception:
-            # 保留原始异常语义，active id 恢复失败只作为尽力清理结果。
             return
 
     def _can_load_persisted_session(self, session_id: str) -> bool:

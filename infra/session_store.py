@@ -143,14 +143,10 @@ class SessionIndex:
 
     Attributes:
         schema_version: 索引结构版本号。
-        active_session_id: 当前活动 session id；未设置时为 None。
-        last_exit_view: 上次退出时所处界面类型，支持 home 或 session。
         sessions: 按展示和恢复顺序排列的 session 索引条目。
     """
 
     schema_version: int = 1
-    active_session_id: str | None = None
-    last_exit_view: str = "home"
     sessions: list[SessionIndexEntry] = field(default_factory=list)
 
     @classmethod
@@ -179,8 +175,6 @@ class SessionIndex:
             raise ValueError("sessions 条目必须是字典")
         return cls(
             schema_version=int(payload.get("schema_version", 1)),
-            active_session_id=payload.get("active_session_id"),
-            last_exit_view=str(payload.get("last_exit_view", "home")),
             sessions=[
                 SessionIndexEntry.from_dict(entry)
                 for entry in sessions
@@ -194,7 +188,7 @@ class SessionIndex:
             无。
 
         Returns:
-            dict[str, Any]: 包含 schema、active id 和 session 条目的索引字典。
+            dict[str, Any]: 包含 schema 和 session 条目的索引字典。
 
         Raises:
             无显式抛出异常。
@@ -206,8 +200,6 @@ class SessionIndex:
 
         return {
             "schema_version": self.schema_version,
-            "active_session_id": self.active_session_id,
-            "last_exit_view": self.last_exit_view,
             "sessions": [entry.to_dict() for entry in self.sessions],
         }
 
@@ -274,12 +266,6 @@ class SessionStore:
                 if not isinstance(payload, dict):
                     return SessionIndex()
                 index = SessionIndex.from_dict(payload)
-                if index.active_session_id is not None:
-                    index.active_session_id = self._validate_session_id(
-                        index.active_session_id,
-                    )
-                if index.last_exit_view not in {"home", "session"}:
-                    index.last_exit_view = "home"
                 for entry in index.sessions:
                     entry.session_id = self._validate_session_id(entry.session_id)
                 return index
@@ -654,59 +640,6 @@ class SessionStore:
             index.sessions = [
                 entry for entry in index.sessions if entry.session_id != session_id
             ]
-            if index.active_session_id == session_id:
-                index.active_session_id = None
-            self.save_index(index)
-
-    def set_active_session_id(self, session_id: str | None) -> None:
-        """持久化当前活动 session id。
-
-        Args:
-            session_id [str | None]: 当前活动 session id；传入 None 表示清空。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            OSError: 当索引读取或写入失败时抛出。
-            json.JSONDecodeError: 当索引 JSON 格式非法时抛出。
-            ValueError: 当索引字段无法解析时抛出。
-
-        Example:
-            >>> store = SessionStore(Path("config/sessions"))
-            >>> store.set_active_session_id(None)
-        """
-
-        with self._lock:
-            index = self.load_index()
-            index.active_session_id = (
-                None if session_id is None else self._validate_session_id(session_id)
-            )
-            self.save_index(index)
-
-    def set_last_exit_view(self, view_name: str) -> None:
-        """持久化上次退出时所处界面类型。
-
-        Args:
-            view_name [str]: 退出界面类型；仅支持 "home" 或 "session"。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            OSError: 当索引读取或写入失败时抛出。
-            ValueError: 当 view_name 不是支持的界面类型时抛出。
-
-        Example:
-            >>> store = SessionStore(Path("config/sessions"))
-            >>> store.set_last_exit_view("home")
-        """
-
-        if view_name not in {"home", "session"}:
-            raise ValueError("last_exit_view 仅支持 home 或 session")
-        with self._lock:
-            index = self.load_index()
-            index.last_exit_view = view_name
             self.save_index(index)
 
     def _validate_session_id(self, session_id: str) -> str:

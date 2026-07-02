@@ -64,6 +64,18 @@ def test_session_store_writes_index_session_and_config(tmp_path: Path) -> None:
     assert restored.restored_from_store is True
 
 
+def test_session_store_index_omits_startup_restore_state(tmp_path: Path) -> None:
+    """索引文件不应保存启动恢复弹窗所需的界面状态。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+
+    store.upsert_session(session)
+    payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+
+    assert "active_session_id" not in payload
+    assert "last_exit_view" not in payload
+
+
 def test_session_store_upsert_uses_reentrant_lock_for_index_update(
     tmp_path: Path,
 ) -> None:
@@ -136,60 +148,6 @@ def test_session_store_delete_removes_session_dir(tmp_path: Path) -> None:
     assert store.load_index().sessions == []
 
 
-def test_session_store_delete_clears_active_session_id(tmp_path: Path) -> None:
-    """删除活动 session 时应同步清空 active session id。"""
-    store = SessionStore(tmp_path)
-    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
-    store.upsert_session(session)
-    store.set_active_session_id(session.session_id)
-
-    store.delete_session(session.session_id)
-
-    assert store.load_index().active_session_id is None
-
-
-def test_session_store_persists_active_session_id(tmp_path: Path) -> None:
-    """设置 active session id 时应写入索引文件。"""
-    store = SessionStore(tmp_path)
-    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
-    store.upsert_session(session)
-
-    store.set_active_session_id(session.session_id)
-
-    reloaded_store = SessionStore(tmp_path)
-    assert reloaded_store.load_index().active_session_id == session.session_id
-
-
-def test_session_store_persists_last_exit_view(tmp_path: Path) -> None:
-    """设置退出界面类型时应写入索引并可重新加载。"""
-    store = SessionStore(tmp_path)
-
-    store.set_last_exit_view("session")
-
-    reloaded_store = SessionStore(tmp_path)
-    assert reloaded_store.load_index().last_exit_view == "session"
-
-
-def test_session_store_rejects_invalid_last_exit_view(tmp_path: Path) -> None:
-    """退出界面类型只允许保存首页或 session 页。"""
-    store = SessionStore(tmp_path)
-
-    with pytest.raises(ValueError):
-        store.set_last_exit_view("settings")
-
-
-@pytest.mark.parametrize("session_id", ["", "..", "a/b"])
-def test_session_store_rejects_invalid_active_session_id(
-    tmp_path: Path,
-    session_id: str,
-) -> None:
-    """设置 active session id 时应拒绝非法 session id。"""
-    store = SessionStore(tmp_path)
-
-    with pytest.raises(ValueError):
-        store.set_active_session_id(session_id)
-
-
 def test_session_store_loads_sessions_in_index_order(tmp_path: Path) -> None:
     """加载 session 列表时应保持索引中的顺序。"""
     store = SessionStore(tmp_path)
@@ -254,7 +212,6 @@ def test_session_store_load_index_returns_empty_for_broken_json(
 
     index = store.load_index()
 
-    assert index.active_session_id is None
     assert index.sessions == []
 
 
@@ -270,14 +227,13 @@ def test_session_store_load_index_returns_empty_for_invalid_fields(
 
     index = store.load_index()
 
-    assert index.active_session_id is None
     assert index.sessions == []
 
 
-def test_session_store_load_index_returns_empty_for_invalid_active_id(
+def test_session_store_load_index_ignores_legacy_invalid_active_id(
     tmp_path: Path,
 ) -> None:
-    """索引 active session id 非法时应回退为空索引。"""
+    """旧索引 active session id 非法时应被忽略。"""
     (tmp_path / "index.json").write_text(
         '{"schema_version": 1, "active_session_id": "", "sessions": []}',
         encoding="utf-8",
@@ -286,7 +242,6 @@ def test_session_store_load_index_returns_empty_for_invalid_active_id(
 
     index = store.load_index()
 
-    assert index.active_session_id is None
     assert index.sessions == []
 
 
@@ -318,7 +273,6 @@ def test_session_store_load_index_returns_empty_for_invalid_entry_id(
 
     index = store.load_index()
 
-    assert index.active_session_id is None
     assert index.sessions == []
 
 
@@ -350,7 +304,6 @@ def test_session_store_load_index_returns_empty_for_numeric_entry_id(
 
     index = store.load_index()
 
-    assert index.active_session_id is None
     assert index.sessions == []
 
 
@@ -366,7 +319,6 @@ def test_session_store_load_index_returns_empty_when_sessions_is_not_list(
 
     index = store.load_index()
 
-    assert index.active_session_id is None
     assert index.sessions == []
 
 
@@ -399,7 +351,6 @@ def test_session_store_load_index_returns_empty_for_non_dict_entry(
 
     index = store.load_index()
 
-    assert index.active_session_id is None
     assert index.sessions == []
 
 

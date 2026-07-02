@@ -1,4 +1,31 @@
 ﻿# 变更记录
+- 时间：2026-07-01 17:03
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：移除软件启动后恢复上次会话的确认弹窗，并删除用于下次启动恢复的界面/活动会话状态保存。
+- 原因：用户要求启动后直接进入 `home_interface`，不再询问是否还原上次会话界面。
+- 计划：
+  - [x] 编写启动恢复状态删除的失败测试。
+  - [x] 删除主窗口恢复弹窗和退出界面记录逻辑。
+  - [x] 删除注册表与持久化层的 active/last_exit 启动状态读写。
+  - [x] 运行聚焦测试、相关测试、语法检查和差异检查。
+- 已完成：
+  - 已确认现有失败点为索引仍写入 `active_session_id`/`last_exit_view`、注册表仍恢复 active id、主窗口根据旧状态跳转 session 页。
+  - `MainWindow` 已移除 `_pending_restore_session_id`、启动后的恢复确认 `QTimer`、`_prompt_restore_last_active_session()` 以及关闭时记录退出界面的逻辑。
+  - `SessionRegistry.restore()` 不再从磁盘恢复 active id；`register()`、`activate()`、`close()` 和 `set_active_session_id()` 仅维护当前进程内的 active 状态。
+  - `SessionStore.SessionIndex` 已删除 `active_session_id`、`last_exit_view` 字段，并移除对应写入方法；旧索引 JSON 中的同名字段会被忽略。
+  - 已同步测试，保留 session 元数据、配置快照和导入缓存恢复行为，不再验证启动恢复状态落盘。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_store.py::test_session_store_index_omits_startup_restore_state tests/unit/test_session_registry.py::test_restore_uses_store_sessions_without_restoring_active_id tests/unit/test_main_window_sessions.py::test_main_window_ignores_legacy_restore_state_and_stays_on_home -q --basetemp=.pytest_tmp_startup_restore_red -p no:cacheprovider` 按预期失败（索引仍保存启动恢复字段、注册表仍恢复 active id、主窗口仍跳转 session 页）；GREEN：同 3 条聚焦用例通过（3 passed, 1 warning）；相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_store.py -q --basetemp=.pytest_tmp_startup_restore_final_store -p no:cacheprovider` 通过（41 passed）；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_session_registry.py -q --basetemp=.pytest_tmp_startup_restore_final_registry -p no:cacheprovider` 通过（19 passed, 1 warning）；主窗口启动/关闭聚焦测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_main_window_sessions.py::test_main_window_restores_session_interfaces_from_registry_and_stays_on_home_by_default tests/unit/test_main_window_sessions.py::test_main_window_ignores_legacy_restore_state_and_stays_on_home tests/unit/test_main_window_sessions.py::test_main_window_close_does_not_persist_home_exit_view tests/unit/test_main_window_sessions.py::test_main_window_close_does_not_persist_session_exit_view -q --basetemp=.pytest_tmp_startup_restore_final_main_core2 -p no:cacheprovider` 通过（4 passed, 1 warning）；导入缓存恢复用例 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_main_window_sessions.py::test_main_window_restores_import_cache_for_sessions -q --basetemp=.pytest_tmp_startup_restore_final_main_cache2 -p no:cacheprovider` 通过（1 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/main_window.py runtime/session_registry.py infra/session_store.py tests/unit/test_main_window_sessions.py tests/unit/test_session_registry.py tests/unit/test_session_store.py` 通过；`git diff --check -- ui/main_window.py runtime/session_registry.py infra/session_store.py tests/unit/test_main_window_sessions.py tests/unit/test_session_registry.py tests/unit/test_session_store.py docs/operateLog.md` 通过，仅有 Git 换行提示。说明：完整 `tests/unit/test_main_window_sessions.py` 在当前 Qt 测试进程中多次超时，未作为通过依据。
+
 - 时间：2026-07-01 10:51
 - 操作类型：[修改]
 - 影响文件：

@@ -6,14 +6,12 @@ ui/main_window.py
   - 每个仓库对应一个侧边栏导航项（运行时动态添加/移除）
   - 设置页（固定末项）
 """
-import logging
-
 from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject
 from PyQt6.QtWidgets import QWidget, QApplication, QAbstractButton
 from PyQt6.QtGui import QIcon
 from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
-    MessageBox, SystemThemeListener, SplashScreen
+    SystemThemeListener, SplashScreen
 )
 from qfluentwidgets.common.router import qrouter
 
@@ -27,8 +25,6 @@ from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.model_manager_interface import ModelManagerInterface
 from ui.interfaces.setting_interface import SettingInterface
 from ui.interfaces.params_interface import ParamsInterface
-
-LOGGER = logging.getLogger(__name__)
 
 class MainWindow(FluentWindow):
     """RadarIdentifySystem 主窗口。"""
@@ -59,7 +55,6 @@ class MainWindow(FluentWindow):
         self.themeListener = SystemThemeListener(self)
 
         self._session_interfaces: dict[str, SliceInterface] = {}
-        self._pending_restore_session_id: str | None = None
         self.session_registry = session_registry or SessionRegistry()
         self._session_manager_controller = SessionManagerController(
             self.homeInterface.session_manager_panel,
@@ -68,7 +63,6 @@ class MainWindow(FluentWindow):
         self.initNavigation()
         self.restore_session_interfaces()
         self._enable_pointing_hand_cursor()
-        QTimer.singleShot(0, self._prompt_restore_last_active_session)
 
         timer = QTimer()
         timer.singleShot(1000, self.splashScreen.finish)
@@ -269,23 +263,13 @@ class MainWindow(FluentWindow):
         """
         restored_sessions = self.session_registry.restore()
         restored_ids: list[str] = []
-        active_session_id = self.session_registry.active_session_id
-        last_exit_view = self.session_registry.store.load_index().last_exit_view
         for session in restored_sessions:
             self.create_session_interface(session, activate=False)
             restored_ids.append(session.session_id)
 
-        self._pending_restore_session_id = (
-            active_session_id
-            if (
-                last_exit_view == "session"
-                and active_session_id in self._session_interfaces
-            )
-            else None
-        )
-        # 启动后始终先回到主页，避免直接跳进上次活跃 session。
+        # 启动后始终进入主页，历史界面状态不再参与路由恢复。
         self.switchTo(self.homeInterface)
-        self.refresh_session_manager_panel(selected_session_id=active_session_id)
+        self.refresh_session_manager_panel(selected_session_id=None)
         return restored_ids
 
     def refresh_session_manager_panel(
@@ -352,31 +336,6 @@ class MainWindow(FluentWindow):
         # 复用 FluentWindow 的导航切换逻辑，同步堆栈页与导航选中项。
         self.switchTo(interface)
 
-    def _prompt_restore_last_active_session(self) -> None:
-        """在启动后询问是否跳转到上次活跃 session。"""
-        if not self._pending_restore_session_id:
-            return
-
-        pending_session_id = self._pending_restore_session_id
-        self._pending_restore_session_id = None
-        session = self.session_registry.get(pending_session_id)
-        if session is None:
-            return
-
-        # 弹出恢复确认框，让用户决定是否跳转到上次活跃 session。
-        message_box = MessageBox(
-            "恢复上次 Session",
-            f"检测到上次活跃 Session：{session.display_name}。\n是否现在跳转到该 Session？",
-            self,
-        )
-        message_box.yesButton.setText("跳转")
-        message_box.cancelButton.setText("留在主页")
-
-        if message_box.exec():
-            self.activate_session_interface(pending_session_id)
-        else:
-            self.refresh_session_manager_panel(selected_session_id=pending_session_id)
-
     def set_session_navigation_text(self, session_id: str, text: str) -> None:
         """同步更新动态导航项文案。"""
         interface = self._session_interfaces.get(session_id)
@@ -432,7 +391,7 @@ class MainWindow(FluentWindow):
     # 生命周期
     # ------------------------------------------------------------------
     def closeEvent(self, event) -> None:
-        """关闭主窗口前记录退出界面并释放全局监听。
+        """关闭主窗口前释放全局监听。
 
         Args:
             event [object]: Qt 关闭事件对象。
@@ -441,20 +400,8 @@ class MainWindow(FluentWindow):
             None: 无返回值。
 
         Raises:
-            无显式抛出异常；退出界面写入失败时仅记录日志，避免阻塞窗口关闭。
+            无显式抛出异常。
         """
-        current_widget = self.stackedWidget.currentWidget()
-        exit_view = (
-            "session"
-            if current_widget in self._session_interfaces.values()
-            else "home"
-        )
-        try:
-            # 只区分 session 页与非 session 页，首页及设置类页面启动后均不弹恢复提示。
-            self.session_registry.set_last_exit_view(exit_view)
-        except Exception:
-            LOGGER.exception("记录退出界面失败")
-
         # 解除事件过滤器
         app = QApplication.instance()
         if app:

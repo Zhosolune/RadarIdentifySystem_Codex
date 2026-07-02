@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -104,10 +105,9 @@ class _FakeMessageBox:
 
 @pytest.fixture(autouse=True)
 def _stub_restore_message_box(monkeypatch: MonkeyPatch) -> None:
-    """默认使用弹窗桩，避免恢复提示阻塞测试进程。"""
+    """默认使用弹窗桩，避免删除确认弹窗阻塞测试进程。"""
     _FakeMessageBox.accepted = False
     _FakeMessageBox.created_count = 0
-    monkeypatch.setattr("ui.main_window.MessageBox", _FakeMessageBox)
     monkeypatch.setattr("ui.controllers.session_manager_controller.MessageBox", _FakeMessageBox)
 
 
@@ -406,14 +406,12 @@ def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """主窗口启动恢复时应默认停留主页，并保留上次活跃 session 供详情查看。"""
+    """主窗口启动恢复已有 session 时应默认停留主页且不恢复历史 active 状态。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    _FakeMessageBox.accepted = False
-    monkeypatch.setattr("ui.main_window.MessageBox", _FakeMessageBox)
     store = SessionStore(tmp_path)
     first_session = ProcessingSession(
         session_id="session_restore_a",
@@ -427,8 +425,13 @@ def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home
     )
     store.upsert_session(first_session)
     store.upsert_session(second_session)
-    store.set_active_session_id("session_restore_a")
-    store.set_last_exit_view("home")
+    index_payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    index_payload["active_session_id"] = "session_restore_a"
+    index_payload["last_exit_view"] = "home"
+    (tmp_path / "index.json").write_text(
+        json.dumps(index_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
     window = MainWindow(session_registry=SessionRegistry(store))
     try:
@@ -439,25 +442,23 @@ def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home
         assert first_interface is not None
         assert second_interface is not None
         assert window.stackedWidget.currentWidget() is window.homeInterface
-        assert window.session_registry.active_session_id == "session_restore_a"
-        assert window.homeInterface.session_manager_panel.current_session_id() == "session_restore_a"
+        assert window.session_registry.active_session_id is None
         assert _FakeMessageBox.created_count == 0
     finally:
         _dispose_window(window)
 
 
-def test_main_window_restores_session_and_jumps_after_user_accepts_resume(
+def test_main_window_ignores_legacy_restore_state_and_stays_on_home(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """用户确认恢复时，主窗口应跳转到上次活跃 session 页面。"""
+    """主窗口应忽略旧索引中的恢复状态并直接进入主页。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
     _FakeMessageBox.accepted = True
-    monkeypatch.setattr("ui.main_window.MessageBox", _FakeMessageBox)
     store = SessionStore(tmp_path)
     first_session = ProcessingSession(
         session_id="session_restore_a",
@@ -471,8 +472,13 @@ def test_main_window_restores_session_and_jumps_after_user_accepts_resume(
     )
     store.upsert_session(first_session)
     store.upsert_session(second_session)
-    store.set_active_session_id("session_restore_a")
-    store.set_last_exit_view("session")
+    index_payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    index_payload["active_session_id"] = "session_restore_a"
+    index_payload["last_exit_view"] = "session"
+    (tmp_path / "index.json").write_text(
+        json.dumps(index_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
     window = MainWindow(session_registry=SessionRegistry(store))
     try:
@@ -480,18 +486,18 @@ def test_main_window_restores_session_and_jumps_after_user_accepts_resume(
         first_interface = window.session_interface("session_restore_a")
 
         assert first_interface is not None
-        assert window.stackedWidget.currentWidget() is first_interface
-        assert window.session_registry.active_session_id == "session_restore_a"
-        assert _FakeMessageBox.created_count == 1
+        assert window.stackedWidget.currentWidget() is window.homeInterface
+        assert window.session_registry.active_session_id is None
+        assert _FakeMessageBox.created_count == 0
     finally:
         _dispose_window(window)
 
 
-def test_main_window_records_home_exit_view_without_restore_prompt(
+def test_main_window_close_does_not_persist_home_exit_view(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """在主页退出后再次启动时，即使存在 active session 也不应弹恢复提示。"""
+    """在主页退出时不应保存用于下次启动恢复的界面状态。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -510,8 +516,10 @@ def test_main_window_records_home_exit_view_without_restore_prompt(
         first_window.switchTo(first_window.homeInterface)
         first_window.close()
         QApplication.processEvents()
+        payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
 
-        assert store.load_index().last_exit_view == "home"
+        assert "active_session_id" not in payload
+        assert "last_exit_view" not in payload
     finally:
         qrouter.history = [
             item
@@ -527,17 +535,17 @@ def test_main_window_records_home_exit_view_without_restore_prompt(
         QApplication.processEvents()
 
         assert second_window.stackedWidget.currentWidget() is second_window.homeInterface
-        assert second_window.session_registry.active_session_id == session.session_id
+        assert second_window.session_registry.active_session_id is None
         assert _FakeMessageBox.created_count == 0
     finally:
         _dispose_window(second_window)
 
 
-def test_main_window_records_session_exit_view_and_prompts_on_next_start(
+def test_main_window_close_does_not_persist_session_exit_view(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """在 session 页面退出后再次启动时，应弹出恢复跳转提示。"""
+    """在 session 页面退出时不应保存恢复提示所需的界面状态。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -555,8 +563,10 @@ def test_main_window_records_session_exit_view_and_prompts_on_next_start(
         first_window.create_session_from_parsed(session)
         first_window.close()
         QApplication.processEvents()
+        payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
 
-        assert store.load_index().last_exit_view == "session"
+        assert "active_session_id" not in payload
+        assert "last_exit_view" not in payload
     finally:
         qrouter.history = [
             item
@@ -574,8 +584,8 @@ def test_main_window_records_session_exit_view_and_prompts_on_next_start(
         QApplication.processEvents()
 
         assert second_window.stackedWidget.currentWidget() is second_window.homeInterface
-        assert second_window.session_registry.active_session_id == session.session_id
-        assert _FakeMessageBox.created_count == 1
+        assert second_window.session_registry.active_session_id is None
+        assert _FakeMessageBox.created_count == 0
     finally:
         _dispose_window(second_window)
 
@@ -790,7 +800,8 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
         assert not (tmp_path / "session_failed_page").exists()
         assert (tmp_path / "session_first").exists()
         assert (tmp_path / "session_second").exists()
-        assert registry.store.load_index().active_session_id == "session_first"
+        index_payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+        assert "active_session_id" not in index_payload
         assert received_registered == []
         assert received_activated == []
     finally:

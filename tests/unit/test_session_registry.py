@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import numpy as np
 import pytest
@@ -43,20 +44,6 @@ class _FailingSessionStore(SessionStore):
             self.deleted_session_ids.append(session_id)
         finally:
             self._is_deleting_session = False
-
-    def set_active_session_id(self, session_id: str | None) -> None:
-        """按需在设置 active id 时抛出异常。"""
-        if self.failing_method == "set_active_session_id":
-            raise OSError("注入 set_active_session_id 失败")
-        if self.failing_method == "set_active_session_id_after_write":
-            super().set_active_session_id(session_id)
-            raise OSError("注入 set_active_session_id 写入后失败")
-        if (
-            self.failing_method == "set_active_session_id_after_delete"
-            and self.deleted_session_ids
-        ):
-            raise OSError("注入 delete 后 set_active_session_id 失败")
-        super().set_active_session_id(session_id)
 
     def save_index(self, index: SessionIndex) -> None:
         """按需在删除 session 后保存索引时抛出异常。"""
@@ -110,8 +97,8 @@ def _attach_import_cache_payload(
     )
     session.dashboard_info = dashboard_info
 
-def test_register_sets_active_and_persists_active_id(tmp_path: Path) -> None:
-    """注册 session 后应可查询、自动激活并持久化 active id。"""
+def test_register_sets_runtime_active_without_persisting_active_id(tmp_path: Path) -> None:
+    """注册 session 后应可查询、自动激活且不持久化 active id。"""
     store = SessionStore(tmp_path)
     registry = SessionRegistry(store)
     session = _make_session("session-a", "a.xlsx")
@@ -123,7 +110,8 @@ def test_register_sets_active_and_persists_active_id(tmp_path: Path) -> None:
     assert registry.get("session-a") is session
     assert registry.active_session is session
     assert session.last_opened_at >= old_last_opened_at
-    assert store.load_index().active_session_id == "session-a"
+    index_payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert "active_session_id" not in index_payload
     persisted_session = store.load_session("session-a")
     assert persisted_session.session_id == "session-a"
     assert persisted_session.last_opened_at == session.last_opened_at
@@ -145,7 +133,8 @@ def test_persist_session_writes_current_config_without_changing_active(
 
     assert persisted is first_session
     assert registry.active_session_id == "session-b"
-    assert store.load_index().active_session_id == "session-b"
+    index_payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert "active_session_id" not in index_payload
     assert (
         store.load_session("session-a")
         .config_snapshot
@@ -204,7 +193,7 @@ def test_persist_session_rejects_unknown_session(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "failing_method",
-    ["upsert_session", "set_active_session_id", "set_active_session_id_after_write"],
+    ["upsert_session"],
 )
 def test_register_persistence_failure_keeps_memory_state(
     tmp_path: Path,
@@ -223,53 +212,12 @@ def test_register_persistence_failure_keeps_memory_state(
     assert registry.active_session_id is None
     assert registry.active_session is None
     assert session.last_opened_at == old_last_opened_at
-    assert store.load_index().active_session_id != session.session_id
     assert all(
         entry.session_id != session.session_id
         for entry in store.load_index().sessions
     )
     with pytest.raises(FileNotFoundError):
         store.load_session(session.session_id)
-
-
-def test_register_active_write_after_failure_restores_old_active_id(
-    tmp_path: Path,
-) -> None:
-    """注册时 active id 写入后失败应恢复旧的持久化 active id。"""
-    store = _FailingSessionStore(tmp_path, "")
-    registry = SessionRegistry(store)
-    first = registry.register(_make_session("session-a", "a.xlsx"))
-    store.failing_method = "set_active_session_id_after_write"
-    second = _make_session("session-b", "b.xlsx")
-
-    with pytest.raises(OSError):
-        registry.register(second)
-
-    assert registry.active_session is first
-    assert store.load_index().active_session_id == first.session_id
-    with pytest.raises(FileNotFoundError):
-        store.load_session(second.session_id)
-
-
-def test_register_existing_session_rolls_back_disk_when_active_write_fails(
-    tmp_path: Path,
-) -> None:
-    """重复注册已持久化 session 失败时应恢复原磁盘元数据。"""
-    store = _FailingSessionStore(tmp_path, "")
-    registry = SessionRegistry(store)
-    original = registry.register(_make_session("session-a", "a.xlsx"))
-    original_disk = store.load_session(original.session_id)
-    replacement = _make_session("session-a", "b.xlsx")
-    store.failing_method = "set_active_session_id"
-
-    with pytest.raises(OSError):
-        registry.register(replacement)
-
-    restored_disk = store.load_session(original.session_id)
-    assert registry.get(original.session_id) is original
-    assert restored_disk.source_path == original_disk.source_path
-    assert restored_disk.display_name == original_disk.display_name
-    assert restored_disk.last_opened_at == original_disk.last_opened_at
 
 
 def test_register_same_session_id_keeps_single_ordered_entry(tmp_path: Path) -> None:
@@ -285,10 +233,10 @@ def test_register_same_session_id_keeps_single_ordered_entry(tmp_path: Path) -> 
     assert registry.active_session is second
 
 
-def test_restore_uses_store_sessions_and_restores_active_id(
+def test_restore_uses_store_sessions_without_restoring_active_id(
     tmp_path: Path,
 ) -> None:
-    """恢复时应复用 store 的批量恢复结果和索引 active id。"""
+    """恢复时应复用 store 的批量恢复结果，但不恢复历史 active id。"""
     store = SessionStore(tmp_path)
     first = _make_session("session-a", "a.xlsx")
     second = _make_session("session-b", "b.xlsx")
@@ -296,7 +244,12 @@ def test_restore_uses_store_sessions_and_restores_active_id(
     first.cluster_result = object()
     store.upsert_session(first)
     store.upsert_session(second)
-    store.set_active_session_id(second.session_id)
+    index_payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    index_payload["active_session_id"] = second.session_id
+    (tmp_path / "index.json").write_text(
+        json.dumps(index_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
     registry = SessionRegistry(store)
     restored_sessions = registry.restore()
@@ -305,7 +258,8 @@ def test_restore_uses_store_sessions_and_restores_active_id(
         "session-a",
         "session-b",
     ]
-    assert registry.active_session is registry.get("session-b")
+    assert registry.active_session is None
+    assert registry.active_session_id is None
     restored_first = registry.get("session-a")
     assert restored_first is not None
     assert restored_first.restored_from_store is True
@@ -316,16 +270,21 @@ def test_restore_uses_store_sessions_and_restores_active_id(
     assert restored_first.merge_result is None
 
 
-def test_restore_clears_persisted_active_id_when_active_session_is_broken(
+def test_restore_ignores_persisted_active_id_when_active_session_is_broken(
     tmp_path: Path,
 ) -> None:
-    """active session 被跳过恢复时应同步清理持久化 active id。"""
+    """active session 被跳过恢复时不应再处理历史 active id 状态。"""
     store = SessionStore(tmp_path)
     valid_session = _make_session("session-a", "a.xlsx")
     broken_session = _make_session("session-b", "b.xlsx")
     store.upsert_session(valid_session)
     store.upsert_session(broken_session)
-    store.set_active_session_id(broken_session.session_id)
+    index_payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    index_payload["active_session_id"] = broken_session.session_id
+    (tmp_path / "index.json").write_text(
+        json.dumps(index_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
     (tmp_path / broken_session.session_id / "config.json").unlink()
 
     registry = SessionRegistry(store)
@@ -333,7 +292,7 @@ def test_restore_clears_persisted_active_id_when_active_session_is_broken(
 
     assert [session.session_id for session in restored_sessions] == ["session-a"]
     assert registry.active_session is None
-    assert store.load_index().active_session_id is None
+    assert registry.active_session_id is None
 
 
 def test_activate_missing_session_raises_key_error(tmp_path: Path) -> None:
@@ -344,7 +303,7 @@ def test_activate_missing_session_raises_key_error(tmp_path: Path) -> None:
         registry.activate("missing")
 
 
-@pytest.mark.parametrize("failing_method", ["upsert_session", "set_active_session_id"])
+@pytest.mark.parametrize("failing_method", ["upsert_session"])
 def test_activate_persistence_failure_keeps_memory_state(
     tmp_path: Path,
     failing_method: str,
@@ -365,36 +324,10 @@ def test_activate_persistence_failure_keeps_memory_state(
     assert second.last_opened_at == old_last_opened_at
 
 
-@pytest.mark.parametrize(
-    "failing_method",
-    ["set_active_session_id", "set_active_session_id_after_write"],
-)
-def test_activate_active_write_failure_restores_disk_state(
-    tmp_path: Path,
-    failing_method: str,
-) -> None:
-    """激活 active id 写入失败时应恢复目标 session 的磁盘打开时间和旧 active id。"""
-    store = _FailingSessionStore(tmp_path, "")
-    registry = SessionRegistry(store)
-    first = registry.register(_make_session("session-a", "a.xlsx"))
-    second = registry.register(_make_session("session-b", "b.xlsx"))
-    registry.activate(first.session_id)
-    old_disk_last_opened_at = store.load_session(second.session_id).last_opened_at
-    store.failing_method = failing_method
-
-    with pytest.raises(OSError):
-        registry.activate(second.session_id)
-
-    assert registry.active_session is first
-    assert second.last_opened_at == old_disk_last_opened_at
-    assert store.load_session(second.session_id).last_opened_at == old_disk_last_opened_at
-    assert store.load_index().active_session_id == first.session_id
-
-
-def test_close_active_switches_to_last_remaining_and_syncs_index(
+def test_close_active_switches_to_last_remaining_runtime_only(
     tmp_path: Path,
 ) -> None:
-    """关闭 active session 后应切换到剩余列表的最后一个并同步索引。"""
+    """关闭 active session 后应在运行期切换到剩余列表的最后一个。"""
     store = SessionStore(tmp_path)
     registry = SessionRegistry(store)
     first = registry.register(_make_session("session-a", "a.xlsx"))
@@ -404,7 +337,6 @@ def test_close_active_switches_to_last_remaining_and_syncs_index(
 
     assert registry.active_session is first
     assert registry.all_sessions() == [first]
-    assert store.load_index().active_session_id == first.session_id
     with pytest.raises(FileNotFoundError):
         store.load_session(second.session_id)
 
@@ -419,7 +351,6 @@ def test_close_non_active_keeps_active_session(tmp_path: Path) -> None:
     registry.close(first.session_id)
 
     assert registry.active_session is second
-    assert store.load_index().active_session_id == second.session_id
 
 
 @pytest.mark.parametrize("failing_method", ["delete_session"])
@@ -439,26 +370,6 @@ def test_close_persistence_failure_keeps_memory_state(
     assert registry.all_sessions() == [first, second]
     assert registry.active_session is second
     assert registry.active_session_id == second.session_id
-
-
-def test_close_active_reconciles_memory_when_active_id_update_fails_after_delete(
-    tmp_path: Path,
-) -> None:
-    """active session 已从磁盘删除后应同步内存状态再抛出 active id 写入异常。"""
-    store = _FailingSessionStore(tmp_path, "set_active_session_id_after_delete")
-    registry = SessionRegistry(store)
-    first = registry.register(_make_session("session-a", "a.xlsx"))
-    second = registry.register(_make_session("session-b", "b.xlsx"))
-
-    with pytest.raises(OSError):
-        registry.close(second.session_id)
-
-    assert registry.get(second.session_id) is None
-    assert registry.active_session_id != second.session_id
-    assert registry.active_session is None
-    assert first.session_id in {session.session_id for session in registry.all_sessions()}
-    with pytest.raises(FileNotFoundError):
-        store.load_session(second.session_id)
 
 
 def test_close_reconciles_memory_when_delete_removes_dir_but_index_save_fails(
@@ -493,7 +404,6 @@ def test_close_without_deleting_persisted_session_keeps_disk_files(
 
     assert registry.get(session.session_id) is None
     assert registry.active_session is None
-    assert store.load_index().active_session_id is None
     assert store.load_session(session.session_id).session_id == session.session_id
 
 
@@ -525,10 +435,26 @@ def test_create_session_config_from_global_returns_independent_snapshot() -> Non
         assert snapshot.recognition.max_candidates == qconfig.get(
             appConfig.recognizeMaxCandidates
         )
-        assert snapshot.extract.step == qconfig.get(appConfig.extractStep)
-        assert snapshot.extract.smooth_window == qconfig.get(appConfig.extractSmoothWindow)
-        assert snapshot.extract.outlier_threshold == qconfig.get(
-            appConfig.extractOutlierThreshold
+        assert snapshot.extract.eps_cf == qconfig.get(appConfig.extractEpsilonCF)
+        assert snapshot.extract.min_pts_cf == qconfig.get(appConfig.extractMinPtsCF)
+        assert snapshot.extract.threshold_ratio_cf == qconfig.get(
+            appConfig.extractThresholdRatioCF
+        )
+        assert snapshot.extract.eps_pw == qconfig.get(appConfig.extractEpsilonPW)
+        assert snapshot.extract.min_pts_pw == qconfig.get(appConfig.extractMinPtsPW)
+        assert snapshot.extract.threshold_ratio_pw == qconfig.get(
+            appConfig.extractThresholdRatioPW
+        )
+        assert snapshot.extract.eps_pri == qconfig.get(appConfig.extractEpsilonPRI)
+        assert snapshot.extract.min_pts_pri == qconfig.get(appConfig.extractMinPtsPRI)
+        assert snapshot.extract.threshold_ratio_pri == qconfig.get(
+            appConfig.extractThresholdRatioPRI
+        )
+        assert snapshot.extract.filter_threshold_pri == qconfig.get(
+            appConfig.extractFilterThresholdPRI
+        )
+        assert snapshot.extract.harmonic_tolerance_pri == qconfig.get(
+            appConfig.extractHarmonicTolerancePRI
         )
         assert snapshot.merge.time_decay == qconfig.get(appConfig.mergeTimeDecay)
         assert snapshot.merge.sim_threshold == qconfig.get(appConfig.mergeSimThreshold)
