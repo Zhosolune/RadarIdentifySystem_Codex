@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import combinations
 import logging
 from typing import Any
 
@@ -11,10 +12,12 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from app.logger import bind_session_log_context, unbind_session_log_context
 from core.clustering import process_dimension_clustering
-from core.models.algorithm_params import ClusteringParams, RecognitionParams
+from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import ClusterItem, ClusterState, SliceClusterResult
-from core.models.pulse_batch import COL_DOA
+from core.models.extraction_result import ExtractedClusterParams
+from core.models.pulse_batch import COL_CF, COL_DOA, COL_PW, COL_TOA
 from core.models.recognition_result import ClusterRecognition, SliceRecognitionResult
+from core.params_extract import extract_grouped_values
 from core.recognition import InferenceService, recognize_clusters_parallel
 
 
@@ -64,6 +67,7 @@ class IdentifyWorker(QThread):
         inference_service: InferenceService,
         cluster_params: ClusteringParams,
         recognize_params: RecognitionParams,
+        extract_params: ExtractParams | None = None,
         parent: QObject | None = None,
     ) -> None:
         """初始化识别（聚类）工作线程。
@@ -75,6 +79,7 @@ class IdentifyWorker(QThread):
             inference_service [InferenceService]: 注入的防腐层推理服务。
             cluster_params [ClusteringParams]: 当前 session 的聚类参数快照。
             recognize_params [RecognitionParams]: 当前 session 的识别参数快照。
+            extract_params [ExtractParams | None]: 当前 session 的参数提取快照；为 None 时使用默认值。
             parent [QObject | None]: 挂载的 Qt 父节点。
 
         Returns:
@@ -90,6 +95,7 @@ class IdentifyWorker(QThread):
         self._inference_service = inference_service
         self._cluster_params = cluster_params
         self._recognize_params = recognize_params
+        self._extract_params = extract_params or ExtractParams()
         self._current_phase = "validation"
         self._recognition_progress_emitted = False
 
@@ -233,7 +239,7 @@ class IdentifyWorker(QThread):
             )
 
         # 创建结果装配器，统一维护最终 cluster_idx、识别记录和回收点索引。
-        builder = _IdentifyResultBuilder()
+        builder = _IdentifyResultBuilder(self._extract_params)
         # CF维度聚类与识别
         next_cluster_id, pw_input_indices = self._process_cf_stage(
             points=points,
@@ -789,13 +795,14 @@ class _IdentifyResultBuilder:
         invalid_recognitions [list[ClusterRecognition]]: 最终识别未通过的识别记录列表。
         recycled_indices [set[int]]: 最终确认无效并回收的原始切片点索引集合。
         next_cluster_id [int]: 下一个可分配的最终簇编号。
+        extract_params [ExtractParams]: 识别通过类的参数提取配置。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, extract_params: ExtractParams | None = None) -> None:
         """初始化结果收集器。
 
         Args:
-            无。
+            extract_params [ExtractParams | None]: 参数提取配置；为 None 时使用默认值。
 
         Returns:
             None: 无返回值。
@@ -818,6 +825,8 @@ class _IdentifyResultBuilder:
         self.recycled_indices: set[int] = set()
         # 维护最终连续簇编号，避免中间阶段编号出现空洞。
         self.next_cluster_id: int = 1
+        # 保存提取配置，确保最终有效类装配时可同步提取参数。
+        self.extract_params = extract_params or ExtractParams()
 
     def append_valid(
         self,
@@ -852,16 +861,202 @@ class _IdentifyResultBuilder:
         cluster.joint_prob = recognition.joint_prob
         # 先把簇对象写入最终簇列表，再同步重建对应识别记录。
         self.clusters.append(cluster)
+        # 仅对最终识别通过类提取参数，避免无效类污染后续合并和导出。
+        extracted_params = self._extract_valid_cluster_params(cluster)
         shifted_rec = self._shift_recognition_index(
             recognition,
             new_cluster_index=self.next_cluster_id,
             valid_cluster_index=valid_idx,
             is_valid=True,
+            extracted_params=extracted_params,
         )
         self.valid_recognitions.append(shifted_rec)
         # 推进最终簇编号，为下一个最终结果预留编号。
         self.next_cluster_id += 1
         return shifted_rec
+
+    def _extract_valid_cluster_params(
+        self,
+        cluster: ClusterItem,
+    ) -> ExtractedClusterParams:
+        """从最终识别通过类中提取 CF、PW、PRI、DOA 参数。"""
+        # 结果装配阶段只处理最终保留的类，避免中间簇或无效簇进入参数结果。
+        points = cluster.points
+        if points.size == 0:
+            return ExtractedClusterParams()
+
+        # CF 使用配置中的邻域半径、最小点数和门限率，底层仅负责一维数值聚类。
+        cf_values = extract_grouped_values(
+            points[:, COL_CF],
+            eps=self.extract_params.eps_cf,
+            min_samples=self.extract_params.min_pts_cf,
+            threshold_ratio=self.extract_params.threshold_ratio_cf / 100.0,
+        )
+        # PW 与 CF 共享同一类典型值算法，但使用独立的 PW 参数配置。
+        pw_values = extract_grouped_values(
+            points[:, COL_PW],
+            eps=self.extract_params.eps_pw,
+            min_samples=self.extract_params.min_pts_pw,
+            threshold_ratio=self.extract_params.threshold_ratio_pw / 100.0,
+        )
+        # PRI 是 TOA 的派生量，单位转换和业务过滤留在工作线程内完成。
+        pri_values = self._extract_pri_values(points[:, COL_TOA])
+        # DOA 使用循环均值处理 0°/360° 边界；仍用列表返回以保持四类参数契约一致。
+        doa_values = self._extract_doa_values(points[:, COL_DOA])
+        return ExtractedClusterParams(
+            cf_values=cf_values,
+            pw_values=pw_values,
+            pri_values=pri_values,
+            doa_values=doa_values,
+        )
+
+    def _extract_pri_values(self, toa_values: np.ndarray) -> list[float]:
+        """从 TOA 序列提取 PRI 典型值。"""
+        if len(toa_values) < 2:
+            return []
+
+        # 保持当前类内脉冲顺序，按相邻 TOA 差分得到 DTOA/PRI 序列。
+        toa_array = np.asarray(toa_values, dtype=float)
+        # TOA 在项目内保持 0.1us 单位，PRI 对外展示与配置统一使用 us。
+        pri_values = np.diff(toa_array) * 0.1
+        # 补齐一个尾值，使 PRI 序列长度与原始脉冲数保持一致。
+        pri_values = np.append(pri_values, 0.0)
+        # 先对 PRI 序列执行一维典型值提取，后续再做业务过滤。
+        grouped_values = extract_grouped_values(
+            pri_values,
+            eps=self.extract_params.eps_pri,
+            min_samples=self.extract_params.min_pts_pri,
+            threshold_ratio=self.extract_params.threshold_ratio_pri / 100.0,
+        )
+        if not grouped_values:
+            return []
+
+        # 多个典型 PRI 之间可能存在谐波或组合和值，需要按旧流程做关系过滤。
+        if len(grouped_values) > 1:
+            grouped_values = self._filter_related_numbers(
+                grouped_values,
+                tolerance=self.extract_params.harmonic_tolerance_pri,
+            )
+
+        # 单个 PRI 低于门限时视为无效结果，避免输出异常短周期。
+        if len(grouped_values) == 1 and grouped_values[0] < self.extract_params.filter_threshold_pri:
+            return []
+        return grouped_values
+
+    @staticmethod
+    def _extract_doa_values(doa_values: np.ndarray) -> list[float]:
+        """从 DOA 序列提取循环均值列表。"""
+        if len(doa_values) == 0:
+            return []
+
+        # 先排序并去掉两端值，降低方位角离群点对最终均值的影响。
+        sorted_doa = np.array(sorted(np.asarray(doa_values, dtype=float)))
+        trimmed_doa = sorted_doa[1:-1] if len(sorted_doa) > 2 else sorted_doa
+        if len(trimmed_doa) == 0:
+            return []
+
+        # 循环均值天然处理 0°/360° 边界，结果固定到 4 位用于稳定展示。
+        return [float(np.round(_IdentifyResultBuilder._circular_mean(trimmed_doa), 4))]
+
+    @staticmethod
+    def _circular_mean(angles: np.ndarray) -> float:
+        """计算循环均值，正确处理跨越 0°/360° 边界的情况。"""
+        if len(angles) == 0:
+            return 0.0
+
+        # 将每个角度转换为单位向量，求平均方向后再转换回角度。
+        angles_rad = np.radians(angles, dtype=np.float64)
+        sin_sum = np.sum(np.sin(angles_rad))
+        cos_sum = np.sum(np.cos(angles_rad))
+        mean_rad = np.arctan2(sin_sum, cos_sum)
+        mean_deg = float(np.degrees(mean_rad))
+        result = mean_deg % 360.0
+        if np.isclose(result, 360.0):
+            result = 0.0
+
+        # 当算术均值和循环均值差异较大时，记录跨边界分布线索。
+        arith_mean = float(np.mean(angles))
+        diff = abs(result - arith_mean)
+        if diff > 5.0:
+            LOGGER.info(
+                "[circular_mean] 角度可能跨越0°/360°边界，n=%d, min=%.2f°, max=%.2f°, 算术均值=%.2f°, 循环均值=%.2f°, 偏差=%.2f°",
+                len(angles),
+                float(np.min(angles)),
+                float(np.max(angles)),
+                arith_mean,
+                result,
+                diff,
+            )
+        else:
+            LOGGER.debug(
+                "[circular_mean] n=%d, min=%.2f°, max=%.2f°, 算术均值=%.2f°, 循环均值=%.2f°",
+                len(angles),
+                float(np.min(angles)),
+                float(np.max(angles)),
+                arith_mean,
+                result,
+            )
+        return result
+
+    @staticmethod
+    def _filter_related_numbers(
+        values: list[float],
+        tolerance: float,
+    ) -> list[float]:
+        """按容差过滤整数倍、两数和、三数和相关的 PRI 值。"""
+        if tolerance <= 0 or len(values) <= 1:
+            return values
+
+        sorted_values = sorted(float(value) for value in values)
+        removed_indices: set[int] = set()
+
+        # 先过滤整数倍关系，较小值作为基准，较大相关值被移除。
+        for base_index, base_value in enumerate(sorted_values):
+            if base_index in removed_indices or base_value <= 0:
+                continue
+            for target_index in range(base_index + 1, len(sorted_values)):
+                if target_index in removed_indices:
+                    continue
+                target_value = sorted_values[target_index]
+                multiple = round(target_value / base_value)
+                if multiple >= 2 and abs(target_value - base_value * multiple) <= tolerance:
+                    removed_indices.add(target_index)
+
+        # 再过滤两数和、三数和关系，避免组合周期作为独立 PRI 输出。
+        for target_index, target_value in enumerate(sorted_values):
+            if target_index in removed_indices:
+                continue
+            base_values = [
+                value
+                for index, value in enumerate(sorted_values[:target_index])
+                if index not in removed_indices
+            ]
+            if _IdentifyResultBuilder._is_sum_of_related_values(
+                target_value,
+                base_values,
+                tolerance,
+            ):
+                removed_indices.add(target_index)
+
+        return [
+            value
+            for index, value in enumerate(sorted_values)
+            if index not in removed_indices
+        ]
+
+    @staticmethod
+    def _is_sum_of_related_values(
+        value: float,
+        base_values: list[float],
+        tolerance: float,
+    ) -> bool:
+        """判断当前 PRI 是否近似等于已有 PRI 的两数和或三数和。"""
+        for combination_size in (2, 3):
+            for candidate_values in combinations(base_values, combination_size):
+                # 使用绝对容差判断组合和值，容差单位与 PRI 配置保持一致。
+                if abs(value - sum(candidate_values)) <= tolerance:
+                    return True
+        return False
 
     def append_invalid(
         self,
@@ -913,6 +1108,7 @@ class _IdentifyResultBuilder:
         new_cluster_index: int,
         valid_cluster_index: int | None,
         is_valid: bool,
+        extracted_params: ExtractedClusterParams | None = None,
     ) -> ClusterRecognition:
         """复制识别记录，并替换为最终簇索引与最终有效序号。
 
@@ -921,6 +1117,7 @@ class _IdentifyResultBuilder:
             new_cluster_index [int]: 重排后的最终簇编号。
             valid_cluster_index [int | None]: 重排后的最终有效簇序号；无效簇时为 None。
             is_valid [bool]: 当前结果是否属于最终有效簇。
+            extracted_params [ExtractedClusterParams | None]: 当前最终记录绑定的参数提取结果。
 
         Returns:
             ClusterRecognition: 重建后的最终识别记录对象。
@@ -942,4 +1139,5 @@ class _IdentifyResultBuilder:
             joint_prob=recognition.joint_prob,
             pa_conf_dict=dict(recognition.pa_conf_dict),
             dtoa_conf_dict=dict(recognition.dtoa_conf_dict),
+            extracted_params=extracted_params or recognition.extracted_params,
         )

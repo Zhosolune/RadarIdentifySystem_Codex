@@ -11,7 +11,7 @@ from app.app_config import appConfig, qconfig
 from app.logger import bind_session_log_context, unbind_session_log_context
 from app.model_bootstrap import get_cached_inference_service
 from app.signal_bus import signal_bus
-from core.models.algorithm_params import ClusteringParams, RecognitionParams
+from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import ClusteringResult, SliceClusterResult
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.recognition_result import RecognitionResult, SliceRecognitionResult
@@ -125,6 +125,7 @@ class IdentifyWorkflow(QObject):
             )
             clustering_config = session.config_snapshot.clustering
             recognition_config = session.config_snapshot.recognition
+            extract_config = session.config_snapshot.extract
             # 按当前 session 快照构造聚类参数对象，避免跨函数来回跳转。
             cluster_params = ClusteringParams(
                 eps_cf=clustering_config.eps_cf,
@@ -140,6 +141,20 @@ class IdentifyWorkflow(QObject):
                 tolerance=recognition_config.tolerance,
                 min_confidence=recognition_config.min_confidence,
                 max_candidates=recognition_config.max_candidates,
+            )
+            # 按当前 session 快照构造提取参数对象，供识别通过类提取典型参数。
+            extract_params = ExtractParams(
+                eps_cf=extract_config.eps_cf,
+                min_pts_cf=extract_config.min_pts_cf,
+                threshold_ratio_cf=extract_config.threshold_ratio_cf,
+                eps_pw=extract_config.eps_pw,
+                min_pts_pw=extract_config.min_pts_pw,
+                threshold_ratio_pw=extract_config.threshold_ratio_pw,
+                eps_pri=extract_config.eps_pri,
+                min_pts_pri=extract_config.min_pts_pri,
+                threshold_ratio_pri=extract_config.threshold_ratio_pri,
+                filter_threshold_pri=extract_config.filter_threshold_pri,
+                harmonic_tolerance_pri=extract_config.harmonic_tolerance_pri,
             )
 
             with session.lock:
@@ -168,6 +183,7 @@ class IdentifyWorkflow(QObject):
                 inference_service=self._inference_service,
                 cluster_params=cluster_params,
                 recognize_params=recognize_params,
+                extract_params=extract_params,
                 parent=self
             )
             self._active_slice_index = slice_index

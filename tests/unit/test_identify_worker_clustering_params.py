@@ -8,11 +8,12 @@ from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
+import pytest
 from pytest import MonkeyPatch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from core.models.algorithm_params import ClusteringParams, RecognitionParams
+from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import (
     ClusterItem,
     ClusterState,
@@ -25,7 +26,11 @@ from core.models.recognition_result import (
     RecognitionResult,
     SliceRecognitionResult,
 )
-from runtime.threading.identify_worker import IdentifyWorker, IdentifyWorkerResult
+from runtime.threading.identify_worker import (
+    IdentifyWorker,
+    IdentifyWorkerResult,
+    _IdentifyResultBuilder,
+)
 from runtime.workflows.identify_workflow import IdentifyWorkflow
 
 
@@ -33,8 +38,196 @@ def test_identify_worker_requires_injected_session_params() -> None:
     """识别线程应通过构造函数接收 session 参数。"""
     assert "cluster_params" in IdentifyWorker.__init__.__code__.co_varnames
     assert "recognize_params" in IdentifyWorker.__init__.__code__.co_varnames
+    assert "extract_params" in IdentifyWorker.__init__.__code__.co_varnames
     assert isinstance(ClusteringParams(eps_cf=7.0), ClusteringParams)
     assert isinstance(RecognitionParams(tolerance=0.25), RecognitionParams)
+    assert isinstance(ExtractParams(eps_cf=1.5), ExtractParams)
+
+
+def test_identify_worker_attaches_extracted_params_to_valid_recognition(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """最终识别通过的类应携带 CF、PW、PRI、DOA 提取结果。"""
+    points = np.array(
+        [
+            [1000.0, 1.0, 10.0, 20.0, 0.0],
+            [1000.0, 1.0, 20.0, 20.0, 100.0],
+            [1000.0, 1.0, 30.0, 20.0, 200.0],
+            [1100.0, 2.0, 20.0, 20.0, 400.0],
+            [1100.0, 2.0, 30.0, 20.0, 600.0],
+            [1100.0, 2.0, 40.0, 20.0, 800.0],
+        ],
+        dtype=float,
+    )
+    source_cluster = ClusterItem(
+        cluster_idx=1,
+        dim_name="CF",
+        points=points,
+        points_indices=np.arange(len(points)),
+        slice_idx=0,
+        time_ranges=(0.0, 800.0),
+    )
+
+    def fake_process_dimension_clustering(
+        **kwargs: Any,
+    ) -> tuple[list[ClusterItem], np.ndarray]:
+        """仅返回一个 CF 有效父簇，DOA 不拆分。"""
+        if kwargs["dim_name"] == "CF":
+            return [source_cluster], np.array([], dtype=int)
+        if kwargs["dim_name"] == "DOA":
+            return [], np.array([], dtype=int)
+        return [], np.array([], dtype=int)
+
+    def fake_recognize_clusters_parallel(
+        clusters: list[ClusterItem],
+        inference_service: object,
+        recognize_params: RecognitionParams,
+        start_index: int,
+        max_workers: int | None = None,
+    ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
+        """把输入簇全部判定为识别通过。"""
+        del inference_service, recognize_params, max_workers
+        recognitions = [
+            ClusterRecognition(
+                slice_index=cluster.slice_idx,
+                dim_name=cluster.dim_name,
+                cluster_index=cluster.cluster_idx,
+                valid_cluster_index=start_index + index,
+                pa_label=1,
+                pa_confidence=0.9,
+                dtoa_label=1,
+                dtoa_confidence=0.8,
+                is_valid=True,
+            )
+            for index, cluster in enumerate(clusters)
+        ]
+        return clusters, [], recognitions, start_index + len(clusters)
+
+    monkeypatch.setattr(
+        "runtime.threading.identify_worker.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    monkeypatch.setattr(
+        "runtime.threading.identify_worker.recognize_clusters_parallel",
+        fake_recognize_clusters_parallel,
+    )
+    worker = IdentifyWorker(
+        session_id="session-test",
+        slice_index=0,
+        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 800.0)),
+        inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
+        extract_params=ExtractParams(
+            eps_cf=0.2,
+            min_pts_cf=2,
+            threshold_ratio_cf=10.0,
+            eps_pw=0.2,
+            min_pts_pw=2,
+            threshold_ratio_pw=10.0,
+            eps_pri=0.2,
+            min_pts_pri=2,
+            threshold_ratio_pri=10.0,
+            filter_threshold_pri=2.0,
+            harmonic_tolerance_pri=0.0,
+        ),
+    )
+
+    _, recognition_result = worker._cluster_and_recognize_slice(
+        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 800.0)),
+        inference_service=object(),
+        cluster_params=ClusteringParams(),
+        recognize_params=RecognitionParams(),
+    )
+
+    extracted_params = recognition_result.valid_clusters[0].extracted_params
+    assert extracted_params is not None
+    assert sorted(extracted_params.cf_values) == [1000.0, 1100.0]
+    assert sorted(extracted_params.pw_values) == [1.0, 2.0]
+    assert sorted(extracted_params.pri_values) == [10.0, 20.0]
+    assert extracted_params.doa_values == [25.0]
+
+
+def test_identify_worker_filters_related_pri_values_after_grouping() -> None:
+    """PRI 应先提取典型值，再过滤整数倍与和值相关项。"""
+    interval_us_values = [10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 25.0, 25.0, 25.0]
+    # TOA 内部单位为 0.1us，因此测试数据需要把 us 间隔转换为 0.1us 计数。
+    toa_values = np.concatenate(([0.0], np.cumsum(interval_us_values) / 0.1))
+    points = np.column_stack(
+        (
+            np.full(len(toa_values), 1000.0),
+            np.full(len(toa_values), 1.0),
+            np.full(len(toa_values), 30.0),
+            np.full(len(toa_values), 20.0),
+            toa_values,
+        )
+    )
+    cluster = ClusterItem(
+        cluster_idx=1,
+        dim_name="CF",
+        points=points,
+        points_indices=np.arange(len(points)),
+        slice_idx=0,
+        time_ranges=(0.0, float(toa_values[-1])),
+    )
+    builder = _IdentifyResultBuilder(
+        ExtractParams(
+            eps_cf=0.2,
+            min_pts_cf=1,
+            threshold_ratio_cf=10.0,
+            eps_pw=0.2,
+            min_pts_pw=1,
+            threshold_ratio_pw=10.0,
+            eps_pri=0.2,
+            min_pts_pri=3,
+            threshold_ratio_pri=10.0,
+            filter_threshold_pri=2.0,
+            harmonic_tolerance_pri=0.2,
+        )
+    )
+
+    extracted_params = builder._extract_valid_cluster_params(cluster)
+
+    assert sorted(extracted_params.pri_values) == [10.0, 15.0]
+
+
+def test_identify_worker_extracts_doa_with_trimmed_circular_mean() -> None:
+    """DOA 应去除排序两端值后计算循环均值。"""
+    doa_values = np.array([1.0, 2.0, 358.0, 359.0])
+    points = np.column_stack(
+        (
+            np.full(len(doa_values), 1000.0),
+            np.full(len(doa_values), 1.0),
+            doa_values,
+            np.full(len(doa_values), 20.0),
+            np.arange(len(doa_values), dtype=float) * 100.0,
+        )
+    )
+    cluster = ClusterItem(
+        cluster_idx=1,
+        dim_name="CF",
+        points=points,
+        points_indices=np.arange(len(points)),
+        slice_idx=0,
+        time_ranges=(0.0, 300.0),
+    )
+    builder = _IdentifyResultBuilder(
+        ExtractParams(
+            eps_cf=0.2,
+            min_pts_cf=1,
+            threshold_ratio_cf=10.0,
+            eps_pw=0.2,
+            min_pts_pw=1,
+            threshold_ratio_pw=10.0,
+            eps_pri=0.2,
+            min_pts_pri=3,
+            threshold_ratio_pri=10.0,
+        )
+    )
+
+    extracted_params = builder._extract_valid_cluster_params(cluster)
+
+    assert extracted_params.doa_values == [pytest.approx(0.0, abs=0.0001)]
 
 
 def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
@@ -617,6 +810,74 @@ def test_identify_workflow_injects_session_params_and_models(
     assert service_args["pa_path"] == "E:/models/pa.onnx"
     assert service_args["dtoa_path"] == "E:/models/dtoa.onnx"
     assert service_args["temp_dir"]
+
+
+def test_identify_workflow_injects_extract_params(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """识别 workflow 应把当前 session 的提取参数快照注入 worker。"""
+    captured: dict[str, object] = {}
+
+    class FakeSignal:
+        """测试用信号桩。"""
+
+        def connect(self, _slot) -> None:
+            """忽略信号连接。"""
+            return None
+
+    class FakeWorker:
+        """测试用识别线程桩。"""
+
+        progress_signal = FakeSignal()
+        finished_signal = FakeSignal()
+
+        def __init__(self, **kwargs) -> None:
+            """记录 workflow 传入的构造参数。"""
+            captured.update(kwargs)
+
+        def isRunning(self) -> bool:
+            """返回线程未运行。"""
+            return False
+
+        def start(self) -> None:
+            """标记 workflow 已启动线程。"""
+            captured["started"] = True
+
+    monkeypatch.setattr(
+        "runtime.workflows.identify_workflow.IdentifyWorker",
+        FakeWorker,
+    )
+    monkeypatch.setattr(
+        "runtime.workflows.identify_workflow.get_cached_inference_service",
+        lambda **kwargs: {"service_args": kwargs},
+    )
+
+    session = ProcessingSession(session_id="session_extract_params")
+    session.slice_result = SimpleNamespace(
+        slice_count=1,
+        slices=[
+            SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0)),
+        ],
+    )
+    session.model_selection.pa_model_path = "E:/models/pa.onnx"
+    session.model_selection.dtoa_model_path = "E:/models/dtoa.onnx"
+    session.config_snapshot.extract.eps_cf = 1.25
+    session.config_snapshot.extract.min_pts_cf = 6
+    session.config_snapshot.extract.threshold_ratio_pri = 15.0
+    session.config_snapshot.extract.filter_threshold_pri = 3.0
+    session.config_snapshot.extract.harmonic_tolerance_pri = 0.2
+    workflow = IdentifyWorkflow()
+
+    workflow.start_identify(session, slice_index=0)
+
+    extract_params = captured["extract_params"]
+    assert isinstance(extract_params, ExtractParams)
+    assert extract_params.eps_cf == 1.25
+    assert extract_params.min_pts_cf == 6
+    assert extract_params.threshold_ratio_pri == 15.0
+    assert extract_params.filter_threshold_pri == 3.0
+    assert extract_params.harmonic_tolerance_pri == 0.2
+    assert captured["started"] is True
 
 
 def test_multiple_identify_workflow_instances_can_start_in_parallel(

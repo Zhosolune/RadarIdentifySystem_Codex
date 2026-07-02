@@ -1,4 +1,86 @@
 ﻿# 变更记录
+- 时间：2026-07-02 11:15
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_identify_worker_clustering_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按旧流程重新调整识别后参数提取，PRI 先提取典型值再做关系过滤，DOA 改为排序裁剪后的循环均值。
+- 原因：用户要求仅参考旧流程重新实现，数据组织仍沿用本项目识别结果模型和 worker 职责边界。
+- 计划：
+  - [x] 为 PRI 关系过滤和 DOA 循环均值补充 RED 测试。
+  - [x] 将 PRI 提取改为 DTOA 补齐、DBSCAN 典型值提取、谐波/和值过滤、单值门限过滤流程。
+  - [x] 将 DOA 提取改为排序去两端值后的循环均值，并保留列表返回契约。
+  - [x] 运行相关测试、语法检查和差异检查。
+- 已完成：
+  - 新增 PRI 典型值后处理测试，覆盖 `10 + 15 = 25` 组合周期过滤。
+  - 新增 DOA 跨 0°/360° 测试，覆盖算术均值错误而循环均值正确的场景。
+  - `IdentifyWorker` 结果装配器已在 runtime 层完成 CF/PW/PRI/DOA 维度解释，`core/params_extract.py` 保持纯一维算法职责。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_filters_related_pri_values_after_grouping tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_extracts_doa_with_trimmed_circular_mean -q --basetemp=.pytest_tmp_param_flow_red -p no:cacheprovider` 按预期失败（PRI 未过滤组合和值、DOA 仍为算术均值）；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_filters_related_pri_values_after_grouping tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_extracts_doa_with_trimmed_circular_mean -q --basetemp=.pytest_tmp_param_flow_green -p no:cacheprovider` 通过（2 passed, 1 warning）；相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_param_flow_related -p no:cacheprovider` 通过（18 passed, 1 warning）；语法检查 `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py` 通过；docstring 示例检查 `D:/Miniforge3/envs/pyqt6/python.exe -m doctest core/models/extraction_result.py core/params_extract.py` 通过；`git diff --check -- core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py docs/operateLog.md docs/superpowers/plans/2026-07-02-parameter-extraction-after-recognition.md` 通过，仅有 Git 换行提示。
+
+- 时间：2026-07-02 10:53
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\extraction_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\params_extract.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_core_params_extract.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\plans\2026-07-02-parameter-extraction-after-recognition.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修正识别后参数提取实现中的代码规范问题，补齐中文文档、Google 风格 docstring 和关键中文注释。
+- 原因：前次实现未严格遵守用户设定的中文输出、公共 docstring 和代码注释规范。
+- 计划：
+  - [x] 审查新增/修改文件的规范缺口。
+  - [x] 补齐公共模型与公共函数的中文 Google 风格 docstring。
+  - [x] 增强 worker 参数提取私有逻辑的关键中文注释。
+  - [x] 将实施计划文档标题与说明中文化。
+  - [x] 运行相关测试、语法检查和差异检查。
+- 已完成：
+  - `ExtractedClusterParams` 模块与类 docstring 已补充用途、属性和可运行示例。
+  - `extract_grouped_values()` 已补充完整 `Args`、`Returns`、`Raises`、`Example` 分节，并说明 core 层只处理一维数值算法。
+  - worker 内 CF/PW/PRI/DOA 提取编排已增加关键中文注释，明确单位转换、过滤和谐波抑制目的。
+  - `docs/superpowers/plans/2026-07-02-parameter-extraction-after-recognition.md` 已改为中文标题和中文说明。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] 相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_param_style_final -p no:cacheprovider` 通过（16 passed, 1 warning）；语法检查 `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py` 通过；docstring 示例检查 `D:/Miniforge3/envs/pyqt6/python.exe -m doctest core/models/extraction_result.py core/params_extract.py` 通过；`git diff --check -- core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py docs/operateLog.md docs/superpowers/plans/2026-07-02-parameter-extraction-after-recognition.md` 通过，仅有 Git 换行提示。
+
+- 时间：2026-07-02 09:54
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\extraction_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\recognition_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\params_extract.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_core_params_extract.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_identify_worker_clustering_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\plans\2026-07-02-parameter-extraction-after-recognition.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在识别完成后为每个识别通过类提取 CF、PW、PRI、DOA 多典型参数值。
+- 原因：识别结果需要携带可供 UI、导出和后续合并消费的参数提取结果，且四类参数均允许返回多个典型值。
+- 计划：
+  - [x] 明确参数提取归属识别结果链路，不新增独立流程阶段。
+  - [x] 编写 core 参数提取 RED 测试。
+  - [x] 编写 worker/workflow 集成 RED 测试。
+  - [x] 实现提取结果模型、核心提取函数和识别线程装配逻辑。
+  - [x] 运行聚焦测试、相关测试、语法检查和差异检查。
+- 已完成：
+  - 已确认现有 `ExtractParams` 与 session 提取配置快照可复用，无需新增配置项。
+  - 已确认 CF、PW、PRI、DOA 返回值统一为 `list[float]`。
+  - 新增 `ExtractedClusterParams` 作为单个识别通过类的参数提取结果模型。
+  - `core/params_extract.py` 已收敛为通用一维 DBSCAN 典型值提取工具，不再依赖 `ClusterItem`、`ExtractParams` 或雷达列索引。
+  - `IdentifyWorker` 内部已负责按 CF/PW/PRI/DOA 解释最终有效类点集，并对 DOA 返回均值列表。
+  - `ClusterRecognition` 已新增 `extracted_params` 字段，识别线程仅为最终有效类写入提取结果。
+  - `IdentifyWorkflow` 已从 session 提取配置快照组装 `ExtractParams` 并注入 `IdentifyWorker`。
+  - 已补充 core 边界测试和 worker/workflow 集成测试，覆盖多典型值、职责边界、TOA 到 PRI 单位转换和提取参数注入。
+- 待完成：
+  - 无。
+- 测试状态：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py -q --basetemp=.pytest_tmp_param_extract_red -p no:cacheprovider` 按预期失败（缺少 `extract_cluster_params`）；RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_requires_injected_session_params tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_attaches_extracted_params_to_valid_recognition tests/unit/test_identify_worker_clustering_params.py::test_identify_workflow_injects_extract_params -q --basetemp=.pytest_tmp_worker_extract_red -p no:cacheprovider` 按预期失败（worker 未接收 `extract_params` 且 workflow 未注入）；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py -q --basetemp=.pytest_tmp_param_extract_green -p no:cacheprovider` 通过（2 passed）；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_requires_injected_session_params tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_attaches_extracted_params_to_valid_recognition tests/unit/test_identify_worker_clustering_params.py::test_identify_workflow_injects_extract_params -q --basetemp=.pytest_tmp_worker_extract_green -p no:cacheprovider` 通过（3 passed, 1 warning）；相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_param_extract_related -p no:cacheprovider` 通过（16 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py` 通过；`git diff --check -- core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py docs/operateLog.md docs/superpowers/plans/2026-07-02-parameter-extraction-after-recognition.md` 通过，仅有 Git 换行提示。
+- 职责边界调整补充：[已测试] RED：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py::test_params_extract_does_not_own_dimension_business_logic -q --basetemp=.pytest_tmp_param_boundary_red -p no:cacheprovider` 按预期失败（`core.params_extract` 仍暴露 `extract_cluster_params`）；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py -q --basetemp=.pytest_tmp_param_boundary_green -p no:cacheprovider` 通过（2 passed）；GREEN：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_identify_worker_clustering_params.py::test_identify_worker_attaches_extracted_params_to_valid_recognition -q --basetemp=.pytest_tmp_worker_extract_boundary_green -p no:cacheprovider` 通过（1 passed, 1 warning）；最终相关测试 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py -q --basetemp=.pytest_tmp_param_boundary_final -p no:cacheprovider` 通过（16 passed, 1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py` 通过；`git diff --check -- core/models/extraction_result.py core/models/__init__.py core/models/recognition_result.py core/params_extract.py runtime/workflows/identify_workflow.py runtime/threading/identify_worker.py tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py docs/operateLog.md docs/superpowers/plans/2026-07-02-parameter-extraction-after-recognition.md` 通过，仅有 Git 换行提示。额外验证：`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_core_params_extract.py tests/unit/test_identify_worker_clustering_params.py tests/unit/test_core_clustering.py -q --basetemp=.pytest_tmp_param_boundary_related -p no:cacheprovider` 暴露既有 `tests/unit/test_core_clustering.py` 导入不存在的 `cluster_single_slice`，未纳入本次修复范围。
+
 - 时间：2026-07-01 17:03
 - 操作类型：[修改]
 - 影响文件：

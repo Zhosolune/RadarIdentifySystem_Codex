@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict
 
+from core.models.extraction_result import ExtractedClusterParams
+
 
 @dataclass(frozen=True, slots=True)
 class ClusterRecognition:
@@ -26,6 +28,7 @@ class ClusterRecognition:
         joint_prob (float): PA 和 DTOA 综合计算的联合概率。
         pa_conf_dict (Dict[int, float]): PA 预测各类别置信度字典。
         dtoa_conf_dict (Dict[int, float]): DTOA 预测各类别置信度字典。
+        extracted_params (ExtractedClusterParams | None): 识别通过类的参数提取结果。
     """
 
     slice_index: int
@@ -40,6 +43,7 @@ class ClusterRecognition:
     joint_prob: float = 0.0
     pa_conf_dict: dict[int, float] = field(default_factory=dict)
     dtoa_conf_dict: dict[int, float] = field(default_factory=dict)
+    extracted_params: ExtractedClusterParams | None = None
 
 
 @dataclass(frozen=True, slots=True)

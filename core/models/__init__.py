@@ -11,6 +11,7 @@ from .algorithm_params import (
     ExtractParams,
     MergeParams,
 )
+from .extraction_result import ExtractedClusterParams
 from .recognition_result import ClusterRecognition, SliceRecognitionResult, RecognitionResult
 from .session_config import (
     BusinessConfigSnapshot,
@@ -35,6 +36,7 @@ __all__ = [
     "RecognitionParams",
     "ExtractParams",
     "MergeParams",
+    "ExtractedClusterParams",
     "ClusterRecognition",
     "SliceRecognitionResult",
     "RecognitionResult",
