@@ -1,4 +1,24 @@
 # 变更记录
+- 时间：2026-07-04 00:37
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\params_extract.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\clustering.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_identify_worker_clustering_params.py`
+- 变更摘要：将识别工作线程内的算法与流程编排剥离到 core 层，`IdentifyWorker` 收敛为纯线程调度。
+- 原因：`runtime/threading/identify_worker.py` 累积到 1143 行，违反“runtime/threading 只做线程执行、core 承载算法”的分层约束，导致算法与 Qt 线程强耦合、难以在无 Qt 环境下测试。
+- 计划：
+  - [x] 在 `core/params_extract.py` 抽出 `extract_cluster_params`、`extract_pri_values`、`extract_doa_values`、`circular_mean`、`filter_related_pri_values` 等纯算法入口。
+  - [x] 在 `core/clustering.py` 新增 `clip_doa_clusters_by_size`，承载 DOA 子簇按点数规模裁剪的公共规则。
+  - [x] 新建 `core/identify_pipeline.py`，落地 CF→PW→DOA 级联流程、`IdentifyResultBuilder` 结果装配器与 `IdentifyPipelineContext` 阶段回调。
+  - [x] 重写 `runtime/threading/identify_worker.py`（1143 → 240 行），只保留线程调度、参数校验、进度信号与失败阶段归属。
+  - [x] 迁移测试用例：业务规则用例改为直接调用 `identify_slice`、`extract_cluster_params`、`_cluster_doa_children`；monkeypatch 路径统一为 `core.identify_pipeline.*`；workflow 用例保持不变。
+  - [x] 执行 `python -m py_compile` 校验 core 与 runtime 相关模块通过。
+  - [ ] 执行 `pytest tests/unit/test_identify_worker_clustering_params.py` 时沙箱缺少 sklearn，需在具备 scikit-learn 的环境复测。
+- 测试状态：[待测试]
+
 - 时间：2026-07-03 23:44
 - 操作类型：[修改]
 - 影响文件：

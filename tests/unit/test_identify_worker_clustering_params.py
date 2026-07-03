@@ -1,4 +1,10 @@
-"""识别工作线程聚类参数传递测试。"""
+"""识别流程与工作线程契约测试。
+
+功能描述：
+    覆盖 core/identify_pipeline 中的级联流程编排、参数提取行为，
+    以及 runtime/threading/identify_worker 与 runtime/workflows/identify_workflow
+    的调度契约。业务逻辑用例直接调用 core 层公共 API，避免耦合线程私有实现。
+"""
 
 from __future__ import annotations
 
@@ -13,6 +19,11 @@ from pytest import MonkeyPatch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from core.identify_pipeline import (
+    IdentifyPipelineContext,
+    _cluster_doa_children,
+    identify_slice,
+)
 from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import (
     ClusterItem,
@@ -26,16 +37,14 @@ from core.models.recognition_result import (
     RecognitionResult,
     SliceRecognitionResult,
 )
-from runtime.threading.identify_worker import (
-    IdentifyWorker,
-    IdentifyWorkerResult,
-    _IdentifyResultBuilder,
-)
+from core.params_extract import extract_cluster_params
+from runtime.threading.identify_worker import IdentifyWorker, IdentifyWorkerResult
 from runtime.workflows.identify_workflow import IdentifyWorkflow
 
 
 def test_identify_worker_requires_injected_session_params() -> None:
     """识别线程应通过构造函数接收 session 参数。"""
+    # 校验构造签名保留三类快照参数入口。
     assert "cluster_params" in IdentifyWorker.__init__.__code__.co_varnames
     assert "recognize_params" in IdentifyWorker.__init__.__code__.co_varnames
     assert "extract_params" in IdentifyWorker.__init__.__code__.co_varnames
@@ -44,7 +53,7 @@ def test_identify_worker_requires_injected_session_params() -> None:
     assert isinstance(ExtractParams(eps_cf=1.5), ExtractParams)
 
 
-def test_identify_worker_attaches_extracted_params_to_valid_recognition(
+def test_identify_slice_attaches_extracted_params_to_valid_recognition(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """最终识别通过的类应携带 CF、PW、PRI、DOA 提取结果。"""
@@ -103,18 +112,19 @@ def test_identify_worker_attaches_extracted_params_to_valid_recognition(
         ]
         return clusters, [], recognitions, start_index + len(clusters)
 
+    # 打桩 core 层引用的聚类与识别函数，隔离外部依赖。
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.process_dimension_clustering",
+        "core.identify_pipeline.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.recognize_clusters_parallel",
+        "core.identify_pipeline.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
-    worker = IdentifyWorker(
-        session_id="session-test",
-        slice_index=0,
-        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 800.0)),
+
+    slice_data = SimpleNamespace(index=0, data=points, time_range=(0.0, 800.0))
+    _, recognition_result = identify_slice(
+        slice_data=slice_data,
         inference_service=object(),
         cluster_params=ClusteringParams(),
         recognize_params=RecognitionParams(),
@@ -133,13 +143,6 @@ def test_identify_worker_attaches_extracted_params_to_valid_recognition(
         ),
     )
 
-    _, recognition_result = worker._cluster_and_recognize_slice(
-        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 800.0)),
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
-
     extracted_params = recognition_result.valid_clusters[0].extracted_params
     assert extracted_params is not None
     assert sorted(extracted_params.cf_values) == [1000.0, 1100.0]
@@ -148,7 +151,7 @@ def test_identify_worker_attaches_extracted_params_to_valid_recognition(
     assert extracted_params.doa_values == [25.0]
 
 
-def test_identify_worker_filters_related_pri_values_after_grouping() -> None:
+def test_extract_cluster_params_filters_related_pri_values_after_grouping() -> None:
     """PRI 应先提取典型值，再过滤整数倍与和值相关项。"""
     interval_us_values = [10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 25.0, 25.0, 25.0]
     # TOA 内部单位为 0.1us，因此测试数据需要把 us 间隔转换为 0.1us 计数。
@@ -162,36 +165,27 @@ def test_identify_worker_filters_related_pri_values_after_grouping() -> None:
             toa_values,
         )
     )
-    cluster = ClusterItem(
-        cluster_idx=1,
-        dim_name="CF",
-        points=points,
-        points_indices=np.arange(len(points)),
-        slice_idx=0,
-        time_ranges=(0.0, float(toa_values[-1])),
-    )
-    builder = _IdentifyResultBuilder(
-        ExtractParams(
-            eps_cf=0.2,
-            min_pts_cf=1,
-            threshold_ratio_cf=10.0,
-            eps_pw=0.2,
-            min_pts_pw=1,
-            threshold_ratio_pw=10.0,
-            eps_pri=0.2,
-            min_pts_pri=3,
-            threshold_ratio_pri=10.0,
-            filter_threshold_pri=2.0,
-            harmonic_tolerance_pri=0.2,
-        )
+    extract_params = ExtractParams(
+        eps_cf=0.2,
+        min_pts_cf=1,
+        threshold_ratio_cf=10.0,
+        eps_pw=0.2,
+        min_pts_pw=1,
+        threshold_ratio_pw=10.0,
+        eps_pri=0.2,
+        min_pts_pri=3,
+        threshold_ratio_pri=10.0,
+        filter_threshold_pri=2.0,
+        harmonic_tolerance_pri=0.2,
     )
 
-    extracted_params = builder._extract_valid_cluster_params(cluster)
+    # 直接调用 core 层参数提取入口，验证 PRI 谐波过滤规则。
+    extracted_params = extract_cluster_params(points, extract_params)
 
     assert sorted(extracted_params.pri_values) == [10.0, 15.0]
 
 
-def test_identify_worker_extracts_doa_with_trimmed_circular_mean() -> None:
+def test_extract_cluster_params_extracts_doa_with_trimmed_circular_mean() -> None:
     """DOA 应去除排序两端值后计算循环均值。"""
     doa_values = np.array([1.0, 2.0, 358.0, 359.0])
     points = np.column_stack(
@@ -203,37 +197,28 @@ def test_identify_worker_extracts_doa_with_trimmed_circular_mean() -> None:
             np.arange(len(doa_values), dtype=float) * 100.0,
         )
     )
-    cluster = ClusterItem(
-        cluster_idx=1,
-        dim_name="CF",
-        points=points,
-        points_indices=np.arange(len(points)),
-        slice_idx=0,
-        time_ranges=(0.0, 300.0),
-    )
-    builder = _IdentifyResultBuilder(
-        ExtractParams(
-            eps_cf=0.2,
-            min_pts_cf=1,
-            threshold_ratio_cf=10.0,
-            eps_pw=0.2,
-            min_pts_pw=1,
-            threshold_ratio_pw=10.0,
-            eps_pri=0.2,
-            min_pts_pri=3,
-            threshold_ratio_pri=10.0,
-        )
+    extract_params = ExtractParams(
+        eps_cf=0.2,
+        min_pts_cf=1,
+        threshold_ratio_cf=10.0,
+        eps_pw=0.2,
+        min_pts_pw=1,
+        threshold_ratio_pw=10.0,
+        eps_pri=0.2,
+        min_pts_pri=3,
+        threshold_ratio_pri=10.0,
     )
 
-    extracted_params = builder._extract_valid_cluster_params(cluster)
+    # 直接调用 core 层参数提取入口，验证循环均值裁剪规则。
+    extracted_params = extract_cluster_params(points, extract_params)
 
     assert extracted_params.doa_values == [pytest.approx(0.0, abs=0.0001)]
 
 
-def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
+def test_identify_slice_passes_split_min_pts_to_cf_and_pw(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """识别线程应分别向 CF/PW 聚类传递对应的最小点数。"""
+    """识别流程应分别向 CF/PW 聚类传递对应的最小点数。"""
     calls: list[tuple[str, int]] = []
 
     def fake_process_dimension_clustering(**kwargs):
@@ -254,12 +239,13 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
         del clusters, inference_service, recognize_params, max_workers
         return [], [], [], start_index
 
+    # 打桩 core 层聚类与识别函数，聚焦聚类参数传递路径。
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.process_dimension_clustering",
+        "core.identify_pipeline.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.recognize_clusters_parallel",
+        "core.identify_pipeline.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
     slice_data = SimpleNamespace(
@@ -272,16 +258,8 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
         ),
         time_range=(0.0, 1.0),
     )
-    worker = IdentifyWorker(
-        session_id="session-test",
-        slice_index=0,
-        slice_data=slice_data,
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
 
-    worker._cluster_and_recognize_slice(
+    identify_slice(
         slice_data=slice_data,
         inference_service=object(),
         cluster_params=ClusteringParams(min_pts_cf=3, min_pts_pw=7),
@@ -291,7 +269,7 @@ def test_identify_worker_passes_split_min_pts_to_cf_and_pw(
     assert calls == [("CF", 3), ("PW", 7)]
 
 
-def test_identify_worker_saves_all_clusters_by_cluster_index(
+def test_identify_slice_saves_all_clusters_by_cluster_index(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """展示全部聚类结果依赖保存顺序，识别后应按簇索引保存全部簇。"""
@@ -383,12 +361,13 @@ def test_identify_worker_saves_all_clusters_by_cluster_index(
             start_index + 1,
         )
 
+    # 打桩 core 层聚类与识别函数，验证整流程编排结果落位顺序。
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.process_dimension_clustering",
+        "core.identify_pipeline.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.recognize_clusters_parallel",
+        "core.identify_pipeline.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
     slice_data = SimpleNamespace(
@@ -396,16 +375,8 @@ def test_identify_worker_saves_all_clusters_by_cluster_index(
         data=np.zeros((3, 5), dtype=float),
         time_range=(0.0, 1.0),
     )
-    worker = IdentifyWorker(
-        session_id="session-test",
-        slice_index=0,
-        slice_data=slice_data,
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
 
-    cluster_result, recognition_result = worker._cluster_and_recognize_slice(
+    cluster_result, recognition_result = identify_slice(
         slice_data=slice_data,
         inference_service=object(),
         cluster_params=ClusteringParams(),
@@ -429,7 +400,7 @@ def test_identify_worker_saves_all_clusters_by_cluster_index(
     ] == []
 
 
-def test_identify_worker_clusters_valid_results_by_doa(
+def test_identify_slice_clusters_valid_results_by_doa(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """CF-DOA 未通过子类应回收到 PW，PW 通过类再执行 DOA 检查。"""
@@ -559,25 +530,19 @@ def test_identify_worker_clusters_valid_results_by_doa(
             start_index + 1,
         )
 
+    # 打桩 core 层依赖，覆盖 CF-DOA 回收到 PW 的完整路径。
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.process_dimension_clustering",
+        "core.identify_pipeline.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.recognize_clusters_parallel",
+        "core.identify_pipeline.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
-    worker = IdentifyWorker(
-        session_id="session-test",
-        slice_index=0,
-        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 1.0)),
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
 
-    cluster_result, recognition_result = worker._cluster_and_recognize_slice(
-        slice_data=SimpleNamespace(index=0, data=points, time_range=(0.0, 1.0)),
+    slice_data = SimpleNamespace(index=0, data=points, time_range=(0.0, 1.0))
+    cluster_result, recognition_result = identify_slice(
+        slice_data=slice_data,
         inference_service=object(),
         cluster_params=ClusteringParams(eps_doa=16.8, min_pts_doa=2),
         recognize_params=RecognitionParams(),
@@ -595,7 +560,7 @@ def test_identify_worker_clusters_valid_results_by_doa(
     assert [rec.cluster_index for rec in recognition_result.invalid_clusters] == [3]
 
 
-def test_identify_worker_keeps_largest_doa_clusters_until_clip_threshold(
+def test_cluster_doa_children_keeps_largest_clusters_until_clip_threshold(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """DOA 子簇应按点数降序保留，累计超过阈值后丢弃剩余小簇。"""
@@ -630,8 +595,9 @@ def test_identify_worker_keeps_largest_doa_clusters_until_clip_threshold(
             np.array([11], dtype=int),
         )
 
+    # 打桩 core 层聚类函数，聚焦裁剪规则验证。
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.process_dimension_clustering",
+        "core.identify_pipeline.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     parent_points = np.zeros((12, 5), dtype=float)
@@ -643,18 +609,11 @@ def test_identify_worker_keeps_largest_doa_clusters_until_clip_threshold(
         slice_idx=0,
         time_ranges=(0.0, 1.0),
     )
-    worker = IdentifyWorker(
-        session_id="session-test",
-        slice_index=0,
-        slice_data=SimpleNamespace(index=0, data=parent_points, time_range=(0.0, 1.0)),
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
 
-    doa_clusters = worker._cluster_doa_children(
+    doa_clusters = _cluster_doa_children(
         parent_cluster,
         ClusteringParams(clip_threshold_doa=60.0),
+        IdentifyPipelineContext(),
     )
 
     assert [cluster.cluster_size for cluster in doa_clusters] == [5, 3]
@@ -664,7 +623,7 @@ def test_identify_worker_keeps_largest_doa_clusters_until_clip_threshold(
     ]
 
 
-def test_identify_worker_keeps_at_most_three_doa_clusters(
+def test_cluster_doa_children_keeps_at_most_three_clusters(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """DOA 子簇累计未超过阈值时也最多保留点数最多的三类。"""
@@ -699,8 +658,9 @@ def test_identify_worker_keeps_at_most_three_doa_clusters(
             np.array([], dtype=int),
         )
 
+    # 打桩 core 层聚类函数，验证三类截断规则。
     monkeypatch.setattr(
-        "runtime.threading.identify_worker.process_dimension_clustering",
+        "core.identify_pipeline.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     parent_points = np.zeros((10, 5), dtype=float)
@@ -712,18 +672,11 @@ def test_identify_worker_keeps_at_most_three_doa_clusters(
         slice_idx=0,
         time_ranges=(0.0, 1.0),
     )
-    worker = IdentifyWorker(
-        session_id="session-test",
-        slice_index=0,
-        slice_data=SimpleNamespace(index=0, data=parent_points, time_range=(0.0, 1.0)),
-        inference_service=object(),
-        cluster_params=ClusteringParams(),
-        recognize_params=RecognitionParams(),
-    )
 
-    doa_clusters = worker._cluster_doa_children(
+    doa_clusters = _cluster_doa_children(
         parent_cluster,
         ClusteringParams(clip_threshold_doa=100.0),
+        IdentifyPipelineContext(),
     )
 
     assert [cluster.cluster_size for cluster in doa_clusters] == [4, 3, 2]

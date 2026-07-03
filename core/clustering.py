@@ -146,6 +146,56 @@ def process_dimension_clustering(
     
     return clusters, np.array(unprocessed_indices)
 
+def clip_doa_clusters_by_size(
+    clusters: list[ClusterItem],
+    total_points: int,
+    clip_threshold_percent: float,
+) -> list[ClusterItem]:
+    """按点数规模裁剪 DOA 子簇。
+
+    功能描述：
+        对同一父簇拆出的 DOA 子簇，按点数由多到少排序后累加，直到累计点数
+        超过父簇总点数乘以阈值百分比或最多保留 3 个子簇为止。用于抑制方位
+        分布上过度碎片化的子簇进入下一轮识别。
+
+    Args:
+        clusters [list[ClusterItem]]: DOA 维度聚类得到的原始子簇列表。
+        total_points [int]: 父簇的总点数，用于计算保留阈值。
+        clip_threshold_percent [float]: 保留百分比阈值，取值范围 0-100。
+
+    Returns:
+        list[ClusterItem]: 按规模排序后保留下来的 DOA 子簇列表。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> clip_doa_clusters_by_size([], 0, 60.0)
+        []
+    """
+    if not clusters or total_points <= 0:
+        return []
+
+    # 先按点数由多到少排序，点数相同时保留底层聚类返回的相对顺序。
+    sorted_clusters = sorted(
+        clusters,
+        key=lambda cluster: cluster.cluster_size,
+        reverse=True,
+    )
+    threshold_points = total_points * clip_threshold_percent / 100.0
+    kept_clusters: list[ClusterItem] = []
+    accumulated_points = 0
+
+    for cluster in sorted_clusters:
+        # 累加当前大簇后再判断停止条件，确保触发阈值的簇会被保留。
+        kept_clusters.append(cluster)
+        accumulated_points += cluster.cluster_size
+        if accumulated_points > threshold_points or len(kept_clusters) >= 3:
+            break
+
+    return kept_clusters
+
+
 def _circular_doa_diff(a: float, b: float) -> float:
         """计算两个DOA角度之间的环形距离
 
