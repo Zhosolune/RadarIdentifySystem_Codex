@@ -9,7 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import InfoBar, InfoBarPosition
+from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox
 from app.signal_bus import signal_bus
 from core.models.cluster_result import ClusterItem, SliceClusterResult
 from core.models.processing_session import ProcessingSession
@@ -231,7 +231,26 @@ class IdentifyController(QObject):
         )
 
         target_slice_index = current_slice_index if slice_index is None else slice_index
-        
+
+        # 检查当前切片是否存在通过识别的雷达信号，若无则弹出消息框提醒用户
+        session = self.view._session
+        slice_recognition = None
+        if session.recognition_result is not None:
+            slice_recognition = session.recognition_result.slice_results.get(current_slice_index)
+
+        if slice_recognition is None or not slice_recognition.valid_clusters:
+            # 当前切片没有通过识别的雷达信号，弹出消息框提醒用户
+            no_signal_msg = MessageBox(
+                "无识别结果",
+                f"第 {target_slice_index + 1} 切片没有通过识别的雷达信号。",
+                self.view,
+            )
+            # 仅需用户确认，隐藏取消按钮并保持布局居中
+            no_signal_msg.hideCancelButton()
+            no_signal_msg.yesButton.setText("知道了")
+            no_signal_msg.exec()
+            return
+
         InfoBar.success(
             title="成功",
             content=f"第 {target_slice_index + 1} 切片信号聚类分析完成！",

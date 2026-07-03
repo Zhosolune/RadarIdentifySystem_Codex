@@ -4147,3 +4147,13 @@
 - 变更摘要：统一文档架构基线为 `runtime` 顶层，明确 `workflow/threading/events` 归属，并将配置入口统一修正为 `app/app_config.py`。
 - 原因：落实新架构决策（`ui -> runtime -> core`，`runtime -> infra`，`app` 仅承担应用壳层能力）。
 - 测试状态：无需测试（文档一致性检视已完成）
+
+---
+
+## 2026-07-04 05:14
+- 操作类型：新增
+- 影响文件：
+  - `ui/controllers/identify_controller.py`
+- 变更摘要：在识别完成回调 `_on_stage_finished` 中新增判断逻辑，当当前切片没有通过识别的雷达信号（`valid_clusters` 为空）时，弹出 `qfluentwidgets.MessageBox` 消息框提醒用户，并跳过原有的成功 InfoBar 提示。
+- 原因：满足“当前切片不包含通过识别的结果时，弹出消息框 Dialog 提醒用户”的业务需求，避免无识别结果时仍显示“聚类分析完成”造成误导。
+- 测试状态：待测试（已通过 `ast.parse` 语法检查，待运行时验证交互效果）
