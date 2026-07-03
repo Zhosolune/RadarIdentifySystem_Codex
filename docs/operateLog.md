@@ -1,4 +1,68 @@
 ﻿# 变更记录
+- 时间：2026-07-03 23:16
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按实际内容行数动态计算 PRI、PA 分类、DTOA 分类结果行高度，并让 PRI 每行最多展示 6 个值。
+- 原因：用户反馈结果展示时单元格高度不足，PRI 和分类概率需要按实际结果完整展示。
+- 计划：
+  - [x] 将 PRI 结果格式化为每行最多 6 个值，超出后换行。
+  - [x] 根据单元格实际文本行数和当前字体行距动态设置 PRI、PA 分类、DTOA 分类行高。
+  - [x] 补充 PRI 换行与分类行高度自适应测试断言。
+  - [x] 执行语法校验与诊断检查。
+  - [x] 执行 `python -m py_compile ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py` 通过。
+  - [ ] 执行 `pytest tests/unit/test_analysis_result_card.py -q` 时环境缺少 PyQt6，收集阶段失败，需在具备 PyQt6 的环境复测。
+- 测试状态：[待测试]
+
+- 时间：2026-07-03 23:01
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：移除 PA/DTOA 分类概率行的预设固定高度，改为根据当前单元格内容自动调整表格高度。
+- 原因：用户要求不要预先设置多行单元格高度。
+- 计划：
+  - [x] 删除分类概率行固定高度常量与 `setRowHeight` 调用。
+  - [x] 在初始化、清空、刷新结果后调用 Qt 内容自适应行高逻辑。
+  - [x] 执行语法校验与诊断检查。
+- 测试状态：[已测试]
+
+- 时间：2026-07-03 22:59
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：恢复分析结果表格原有 9 行结构，将 PA/DTOA 各类别概率合并到原有分类单元格内展示。
+- 原因：用户要求不要修改表格行数，同种类别标签及其概率必须在一个单元格内展示。
+- 计划：
+  - [x] 恢复 `PA预测分类` 与 `DTOA预测分类` 原有行，移除新增概率行。
+  - [x] 将同一模型的 6 个类别名称与概率按换行文本写入对应分类结果单元格。
+  - [x] 增大分类概率行行高以完整显示单元格内多行内容，不改变表格行数。
+  - [x] 更新分析结果表格单元测试期望。
+  - [x] 执行 `python -m py_compile ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py` 通过。
+  - [ ] 执行 `pytest tests/unit/test_analysis_result_card.py -q` 时环境缺少 PyQt6，收集阶段失败，需在具备 PyQt6 的环境复测。
+- 测试状态：[待测试]
+
+- 时间：2026-07-03 22:50
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在识别完成与类别切换时刷新分析结果表格，直接复用识别结果中缓存的参数提取值和预测概率。
+- 原因：用户要求识别后更新参数表，切换不同类时同步刷新，且参数缓存不得在切换时重复提取。
+- 计划：
+  - [x] 扩展分析结果表格行结构，展示参数、实际类别名与各标签概率。
+  - [x] 在识别控制器类别刷新链路中同步更新或清空结果表格。
+  - [x] 补充表格格式化与缓存读取相关单元测试。
+  - [x] 执行 `python -m py_compile ui/components/analysis_result_card.py ui/controllers/identify_controller.py tests/unit/test_analysis_result_card.py` 通过。
+  - [ ] 执行 `pytest tests/unit/test_analysis_result_card.py -q` 时环境缺少 PyQt6，收集阶段失败，需在具备 PyQt6 的环境复测。
+- 测试状态：[待测试]
+
 - 时间：2026-07-02 11:15
 - 操作类型：[修改]
 - 影响文件：

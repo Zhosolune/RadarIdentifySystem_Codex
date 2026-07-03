@@ -521,6 +521,10 @@ class IdentifyController(QObject):
         for card in cards:
             card.set_image(empty_image)
 
+        # 清空右侧分析结果表格，避免无类别时残留上一次识别结果。
+        if hasattr(self.view, "analysis_result_card"):
+            self.view.analysis_result_card.clear_results()
+
     def _update_cluster_ui_with_bundle(
         self,
         bundle: RenderedImageBundle,
@@ -550,6 +554,10 @@ class IdentifyController(QObject):
             "DTOA": self.view.cluster_dtoa_card,
             "DOA": self.view.cluster_doa_card,
         }
+
+        # 使用识别阶段缓存的参数和概率刷新右侧表格，不在切换类别时重新提取。
+        if hasattr(self.view, "analysis_result_card"):
+            self.view.analysis_result_card.update_from_recognition(cluster_rec)
 
         # 遍历图像数据并更新卡片
         for dim_name, image_data in bundle.images.items():
