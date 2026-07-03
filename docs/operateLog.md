@@ -1,4 +1,62 @@
 # 变更记录
+- 时间：2026-07-04 04:44
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+- 变更摘要：`[<维度>] 二次识别完成` 恢复为“仅 DOA 拆分子簇通过/未通过”统计口径，并在 CF/PW 阶段结束前新增“阶段整体识别汇总”日志，覆盖聚类+DOA 复检后的全量识别结果。
+- 原因：用户希望二次识别汇总保留 DOA 子簇视角，同时又需要一条 CF/PW 维度级整体统计，明确反映“聚类+DOA”联合流程后最终通过/未通过的簇数量。
+- 计划：
+  - [x] `_append_doa_results_for_valid_clusters` 返回值扩展为 `(recycled, parent_kept, doa_passed, doa_failed)`。
+  - [x] `_process_cf_stage` 在合并 PW 输入前追加 `[CF] 阶段整体识别汇总` 日志，明细列出未拆分父簇 / DOA 拆分通过 / CF 一次未通过 / DOA 拆分未通过。
+  - [x] `_append_final_pw_results` 在末尾追加 `[PW] 阶段整体识别汇总` 日志，同格式输出。
+  - [x] `python -m py_compile core/identify_pipeline.py` 通过。
+- 测试状态：[待测试]
+
+# 变更记录
+- 时间：2026-07-04 04:39
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+- 变更摘要：修正 `[<维度>] 二次识别完成` 汇总口径为“CF/PW 阶段整体通过/未通过簇数量”，把未拆分父簇也计入通过总数。
+- 原因：先前实现只统计 DOA 拆分后二次识别通过/未通过的子簇，遗漏了未拆多子簇被直接保留的父簇，导致维度级最终簇总数与 UI/最终结果对不齐。
+- 计划：
+  - [x] `_append_doa_results_for_valid_clusters` 引入 `stage_passed_total` / `stage_failed_total`。
+  - [x] 未拆分父簇分支 +1 计入通过总数；DOA 拆分分支按二次识别结果累加通过/未通过子簇。
+  - [x] `python -m py_compile core/identify_pipeline.py` 通过。
+- 测试状态：[待测试]
+
+# 变更记录
+- 时间：2026-07-04 03:12
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+- 变更摘要：DOA 复检日志补齐 PA/DTOA 各类别概率与总结性预测结果，并新增维度级“二次识别完成”汇总。
+- 原因：原 DOA 子簇日志只输出单标签置信度，缺少完整概率分布，且 DOA 拆分保留多子簇时无法直观看到最终结果索引因二次识别通过/未通过产生的变化。
+- 计划：
+  - [x] 新增 `_format_conf_dict`，按类别升序输出置信度字典，避免日志顺序抖动。
+  - [x] 每个 DOA 子簇顺序输出 PA 各类别概率、DTOA 各类别概率、总结性预测结果三行日志。
+  - [x] 每个维度 DOA 复检结束时新增 `[<维度>] 二次识别完成：识别通过=x，识别未通过=y` 汇总。
+  - [x] `python -m py_compile core/identify_pipeline.py` 通过。
+- 测试状态：[待测试]
+
+# 变更记录
+- 时间：2026-07-04 02:54
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\recognition.py`
+- 变更摘要：为 CF/PW/DOA 级联识别流程补充分层缩进日志，DOA 子簇预测不再与父簇编号混淆，限幅前后与点数变化清晰可读。
+- 原因：原实现中 CF/PW/DOA 三次调用 `_recognize_clusters` 会共用簇编号，日志里出现总数超过 CF/PW 簇数的“簇 N 预测结果”，无法辨认哪些是 DOA 子簇；也缺失限幅前后点数、DOA 拆分数量等关键指标。
+- 计划：
+  - [x] `core/recognition.py`：`recognize_clusters` / `recognize_clusters_parallel` 增加 `write_summary_log` 参数，用于在 DOA 复检时关闭内置的“簇 N (维度) 预测结果”汇总日志。
+  - [x] `core/identify_pipeline.py`：新增模块 logger，`identify_slice` 输出切片入口/收尾统计。
+  - [x] `_process_cf_stage` / `_process_pw_stage`：输出各维度输入点数、候选簇总数、每簇点数、一次识别通过/未通过统计以及进入下一阶段的候选点组成。
+  - [x] `_append_doa_results_for_valid_clusters`：按父簇分块输出“父簇 X 进入 DOA 复检”，并以 `子簇 N (DOA)` 前缀记录父簇/点数/PA/DTOA 预测结果，最终小结子簇通过/未通过与回收点数量。
+  - [x] `_cluster_doa_children`：输出 DOA 拆分子簇原始数量、限幅阈值、限幅前每子簇点数与限幅后保留子簇点数。
+  - [x] `python -m py_compile` 校验 core/identify_pipeline.py 与 core/recognition.py 通过。
+- 测试状态：[待测试]
+
+# 变更记录
 - 时间：2026-07-04 00:37
 - 操作类型：[重构]
 - 影响文件：

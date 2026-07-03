@@ -251,7 +251,8 @@ def recognize_clusters(
     clusters: list[ClusterItem],
     inference_service: InferenceService,
     params: RecognitionParams,
-    start_valid_idx: int
+    start_valid_idx: int,
+    write_summary_log: bool = True,
 ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
     """对一组簇执行识别。
     
@@ -264,6 +265,8 @@ def recognize_clusters(
         inference_service: 注入的推理服务。
         params: 识别判定参数。
         start_valid_idx: 当前有效簇的起始索引。
+        write_summary_log: 是否输出内置的“簇 X (维度) 预测结果”汇总日志，
+            默认 True；DOA 复检等由上层重排缩进日志的场景可传 False 关闭。
 
     Returns:
         (有效簇列表, 无效簇列表, 识别记录列表, 下一个可用的有效簇索引)
@@ -280,7 +283,7 @@ def recognize_clusters(
     return _materialize_recognition_outcomes(
         outcomes,
         start_valid_idx=start_valid_idx,
-        write_summary_log=True,
+        write_summary_log=write_summary_log,
     )
 
 
@@ -290,6 +293,7 @@ def recognize_clusters_parallel(
     params: RecognitionParams,
     start_valid_idx: int,
     max_workers: int | None = None,
+    write_summary_log: bool = True,
 ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
     """并发识别一组簇，并按输入顺序稳定汇总结果。
 
@@ -303,6 +307,8 @@ def recognize_clusters_parallel(
         params: 识别判定参数。
         start_valid_idx: 当前有效簇的起始索引。
         max_workers: 并发线程数上限；为 None 时自动按簇数量与 CPU 数推导。
+        write_summary_log: 是否输出内置的“簇 X (维度) 预测结果”汇总日志，
+            默认 True；DOA 复检等由上层重排缩进日志的场景可传 False 关闭。
 
     Returns:
         tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
@@ -318,6 +324,7 @@ def recognize_clusters_parallel(
             inference_service,
             params,
             start_valid_idx,
+            write_summary_log=write_summary_log,
         )
 
     ordered_outcomes: list[_ClusterRecognitionOutcome | None] = [None] * len(clusters)
@@ -342,5 +349,5 @@ def recognize_clusters_parallel(
     return _materialize_recognition_outcomes(
         [outcome for outcome in ordered_outcomes if outcome is not None],
         start_valid_idx=start_valid_idx,
-        write_summary_log=True,
+        write_summary_log=write_summary_log,
     )

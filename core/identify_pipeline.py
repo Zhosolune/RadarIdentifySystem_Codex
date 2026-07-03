@@ -13,6 +13,7 @@ Example:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -30,6 +31,9 @@ from core.recognition import InferenceService, recognize_clusters_parallel
 # 阶段常量，供上层在异常时判定失败归属。
 PHASE_CLUSTERING = "clustering"
 PHASE_RECOGNITION = "recognition"
+
+# 模块日志器，用于输出识别流程的分层缩进日志。
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -113,10 +117,22 @@ def identify_slice(
     points = slice_data.data
     # 空切片直接返回空结果，避免后续聚类函数对空矩阵做无意义处理。
     if len(points) == 0:
+        LOGGER.info(
+            "切片 %s 输入点集为空，跳过识别流程",
+            slice_data.index,
+        )
         return (
             SliceClusterResult(slice_data.index, [], np.array([]), np.array([])),
             SliceRecognitionResult(slice_data.index, [], []),
         )
+
+    # 记录切片入口概览，标出总点数和时间范围。
+    LOGGER.info(
+        "切片 %s 识别流程启动，总点数=%d，时间范围=%s",
+        slice_data.index,
+        len(points),
+        slice_data.time_range,
+    )
 
     # 创建结果装配器，统一维护最终 cluster_idx、识别记录和回收点索引。
     builder = IdentifyResultBuilder(extract_params)
@@ -146,6 +162,16 @@ def identify_slice(
         start_cluster_id=next_cluster_id,
     )
 
+    # 输出切片级最终统计，便于快速对齐 UI 显示的最终簇总数。
+    LOGGER.info(
+        "切片 %s 识别流程结束：最终簇=%d（有效=%d，无效=%d），回收点=%d",
+        slice_data.index,
+        len(builder.clusters) + 1,
+        len(builder.valid_recognitions),
+        len(builder.invalid_recognitions),
+        len(builder.recycled_indices),
+    )
+
     return _build_slice_results(
         slice_index=slice_data.index,
         points=points,
@@ -167,6 +193,7 @@ def _process_cf_stage(
     """执行 CF 聚类、一次识别和 CF-DOA 复检。"""
     # 进入 CF 聚类阶段，后续若失败则可明确标记为 clustering 阶段失败。
     context.enter_clustering()
+    LOGGER.info("[CF] 阶段开始，输入点数=%d", len(points))
     cf_clusters, cf_unprocessed_idx = process_dimension_clustering(
         points=points,
         dim_name="CF",
@@ -178,6 +205,18 @@ def _process_cf_stage(
         time_range=time_range,
         start_cluster_id=start_cluster_id,
     )
+    # 记录 CF 聚类的簇数量、每簇点数和噪声点数，便于对齐 UI 展示。
+    LOGGER.info(
+        "[CF] 聚类结果：%d 个候选簇，未聚类点=%d",
+        len(cf_clusters),
+        len(cf_unprocessed_idx),
+    )
+    for cluster in cf_clusters:
+        LOGGER.info(
+            "  ├─ CF 簇 %d：点数=%d",
+            cluster.cluster_idx,
+            cluster.cluster_size,
+        )
     # 预留下一阶段起始簇编号，避免 PW 阶段沿用已分配的临时编号。
     next_cluster_id = start_cluster_id + len(cf_clusters)
     # 对 CF 聚类结果做第一次识别，区分有效簇与无效簇。
@@ -188,8 +227,18 @@ def _process_cf_stage(
         start_index=len(builder.valid_recognitions),
         context=context,
     )
+    LOGGER.info(
+        "[CF] 一次识别完成：识别通过=%d，识别未通过=%d",
+        len(cf_valid),
+        len(cf_invalid),
+    )
     # 对 CF 一次识别通过的簇继续做 DOA 复检，并回收 DOA 失败子簇点。
-    cf_doa_recycled_indices = _append_doa_results_for_valid_clusters(
+    (
+        cf_doa_recycled_indices,
+        cf_parent_kept,
+        cf_doa_passed,
+        cf_doa_failed,
+    ) = _append_doa_results_for_valid_clusters(
         builder=builder,
         valid_clusters=cf_valid,
         source_recognition_map=_recognition_map(cf_recognitions),
@@ -198,12 +247,34 @@ def _process_cf_stage(
         recognize_params=recognize_params,
         context=context,
         recycle_failed_children=True,
+        parent_dim_name="CF",
+    )
+    # CF 阶段整体汇总：把 CF 一次识别失败簇、未拆分父簇（直接保留）与 DOA 拆分后的子簇合并计数，
+    # 反映 CF 聚类 + DOA 复检后经过识别的最终簇数量。
+    cf_stage_passed_total = cf_parent_kept + cf_doa_passed
+    cf_stage_failed_total = len(cf_invalid) + cf_doa_failed
+    LOGGER.info(
+        "[CF] 阶段整体识别汇总：识别通过=%d（未拆分父簇=%d + DOA 拆分通过=%d），"
+        "识别未通过=%d（CF 一次未通过=%d + DOA 拆分未通过=%d）",
+        cf_stage_passed_total,
+        cf_parent_kept,
+        cf_doa_passed,
+        cf_stage_failed_total,
+        len(cf_invalid),
+        cf_doa_failed,
     )
     # 合并 CF 阶段未走通的所有点，作为 PW 阶段的输入。
     pw_input_indices = _merge_pw_input_indices(
         cf_unprocessed_idx=cf_unprocessed_idx,
         cf_invalid_clusters=cf_invalid,
         cf_doa_recycled_indices=cf_doa_recycled_indices,
+    )
+    LOGGER.info(
+        "[CF] 阶段结束，进入 PW 阶段的候选点=%d（CF 未聚类=%d + CF 无效簇点=%d + CF-DOA 回收=%d）",
+        len(pw_input_indices),
+        len(cf_unprocessed_idx),
+        sum(cluster.cluster_size for cluster in cf_invalid),
+        len(cf_doa_recycled_indices),
     )
     return next_cluster_id, pw_input_indices
 
@@ -223,13 +294,15 @@ def _process_pw_stage(
     """执行 PW 聚类、一次识别和 PW-DOA 复检。"""
     # 如果 CF 阶段已经吃掉全部有效点，则无需再进入 PW。
     if len(pw_input_indices) == 0:
+        LOGGER.info("[PW] 阶段跳过：CF 阶段已消化全部有效点")
         return
 
     # 从原始切片点集中抽取 PW 需要继续处理的子集。
     pw_points = points[pw_input_indices]
     # 标记重新进入聚类阶段，便于异常时区分失败来源。
     context.enter_clustering()
-    pw_clusters, _ = process_dimension_clustering(
+    LOGGER.info("[PW] 阶段开始，输入点数=%d", len(pw_points))
+    pw_clusters, pw_unprocessed_idx = process_dimension_clustering(
         points=pw_points,
         dim_name="PW",
         dim_idx=1,
@@ -243,6 +316,17 @@ def _process_pw_stage(
     for cluster in pw_clusters:
         # PW 输入是回收点子集，需要把局部索引映射回原始切片数据索引。
         cluster.points_indices = pw_input_indices[cluster.points_indices]
+    LOGGER.info(
+        "[PW] 聚类结果：%d 个候选簇，未聚类点=%d",
+        len(pw_clusters),
+        len(pw_unprocessed_idx),
+    )
+    for cluster in pw_clusters:
+        LOGGER.info(
+            "  ├─ PW 簇 %d：点数=%d",
+            cluster.cluster_idx,
+            cluster.cluster_size,
+        )
 
     # 对 PW 聚类结果做一次识别，后续再按原始 PW 顺序处理最终输出。
     pw_valid, pw_invalid, pw_recognitions, _ = _recognize_clusters(
@@ -251,6 +335,11 @@ def _process_pw_stage(
         recognize_params=recognize_params,
         start_index=len(builder.valid_recognitions),
         context=context,
+    )
+    LOGGER.info(
+        "[PW] 一次识别完成：识别通过=%d，识别未通过=%d",
+        len(pw_valid),
+        len(pw_invalid),
     )
     _append_final_pw_results(
         builder=builder,
@@ -263,6 +352,7 @@ def _process_pw_stage(
         recognize_params=recognize_params,
         context=context,
     )
+    LOGGER.info("[PW] 阶段结束")
 
 
 def _merge_pw_input_indices(
@@ -297,6 +387,10 @@ def _append_final_pw_results(
     pw_rec_map = _recognition_map(pw_recognitions)
     pw_valid_map = {cluster.cluster_idx: cluster for cluster in pw_valid}
     pw_invalid_map = {cluster.cluster_idx: cluster for cluster in pw_invalid}
+    # 累计 PW 阶段整体识别汇总所需的通过/未通过计数。
+    pw_parent_kept_total = 0
+    pw_doa_passed_total = 0
+    pw_doa_failed_total = 0
     # 按 PW 聚类原始编号顺序输出，保持“展示全部聚类结果”时的浏览顺序稳定。
     for cluster in sorted(pw_clusters, key=lambda item: item.cluster_idx):
         if cluster.cluster_idx in pw_invalid_map:
@@ -311,7 +405,12 @@ def _append_final_pw_results(
             # 忽略没有识别记录的异常分支，避免污染最终输出。
             continue
         # PW 识别通过簇仍需执行 DOA 检查，保持 CF/PW 两段流程对称。
-        pw_doa_recycled = _append_doa_results_for_valid_clusters(
+        (
+            pw_doa_recycled,
+            pw_parent_kept,
+            pw_doa_passed,
+            pw_doa_failed,
+        ) = _append_doa_results_for_valid_clusters(
             builder=builder,
             valid_clusters=[valid_cluster],
             source_recognition_map=pw_rec_map,
@@ -320,8 +419,27 @@ def _append_final_pw_results(
             recognize_params=recognize_params,
             context=context,
             recycle_failed_children=False,
+            parent_dim_name="PW",
         )
         builder.recycled_indices.update(pw_doa_recycled)
+        # 汇总本父簇的 PW 阶段通过/未通过计数。
+        pw_parent_kept_total += pw_parent_kept
+        pw_doa_passed_total += pw_doa_passed
+        pw_doa_failed_total += pw_doa_failed
+
+    # PW 阶段整体识别汇总：包含 PW 一次识别失败簇、未拆分父簇与 DOA 拆分后的子簇。
+    pw_stage_passed_total = pw_parent_kept_total + pw_doa_passed_total
+    pw_stage_failed_total = len(pw_invalid) + pw_doa_failed_total
+    LOGGER.info(
+        "[PW] 阶段整体识别汇总：识别通过=%d（未拆分父簇=%d + DOA 拆分通过=%d），"
+        "识别未通过=%d（PW 一次未通过=%d + DOA 拆分未通过=%d）",
+        pw_stage_passed_total,
+        pw_parent_kept_total,
+        pw_doa_passed_total,
+        pw_stage_failed_total,
+        len(pw_invalid),
+        pw_doa_failed_total,
+    )
 
 
 def _append_doa_results_for_valid_clusters(
@@ -333,9 +451,21 @@ def _append_doa_results_for_valid_clusters(
     recognize_params: RecognitionParams,
     context: IdentifyPipelineContext,
     recycle_failed_children: bool,
-) -> set[int]:
-    """对一次识别通过的簇执行 DOA 复检并追加最终结果。"""
+    parent_dim_name: str,
+) -> tuple[set[int], int, int, int]:
+    """对一次识别通过的簇执行 DOA 复检并追加最终结果。
+
+    Returns:
+        tuple[set[int], int, int, int]: 依次为 CF-DOA 回收点索引集合、
+        未拆多子簇被直接保留为最终有效的父簇数、DOA 拆分后二次识别通过的子簇数、
+        DOA 拆分后二次识别未通过的子簇数。
+    """
     recycled_indices: set[int] = set()
+    # 累计当前维度下 DOA 二次识别通过与未通过的子簇数量。
+    doa_valid_total = 0
+    doa_invalid_total = 0
+    # 未拆多子簇的父簇个数，供上层汇总"最终通过簇数"使用。
+    parent_kept_as_valid = 0
     # 按当前簇编号顺序处理，保持最终编号分配和 UI 浏览顺序稳定。
     for cluster in sorted(valid_clusters, key=lambda item: item.cluster_idx):
         source_rec = source_recognition_map.get(cluster.cluster_idx)
@@ -343,25 +473,78 @@ def _append_doa_results_for_valid_clusters(
             # 没有找到一次识别记录时，跳过该簇以避免构造不完整最终结果。
             continue
 
+        LOGGER.info(
+            "[%s→DOA] 父簇 %d 进入 DOA 复检：父簇点数=%d",
+            parent_dim_name,
+            cluster.cluster_idx,
+            cluster.cluster_size,
+        )
         # 基于父簇点集再次执行 DOA 聚类，判断是否存在需要拆分的方位子类。
-        doa_children = _cluster_doa_children(cluster, cluster_params, context)
+        doa_children = _cluster_doa_children(
+            cluster,
+            cluster_params,
+            context,
+            parent_dim_name=parent_dim_name,
+        )
         if len(doa_children) <= 1:
             # 未拆出多个子簇时，保留父簇作为最终有效结果。
+            LOGGER.info(
+                "  └─ %s 父簇 %d 未拆出多子簇（DOA 子簇数=%d），保留父簇为最终有效",
+                parent_dim_name,
+                cluster.cluster_idx,
+                len(doa_children),
+            )
             builder.append_valid(cluster, source_rec)
+            # 记录未拆分父簇数量，供上层汇总维度整体通过簇数使用。
+            parent_kept_as_valid += 1
             continue
 
         for offset, child in enumerate(doa_children):
             # 临时索引用于本轮复识别结果映射，最终追加时会重新分配连续索引。
             child.cluster_idx = builder.next_cluster_id + offset
-        # 对拆出的 DOA 子簇再次识别，筛选真正保留的最终子簇。
+        # 对拆出的 DOA 子簇再次识别，筛选真正保留的最终子簇；关闭内置日志改由本层缩进输出。
         doa_valid, doa_invalid, doa_recognitions, _ = _recognize_clusters(
             clusters=doa_children,
             inference_service=inference_service,
             recognize_params=recognize_params,
             start_index=len(builder.valid_recognitions),
             context=context,
+            write_summary_log=False,
         )
         doa_rec_map = _recognition_map(doa_recognitions)
+        # 输出 DOA 子簇的预测结果，缩进体现从父簇继承的关系。
+        for child_offset, child in enumerate(doa_children, start=1):
+            rec = doa_rec_map.get(child.cluster_idx)
+            if rec is None:
+                LOGGER.info(
+                    "  ├─ 子簇 %d (DOA)：点数=%d，识别记录缺失",
+                    child_offset,
+                    child.cluster_size,
+                )
+                continue
+            # 先输出 PA 各类别概率，保留完整分布便于溯源模型判定过程。
+            LOGGER.info(
+                "  ├─ 子簇 %d (DOA)：父簇=%s#%d，点数=%d，PA 各类别概率=%s",
+                child_offset,
+                parent_dim_name,
+                cluster.cluster_idx,
+                child.cluster_size,
+                _format_conf_dict(rec.pa_conf_dict),
+            )
+            # 再输出 DTOA 各类别概率，与 PA 对齐同一子簇的两组分布。
+            LOGGER.info(
+                "  │   ├─ DTOA 各类别概率=%s",
+                _format_conf_dict(rec.dtoa_conf_dict),
+            )
+            # 最后输出总结性预测结果，方便快速识别 label 与置信度。
+            LOGGER.info(
+                "  │   └─ 预测结果 PA=%d(%.4f), DTOA=%d(%.4f)，识别%s",
+                rec.pa_label,
+                rec.pa_confidence,
+                rec.dtoa_label,
+                rec.dtoa_confidence,
+                "通过" if rec.is_valid else "未通过",
+            )
         for child in doa_valid:
             rec = doa_rec_map.get(child.cluster_idx)
             if rec is not None:
@@ -382,18 +565,66 @@ def _append_doa_results_for_valid_clusters(
             # 同步记录回收点，避免这些点再被误算成“未处理点”。
             recycled_indices.update(int(index) for index in child.points_indices)
 
-    return recycled_indices
+        # 累加当前父簇的 DOA 通过/未通过统计，供维度级二次识别汇总。
+        doa_valid_total += len(doa_valid)
+        doa_invalid_total += len(doa_invalid)
+
+        LOGGER.info(
+            "  └─ %s 父簇 %d 复检小结：DOA 子簇通过=%d，未通过=%d，回收点=%d",
+            parent_dim_name,
+            cluster.cluster_idx,
+            len(doa_valid),
+            len(doa_invalid),
+            sum(int(child.cluster_size) for child in doa_invalid) if recycle_failed_children else 0,
+        )
+
+    # 输出维度级二次识别汇总，仅统计 DOA 拆分后再次识别的子簇通过/未通过。
+    LOGGER.info(
+        "[%s] 二次识别完成：识别通过=%d，识别未通过=%d",
+        parent_dim_name,
+        doa_valid_total,
+        doa_invalid_total,
+    )
+
+    return recycled_indices, parent_kept_as_valid, doa_valid_total, doa_invalid_total
+
+
+def _format_conf_dict(conf_dict: dict[int, float]) -> str:
+    """将各类别置信度字典格式化为稳定顺序的字符串。
+
+    Args:
+        conf_dict [dict[int, float]]: 类别标签到置信度的映射。
+
+    Returns:
+        str: 形如 ``"{0: 0.1234, 1: 0.5678}"`` 的字符串，按标签升序输出。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> _format_conf_dict({1: 0.7, 0: 0.3})
+        '{0: 0.3000, 1: 0.7000}'
+    """
+    if not conf_dict:
+        # 空字典时输出占位符，避免日志出现空花括号引发歧义。
+        return "{}"
+    # 按类别标签升序输出，保证多次运行日志顺序稳定。
+    formatted = ", ".join(
+        f"{label}: {conf_dict[label]:.4f}" for label in sorted(conf_dict)
+    )
+    return "{" + formatted + "}"
 
 
 def _cluster_doa_children(
     parent_cluster: ClusterItem,
     cluster_params: ClusteringParams,
     context: IdentifyPipelineContext,
+    parent_dim_name: str = "",
 ) -> list[ClusterItem]:
     """复用核心单维聚类函数生成 DOA 子簇。"""
     # DOA 子簇生成仍属于聚类阶段，异常时需要按 clustering 归类。
     context.enter_clustering()
-    doa_clusters, _ = process_dimension_clustering(
+    doa_clusters, doa_unprocessed = process_dimension_clustering(
         points=parent_cluster.points,
         dim_name="DOA",
         dim_idx=COL_DOA,
@@ -407,11 +638,43 @@ def _cluster_doa_children(
     for cluster in doa_clusters:
         # DOA 聚类输入是父簇点集，需要把局部索引映射回原始切片数据索引。
         cluster.points_indices = parent_cluster.points_indices[cluster.points_indices]
-    return clip_doa_clusters_by_size(
+    # 记录 DOA 聚类原始输出与限幅前每个子簇点数，供后续对齐限幅前后差异。
+    LOGGER.info(
+        "  ├─ [%s→DOA] 父簇 %d 聚类：拆出子簇=%d，未聚类点=%d，父簇点数=%d",
+        parent_dim_name or parent_cluster.dim_name,
+        parent_cluster.cluster_idx,
+        len(doa_clusters),
+        len(doa_unprocessed),
+        len(parent_cluster.points),
+    )
+    for offset, cluster in enumerate(doa_clusters, start=1):
+        LOGGER.info(
+            "  │   ├─ 限幅前 DOA 子簇 %d：点数=%d",
+            offset,
+            cluster.cluster_size,
+        )
+    kept_clusters = clip_doa_clusters_by_size(
         clusters=doa_clusters,
         total_points=len(parent_cluster.points),
         clip_threshold_percent=cluster_params.clip_threshold_doa,
     )
+    # 记录限幅后的保留结果，便于对比限幅规则的实际生效情况。
+    dropped = len(doa_clusters) - len(kept_clusters)
+    LOGGER.info(
+        "  ├─ [%s→DOA] 父簇 %d 限幅：阈值=%.2f%%，保留子簇=%d，丢弃=%d",
+        parent_dim_name or parent_cluster.dim_name,
+        parent_cluster.cluster_idx,
+        cluster_params.clip_threshold_doa,
+        len(kept_clusters),
+        dropped,
+    )
+    for offset, cluster in enumerate(kept_clusters, start=1):
+        LOGGER.info(
+            "  │   ├─ 保留 DOA 子簇 %d：点数=%d",
+            offset,
+            cluster.cluster_size,
+        )
+    return kept_clusters
 
 
 def _recognize_clusters(
@@ -420,6 +683,7 @@ def _recognize_clusters(
     recognize_params: RecognitionParams,
     start_index: int,
     context: IdentifyPipelineContext,
+    write_summary_log: bool = True,
 ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
     """执行簇识别并在首次识别前触发上下文识别阶段回调。"""
     # 标记当前进入识别阶段，供上层在失败时区分状态写回。
@@ -429,6 +693,7 @@ def _recognize_clusters(
         inference_service,
         recognize_params,
         start_index,
+        write_summary_log=write_summary_log,
     )
 
 
