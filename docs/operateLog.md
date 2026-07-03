@@ -1,4 +1,36 @@
-﻿# 变更记录
+# 变更记录
+- 时间：2026-07-03 23:44
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：补齐分析结果表格组件中辅助函数的 docstring 参数、返回值、异常和示例说明。
+- 原因：用户指出此前只补充单个函数文档，未覆盖同文件内其他函数的注释文档规范。
+- 计划：
+  - [x] 为字体、表头绘制、表格初始化、行高计算和结果写入函数补充 Args、Returns、Raises。
+  - [x] 为数值格式化、概率格式化和四舍五入辅助函数补充可运行示例。
+  - [x] 保持业务逻辑不变，仅完善文档与注释说明。
+  - [x] 执行诊断与语法校验。
+  - [x] 执行 `python -m py_compile ui/components/analysis_result_card.py` 通过。
+  - [ ] 执行 `pytest tests/unit/test_analysis_result_card.py -q` 时环境缺少 PyQt6，收集阶段失败，需在具备 PyQt6 的环境复测。
+- 测试状态：[待测试]
+
+- 时间：2026-07-03 23:35
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：精简分析结果表格构建函数签名，由识别结果对象内部读取参数缓存。
+- 原因：`ExtractedClusterParams` 已包含在 `ClusterRecognition.extracted_params` 中，单独显式传参会造成重复表达。
+- 计划：
+  - [x] 移除 `_build_result_values` 的 `params` 显式参数。
+  - [x] 在 `_build_result_values` 内部读取 `recognition.extracted_params` 并使用空参数对象兜底。
+  - [x] 补充函数 docstring，说明只消费缓存、不做重复提取。
+  - [x] 执行诊断与语法校验。
+  - [x] 执行 `python -m py_compile ui/components/analysis_result_card.py` 通过。
+  - [ ] 执行 `pytest tests/unit/test_analysis_result_card.py -q` 时环境缺少 PyQt6，收集阶段失败，需在具备 PyQt6 的环境复测。
+- 测试状态：[待测试]
+
 - 时间：2026-07-03 23:16
 - 操作类型：[修改]
 - 影响文件：

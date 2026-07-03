@@ -37,7 +37,18 @@ ANALYSIS_FONT_FAMILIES: list[str] = ["Microsoft YaHei", "Microsoft YaHei UI"]
 
 
 def _analysis_font(pixel_size: int, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
-    """创建分析结果表格专用微软雅黑字体。"""
+    """创建分析结果表格专用微软雅黑字体。
+
+    Args:
+        pixel_size: 字体像素大小，必须为正整数。
+        weight: 字体粗细，默认使用常规字重。
+
+    Returns:
+        QFont: 已设置微软雅黑字体族的字体对象。
+
+    Raises:
+        无显式抛出异常。
+    """
     font = getFont(pixel_size, weight)
     # 统一使用微软雅黑字体族，避免中英数字混排时风格漂移。
     font.setFamilies(ANALYSIS_FONT_FAMILIES)
@@ -83,7 +94,19 @@ class RoundedAnalysisHeaderView(QHeaderView):
         qconfig.themeChanged.connect(self.viewport().update)
 
     def paintSection(self, painter: QPainter, rect: QRect, logicalIndex: int) -> None:
-        """绘制单个表头分区，并仅在首尾分区绘制整体圆角。"""
+        """绘制单个表头分区，并仅在首尾分区绘制整体圆角。
+
+        Args:
+            painter: Qt 绘图器，由表头视图绘制流程传入。
+            rect: 当前表头分区绘制区域，无效时直接跳过。
+            logicalIndex: 当前表头分区的逻辑索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
         if not rect.isValid():
             return
 
@@ -101,7 +124,18 @@ class RoundedAnalysisHeaderView(QHeaderView):
         painter.restore()
 
     def _section_path(self, rect: QRect, logical_index: int) -> QPainterPath:
-        """返回当前表头分区的绘制路径。"""
+        """返回当前表头分区的绘制路径。
+
+        Args:
+            rect: 当前表头分区的矩形区域。
+            logical_index: 当前表头分区逻辑索引，用于判断是否绘制圆角。
+
+        Returns:
+            QPainterPath: 用于填充和描边的表头分区路径。
+
+        Raises:
+            无显式抛出异常。
+        """
         path = QPainterPath()
         radius = float(self.corner_radius)
         adjusted_rect = QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5)
@@ -132,7 +166,17 @@ class RoundedAnalysisHeaderView(QHeaderView):
         return path
 
     def _section_text(self, logical_index: int) -> str:
-        """返回指定表头分区的展示文本。"""
+        """返回指定表头分区的展示文本。
+
+        Args:
+            logical_index: 表头分区逻辑索引。
+
+        Returns:
+            str: 表头模型中的展示文本；模型为空时返回空字符串。
+
+        Raises:
+            无显式抛出异常。
+        """
         model = self.model()
         if model is None:
             return ""
@@ -199,14 +243,34 @@ class AnalysisResultCard(SimpleCardWidget):
         self._init_table()
 
     def _init_layout(self) -> None:
-        """初始化卡片内部布局。"""
+        """初始化卡片内部布局。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(0)
         layout.addWidget(self.table)
 
     def _init_table(self) -> None:
-        """初始化表格列、表头和默认行数据。"""
+        """初始化表格列、表头和默认行数据。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
         self.table.setColumnCount(2)
         self.table.setRowCount(len(self.ROW_LABELS))
         self.table.setHorizontalHeaderLabels(["雷达信号", "分析结果"])
@@ -248,7 +312,17 @@ class AnalysisResultCard(SimpleCardWidget):
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def _create_centered_item(self, text: str) -> QTableWidgetItem:
-        """创建居中并带 14px 微软雅黑字体的表格内容项。"""
+        """创建居中并带 14px 微软雅黑字体的表格内容项。
+
+        Args:
+            text: 表格单元格初始文本。
+
+        Returns:
+            QTableWidgetItem: 已设置字体和居中对齐方式的单元格项。
+
+        Raises:
+            无显式抛出异常。
+        """
         item = QTableWidgetItem(text)
         item.setFont(_analysis_font(14))
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -302,15 +376,27 @@ class AnalysisResultCard(SimpleCardWidget):
             self.clear_results()
             return
 
-        # 读取识别阶段已缓存的参数，禁止在 UI 切换时重新提取。
-        params = recognition.extracted_params or ExtractedClusterParams()
-        row_values = self._build_result_values(recognition, params)
+        # 构建结果文本，参数值从识别缓存中读取。
+        row_values = self._build_result_values(recognition)
         for row, value in enumerate(row_values):
             self._set_result_text(row, value)
         self._adjust_table_height_to_contents()
 
     def _adjust_table_height_to_contents(self) -> None:
-        """按当前单元格内容自动调整表格高度。"""
+        """按当前单元格内容自动调整表格高度。
+
+        先使用 Qt 默认内容尺寸计算基础行高，再根据 PRI、PA 分类和 DTOA 分类
+        三个可能包含多行文本的结果行补足高度，最后同步表格整体固定高度。
+
+        Args:
+            无。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
         # 先交给 Qt 根据普通内容计算基础行高。
         self.table.resizeRowsToContents()
         # 再按多行文本行数补足关键单元格高度，避免多行概率或 PRI 被裁剪。
@@ -323,7 +409,17 @@ class AnalysisResultCard(SimpleCardWidget):
         self.table.setFixedHeight(table_height)
 
     def _adjust_row_height_by_text(self, label: str) -> None:
-        """根据指定指标行的实际文本行数设置当前行高度。"""
+        """根据指定指标行的实际文本行数设置当前行高度。
+
+        Args:
+            label: `ROW_LABELS` 中存在的指标名称。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当 `label` 不在 `ROW_LABELS` 中时由 `tuple.index` 抛出。
+        """
         row = self.ROW_LABELS.index(label)
         line_count = self._row_text_line_count(row)
         item = self.table.item(row, self._result_column) or self.table.item(row, 0)
@@ -340,7 +436,17 @@ class AnalysisResultCard(SimpleCardWidget):
             self.table.setRowHeight(row, target_height)
 
     def _row_text_line_count(self, row: int) -> int:
-        """返回指定行左右单元格中的最大文本行数。"""
+        """返回指定行左右单元格中的最大文本行数。
+
+        Args:
+            row: 需要统计文本行数的表格行索引，必须位于当前表格行范围内。
+
+        Returns:
+            int: 指定行左右单元格文本行数的最大值，空文本按 1 行计算。
+
+        Raises:
+            无显式抛出异常。
+        """
         line_counts: list[int] = []
         for column in range(self.table.columnCount()):
             item = self.table.item(row, column)
@@ -352,9 +458,29 @@ class AnalysisResultCard(SimpleCardWidget):
     def _build_result_values(
         self,
         recognition: ClusterRecognition,
-        params: ExtractedClusterParams,
     ) -> list[str]:
-        """构建当前识别记录对应的表格结果列文本。"""
+        """构建当前识别记录对应的表格结果列文本。
+
+        该方法只消费识别阶段已经写入 `ClusterRecognition` 的缓存结果，
+        不执行任何参数提取算法，避免 UI 类别切换时重复计算。
+
+        Args:
+            recognition: 当前类别的识别结果，需包含标签、概率和可选参数缓存。
+
+        Returns:
+            list[str]: 与 `ROW_LABELS` 一一对应的结果列文本列表。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> rec = ClusterRecognition(0, "CF", 1, 0, 0, 0.9, 0, 0.8, True)
+            >>> card = object.__new__(AnalysisResultCard)
+            >>> len(card._build_result_values(rec)) == len(AnalysisResultCard.ROW_LABELS)
+            True
+        """
+        # 读取参数缓存，缺失时使用空值对象兜底。
+        params = recognition.extracted_params or ExtractedClusterParams()
         return [
             self._format_numeric_values(params.cf_values, decimal_places=0),
             self._format_numeric_values(params.pw_values, decimal_places=1),
@@ -372,7 +498,18 @@ class AnalysisResultCard(SimpleCardWidget):
         ]
 
     def _set_result_text(self, row: int, text: str) -> None:
-        """设置指定行的结果列文本。"""
+        """设置指定行的结果列文本。
+
+        Args:
+            row: 需要写入结果的表格行索引。
+            text: 结果列展示文本，可包含换行符。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
         item = self.table.item(row, self._result_column)
         if item is None:
             # 补建结果项，避免外部测试或异常状态下空指针。
@@ -386,7 +523,23 @@ class AnalysisResultCard(SimpleCardWidget):
         decimal_places: int,
         values_per_line: int | None = None,
     ) -> str:
-        """按指定小数位格式化参数列表。"""
+        """按指定小数位格式化参数列表。
+
+        Args:
+            values: 需要格式化的参数值列表。
+            decimal_places: 保留的小数位数，0 表示格式化为整数。
+            values_per_line: 每行最多展示的值数量；为 None 或非正数时不主动换行。
+
+        Returns:
+            str: 使用顿号连接的格式化文本；需要分行时使用换行符分隔。
+
+        Raises:
+            decimal.InvalidOperation: 当输入值无法转换为有效 Decimal 时可能抛出。
+
+        Example:
+            >>> AnalysisResultCard._format_numeric_values([1.25, 2.25], 1)
+            '1.3、2.3'
+        """
         if not values:
             return ""
 
@@ -407,7 +560,21 @@ class AnalysisResultCard(SimpleCardWidget):
 
     @staticmethod
     def _format_probability(value: float) -> str:
-        """格式化概率值，零概率直接显示 0。"""
+        """格式化概率值，零概率直接显示 0。
+
+        Args:
+            value: 需要格式化的概率值，通常范围为 0 到 1。
+
+        Returns:
+            str: 保留四位小数的概率文本；四舍五入后为 0 时返回 `0`。
+
+        Raises:
+            decimal.InvalidOperation: 当输入值无法转换为有效 Decimal 时可能抛出。
+
+        Example:
+            >>> AnalysisResultCard._format_probability(0.12345)
+            '0.1235'
+        """
         rounded = AnalysisResultCard._rounded_decimal(value, decimal_places=4)
         if rounded == Decimal("0"):
             return "0"
@@ -418,7 +585,22 @@ class AnalysisResultCard(SimpleCardWidget):
         probabilities: dict[int, float],
         label_names: dict[int, str],
     ) -> str:
-        """把同一模型的类别名称和概率合并为单元格多行文本。"""
+        """把同一模型的类别名称和概率合并为单元格多行文本。
+
+        Args:
+            probabilities: 标签到概率值的映射，缺失标签按 0 展示。
+            label_names: 标签到实际类别名称的映射，决定输出顺序和展示名称。
+
+        Returns:
+            str: 每行一个类别名和概率的多行文本。
+
+        Raises:
+            decimal.InvalidOperation: 当概率值无法转换为有效 Decimal 时可能抛出。
+
+        Example:
+            >>> AnalysisResultCard._format_probability_lines({0: 0.5}, {0: "常规"})
+            '常规: 0.5000'
+        """
         # 同一种类别体系写入同一个单元格，保持表格行数不变。
         return "\n".join(
             f"{name}: {AnalysisResultCard._format_probability(probabilities.get(label, 0.0))}"
@@ -427,7 +609,22 @@ class AnalysisResultCard(SimpleCardWidget):
 
     @staticmethod
     def _format_decimal(value: float, decimal_places: int) -> str:
-        """按四舍五入规则格式化普通数值。"""
+        """按四舍五入规则格式化普通数值。
+
+        Args:
+            value: 需要格式化的数值。
+            decimal_places: 保留的小数位数，0 表示格式化为整数。
+
+        Returns:
+            str: 使用 ROUND_HALF_UP 规则处理后的数值文本。
+
+        Raises:
+            decimal.InvalidOperation: 当输入值无法转换为有效 Decimal 时可能抛出。
+
+        Example:
+            >>> AnalysisResultCard._format_decimal(1000.5, 0)
+            '1001'
+        """
         rounded = AnalysisResultCard._rounded_decimal(value, decimal_places)
         if rounded == Decimal("0"):
             rounded = Decimal("0")
@@ -435,6 +632,21 @@ class AnalysisResultCard(SimpleCardWidget):
 
     @staticmethod
     def _rounded_decimal(value: float, decimal_places: int) -> Decimal:
-        """使用 ROUND_HALF_UP 规则返回 Decimal 结果。"""
+        """使用 ROUND_HALF_UP 规则返回 Decimal 结果。
+
+        Args:
+            value: 需要四舍五入的数值。
+            decimal_places: 保留的小数位数，0 表示保留到整数。
+
+        Returns:
+            Decimal: 按指定精度量化后的 Decimal 数值。
+
+        Raises:
+            decimal.InvalidOperation: 当输入值无法转换为有效 Decimal 时可能抛出。
+
+        Example:
+            >>> AnalysisResultCard._rounded_decimal(1.25, 1)
+            Decimal('1.3')
+        """
         quantizer = Decimal("1") if decimal_places == 0 else Decimal(f"1e-{decimal_places}")
         return Decimal(str(value)).quantize(quantizer, rounding=ROUND_HALF_UP)
