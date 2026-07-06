@@ -9,9 +9,6 @@ import os
 from pathlib import Path
 import traceback
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
-
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
 from qfluentwidgets import FluentTranslator
@@ -21,6 +18,9 @@ from ui.main_window import MainWindow
 from app.logger import configure_logging, get_current_log_file_path
 from app import resource_rc
 import logging
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
 
 LOGGER = logging.getLogger(__name__)
 

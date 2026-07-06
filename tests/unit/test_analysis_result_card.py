@@ -72,7 +72,7 @@ def test_analysis_result_card_builds_default_table() -> None:
         assert table.horizontalHeaderItem(0).text() == "雷达信号"
         assert table.horizontalHeaderItem(1).text() == "分析结果"
         assert isinstance(table.horizontalHeader(), RoundedAnalysisHeaderView)
-        assert table.horizontalHeader().corner_radius == 5
+        assert table.horizontalHeader().corner_radius == 4
         assert [table.item(row, 0).text() for row in range(table.rowCount())] == expected_labels
         assert [table.item(row, 1).text() for row in range(table.rowCount())] == [""] * len(
             expected_labels

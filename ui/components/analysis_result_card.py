@@ -68,14 +68,14 @@ class RoundedAnalysisHeaderView(QHeaderView):
         self,
         orientation: Qt.Orientation,
         parent: QWidget | None = None,
-        corner_radius: int = 5,
+        corner_radius: int = 4,
     ) -> None:
         """初始化圆角表头。
 
         Args:
             orientation [Qt.Orientation]: 表头方向，本组件使用水平方向。
             parent [QWidget | None]: 父级控件，默认值为 None。
-            corner_radius [int]: 表头整体左右上角圆角半径，默认 5px。
+            corner_radius [int]: 表头整体左右上角圆角半径，默认 4px。
 
         Returns:
             None: 无返回值。
@@ -87,7 +87,7 @@ class RoundedAnalysisHeaderView(QHeaderView):
             >>> from PyQt6.QtCore import Qt
             >>> header = RoundedAnalysisHeaderView(Qt.Orientation.Horizontal)
             >>> header.corner_radius
-            5
+            4
         """
         super().__init__(orientation, parent)
         self.corner_radius = corner_radius
@@ -123,6 +123,29 @@ class RoundedAnalysisHeaderView(QHeaderView):
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self._section_text(logicalIndex))
         painter.restore()
 
+    def _aligned_section_rect(self, rect: QRect, logical_index: int) -> QRectF:
+        """将表头分区矩形对齐到 viewport 外边界。
+
+        首尾分区分别贴齐表头 viewport 左右边缘，与下方内容区外网格线共用坐标。
+
+        Args:
+            rect: 当前表头分区的矩形区域。
+            logical_index: 当前表头分区逻辑索引。
+
+        Returns:
+            QRectF: 对齐后的表头分区绘制区域。
+
+        Raises:
+            无显式抛出异常。
+        """
+        aligned = QRectF(rect)
+        header_viewport_width = float(self.viewport().width())
+        if logical_index == 0:
+            aligned.setLeft(0.0)
+        if logical_index == self.count() - 1:
+            aligned.setRight(header_viewport_width)
+        return aligned
+
     def _section_path(self, rect: QRect, logical_index: int) -> QPainterPath:
         """返回当前表头分区的绘制路径。
 
@@ -138,7 +161,7 @@ class RoundedAnalysisHeaderView(QHeaderView):
         """
         path = QPainterPath()
         radius = float(self.corner_radius)
-        adjusted_rect = QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5)
+        adjusted_rect = self._aligned_section_rect(rect, logical_index)
         left = adjusted_rect.left()
         top = adjusted_rect.top()
         right = adjusted_rect.right()
@@ -214,6 +237,7 @@ class AnalysisResultCard(SimpleCardWidget):
     DEFAULT_ROW_HEIGHT = 36
     PRI_VALUES_PER_LINE = 6
     ROW_VERTICAL_PADDING = 16
+    TABLE_BORDER_RADIUS = 4
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化分析结果表格卡片。
@@ -276,9 +300,13 @@ class AnalysisResultCard(SimpleCardWidget):
         self.table.setHorizontalHeaderLabels(["雷达信号", "分析结果"])
         self.table.setShowGrid(True)
         self.table.setBorderVisible(True)
-        self.table.setBorderRadius(4)
+        self.table.setBorderRadius(self.TABLE_BORDER_RADIUS)
         self.table.setHorizontalHeader(
-            RoundedAnalysisHeaderView(Qt.Orientation.Horizontal, self.table)
+            RoundedAnalysisHeaderView(
+                Qt.Orientation.Horizontal,
+                self.table,
+                corner_radius=self.TABLE_BORDER_RADIUS,
+            )
         )
         self.table.verticalHeader().hide()
         self.table.verticalHeader().setDefaultSectionSize(self.DEFAULT_ROW_HEIGHT)

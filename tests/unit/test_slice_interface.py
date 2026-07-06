@@ -109,7 +109,7 @@ def test_analysis_result_table_is_mounted_in_right_bottom_card(
             expected_labels
         )
         assert isinstance(table.horizontalHeader(), RoundedAnalysisHeaderView)
-        assert table.horizontalHeader().corner_radius == 5
+        assert table.horizontalHeader().corner_radius == 4
         assert all(
             table.item(row, column).font().pixelSize() == 14
             for row in range(table.rowCount())

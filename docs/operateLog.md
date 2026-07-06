@@ -1,4 +1,22 @@
 # 变更记录
+
+- 时间：2026-07-06 17:25
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复切片页面分析结果表格表头轮廓相对内容区内缩的视觉问题，去除自绘表头 0.5px 内缩、统一表格外框与表头圆角为 4px，并让首尾表头分区贴齐 viewport 外边界以与内容区网格线对齐。
+- 原因：用户反馈表头轮廓看起来比表格内容区更窄；排查后确认布局宽度一致，但 `RoundedAnalysisHeaderView` 的 `adjusted(0.5, 0.5, -0.5, -0.5)` 使描边内缩、表头圆角 5px 与表格外框 4px 不一致，且首尾 section 未显式对齐 viewport 左右边缘。
+- 计划：
+  - [x] 移除 `_section_path` 中表头绘制的 0.5px 内缩。
+  - [x] 新增 `TABLE_BORDER_RADIUS = 4`，`setBorderRadius` 与 `RoundedAnalysisHeaderView` 共用同一圆角半径。
+  - [x] 新增 `_aligned_section_rect`，首尾表头分区分别贴齐表头 viewport 左右外边界。
+  - [x] 将相关测试中的 `corner_radius` 断言由 5 更新为 4。
+  - [x] 运行相关测试、语法检查并记录变更。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py::test_analysis_result_table_is_mounted_in_right_bottom_card -q --basetemp=.pytest_tmp_header_align_log -p no:cacheprovider` 部分通过（2 passed, 2 failed, 1 warning）；通过项覆盖默认表格结构、识别缓存刷新与 `corner_radius == 4`；失败项为既有 QSS 断言（本地 `slice_interface.qss` 缺少 `QTableView#analysisResultTable` 规则），与本次表头对齐修改无关；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/analysis_result_card.py tests/unit/test_analysis_result_card.py tests/unit/test_slice_interface.py` 通过；运行时确认表头宽度与 viewport 宽度一致（均为 332px）、列宽之和等于 viewport 宽度、`corner_radius: 4`。
+
 - 时间：2026-07-06 10:28
 - 操作类型：[重构|新增]
 - 影响文件：
