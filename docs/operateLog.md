@@ -1,4 +1,36 @@
 # 变更记录
+- 时间：2026-07-06 10:28
+- 操作类型：[重构|新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\full_speed_identify_pipeline.py`（新建）
+- 变更摘要：将 `identify_pipeline.py` 编排逻辑封装为 `SliceIdentifyPipeline` 类（“切片处理识别流程编排”），保留 `identify_slice` 作为向后兼容的薄函数入口；新增骨架文件 `full_speed_identify_pipeline.py`，提供并列的 `FullSpeedIdentifyPipeline`（“全速处理识别流程编排”）类骨架。
+- 原因：用户后续将新增“全速处理”编排流程，与切片处理并列存在。类化封装便于二者共享 `IdentifyStageOps` 阶段算子并各自维护特有编排顺序。
+- 计划：
+  - [x] `identify_pipeline.py` 中 `identify_slice` / `_process_cf_stage` / `_process_pw_stage` / `_append_final_pw_results` 迁入 `SliceIdentifyPipeline` 类的 `run` / `_process_cf_stage` / `_process_pw_stage` / `_append_final_pw_results` 方法。
+  - [x] 保留 `identify_slice` 顶层函数作为薄包装（内部构造 `SliceIdentifyPipeline` 并调用 `run`），维持 `identify_worker.py` 与既有测试的调用路径不变。
+  - [x] `__all__` 追加 `SliceIdentifyPipeline`，保持 `PHASE_CLUSTERING` / `PHASE_RECOGNITION` / `IdentifyPipelineContext` / `IdentifyResultBuilder` / `identify_slice` 的重导出。
+  - [x] 新建 `core/full_speed_identify_pipeline.py`，提供 `FullSpeedIdentifyPipeline` 骨架：与 `SliceIdentifyPipeline` 对齐的构造签名、`run` / `_process_cf_stage` / `_process_pw_stage` / `_append_final_results` 方法均以 `NotImplementedError` 占位。
+  - [x] `python -m py_compile core/identify_pipeline.py core/full_speed_identify_pipeline.py` 通过。
+- 测试状态：[待测试]
+
+- 时间：2026-07-04 04:57
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_stages.py`（新建）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_identify_worker_clustering_params.py`
+- 变更摘要：抽出 `IdentifyStageOps`、`IdentifyResultBuilder`、`IdentifyPipelineContext` 与工具函数至 `core/identify_stages.py`；`identify_pipeline.py` 收敛为 CF→PW→DOA 顺序特有的编排层，可复用算子供后续第二套算法直接组合使用。
+- 原因：用户即将新增另一套编排流程，需要复用 DOA 复检、识别调用、结果装配等算子；原文件“编排+算子”混杂，跨算法复用需要复制粘贴。
+- 计划：
+  - [x] 新建 `core/identify_stages.py`，封装 `IdentifyStageOps` 类（构造注入 inference_service/cluster_params/recognize_params/context），暴露 `recognize` / `cluster_doa_children` / `append_doa_results` 三个复用点。
+  - [x] `IdentifyResultBuilder` 类和 `format_conf_dict` / `merge_stage_input_indices` / `recognition_map` / `collect_cluster_indices` / `collect_valid_indices` / `build_slice_results` 一并迁移。
+  - [x] 阶段常量 `PHASE_CLUSTERING` / `PHASE_RECOGNITION` 迁至 `identify_stages.py`，`identify_pipeline.py` 通过 `__all__` 重导出，保持既有导入路径兼容。
+  - [x] `identify_pipeline.py` 只保留 `identify_slice` / `_process_cf_stage` / `_process_pw_stage` / `_append_final_pw_results`；DOA 相关调用改走 `stage_ops.append_doa_results`。
+  - [x] 测试文件更新：`_cluster_doa_children` 用例改为通过 `IdentifyStageOps.cluster_doa_children` 调用；`process_dimension_clustering` monkeypatch 双路径打桩（CF/PW 主聚类走 `identify_pipeline`，DOA 子聚类走 `identify_stages`）；`recognize_clusters_parallel` monkeypatch 迁至 `core.identify_stages`。
+  - [x] `python -m py_compile` 覆盖 identify_stages / identify_pipeline / identify_worker / 测试文件全部通过。
+- 测试状态：[待测试]
+
 - 时间：2026-07-04 04:44
 - 操作类型：[修改]
 - 影响文件：
@@ -12,7 +44,6 @@
   - [x] `python -m py_compile core/identify_pipeline.py` 通过。
 - 测试状态：[待测试]
 
-# 变更记录
 - 时间：2026-07-04 04:39
 - 操作类型：[修改]
 - 影响文件：
@@ -25,7 +56,6 @@
   - [x] `python -m py_compile core/identify_pipeline.py` 通过。
 - 测试状态：[待测试]
 
-# 变更记录
 - 时间：2026-07-04 03:12
 - 操作类型：[修改]
 - 影响文件：
@@ -39,7 +69,6 @@
   - [x] `python -m py_compile core/identify_pipeline.py` 通过。
 - 测试状态：[待测试]
 
-# 变更记录
 - 时间：2026-07-04 02:54
 - 操作类型：[修改]
 - 影响文件：
@@ -56,7 +85,6 @@
   - [x] `python -m py_compile` 校验 core/identify_pipeline.py 与 core/recognition.py 通过。
 - 测试状态：[待测试]
 
-# 变更记录
 - 时间：2026-07-04 00:37
 - 操作类型：[重构]
 - 影响文件：

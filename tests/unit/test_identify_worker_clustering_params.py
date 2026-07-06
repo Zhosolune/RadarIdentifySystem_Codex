@@ -21,9 +21,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.identify_pipeline import (
     IdentifyPipelineContext,
-    _cluster_doa_children,
     identify_slice,
 )
+from core.identify_stages import IdentifyStageOps
 from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import (
     ClusterItem,
@@ -118,7 +118,11 @@ def test_identify_slice_attaches_extracted_params_to_valid_recognition(
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "core.identify_pipeline.recognize_clusters_parallel",
+        "core.identify_stages.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    monkeypatch.setattr(
+        "core.identify_stages.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
 
@@ -245,7 +249,11 @@ def test_identify_slice_passes_split_min_pts_to_cf_and_pw(
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "core.identify_pipeline.recognize_clusters_parallel",
+        "core.identify_stages.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    monkeypatch.setattr(
+        "core.identify_stages.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
     slice_data = SimpleNamespace(
@@ -367,7 +375,11 @@ def test_identify_slice_saves_all_clusters_by_cluster_index(
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "core.identify_pipeline.recognize_clusters_parallel",
+        "core.identify_stages.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    monkeypatch.setattr(
+        "core.identify_stages.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
     slice_data = SimpleNamespace(
@@ -536,7 +548,11 @@ def test_identify_slice_clusters_valid_results_by_doa(
         fake_process_dimension_clustering,
     )
     monkeypatch.setattr(
-        "core.identify_pipeline.recognize_clusters_parallel",
+        "core.identify_stages.process_dimension_clustering",
+        fake_process_dimension_clustering,
+    )
+    monkeypatch.setattr(
+        "core.identify_stages.recognize_clusters_parallel",
         fake_recognize_clusters_parallel,
     )
 
@@ -597,7 +613,7 @@ def test_cluster_doa_children_keeps_largest_clusters_until_clip_threshold(
 
     # 打桩 core 层聚类函数，聚焦裁剪规则验证。
     monkeypatch.setattr(
-        "core.identify_pipeline.process_dimension_clustering",
+        "core.identify_stages.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     parent_points = np.zeros((12, 5), dtype=float)
@@ -610,11 +626,13 @@ def test_cluster_doa_children_keeps_largest_clusters_until_clip_threshold(
         time_ranges=(0.0, 1.0),
     )
 
-    doa_clusters = _cluster_doa_children(
-        parent_cluster,
-        ClusteringParams(clip_threshold_doa=60.0),
-        IdentifyPipelineContext(),
+    stage_ops = IdentifyStageOps(
+        inference_service=object(),
+        cluster_params=ClusteringParams(clip_threshold_doa=60.0),
+        recognize_params=RecognitionParams(),
+        context=IdentifyPipelineContext(),
     )
+    doa_clusters = stage_ops.cluster_doa_children(parent_cluster)
 
     assert [cluster.cluster_size for cluster in doa_clusters] == [5, 3]
     assert [cluster.points_indices.tolist() for cluster in doa_clusters] == [
@@ -660,7 +678,7 @@ def test_cluster_doa_children_keeps_at_most_three_clusters(
 
     # 打桩 core 层聚类函数，验证三类截断规则。
     monkeypatch.setattr(
-        "core.identify_pipeline.process_dimension_clustering",
+        "core.identify_stages.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
     parent_points = np.zeros((10, 5), dtype=float)
@@ -673,11 +691,13 @@ def test_cluster_doa_children_keeps_at_most_three_clusters(
         time_ranges=(0.0, 1.0),
     )
 
-    doa_clusters = _cluster_doa_children(
-        parent_cluster,
-        ClusteringParams(clip_threshold_doa=100.0),
-        IdentifyPipelineContext(),
+    stage_ops = IdentifyStageOps(
+        inference_service=object(),
+        cluster_params=ClusteringParams(clip_threshold_doa=100.0),
+        recognize_params=RecognitionParams(),
+        context=IdentifyPipelineContext(),
     )
+    doa_clusters = stage_ops.cluster_doa_children(parent_cluster)
 
     assert [cluster.cluster_size for cluster in doa_clusters] == [4, 3, 2]
     assert [cluster.points_indices.tolist() for cluster in doa_clusters] == [
