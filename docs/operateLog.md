@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-07-07 08:58
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\scripts\profile_identify_logging.py`（新建）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：新增切片识别流程日志开销 Profiling 脚本，支持合成负载与本地 session 真实 ONNX 两种模式，对比 `logging_on` / `logging_off` 下 `identify_slice` 耗时与日志条数，用于验证日志是否影响算法执行效率。
+- 原因：用户要求先通过 Profiling 验证日志对识别流程的性能影响，再决定是否做异步日志等优化；真实环境验证应复用平时 session 的配置、模型与切片数据，无需打开 UI 手动点识别。
+- 计划：
+  - [x] 新建 `scripts/profile_identify_logging.py`，对同一负载分别测量开/关日志的中位耗时与日志条数。
+  - [x] 合成负载模式：打桩聚类、用 `_SlowInferenceService` 模拟 ONNX 延迟，隔离日志 I/O 与算法主耗时。
+  - [x] 真实模式 `--real`：从 `SessionStore` 加载最近 session 导入缓存、执行 `slice_by_toa`、注入 session 配置快照与 `get_cached_inference_service` 真实推理。
+  - [x] 提供 `--list-sessions`、`--session-id`、`--slice-index`、`--rounds`、`--warmup` 参数；关日志时同时屏蔽 `_replay_trace_log`（其 `logger.handle()` 会绕过 `logging.disable`）。
+  - [x] 运行合成负载与真实 session Profiling、语法检查并记录结论。
+- 已完成：
+  - 合成负载（8 CF 簇 × 3 DOA 子簇，模拟推理 12ms/次）：日志额外耗时约 11～16 ms，占单次总耗时约 2.6%～3.4%（193 条日志）。
+  - 真实 session `524f289f` 切片 0（720 脉冲，81 条日志）：单次中位耗时约 1929 ms，开/关日志差异在测量噪声内（约 0%）。
+  - 结论：当前真实数据下识别瓶颈在聚类与 ONNX，同步日志不是主因；脚本默认 `--rounds 5 --warmup 1` 且对比开/关两套场景，总识别次数为 `2 × (warmup + rounds)`，墙钟时间远大于 UI 单次点击。
+- 测试状态：[已测试] `D:/Miniforge3/envs/pyqt6/python.exe -m py_compile scripts/profile_identify_logging.py` 通过；`D:/Miniforge3/envs/pyqt6/python.exe scripts/profile_identify_logging.py --list-sessions` 通过；合成负载 `D:/Miniforge3/envs/pyqt6/python.exe scripts/profile_identify_logging.py --rounds 5 --warmup 1` 通过；真实负载 `D:/Miniforge3/envs/pyqt6/python.exe scripts/profile_identify_logging.py --real --rounds 3 --warmup 1` 通过（session `524f289f`，slice 0）。
+
 - 时间：2026-07-06 17:25
 - 操作类型：[修改]
 - 影响文件：
