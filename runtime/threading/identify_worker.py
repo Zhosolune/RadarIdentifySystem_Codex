@@ -2,7 +2,7 @@
 
 功能描述：
     作为 runtime/threading 层的具体执行单元，在子线程中调用
-    ``core.identify_pipeline.identify_slice`` 执行单切片的 CF/PW/DOA 聚类
+    ``core.identify_pipeline.SliceIdentifyPipeline`` 执行单切片的 CF/PW/DOA 聚类
     与识别流程，并把结果通过 Qt 信号回传到工作流。该模块不承载任何算法
     实现，仅负责线程调度、参数校验、进度信号发射和异常归属处理。
 """
@@ -19,7 +19,7 @@ from app.logger import bind_session_log_context, unbind_session_log_context
 from core.identify_pipeline import (
     PHASE_CLUSTERING,
     IdentifyPipelineContext,
-    identify_slice,
+    SliceIdentifyPipeline,
 )
 from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import SliceClusterResult
@@ -54,8 +54,8 @@ class IdentifyWorker(QThread):
 
     功能描述：
         作为 runtime/threading 层的具体执行单元，在子线程中调用 core 层的
-        ``identify_slice`` 完成单切片处理。本类只负责线程调度、参数快照校验、
-        进度与完成信号的发射，业务算法与流程编排均在 core 层实现。
+        ``SliceIdentifyPipeline`` 完成单切片处理。本类只负责线程调度、参数
+        快照校验、进度与完成信号的发射，业务算法与流程编排均在 core 层实现。
 
     Attributes:
         finished_signal [pyqtSignal]: 线程完成信号，参数为 session_id 和执行结果对象。
@@ -112,8 +112,8 @@ class IdentifyWorker(QThread):
 
         功能描述：
             校验切片输入、发射聚类阶段起始进度，调用 core 层的
-            ``identify_slice`` 完成级联聚类与识别，并根据流程上下文的当前阶段
-            决定成功或失败信号的载荷。
+            ``SliceIdentifyPipeline`` 完成级联聚类与识别，并根据流程上下文的
+            当前阶段决定成功或失败信号的载荷。
 
         Args:
             无。
@@ -152,15 +152,16 @@ class IdentifyWorker(QThread):
             self._pipeline_context.enter_clustering()
             self.progress_signal.emit(session_id, "clustering", 0, 2)
 
-            # 调用 core 层完成级联聚类与识别，线程只负责调度与信号发射。
-            slice_cluster_res, slice_recognition_res = identify_slice(
-                slice_data=self._slice_data,
+            # 构造切片识别编排器，线程只负责调度与信号发射。
+            pipeline = SliceIdentifyPipeline(
                 inference_service=self._inference_service,
                 cluster_params=self._cluster_params,
                 recognize_params=self._recognize_params,
                 extract_params=self._extract_params,
                 context=self._pipeline_context,
             )
+            # 调用 core 层完成级联聚类与识别。
+            slice_cluster_res, slice_recognition_res = pipeline.run(self._slice_data)
             # 记录聚类阶段输出规模，便于观察不同参数下的聚类密度。
             LOGGER.info(
                 "切片 %d 聚类完成，产生 %d 个簇",

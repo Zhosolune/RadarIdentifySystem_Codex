@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.identify_pipeline import (
     IdentifyPipelineContext,
-    identify_slice,
+    SliceIdentifyPipeline,
 )
 from core.identify_stages import IdentifyStageOps
 from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
@@ -53,7 +53,7 @@ def test_identify_worker_requires_injected_session_params() -> None:
     assert isinstance(ExtractParams(eps_cf=1.5), ExtractParams)
 
 
-def test_identify_slice_attaches_extracted_params_to_valid_recognition(
+def test_slice_identify_pipeline_attaches_extracted_params_to_valid_recognition(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """最终识别通过的类应携带 CF、PW、PRI、DOA 提取结果。"""
@@ -127,8 +127,7 @@ def test_identify_slice_attaches_extracted_params_to_valid_recognition(
     )
 
     slice_data = SimpleNamespace(index=0, data=points, time_range=(0.0, 800.0))
-    _, recognition_result = identify_slice(
-        slice_data=slice_data,
+    pipeline = SliceIdentifyPipeline(
         inference_service=object(),
         cluster_params=ClusteringParams(),
         recognize_params=RecognitionParams(),
@@ -146,6 +145,7 @@ def test_identify_slice_attaches_extracted_params_to_valid_recognition(
             harmonic_tolerance_pri=0.0,
         ),
     )
+    _, recognition_result = pipeline.run(slice_data)
 
     extracted_params = recognition_result.valid_clusters[0].extracted_params
     assert extracted_params is not None
@@ -219,7 +219,7 @@ def test_extract_cluster_params_extracts_doa_with_trimmed_circular_mean() -> Non
     assert extracted_params.doa_values == [pytest.approx(0.0, abs=0.0001)]
 
 
-def test_identify_slice_passes_split_min_pts_to_cf_and_pw(
+def test_slice_identify_pipeline_passes_split_min_pts_to_cf_and_pw(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """识别流程应分别向 CF/PW 聚类传递对应的最小点数。"""
@@ -267,17 +267,17 @@ def test_identify_slice_passes_split_min_pts_to_cf_and_pw(
         time_range=(0.0, 1.0),
     )
 
-    identify_slice(
-        slice_data=slice_data,
+    pipeline = SliceIdentifyPipeline(
         inference_service=object(),
         cluster_params=ClusteringParams(min_pts_cf=3, min_pts_pw=7),
         recognize_params=RecognitionParams(),
     )
+    pipeline.run(slice_data)
 
     assert calls == [("CF", 3), ("PW", 7)]
 
 
-def test_identify_slice_saves_all_clusters_by_cluster_index(
+def test_slice_identify_pipeline_saves_all_clusters_by_cluster_index(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """展示全部聚类结果依赖保存顺序，识别后应按簇索引保存全部簇。"""
@@ -388,12 +388,12 @@ def test_identify_slice_saves_all_clusters_by_cluster_index(
         time_range=(0.0, 1.0),
     )
 
-    cluster_result, recognition_result = identify_slice(
-        slice_data=slice_data,
+    pipeline = SliceIdentifyPipeline(
         inference_service=object(),
         cluster_params=ClusteringParams(),
         recognize_params=RecognitionParams(),
     )
+    cluster_result, recognition_result = pipeline.run(slice_data)
 
     assert [cluster.cluster_idx for cluster in cluster_result.clusters] == [1, 2]
     assert [cluster.dim_name for cluster in cluster_result.clusters] == [
@@ -412,7 +412,7 @@ def test_identify_slice_saves_all_clusters_by_cluster_index(
     ] == []
 
 
-def test_identify_slice_clusters_valid_results_by_doa(
+def test_slice_identify_pipeline_clusters_valid_results_by_doa(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """CF-DOA 未通过子类应回收到 PW，PW 通过类再执行 DOA 检查。"""
@@ -557,12 +557,12 @@ def test_identify_slice_clusters_valid_results_by_doa(
     )
 
     slice_data = SimpleNamespace(index=0, data=points, time_range=(0.0, 1.0))
-    cluster_result, recognition_result = identify_slice(
-        slice_data=slice_data,
+    pipeline = SliceIdentifyPipeline(
         inference_service=object(),
         cluster_params=ClusteringParams(eps_doa=16.8, min_pts_doa=2),
         recognize_params=RecognitionParams(),
     )
+    cluster_result, recognition_result = pipeline.run(slice_data)
 
     assert doa_calls == [(2, 16.8, 2), (2, 16.8, 2)]
     assert sorted(pw_input_doa_values) == [35.0, 40.0, 50.0]

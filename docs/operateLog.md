@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-07-08 14:12
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_identify_worker_clustering_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\scripts\profile_identify_logging.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：删除 `identify_slice` 顶层薄包装，所有调用点改为直接构造 `SliceIdentifyPipeline` 并调用 `run`。
+- 原因：用户认为额外薄包装层没有实际意义，当前架构已明确以类承载“切片处理识别流程编排”。
+- 计划：
+  - [x] `core/identify_pipeline.py` 移除 `identify_slice` 函数与 `__all__` 导出项。
+  - [x] `runtime/threading/identify_worker.py` 改为构造 `SliceIdentifyPipeline` 后调用 `run(self._slice_data)`。
+  - [x] 单元测试改为直接实例化 `SliceIdentifyPipeline`，测试名称同步从 `identify_slice` 改为 `slice_identify_pipeline`。
+  - [x] Profiling 脚本改为直接使用 `SliceIdentifyPipeline`，同步更新说明文本。
+  - [x] 全局检索生产代码与脚本中已无 `identify_slice` 引用。
+- 测试状态：[待测试]
+
 - 时间：2026-07-07 08:58
 - 操作类型：[新增]
 - 影响文件：

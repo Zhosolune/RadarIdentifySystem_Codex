@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """切片识别流程日志开销 Profiling 脚本。
 
-对比「正常日志」与「禁用日志」的 identify_slice 耗时，用于验证日志记录对算法执行效率的影响量级。
+对比「正常日志」与「禁用日志」的 SliceIdentifyPipeline 耗时，用于验证日志记录对算法执行效率的影响量级。
 
 用法:
     # 合成负载（默认）
@@ -38,7 +38,7 @@ import numpy as np
 from app.app_config import appConfig, qconfig
 from app.logger import bind_session_log_context, configure_logging, unbind_session_log_context
 from app.model_bootstrap import get_cached_inference_service
-from core.identify_pipeline import identify_slice
+from core.identify_pipeline import SliceIdentifyPipeline
 from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import ClusterItem
 from core.models.processing_session import ProcessingSession
@@ -428,7 +428,7 @@ def _run_identify_once(
     logging_enabled: bool,
     synthetic_patches: tuple[Any, Any] | None,
 ) -> tuple[float, int]:
-    """执行一次 identify_slice 并返回耗时与日志条数。"""
+    """执行一次 SliceIdentifyPipeline 并返回耗时与日志条数。"""
     counter = _CountingHandler()
     root_logger = logging.getLogger()
     stream_handlers = [
@@ -454,13 +454,14 @@ def _run_identify_once(
             )
 
         with patch_cm:
-            identify_slice(
-                slice_data=slice_data,
+            # 构造切片识别编排器，直接调用类入口进行 profiling。
+            pipeline = SliceIdentifyPipeline(
                 inference_service=inference_service,
                 cluster_params=cluster_params,
                 recognize_params=recognize_params,
                 extract_params=extract_params,
             )
+            pipeline.run(slice_data)
     finally:
         unbind_session_log_context(token)
         root_logger.removeHandler(counter)
@@ -476,7 +477,7 @@ def _run_synthetic_once(
     points: np.ndarray,
     logging_enabled: bool,
 ) -> tuple[float, int]:
-    """执行一次合成负载 identify_slice。"""
+    """执行一次合成负载 SliceIdentifyPipeline。"""
     slice_data = SimpleNamespace(index=0, data=points, time_range=(0.0, 1.0))
     synthetic_patches = _build_workload_patches(config, points)
     return _run_identify_once(
@@ -500,7 +501,7 @@ def _run_synthetic_once(
 
 
 def _run_real_once(workload: RealWorkload, logging_enabled: bool) -> tuple[float, int]:
-    """执行一次真实 session 负载 identify_slice。"""
+    """执行一次真实 session 负载 SliceIdentifyPipeline。"""
     return _run_identify_once(
         slice_data=workload.slice_data,
         inference_service=workload.inference_service,
@@ -681,7 +682,7 @@ class CliArgs:
 
 
 def parse_args() -> CliArgs:
-    parser = argparse.ArgumentParser(description="Profile identify_slice logging overhead.")
+    parser = argparse.ArgumentParser(description="Profile SliceIdentifyPipeline logging overhead.")
     parser.add_argument("--real", action="store_true", help="使用本地最近 session + 真实 ONNX")
     parser.add_argument("--list-sessions", action="store_true", help="列出本地 session 后退出")
     parser.add_argument("--session-id", default=None, help="指定 session_id；默认取最近打开")

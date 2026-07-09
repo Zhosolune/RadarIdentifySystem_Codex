@@ -46,7 +46,6 @@ __all__ = [
     "IdentifyPipelineContext",
     "IdentifyResultBuilder",
     "SliceIdentifyPipeline",
-    "identify_slice",
 ]
 
 
@@ -406,51 +405,3 @@ class SliceIdentifyPipeline:
             len(pw_invalid),
             pw_doa_failed_total,
         )
-
-
-def identify_slice(
-    slice_data: Any,
-    inference_service: InferenceService,
-    cluster_params: ClusteringParams | None = None,
-    recognize_params: RecognitionParams | None = None,
-    extract_params: ExtractParams | None = None,
-    context: IdentifyPipelineContext | None = None,
-) -> tuple[SliceClusterResult, SliceRecognitionResult]:
-    """单切片识别流程的函数式入口。
-
-    功能描述：
-        为兼容既有的函数式调用点（如 ``runtime.threading.identify_worker`` 与
-        测试用例），提供 ``SliceIdentifyPipeline`` 的薄包装：内部构造一次性
-        流程对象后立即调用 ``run``。新代码优先直接使用 ``SliceIdentifyPipeline``。
-
-    Args:
-        slice_data [Any]: 切片对象，需提供 ``index``、``data`` 和 ``time_range`` 字段。
-        inference_service [InferenceService]: 推理服务实现。
-        cluster_params [ClusteringParams | None]: 聚类参数；为 ``None`` 时使用默认参数。
-        recognize_params [RecognitionParams | None]: 识别参数；为 ``None`` 时使用默认参数。
-        extract_params [ExtractParams | None]: 参数提取配置；为 ``None`` 时使用默认参数。
-        context [IdentifyPipelineContext | None]: 流程上下文；为 ``None`` 时创建默认上下文。
-
-    Returns:
-        tuple[SliceClusterResult, SliceRecognitionResult]: 单切片最终聚类结果与识别结果。
-
-    Raises:
-        无显式抛出异常，底层聚类或识别异常会向上透传。
-
-    Example:
-        >>> from types import SimpleNamespace
-        >>> import numpy as np
-        >>> data = SimpleNamespace(index=0, data=np.empty((0, 5)), time_range=(0.0, 1.0))
-        >>> cluster_res, rec_res = identify_slice(data, object())
-        >>> cluster_res.slice_idx, rec_res.slice_index
-        (0, 0)
-    """
-    # 构造一次性流程对象，避免在函数入口重复维护默认参数。
-    pipeline = SliceIdentifyPipeline(
-        inference_service=inference_service,
-        cluster_params=cluster_params,
-        recognize_params=recognize_params,
-        extract_params=extract_params,
-        context=context,
-    )
-    return pipeline.run(slice_data)
