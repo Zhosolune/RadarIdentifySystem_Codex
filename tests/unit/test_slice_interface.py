@@ -210,6 +210,32 @@ def test_slice_interface_uses_session_scale_mode_for_image_updates(
         sip.delete(interface)
 
 
+def test_slice_dimension_cards_have_explicit_snapshot_titles(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """页面应为全部维度卡片提供明确的快照窗口标题。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    interface = SliceInterface()
+
+    try:
+        assert interface.original_cf_card._snapshot_window_title == "原始图像 - 载频"
+        assert interface.original_pw_card._snapshot_window_title == "原始图像 - 脉宽"
+        assert interface.original_pa_card._snapshot_window_title == "原始图像 - 幅度"
+        assert interface.original_dtoa_card._snapshot_window_title == "原始图像 - 一级差"
+        assert interface.original_doa_card._snapshot_window_title == "原始图像 - 方位角"
+        assert interface.cluster_cf_card._snapshot_window_title == "聚类结果 - 载频"
+        assert interface.cluster_pw_card._snapshot_window_title == "聚类结果 - 脉宽"
+        assert interface.cluster_pa_card._snapshot_window_title == "聚类结果 - 幅度"
+        assert interface.cluster_dtoa_card._snapshot_window_title == "聚类结果 - 一级差"
+        assert interface.cluster_doa_card._snapshot_window_title == "聚类结果 - 方位角"
+    finally:
+        sip.delete(interface)
+
+
 if __name__ == "__main__":
     tests = [
         test_slice_param_panel_is_mounted_in_matching_drawer,

@@ -93,30 +93,35 @@ class SliceInterface(QFrame):
             "originalCfCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="原始图像 - 载频",
         )
         self.original_pw_card = SliceDimensionCard(
             "脉宽",
             "originalPwCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="原始图像 - 脉宽",
         )
         self.original_pa_card = SliceDimensionCard(
             "幅度",
             "originalPaCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="原始图像 - 幅度",
         )
         self.original_dtoa_card = SliceDimensionCard(
             "一级差",
             "originalDtoaCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="原始图像 - 一级差",
         )
         self.original_doa_card = SliceDimensionCard(
             "方位角",
             "originalDoaCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="原始图像 - 方位角",
         )
 
         self.cluster_cf_card = SliceDimensionCard(
@@ -124,30 +129,35 @@ class SliceInterface(QFrame):
             "clusterCfCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="聚类结果 - 载频",
         )
         self.cluster_pw_card = SliceDimensionCard(
             "脉宽",
             "clusterPwCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="聚类结果 - 脉宽",
         )
         self.cluster_pa_card = SliceDimensionCard(
             "幅度",
             "clusterPaCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="聚类结果 - 幅度",
         )
         self.cluster_dtoa_card = SliceDimensionCard(
             "一级差",
             "clusterDtoaCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="聚类结果 - 一级差",
         )
         self.cluster_doa_card = SliceDimensionCard(
             "方位角",
             "clusterDoaCard",
             self,
             scale_mode_getter=self._current_plot_scale_mode,
+            snapshot_window_title="聚类结果 - 方位角",
         )
 
         self._init_layout()

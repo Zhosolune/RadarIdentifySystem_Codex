@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .action_button_widget import ActionButtonCard
 from .analysis_result_card import AnalysisResultCard
+from .image_snapshot_window import ImageSnapshotWindow
 from .slice_dimension_card import SliceDimensionCard
 from .navigation_control_card import NavigationControlCard
 from .plot_option_card import PlotOptionCard
@@ -25,6 +26,7 @@ from .card_navigation_list import CardNavigationItem, CardNavigationList
 __all__ = [
     "ActionButtonCard",
     "AnalysisResultCard",
+    "ImageSnapshotWindow",
     "SliceDimensionCard", 
     "NavigationControlCard", 
     "PlotOptionCard",

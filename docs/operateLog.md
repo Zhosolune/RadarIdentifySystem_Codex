@@ -1,5 +1,46 @@
 # 变更记录
 
+- 时间：2026-07-10 11:47
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将图像快照窗口修复为无 parent 的独立顶层 `FluentWidget`，增加主题适配外轮廓，并验证移动、关闭、最小化和最大化能力。
+- 原因：运行时确认传入 `self.window()` 作为 parent 后 `isWindow=False`、窗口类型为 `Widget`，不满足独立、可移动、可关闭、可最大最小化的正常窗口要求；`FluentWidget` 默认绘制也未提供明确外轮廓。
+- 计划：
+  - [x] 先写独立顶层窗口与轮廓 RED 测试。
+  - [x] 移除窗口 parent 耦合并绘制主题适配轮廓。
+  - [x] 验证标题栏最小化、最大化、关闭按钮和窗口移动基础能力。
+  - [x] 修正测试清理逻辑，显式关闭无 parent 的顶层测试窗口。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认外缘与内部背景像素相同，且卡片创建的窗口 `parent()` 指向卡片、`isWindow()` 为 False；GREEN 后 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_snapshot_window_fix_final -p no:cacheprovider` 通过（14 passed，1 deselected，1 warning），覆盖独立顶层窗口、轮廓、移动及标题栏最小化/最大化/关闭；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有既有 LF/CRLF 提示。
+
+- 时间：2026-07-10 11:22
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\plans\2026-07-10-slice-dimension-card-image-window.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为每个 `SliceDimensionCard` 增加有图像时的右键 CommandBar，并以单实例 `FluentWidget` 窗口独立显示触发时的图像快照。
+- 原因：用户已批准设计并明确要求直接在 `newUI` 分支实施，不创建隔离 worktree。
+- 计划：
+  - [x] 验证相关 UI 测试基线。
+  - [x] 先写失败测试，再实现 `ImageSnapshotWindow`。
+  - [x] 先写失败测试，再实现卡片右键命令栏与单窗口生命周期。
+  - [x] 为十个卡片接入明确窗口标题。
+  - [x] 验证无图像无响应、真实子标签右键事件传播、同卡片窗口复用、不同卡片窗口并存、快照固定和关闭后重建。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填准确结果。
+- 测试状态：[已测试] RED 阶段分别确认组件缺失、卡片接口缺失和页面标题参数缺失；`D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_slice_image_window_final_clean2 -p no:cacheprovider` 通过（12 passed，1 deselected，1 warning）；完整相关套件为 12 passed、1 failed，唯一失败是既有 `test_analysis_result_table_is_mounted_in_right_bottom_card` 对本地 QSS 缺少 `QTableView#analysisResultTable` 的断言，本次未修改 QSS；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/image_snapshot_window.py ui/components/slice_dimension_card.py ui/components/__init__.py ui/interfaces/slice_interface.py tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py` 通过。
+
 - 时间：2026-07-10 11:06
 - 操作类型：[新增]
 - 影响文件：
@@ -12,8 +53,8 @@
   - [x] 通过 Context7 和本地组件库源码确认 `CommandBarView`、`Flyout.make`、`FluentWidget` 用法。
   - [x] 与用户确认无图像无响应、同卡片单窗口、快照不跟随刷新等交互边界。
   - [x] 编写并自审设计规格。
-  - [ ] 用户审阅书面规格。
-  - [ ] 编写实施计划并按 TDD 实现。
+  - [x] 用户审阅书面规格。
+  - [x] 编写实施计划并按 TDD 实现。
 - 测试状态：[无需测试] 本次仅新增设计文档，尚未修改生产代码。
 
 - 时间：2026-07-08 14:12

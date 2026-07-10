@@ -4,10 +4,18 @@ from __future__ import annotations
 from collections.abc import Callable
 
 
-from PyQt6.QtCore import Qt, QRectF
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QPainterPath
+from PyQt6.QtCore import QObject, QPoint, Qt, QRectF
+from PyQt6.QtGui import QContextMenuEvent, QPixmap, QImage, QPainter, QPainterPath
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
-from qfluentwidgets import SimpleCardWidget
+from qfluentwidgets import (
+    Action,
+    CommandBarView,
+    FluentIcon,
+    Flyout,
+    SimpleCardWidget,
+)
+
+from ui.components.image_snapshot_window import ImageSnapshotWindow
 
 
 class RoundedImageLabel(QLabel):
@@ -117,19 +125,12 @@ class RoundedImageLabel(QLabel):
 class SliceDimensionCard(QWidget):
     """切片维度卡片组件。
 
-    功能描述：
-        提供“左侧竖排维度标签 + 右侧图片占位卡片”的组合组件，用于切片页面维度图像展示位。
+    提供左侧竖排维度标签与右侧图像卡片，并管理当前卡片的右键独立查看交互。
 
-    参数说明：
-        label_text (str): 维度标签文本。
-        object_name (str): 组件对象名。
-        parent (QWidget | None): 父级控件，默认值为 None。
-
-    返回值说明：
-        无。
-
-    异常说明：
-        ValueError: 当 `label_text` 或 `object_name` 为空字符串时抛出。
+    Attributes:
+        dimension_label [QLabel]: 竖排显示维度名称的标签。
+        image_card [SimpleCardWidget]: 承载当前维度图像的卡片。
+        image_label [RoundedImageLabel]: 绘制圆角图像的标签。
     """
 
     def __init__(
@@ -138,22 +139,23 @@ class SliceDimensionCard(QWidget):
         object_name: str,
         parent: QWidget | None = None,
         scale_mode_getter: Callable[[], str] | None = None,
+        *,
+        snapshot_window_title: str,
     ) -> None:
-        """初始化切片维度卡片组件。
+        """初始化维度标签、图像卡片和独立窗口状态。
 
-        功能描述：
-            构建标签与卡片的水平布局并完成对象命名。
+        Args:
+            label_text [str]: 非空维度标签文本。
+            object_name [str]: 非空组件对象名。
+            parent [QWidget | None]: 父级控件，默认值为 None。
+            scale_mode_getter [Callable[[], str] | None]: 图像缩放模式读取回调。
+            snapshot_window_title [str]: 非空独立图像窗口标题。
 
-        参数说明：
-            label_text (str): 维度标签文本。
-            object_name (str): 组件对象名。
-            parent (QWidget | None): 父级控件，默认值为 None。
-
-        返回值说明：
+        Returns:
             None: 无返回值。
 
-        异常说明：
-            ValueError: 当 `label_text` 或 `object_name` 为空字符串时抛出。
+        Raises:
+            ValueError: 当标签、对象名或独立窗口标题为空时抛出。
         """
 
         super().__init__(parent)
@@ -161,8 +163,13 @@ class SliceDimensionCard(QWidget):
             raise ValueError("label_text 不能为空")
         if object_name.strip() == "":
             raise ValueError("object_name 不能为空")
+        if snapshot_window_title.strip() == "":
+            raise ValueError("snapshot_window_title 不能为空")
 
         self.setObjectName(object_name)
+        self._source_image: QImage | None = None
+        self._snapshot_window: ImageSnapshotWindow | None = None
+        self._snapshot_window_title = snapshot_window_title
         self.dimension_label = QLabel("\n".join(label_text), self)
         self.dimension_label.setObjectName("sliceDimensionLabel")
         self.dimension_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -191,24 +198,75 @@ class SliceDimensionCard(QWidget):
         self._init_layout()
 
     def set_image(self, image: QImage) -> None:
-        """设置卡片内的图像。
+        """保存源图像副本并更新卡片内图像。
 
-        功能描述：
-            将 QImage 源图像设置到图片标签中。
+        Args:
+            image [QImage]: 要显示的源图像对象，允许空图像用于清空状态。
 
-        参数说明：
-            image (QImage): 要显示的源图像对象。
-
-        返回值说明：
+        Returns:
             None: 无返回值。
-
-        异常说明：
-            无。
         """
+        # 卡片保存独立源图像，确保创建窗口时获得触发瞬间的稳定快照。
+        self._source_image = image.copy()
         self.image_label.set_image(image)
 
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        """在有效图像卡片的右键位置显示独立查看命令。
+
+        Args:
+            event [QContextMenuEvent]: Qt 右键菜单事件。
+
+        Returns:
+            None: 无返回值。
+        """
+        if self._source_image is None or self._source_image.isNull():
+            event.ignore()
+            return
+
+        self._show_command_bar(event.globalPos())
+        event.accept()
+
+    def _show_command_bar(self, global_pos: QPoint) -> None:
+        """在指定全局坐标显示独立查看命令。"""
+        if self._source_image is None or self._source_image.isNull():
+            return
+
+        view = CommandBarView()
+        action = Action(FluentIcon.FULL_SCREEN, "独立显示", view)
+        action.triggered.connect(self._show_snapshot_window)
+        view.addAction(action)
+        Flyout.make(view, global_pos, self.window())
+
+    def _show_snapshot_window(self) -> None:
+        """创建图像快照窗口，或激活本卡片已有窗口。"""
+        if self._snapshot_window is not None:
+            self._snapshot_window.showNormal()
+            self._snapshot_window.raise_()
+            self._snapshot_window.activateWindow()
+            return
+
+        if self._source_image is None or self._source_image.isNull():
+            return
+
+        # 每个卡片只保留一个窗口引用，不同卡片仍可分别创建窗口进行对比。
+        window = ImageSnapshotWindow(
+            self._source_image,
+            self._snapshot_window_title,
+        )
+        window.destroyed.connect(self._clear_snapshot_window)
+        self._snapshot_window = window
+        window.show()
+
+    def _clear_snapshot_window(self, _object: QObject | None = None) -> None:
+        """清除已销毁图像快照窗口的引用。"""
+        self._snapshot_window = None
+
     def update_image_mode(self) -> None:
-        """更新内部图像标签的拉伸模式。"""
+        """按当前配置更新内部图像标签的拉伸模式。
+
+        Returns:
+            None: 无返回值。
+        """
         self.image_label.update_image_mode()
 
     def _init_layout(self) -> None:
