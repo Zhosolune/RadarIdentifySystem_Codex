@@ -1,5 +1,21 @@
 # 变更记录
 
+- 时间：2026-07-10 11:06
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\specs\2026-07-10-slice-dimension-card-image-window-design.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：完成 `SliceDimensionCard` 右键 CommandBar 与 FluentWidget 图像快照窗口的架构、交互、生命周期和测试设计。
+- 原因：新增图像独立显示与跨图像对比能力前，先明确组件职责和单窗口约束，避免将十个卡片的重复交互逻辑堆入 `SliceInterface`。
+- 计划：
+  - [x] 核对 `SliceInterface`、`SliceDimensionCard` 与现有组件分层。
+  - [x] 通过 Context7 和本地组件库源码确认 `CommandBarView`、`Flyout.make`、`FluentWidget` 用法。
+  - [x] 与用户确认无图像无响应、同卡片单窗口、快照不跟随刷新等交互边界。
+  - [x] 编写并自审设计规格。
+  - [ ] 用户审阅书面规格。
+  - [ ] 编写实施计划并按 TDD 实现。
+- 测试状态：[无需测试] 本次仅新增设计文档，尚未修改生产代码。
+
 - 时间：2026-07-08 14:12
 - 操作类型：[重构]
 - 影响文件：
