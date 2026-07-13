@@ -7,8 +7,9 @@ import sys
 from pathlib import Path
 
 from PyQt6 import sip
+from PyQt6.QtCore import QRect
 from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import Theme
+from qfluentwidgets import Theme, themeColor
 from qfluentwidgets import TableWidget
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -83,6 +84,34 @@ def test_analysis_result_card_builds_default_table() -> None:
             for column in range(table.columnCount())
         )
         assert table.verticalHeader().isHidden()
+    finally:
+        sip.delete(card)
+
+
+def test_analysis_result_header_respects_table_border_inset() -> None:
+    """圆角表头应在组件库表格的 1px 边框内侧绘制。"""
+    _app()
+    card = AnalysisResultCard()
+
+    try:
+        header = card.table.horizontalHeader()
+        header.resize(200, 36)
+        first_rect = header._aligned_section_rect(QRect(0, 0, 80, 36), 0)
+        last_rect = header._aligned_section_rect(QRect(80, 0, 120, 36), 1)
+
+        assert first_rect.left() == 1.0
+        assert last_rect.right() == float(header.viewport().width() - 1)
+    finally:
+        sip.delete(card)
+
+
+def test_analysis_result_header_uses_theme_color_for_border() -> None:
+    """圆角表头的填充和边框应统一使用组件库主题色。"""
+    _app()
+    card = AnalysisResultCard()
+
+    try:
+        assert card.table.horizontalHeader()._header_color() == themeColor()
     finally:
         sip.delete(card)
 

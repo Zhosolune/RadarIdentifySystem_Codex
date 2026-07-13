@@ -1,5 +1,67 @@
 # 变更记录
 
+- 时间：2026-07-13 12:24
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\plans\2026-07-13-image-snapshot-pixel-perfect-zoom.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：完成图像快照窗口默认 3 倍、最高 10 倍的像素无损显示、Slider 倍率控制、滚动查看与窗口同步缩放。
+- 原因：用户批准基于 `ImageLabel`、`Slider`、整数倍最近邻绘制和超屏最大化的设计，并要求直接实施。
+- 计划：
+  - [x] RED/GREEN 实现像素无损 `ImageLabel` 子类。
+  - [x] RED/GREEN 接入 1～10 倍 Slider 与滚动区域。
+  - [x] RED/GREEN 实现窗口随倍率调整直至最大化。
+  - [x] 验证 3 倍离散像素块颜色完整、10 倍超屏滚动及降倍率恢复窗口。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认普通 `QLabel`、Slider 缺失、滚动区缺失和倍率窗口联动缺失共 4 项失败；GREEN 后 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_pixel_zoom_final_clean -p no:cacheprovider` 通过（17 passed，1 deselected，1 warning）；完整相关套件为 17 passed、1 failed，唯一失败仍是既有 `analysisResultTable` QSS 断言，本次未修改相关 QSS；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/image_snapshot_window.py tests/unit/test_image_snapshot_window.py` 通过。
+
+- 时间：2026-07-13 12:10
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\superpowers\specs\2026-07-13-image-snapshot-pixel-perfect-zoom-design.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：完成图像快照窗口基于 `ImageLabel`、`Slider` 和整数倍最近邻绘制的像素无损倍率设计。
+- 原因：现有窗口使用任意比例 `SmoothTransformation`，会模糊并稀释稀疏有效像素；用户要求默认 3 倍、最高 10 倍，并让窗口尺寸随倍率增长直至最大化。
+- 计划：
+  - [x] 定位平滑插值导致模糊的根因。
+  - [x] 通过 Context7 和本地源码核对 `ImageLabel`、`Slider` API 与绘制实现。
+  - [x] 确认输入尺寸、默认倍率、最大倍率和窗口同步缩放规则。
+  - [x] 编写并自审设计规格。
+  - [x] 用户审阅书面规格。
+  - [x] 编写 TDD 实施计划并实现。
+- 测试状态：[无需测试] 本次仅新增设计文档，尚未修改生产代码。
+
+- 时间：2026-07-13 11:43
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将分析结果表头的自绘边框颜色调整为当前 Fluent 主题色。
+- 原因：原灰色描边与主题色表头存在视觉割裂，统一颜色后更符合组件库主题表现。
+- 计划：
+  - [x] 保留组件库 `themeColor()` 作为唯一颜色来源。
+  - [x] 将表头填充与 1px 描边统一为主题色。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] 表头主题色、边界及相关组件测试通过（4 passed，1 deselected，1 warning）；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有既有 LF/CRLF 提示。
+
+- 时间：2026-07-13 11:38
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复分析结果表格自绘表头与组件库表格 1px 外边框的横向错位。
+- 原因：自绘表头路径贴到 viewport 外缘，未给 `TableWidget.setBorderVisible(True)` 产生的 1px 边框预留内缩量。
+- 计划：
+  - [x] 检查 `TableWidget` 组件库边框实现和自绘表头坐标。
+  - [x] 添加表头左右边界内缩的 RED 测试。
+  - [x] 在自定义表头组件内实施最小修复。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认首分区左边界仍为 0px；GREEN 后新增边界测试通过，相关套件共 7 passed、2 failed，两个失败均为既有 QSS 缺失 `QTableView#analysisResultTable` 断言，与本次表头坐标修复无关；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有既有 LF/CRLF 提示。
+
 - 时间：2026-07-10 11:47
 - 操作类型：[修复]
 - 影响文件：

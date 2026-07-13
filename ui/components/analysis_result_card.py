@@ -64,6 +64,8 @@ class RoundedAnalysisHeaderView(QHeaderView):
         corner_radius: 表头整体左右上角圆角半径，单位为像素。
     """
 
+    _TABLE_BORDER_WIDTH = 1
+
     def __init__(
         self,
         orientation: Qt.Orientation,
@@ -114,19 +116,24 @@ class RoundedAnalysisHeaderView(QHeaderView):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         path = self._section_path(rect, logicalIndex)
-        border_color = QColor("#5f6368" if isDarkTheme() else "#c9cdd4")
-        painter.fillPath(path, themeColor())
-        painter.setPen(QPen(border_color, 1))
+        header_color = self._header_color()
+        painter.fillPath(path, header_color)
+        # 表头填充与边框统一使用当前主题色，保持 Fluent 主题视觉一致。
+        painter.setPen(QPen(header_color, 1))
         painter.drawPath(path)
         painter.setPen(Qt.GlobalColor.black if isDarkTheme() else Qt.GlobalColor.white)
         painter.setFont(_analysis_font(15))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self._section_text(logicalIndex))
         painter.restore()
 
+    def _header_color(self) -> QColor:
+        """返回表头填充及边框共用的当前主题色。"""
+        return themeColor()
+
     def _aligned_section_rect(self, rect: QRect, logical_index: int) -> QRectF:
         """将表头分区矩形对齐到 viewport 外边界。
 
-        首尾分区分别贴齐表头 viewport 左右边缘，与下方内容区外网格线共用坐标。
+        首尾分区分别相对表头 viewport 内缩组件库边框宽度，与下方内容区边框内缘共用坐标。
 
         Args:
             rect: 当前表头分区的矩形区域。
@@ -141,9 +148,10 @@ class RoundedAnalysisHeaderView(QHeaderView):
         aligned = QRectF(rect)
         header_viewport_width = float(self.viewport().width())
         if logical_index == 0:
-            aligned.setLeft(0.0)
+            # Fluent TableWidget 的可见外框占 1px，表头路径应落在边框内侧。
+            aligned.setLeft(float(self._TABLE_BORDER_WIDTH))
         if logical_index == self.count() - 1:
-            aligned.setRight(header_viewport_width)
+            aligned.setRight(header_viewport_width - self._TABLE_BORDER_WIDTH)
         return aligned
 
     def _section_path(self, rect: QRect, logical_index: int) -> QPainterPath:
