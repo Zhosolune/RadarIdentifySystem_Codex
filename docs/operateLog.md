@@ -1,5 +1,21 @@
 # 变更记录
 
+- 时间：2026-07-14 11:30
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：落实空白图像卡片不响应右键且不能打开独立窗口的限制。
+- 原因：聚类界面清空时使用非空的全透明 QImage 作为占位图，卡片仅通过 `isNull()` 判断，因而误认为存在有效图像。
+- 计划：
+  - [x] 添加卡片从有效图像切换为空白状态后的 RED 测试。
+  - [x] 为图像标签与维度卡片提供明确清空接口，并同步清理缓存。
+  - [x] 聚类界面清空时改用卡片空白状态，不再注入透明占位图。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认卡片缺少明确清空接口；GREEN 后卡片专项测试与聚类清空控制器用例通过（共 9 passed，2 warnings），覆盖真实右键事件、命令栏抑制、窗口创建抑制及缓存清理；扩展窗口联合套件为 21 passed、2 failed，失败项均因当前快照窗口已使用固定系统标题和 `BodyLabel`，而既有测试仍期待动态图像标题和 `SubtitleLabel`，与本次空白图像限制无关；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
 - 时间：2026-07-14 11:00
 - 操作类型：[修复]
 - 影响文件：

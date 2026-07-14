@@ -69,6 +69,45 @@ def test_right_click_without_image_does_not_create_command_bar(
         _delete_card(card)
 
 
+def test_cleared_image_cannot_open_command_bar_or_snapshot_window(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """卡片清空图像后不应显示命令栏或展开既有图像。"""
+    _app()
+    calls: list[tuple[object, ...]] = []
+    monkeypatch.setattr(
+        slice_dimension_card_module,
+        "Flyout",
+        SimpleNamespace(make=lambda *args, **kwargs: calls.append(args)),
+        raising=False,
+    )
+    card = _card()
+
+    try:
+        card.resize(300, 180)
+        card.show()
+        QApplication.processEvents()
+        card.set_image(QImage(20, 10, QImage.Format.Format_RGB32))
+        card.clear_image()
+        local_pos = card.image_label.rect().center()
+        event = QContextMenuEvent(
+            QContextMenuEvent.Reason.Mouse,
+            local_pos,
+            card.image_label.mapToGlobal(local_pos),
+        )
+
+        QApplication.sendEvent(card.image_label, event)
+        card._show_snapshot_window()
+
+        assert calls == []
+        assert card._source_image is None
+        assert card.image_label._source_image is None
+        assert card.image_label._cached_pixmap is None
+        assert card._snapshot_window is None
+    finally:
+        _delete_card(card)
+
+
 def test_right_click_with_image_creates_one_snapshot_action(
     monkeypatch: MonkeyPatch,
 ) -> None:

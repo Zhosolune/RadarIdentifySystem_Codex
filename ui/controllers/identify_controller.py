@@ -509,7 +509,7 @@ class IdentifyController(QObject):
         """清空聚类结果展示区域。
 
         功能描述：
-            将聚类图像卡片显示重置为完全透明的状态，并重置提示标题。
+            将聚类图像卡片切换为不可展开的空白状态，并重置提示标题。
 
         Args:
             无。
@@ -533,13 +533,9 @@ class IdentifyController(QObject):
             self.view.cluster_doa_card,
         ]
         
-        # 创建完全透明的图像清空内容，代替黑底
-        empty_image = QImage(100, 100, QImage.Format.Format_ARGB32)
-        empty_image.fill(Qt.GlobalColor.transparent)
-        
-        # 将透明图像赋值给每个卡片
+        # 使用卡片明确的空白状态，避免透明占位图被误判为可独立查看的有效图像。
         for card in cards:
-            card.set_image(empty_image)
+            card.clear_image()
 
         # 清空右侧分析结果表格，避免无类别时残留上一次识别结果。
         if hasattr(self.view, "analysis_result_card"):

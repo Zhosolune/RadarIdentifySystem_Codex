@@ -66,8 +66,24 @@ class RoundedImageLabel(QLabel):
         参数说明：
             image (QImage): 源图像。
         """
+        if image.isNull():
+            self.clear_image()
+            return
+
         self._source_image = image.copy()
         self._update_scaled_pixmap()
+
+    def clear_image(self) -> None:
+        """清除源图像、缩放缓存及标签显示内容。
+
+        Returns:
+            None: 无返回值。
+        """
+        # 同时释放源图和派生缓存，避免空白状态继续绘制上一幅图像。
+        self._source_image = None
+        self._cached_pixmap = None
+        self.clear()
+        self.update()
 
     def resizeEvent(self, event) -> None:
         """窗口尺寸变化事件。
@@ -207,9 +223,24 @@ class SliceDimensionCard(QWidget):
         Returns:
             None: 无返回值。
         """
+        if image.isNull():
+            self.clear_image()
+            return
+
         # 卡片保存独立源图像，确保创建窗口时获得触发瞬间的稳定快照。
         self._source_image = image.copy()
         self.image_label.set_image(image)
+
+    def clear_image(self) -> None:
+        """将卡片切换为不可展开的空白图像状态。
+
+        已经打开的独立窗口仍保留其固定快照，卡片后续右键不再响应。
+
+        Returns:
+            None: 无返回值。
+        """
+        self._source_image = None
+        self.image_label.clear_image()
 
     def set_snapshot_slice_number(self, slice_number: int) -> None:
         """为独立图像窗口标题设置当前切片编号。
@@ -276,13 +307,13 @@ class SliceDimensionCard(QWidget):
 
     def _show_snapshot_window(self) -> None:
         """创建图像快照窗口，或激活本卡片已有窗口。"""
+        if self._source_image is None or self._source_image.isNull():
+            return
+
         if self._snapshot_window is not None:
             self._snapshot_window.showNormal()
             self._snapshot_window.raise_()
             self._snapshot_window.activateWindow()
-            return
-
-        if self._source_image is None or self._source_image.isNull():
             return
 
         # 每个卡片只保留一个窗口引用，不同卡片仍可分别创建窗口进行对比。

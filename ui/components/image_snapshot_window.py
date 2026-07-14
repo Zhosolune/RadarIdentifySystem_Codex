@@ -320,7 +320,7 @@ class ImageSnapshotWindow(FluentWidget):
         control_layout.addStretch(1)
 
         self.scroll_hint_label = CaptionLabel(
-            "图像已完整显示，无需滚动",
+            "图像完整显示",
             self,
         )
         self.scroll_hint_label.setFixedHeight(self.SCROLL_HINT_HEIGHT)
@@ -452,7 +452,7 @@ class ImageSnapshotWindow(FluentWidget):
             return "滚轮：横向滚动"
         if has_vertical_overflow:
             return "滚轮：纵向滚动"
-        return "图像已完整显示，无需滚动"
+        return "图像完整显示"
 
     def _update_scroll_hint(
         self,
