@@ -24,14 +24,25 @@ sys.path.insert(0, str(ROOT))
 
 LOGGER = logging.getLogger(__name__)
 
-def qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: str):
+def qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: str) -> None:
+    """拦截并处理 Qt 底层日志输出。
+
+    主要用于屏蔽 qfluentwidgets 内部 ToolTip 读取 pixelSize 字体时导致的 -1 报错，
+    并把其余 Qt 日志按级别转发到项目统一日志系统。
+
+    Args:
+        mode [QtMsgType]: Qt 消息级别。
+        context [QMessageLogContext]: Qt 消息上下文，当前未使用。
+        message [str]: Qt 原始消息内容。
+
+    Returns:
+        None: 无返回值。
     """
-    拦截并处理 Qt 底层日志输出。
-    主要用于屏蔽 qfluentwidgets 内部 ToolTip 读取 pixelSize 字体时导致的 -1 报错。
-    """
+    # 屏蔽 qfluentwidgets 内部字体 pixelSize 为 -1 时的无意义警告
     if "QFont::setPointSize: Point size <= 0" in message:
         return
-        
+
+    # 按 Qt 消息级别映射到 Python logging 级别，统一带 session_id 占位
     if mode == QtMsgType.QtDebugMsg:
         LOGGER.debug(f"[Qt] {message}", extra={"session_id": "-"})
     elif mode == QtMsgType.QtInfoMsg:
@@ -43,15 +54,26 @@ def qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: st
     elif mode == QtMsgType.QtFatalMsg:
         LOGGER.fatal(f"[Qt] {message}", extra={"session_id": "-"})
 
-def exception_hook(exctype, value, tb):
+
+def exception_hook(exctype: type, value: BaseException, tb: object) -> None:
+    """全局未捕获异常钩子。
+
+    记录完整异常堆栈到日志系统，并在主线程中弹出错误对话框提示用户；
+    若 GUI 弹窗本身失败则仅保留日志，最后回退到系统默认异常钩子。
+
+    Args:
+        exctype [type]: 异常类型。
+        value [BaseException]: 异常实例。
+        tb [object]: 异常回溯对象。
+
+    Returns:
+        None: 无返回值。
     """
-    Global exception hook to catch unhandled exceptions.
-    Logs the full traceback and shows a critical error message box if on the main thread.
-    """
+    # 拼接完整异常堆栈文本，便于日志定位
     error_msg = "".join(traceback.format_exception(exctype, value, tb))
     LOGGER.critical("Uncaught exception:\n%s", error_msg, extra={"session_id": "-"})
 
-    # Show error message to user only if we are in the main thread
+    # 仅在主线程弹出错误对话框，避免子线程触发 GUI 崩溃
     from PyQt6.QtCore import QThread
     if QThread.currentThread() is QApplication.instance().thread():
         try:
@@ -62,9 +84,11 @@ def exception_hook(exctype, value, tb):
             msg_box.setInformativeText(str(value))
             msg_box.setDetailedText(error_msg)
             msg_box.exec()
-        except:
-            pass  # If GUI fails, we at least have the log
+        except Exception:
+            # GUI 弹窗失败时仅保留日志，避免二次异常
+            pass
 
+    # 回退到系统默认异常钩子，保证解释器行为一致
     sys.__excepthook__(exctype, value, tb)
 
 
