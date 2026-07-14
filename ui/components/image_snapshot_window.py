@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QRect, QSize, Qt
+from PyQt6.QtCore import QEvent, QObject, QRect, QSize, Qt
 from PyQt6.QtGui import (
     QColor,
     QImage,
@@ -10,20 +10,24 @@ from PyQt6.QtGui import (
     QPaintEvent,
     QPen,
     QResizeEvent,
+    QWheelEvent,
 )
 from PyQt6.QtWidgets import (
+    QAbstractScrollArea,
     QApplication,
     QFrame,
     QHBoxLayout,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 from qfluentwidgets import (
     BodyLabel,
+    CaptionLabel,
     FluentIcon,
     FluentWidget,
     ImageLabel,
-    SingleDirectionScrollArea,
+    SmoothScrollArea,
     SubtitleLabel,
     TransparentToolButton,
     isDarkTheme,
@@ -53,6 +57,132 @@ class PixelPerfectImageLabel(ImageLabel):
             painter.drawImage(self.rect(), self.image)
 
 
+class _BidirectionalSmoothScrollArea(SmoothScrollArea):
+    """支持普通滚轮纵向及 Shift+滚轮横向的平滑滚动区域。"""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """初始化双向滚动区域并优先安装滚轮路由过滤器。"""
+        super().__init__(parent)
+        self._reservation_suspended = False
+        self._updating_viewport_margins = False
+        # 后安装的过滤器会先处理事件，再将普通纵向事件交回组件库代理。
+        self.viewport().installEventFilter(self)
+        self.delegate.hScrollBar.rangeChanged.connect(
+            self._sync_scrollbar_reservation
+        )
+        self.delegate.vScrollBar.rangeChanged.connect(
+            self._sync_scrollbar_reservation
+        )
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """根据溢出方向和 Shift 修饰键分派滚轮事件。
+
+        Args:
+            watched [QObject]: 当前接收事件的对象。
+            event [QEvent]: Qt 输入事件。
+
+        Returns:
+            bool: 已处理横向滚动时返回 True，否则交由组件库继续处理。
+        """
+        if (
+            watched is self.viewport()
+            and event.type() == QEvent.Type.Wheel
+            and isinstance(event, QWheelEvent)
+            and event.angleDelta().y() != 0
+            and self._should_route_horizontally(event)
+        ):
+            self.delegate.hScrollBar.scrollValue(-event.angleDelta().y())
+            event.accept()
+            return True
+        return super().eventFilter(watched, event)
+
+    def _should_route_horizontally(self, event: QWheelEvent) -> bool:
+        """判断垂直滚轮增量是否应改用于横向滚动。"""
+        horizontal_bar = self.delegate.hScrollBar
+        vertical_bar = self.delegate.vScrollBar
+        has_horizontal_overflow = (
+            horizontal_bar.maximum() > horizontal_bar.minimum()
+        )
+        has_vertical_overflow = vertical_bar.maximum() > vertical_bar.minimum()
+        shift_pressed = bool(
+            event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        )
+        return has_horizontal_overflow and (
+            shift_pressed or not has_vertical_overflow
+        )
+
+    def _begin_content_update(self) -> None:
+        """更新图像尺寸前暂时移除旧滚动条预留空间。"""
+        self._reservation_suspended = True
+        self.setViewportMargins(0, 0, 0, 0)
+
+    def _end_content_update(self) -> None:
+        """图像尺寸更新后恢复实际所需的滚动条预留空间。"""
+        self._reservation_suspended = False
+        self._sync_scrollbar_reservation()
+
+    def _sync_scrollbar_reservation(
+        self,
+        _range: tuple[int, int] | None = None,
+    ) -> None:
+        """按实际溢出方向为 Fluent 滚动条动态预留视口边距。"""
+        del _range
+        if self._reservation_suspended or self._updating_viewport_margins:
+            return
+
+        self._updating_viewport_margins = True
+        try:
+            # 先还原未预留滚动条时的基础视口，避免边距自身制造 12 px 假溢出。
+            margins = self.viewportMargins()
+            base_width = (
+                self.viewport().width() + margins.left() + margins.right()
+            )
+            base_height = (
+                self.viewport().height() + margins.top() + margins.bottom()
+            )
+            content = self.widget()
+            content_size = content.size() if content is not None else QSize()
+            has_horizontal_overflow = content_size.width() > base_width
+            has_vertical_overflow = content_size.height() > base_height
+
+            # 某一方向的真实溢出会占用另一方向空间，有限迭代至状态稳定。
+            for _ in range(3):
+                horizontal_bar = self.delegate.hScrollBar
+                vertical_bar = self.delegate.vScrollBar
+                available_width = base_width - (
+                    vertical_bar.width() if has_vertical_overflow else 0
+                )
+                available_height = base_height - (
+                    horizontal_bar.height() if has_horizontal_overflow else 0
+                )
+                next_horizontal_overflow = (
+                    content_size.width() > available_width
+                )
+                next_vertical_overflow = (
+                    content_size.height() > available_height
+                )
+                if (
+                    next_horizontal_overflow == has_horizontal_overflow
+                    and next_vertical_overflow == has_vertical_overflow
+                ):
+                    break
+                has_horizontal_overflow = next_horizontal_overflow
+                has_vertical_overflow = next_vertical_overflow
+
+            self.setViewportMargins(
+                0,
+                0,
+                vertical_bar.width() if has_vertical_overflow else 0,
+                horizontal_bar.height() if has_horizontal_overflow else 0,
+            )
+
+            # 视口和图像均不得覆盖组件库的浮动滚动条。
+            self.delegate.hScrollBar.raise_()
+            self.delegate.vScrollBar.raise_()
+        finally:
+            self._updating_viewport_margins = False
+
+
 class ImageSnapshotWindow(FluentWidget):
     """在独立 Fluent 窗口中显示固定图像快照。
 
@@ -61,11 +191,12 @@ class ImageSnapshotWindow(FluentWidget):
     Attributes:
         image_label [PixelPerfectImageLabel]: 用于整数倍显示图像快照的标签。
         image_name_label [SubtitleLabel]: 展示列标题与维度名称组成的图像名称。
-        scroll_area [SingleDirectionScrollArea]: 支持滚轮横向浏览的图像区域。
+        scroll_area [SmoothScrollArea]: 支持纵横双向滚轮浏览的图像区域。
         zoom_control_widget [QWidget]: 承载居中倍率按钮的控制区。
         zoom_out_button [TransparentToolButton]: 将图像倍率降低一级的按钮。
         zoom_in_button [TransparentToolButton]: 将图像倍率提高一级的按钮。
         zoom_value_label [BodyLabel]: 显示当前倍率的文本标签。
+        scroll_hint_label [CaptionLabel]: 在右下角显示自适应滚轮操作说明。
         snapshot_image [QImage]: 当前窗口持有的图像快照副本。
     """
 
@@ -80,6 +211,7 @@ class ImageSnapshotWindow(FluentWidget):
     NAME_LABEL_HEIGHT = 28
     ZOOM_BUTTON_SIZE = 32
     ZOOM_ICON_SIZE = 16
+    SCROLL_HINT_HEIGHT = 18
 
     def __init__(
         self,
@@ -120,12 +252,16 @@ class ImageSnapshotWindow(FluentWidget):
         self.image_name_label = SubtitleLabel(title, self)
         self.image_name_label.setFixedHeight(self.NAME_LABEL_HEIGHT)
 
-        self.scroll_area = SingleDirectionScrollArea(
-            self,
-            Qt.Orientation.Horizontal,
-        )
+        self.scroll_area = _BidirectionalSmoothScrollArea(self)
         self.scroll_area.setObjectName("imageSnapshotScrollArea")
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setSizeAdjustPolicy(
+            QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored
+        )
+        self.scroll_area.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         self.scroll_area.setWidgetResizable(False)
         self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.scroll_area.setWidget(self.image_label)
@@ -172,6 +308,19 @@ class ImageSnapshotWindow(FluentWidget):
         control_layout.addWidget(self.zoom_in_button)
         control_layout.addStretch(1)
 
+        self.scroll_hint_label = CaptionLabel(
+            "图像已完整显示，无需滚动",
+            self,
+        )
+        self.scroll_hint_label.setFixedHeight(self.SCROLL_HINT_HEIGHT)
+        self.scroll_hint_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.scroll_hint_label.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(
             self.HORIZONTAL_MARGIN,
@@ -183,6 +332,11 @@ class ImageSnapshotWindow(FluentWidget):
         layout.addWidget(self.image_name_label)
         layout.addWidget(self.scroll_area, 1)
         layout.addWidget(self.zoom_control_widget)
+        layout.addWidget(
+            self.scroll_hint_label,
+            0,
+            Qt.AlignmentFlag.AlignRight,
+        )
 
         # 显式忽略 clicked(bool) 参数，避免布尔值被误作缩放步长。
         self.zoom_out_button.clicked.connect(
@@ -191,11 +345,18 @@ class ImageSnapshotWindow(FluentWidget):
         self.zoom_in_button.clicked.connect(
             lambda _checked=False: self._change_zoom(1)
         )
+        self.scroll_area.delegate.hScrollBar.rangeChanged.connect(
+            self._update_scroll_hint
+        )
+        self.scroll_area.delegate.vScrollBar.rangeChanged.connect(
+            self._update_scroll_hint
+        )
         StyleSheet.SLICE_INTERFACE.apply(self)
         # 保证普通窗口至少能完整容纳 1 倍原图，满足无滚动条适配下限。
         self.setMinimumSize(self._window_size_for_zoom(self.MIN_ZOOM))
         self._manual_resize_enabled = True
         self._apply_zoom(self.DEFAULT_ZOOM)
+        self._update_scroll_hint()
 
     @property
     def snapshot_image(self) -> QImage:
@@ -240,7 +401,11 @@ class ImageSnapshotWindow(FluentWidget):
             self._snapshot_image.width() * bounded_zoom,
             self._snapshot_image.height() * bounded_zoom,
         )
-        self.image_label.setScaledSize(scaled_size)
+        self.scroll_area._begin_content_update()
+        try:
+            self.image_label.setScaledSize(scaled_size)
+        finally:
+            self.scroll_area._end_content_update()
         self.zoom_value_label.setText(f"{bounded_zoom}×")
         self.zoom_out_button.setEnabled(bounded_zoom > self.MIN_ZOOM)
         self.zoom_in_button.setEnabled(bounded_zoom < self.MAX_ZOOM)
@@ -259,7 +424,38 @@ class ImageSnapshotWindow(FluentWidget):
             + self.CONTROL_SPACING
             + self.CONTROL_SPACING
             + self.CONTROL_HEIGHT
+            + self.CONTROL_SPACING
+            + self.SCROLL_HINT_HEIGHT
             + self.BOTTOM_MARGIN,
+        )
+
+    @staticmethod
+    def _scroll_hint_text(
+        has_horizontal_overflow: bool,
+        has_vertical_overflow: bool,
+    ) -> str:
+        """返回当前横纵溢出组合对应的滚轮操作说明。"""
+        if has_horizontal_overflow and has_vertical_overflow:
+            return "滚轮：纵向滚动；Shift + 滚轮：横向滚动"
+        if has_horizontal_overflow:
+            return "滚轮：横向滚动"
+        if has_vertical_overflow:
+            return "滚轮：纵向滚动"
+        return "图像已完整显示，无需滚动"
+
+    def _update_scroll_hint(
+        self,
+        _range: tuple[int, int] | None = None,
+    ) -> None:
+        """根据当前横纵滚动范围刷新右下角操作说明。"""
+        del _range
+        horizontal_bar = self.scroll_area.delegate.hScrollBar
+        vertical_bar = self.scroll_area.delegate.vScrollBar
+        self.scroll_hint_label.setText(
+            self._scroll_hint_text(
+                horizontal_bar.maximum() > horizontal_bar.minimum(),
+                vertical_bar.maximum() > vertical_bar.minimum(),
+            )
         )
 
     def _largest_fitting_zoom(self, window_size: QSize) -> int:

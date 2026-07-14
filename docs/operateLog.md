@@ -1,5 +1,51 @@
 # 变更记录
 
+- 时间：2026-07-14 10:30
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在独立窗口右下角增加随横纵溢出状态变化的滚轮操作说明。
+- 原因：用户需要在完整显示、单向溢出和双向溢出场景下获得对应滚轮操作提示。
+- 计划：
+  - [x] 添加组件库 CaptionLabel、右下角定位及四种自适应文案的 RED 测试。
+  - [x] 新增独立提示行，确保居中缩放按钮位置不受影响。
+  - [x] 监听横纵滚动范围并动态刷新提示文本。
+  - [x] 消除滚动条预留边距自身造成的假溢出，保证提示状态准确。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认旧实现缺少右下角提示标签和对应高度；GREEN 后窗口与卡片专项测试通过（21 passed，1 warning），覆盖右下角定位、四种自适应文案、无假溢出及既有缩放滚动行为；使用独立字节码缓存目录执行 `py_compile` 通过（默认 `__pycache__` 临时文件受占用）；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
+- 时间：2026-07-14 10:00
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：高倍率图像溢出时为 Fluent 横纵滚动条动态预留可见空间并保持顶层显示。
+- 原因：SmoothScrollArea 的自定义滚动条默认叠加在视口边缘，高倍率图像铺满视口后会降低滚动条可见性。
+- 计划：
+  - [x] 添加高倍率下横纵滚动条可见空间和层级的 RED 测试。
+  - [x] 根据实际横纵溢出动态更新 viewport margins。
+  - [x] 图像倍率切换前清理旧边距，避免无溢出倍率残留滚动条。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认高倍率下 viewport margins 均为 0，Fluent 滚动条叠加在图像视口边缘；GREEN 后窗口与卡片专项测试通过（20 passed，1 warning），覆盖横纵滚动条可见预留、顶层显示、双向滚轮、手动窗口无滚动条适配及既有快照行为；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
+- 时间：2026-07-14 09:30
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将图像滚动区从横向单向滚动修复为纵横双向平滑滚动。
+- 原因：SingleDirectionScrollArea 横向模式会将滚轮固定到水平方向，导致存在纵向溢出时无法用滚轮滚动。
+- 计划：
+  - [x] 添加普通滚轮纵向、Shift+滚轮横向及仅横向溢出自动横滚的 RED 测试。
+  - [x] 基于 SmoothScrollArea 实现双向滚轮路由。
+  - [x] 保留透明 QSS、像素无损和手动窗口无滚动条适配语义。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认横向 SingleDirectionScrollArea 不具备双向代理且无法处理纵向滚轮；GREEN 后窗口与卡片专项测试通过（19 passed，1 warning），覆盖普通滚轮纵向、Shift+滚轮横向、组件类型及既有快照交互；扩展相关套件为 31 passed、2 failed、1 deselected，两个失败均为当前分支既有标题格式测试仍期望“第 X 个切片”，而实现已改为“切片 X”，与本次滚轮修复无关；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
 - 时间：2026-07-14 09:00
 - 操作类型：[修改]
 - 影响文件：

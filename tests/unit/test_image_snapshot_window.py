@@ -5,13 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6 import sip
-from PyQt6.QtCore import QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QImage
+from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
+from PyQt6.QtGui import QColor, QImage, QWheelEvent
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QScrollArea
 from pytest import MonkeyPatch
 from qfluentwidgets import (
+    CaptionLabel,
     ImageLabel,
-    SingleDirectionScrollArea,
+    SmoothScrollArea,
     SubtitleLabel,
     Theme,
     TransparentToolButton,
@@ -98,7 +100,7 @@ def test_snapshot_window_has_centered_zoom_buttons() -> None:
         assert not hasattr(window, "zoom_slider")
         assert window.image_label.size() == QSize(1500, 750)
         assert window.zoom_value_label.text() == "3×"
-        assert window._window_size_for_zoom(3) == QSize(1524, 890)
+        assert window._window_size_for_zoom(3) == QSize(1524, 916)
         window.show()
         QApplication.processEvents()
 
@@ -120,6 +122,50 @@ def test_snapshot_window_has_centered_zoom_buttons() -> None:
             resized_controls_center
             - window.zoom_control_widget.rect().center().x()
         ) <= 1
+    finally:
+        sip.delete(window)
+
+
+def test_scroll_hint_is_right_aligned_and_adapts_to_overflow(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """右下角组件库标签应说明当前可用的滚轮操作。"""
+    _app()
+    # 固定足够大的可用屏幕，避免测试环境的小尺寸虚拟屏幕触发最大化溢出。
+    monkeypatch.setattr(
+        ImageSnapshotWindow,
+        "_available_screen_size",
+        lambda _self: QSize(1920, 1080),
+    )
+    window = ImageSnapshotWindow(
+        QImage(400, 80, QImage.Format.Format_RGB32),
+        "原始图像 - 脉宽",
+    )
+
+    try:
+        window.show()
+        QApplication.processEvents()
+
+        assert isinstance(window.scroll_hint_label, CaptionLabel)
+        assert window.scroll_hint_label.text() == "图像已完整显示，无需滚动"
+        assert (
+            window.scroll_hint_label.alignment()
+            & Qt.AlignmentFlag.AlignRight
+        )
+        assert (
+            window.scroll_hint_label.geometry().right()
+            == window.width() - window.HORIZONTAL_MARGIN - 1
+        )
+        assert (
+            window.scroll_hint_label.geometry().bottom()
+            == window.height() - window.BOTTOM_MARGIN - 1
+        )
+
+        assert window._scroll_hint_text(False, True) == "滚轮：纵向滚动"
+        assert window._scroll_hint_text(True, False) == "滚轮：横向滚动"
+        assert window._scroll_hint_text(True, True) == (
+            "滚轮：纵向滚动；Shift + 滚轮：横向滚动"
+        )
     finally:
         sip.delete(window)
 
@@ -230,8 +276,8 @@ def test_zoom_buttons_apply_integer_zoom_and_enforce_bounds() -> None:
         sip.delete(window)
 
 
-def test_snapshot_window_uses_horizontal_single_direction_scroll_area() -> None:
-    """图像应由支持滚轮横向滚动的组件库滚动区域承载。"""
+def test_snapshot_window_uses_bidirectional_smooth_scroll_area() -> None:
+    """图像应由支持纵横双向滚动的组件库平滑滚动区域承载。"""
     _app()
     window = ImageSnapshotWindow(
         QImage(400, 80, QImage.Format.Format_RGB32),
@@ -240,16 +286,113 @@ def test_snapshot_window_uses_horizontal_single_direction_scroll_area() -> None:
 
     try:
         assert isinstance(window.scroll_area, QScrollArea)
-        assert isinstance(window.scroll_area, SingleDirectionScrollArea)
-        assert window.scroll_area.orient == Qt.Orientation.Horizontal
-        assert (
-            window.scroll_area.smoothScroll.orient
-            == Qt.Orientation.Horizontal
-        )
+        assert isinstance(window.scroll_area, SmoothScrollArea)
         assert window.scroll_area.objectName() == "imageSnapshotScrollArea"
         assert "#imageSnapshotScrollArea" in window.styleSheet()
         assert window.scroll_area.widget() is window.image_label
         assert not window.scroll_area.widgetResizable()
+    finally:
+        sip.delete(window)
+
+
+def test_mouse_wheel_routes_vertical_and_shift_horizontal(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """普通滚轮应纵向滚动，Shift+滚轮应横向滚动。"""
+    _app()
+    window = ImageSnapshotWindow(
+        QImage(500, 250, QImage.Format.Format_RGB32),
+        "原始图像 - 载频",
+    )
+
+    def wheel_event(modifiers: Qt.KeyboardModifier) -> QWheelEvent:
+        """构造向下滚动一步的鼠标滚轮事件。"""
+        return QWheelEvent(
+            QPointF(20, 20),
+            QPointF(20, 20),
+            QPoint(),
+            QPoint(0, -120),
+            Qt.MouseButton.NoButton,
+            modifiers,
+            Qt.ScrollPhase.ScrollUpdate,
+            False,
+        )
+
+    try:
+        monkeypatch.setattr(
+            window,
+            "_available_screen_size",
+            lambda: QSize(800, 600),
+            raising=False,
+        )
+        window.show()
+        window._apply_zoom(10)
+        QApplication.processEvents()
+
+        vertical_bar = window.scroll_area.delegate.vScrollBar
+        horizontal_bar = window.scroll_area.delegate.hScrollBar
+        assert vertical_bar.maximum() > 0
+        assert horizontal_bar.maximum() > 0
+
+        QApplication.sendEvent(
+            window.scroll_area.viewport(),
+            wheel_event(Qt.KeyboardModifier.NoModifier),
+        )
+        QTest.qWait(300)
+        assert vertical_bar.value() > 0
+        assert horizontal_bar.value() == 0
+
+        vertical_bar.ani.stop()
+        vertical_bar.scrollTo(0, useAni=False)
+        QApplication.sendEvent(
+            window.scroll_area.viewport(),
+            wheel_event(Qt.KeyboardModifier.ShiftModifier),
+        )
+        QTest.qWait(300)
+        assert vertical_bar.value() == 0
+        assert horizontal_bar.value() > 0
+
+        # 仅存在横向溢出时，无需 Shift 也应自动使用横向滚动。
+        vertical_bar.setRange(0, 0)
+        assert window.scroll_area._should_route_horizontally(
+            wheel_event(Qt.KeyboardModifier.NoModifier)
+        )
+    finally:
+        sip.delete(window)
+
+
+def test_high_zoom_reserves_visible_space_for_both_scrollbars(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """高倍率横纵溢出时视口不应覆盖 Fluent 滚动条。"""
+    _app()
+    window = ImageSnapshotWindow(
+        QImage(500, 250, QImage.Format.Format_RGB32),
+        "原始图像 - 载频",
+    )
+
+    try:
+        monkeypatch.setattr(
+            window,
+            "_available_screen_size",
+            lambda: QSize(800, 600),
+            raising=False,
+        )
+        window.show()
+        window._apply_zoom(10)
+        QApplication.processEvents()
+
+        area = window.scroll_area
+        horizontal_bar = area.delegate.hScrollBar
+        vertical_bar = area.delegate.vScrollBar
+        margins = area.viewportMargins()
+
+        assert horizontal_bar.isVisible()
+        assert vertical_bar.isVisible()
+        assert margins.bottom() >= horizontal_bar.height()
+        assert margins.right() >= vertical_bar.width()
+        assert area.viewport().geometry().bottom() <= horizontal_bar.geometry().top()
+        assert area.viewport().geometry().right() <= vertical_bar.geometry().left()
     finally:
         sip.delete(window)
 
