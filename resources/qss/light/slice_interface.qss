@@ -74,3 +74,12 @@ SimpleCardWidget#sliceImageCard {
 #drawerPanelContentWidget {
     background: transparent;
 }
+
+/* 独立图像窗口滚动区域及视口保持透明。 */
+QScrollArea#imageSnapshotScrollArea,
+QScrollArea#imageSnapshotScrollArea > QWidget,
+QScrollArea#imageSnapshotScrollArea QWidget#qt_scrollarea_viewport,
+#imageSnapshotImageLabel {
+    background: transparent;
+    border: none;
+}

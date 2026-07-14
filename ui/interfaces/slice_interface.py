@@ -168,6 +168,62 @@ class SliceInterface(QFrame):
         self._slice_controller = SliceController(self)
         self._identify_controller = IdentifyController(self)
 
+    def set_original_snapshot_slice_number(self, slice_number: int) -> None:
+        """同步设置原始图像列全部快照窗口的切片编号。
+
+        Args:
+            slice_number [int]: 当前显示的 1-based 切片编号，必须大于等于 1。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片编号小于 1 时由维度卡片抛出。
+        """
+        original_cards = (
+            self.original_cf_card,
+            self.original_pw_card,
+            self.original_pa_card,
+            self.original_dtoa_card,
+            self.original_doa_card,
+        )
+        for card in original_cards:
+            card.set_snapshot_slice_number(slice_number)
+
+    def set_cluster_snapshot_context(
+        self,
+        slice_number: int,
+        cluster_title: str,
+    ) -> None:
+        """同步设置聚类列全部快照窗口的详细标题。
+
+        Args:
+            slice_number [int]: 当前显示的 1-based 切片编号，必须大于等于 1。
+            cluster_title [str]: 聚类列当前显示的非空标题。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片编号无效或聚类标题为空时抛出。
+        """
+        if slice_number < 1:
+            raise ValueError("slice_number 必须大于等于 1")
+        if not cluster_title.strip():
+            raise ValueError("cluster_title 不能为空")
+
+        cluster_cards = (
+            (self.cluster_cf_card, "载频"),
+            (self.cluster_pw_card, "脉宽"),
+            (self.cluster_pa_card, "幅度"),
+            (self.cluster_dtoa_card, "一级差"),
+            (self.cluster_doa_card, "方位角"),
+        )
+        for card, dimension_name in cluster_cards:
+            card.set_snapshot_window_title(
+                f"切片 {slice_number}  - {cluster_title} - {dimension_name}"
+            )
+
     def _configure_header_title_label(self, label: QLabel) -> None:
         """配置标题标签的稳定宽度策略。"""
         # 允许标题在空间不足时被压缩，避免长文本反向撑大整列宽度。

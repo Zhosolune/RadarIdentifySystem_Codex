@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import (
     QColor,
     QImage,
     QPainter,
     QPaintEvent,
     QPen,
+    QResizeEvent,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -19,12 +20,16 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import (
     BodyLabel,
+    FluentIcon,
     FluentWidget,
     ImageLabel,
-    ScrollArea,
-    Slider,
+    SingleDirectionScrollArea,
+    SubtitleLabel,
+    TransparentToolButton,
     isDarkTheme,
 )
+
+from app.style_sheet import StyleSheet
 
 
 class PixelPerfectImageLabel(ImageLabel):
@@ -55,8 +60,11 @@ class ImageSnapshotWindow(FluentWidget):
 
     Attributes:
         image_label [PixelPerfectImageLabel]: 用于整数倍显示图像快照的标签。
-        scroll_area [ScrollArea]: 保持图像固定尺寸并提供滚动查看的区域。
-        zoom_slider [Slider]: 选择 1～10 倍整数显示倍率的滑块。
+        image_name_label [SubtitleLabel]: 展示列标题与维度名称组成的图像名称。
+        scroll_area [SingleDirectionScrollArea]: 支持滚轮横向浏览的图像区域。
+        zoom_control_widget [QWidget]: 承载居中倍率按钮的控制区。
+        zoom_out_button [TransparentToolButton]: 将图像倍率降低一级的按钮。
+        zoom_in_button [TransparentToolButton]: 将图像倍率提高一级的按钮。
         zoom_value_label [BodyLabel]: 显示当前倍率的文本标签。
         snapshot_image [QImage]: 当前窗口持有的图像快照副本。
     """
@@ -69,6 +77,9 @@ class ImageSnapshotWindow(FluentWidget):
     BOTTOM_MARGIN = 12
     CONTROL_HEIGHT = 32
     CONTROL_SPACING = 8
+    NAME_LABEL_HEIGHT = 28
+    ZOOM_BUTTON_SIZE = 32
+    ZOOM_ICON_SIZE = 16
 
     def __init__(
         self,
@@ -95,40 +106,71 @@ class ImageSnapshotWindow(FluentWidget):
         # 不设置 parent，确保对象保持可自由移动和缩放的独立顶层窗口。
         super().__init__()
         self._snapshot_image = image.copy()
+        self._zoom = self.DEFAULT_ZOOM
+        self._syncing_window_geometry = False
+        self._manual_resize_enabled = False
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowTitle(title)
-        self.setMinimumSize(320, 180)
 
         self.image_label = PixelPerfectImageLabel(self._snapshot_image)
+        self.image_label.setObjectName("imageSnapshotImageLabel")
         self.image_label.setBorderRadius(0, 0, 0, 0)
 
-        self.scroll_area = ScrollArea(self)
+        # 在内容区固定展示图像名称，避免仅依赖系统标题栏识别图像。
+        self.image_name_label = SubtitleLabel(title, self)
+        self.image_name_label.setFixedHeight(self.NAME_LABEL_HEIGHT)
+
+        self.scroll_area = SingleDirectionScrollArea(
+            self,
+            Qt.Orientation.Horizontal,
+        )
+        self.scroll_area.setObjectName("imageSnapshotScrollArea")
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setWidgetResizable(False)
         self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.scroll_area.setWidget(self.image_label)
 
-        control_widget = QWidget(self)
-        control_widget.setFixedHeight(self.CONTROL_HEIGHT)
-        control_layout = QHBoxLayout(control_widget)
+        self.zoom_control_widget = QWidget(self)
+        self.zoom_control_widget.setFixedHeight(self.CONTROL_HEIGHT)
+        control_layout = QHBoxLayout(self.zoom_control_widget)
         control_layout.setContentsMargins(0, 0, 0, 0)
         control_layout.setSpacing(8)
 
-        zoom_title_label = BodyLabel("显示倍率", control_widget)
-        self.zoom_slider = Slider(Qt.Orientation.Horizontal, control_widget)
-        self.zoom_slider.setRange(self.MIN_ZOOM, self.MAX_ZOOM)
-        self.zoom_slider.setSingleStep(1)
-        self.zoom_slider.setPageStep(1)
-        self.zoom_slider.setValue(self.DEFAULT_ZOOM)
+        self.zoom_out_button = TransparentToolButton(
+            FluentIcon.REMOVE,
+            self.zoom_control_widget,
+        )
+        self.zoom_out_button.setFixedSize(
+            self.ZOOM_BUTTON_SIZE,
+            self.ZOOM_BUTTON_SIZE,
+        )
+        self.zoom_out_button.setIconSize(
+            QSize(self.ZOOM_ICON_SIZE, self.ZOOM_ICON_SIZE),
+        )
         self.zoom_value_label = BodyLabel(
             f"{self.DEFAULT_ZOOM}×",
-            control_widget,
+            self.zoom_control_widget,
         )
-        self.zoom_value_label.setMinimumWidth(28)
+        self.zoom_value_label.setFixedWidth(36)
+        self.zoom_value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.zoom_in_button = TransparentToolButton(
+            FluentIcon.ADD,
+            self.zoom_control_widget,
+        )
+        self.zoom_in_button.setFixedSize(
+            self.ZOOM_BUTTON_SIZE,
+            self.ZOOM_BUTTON_SIZE,
+        )
+        self.zoom_in_button.setIconSize(
+            QSize(self.ZOOM_ICON_SIZE, self.ZOOM_ICON_SIZE),
+        )
 
-        control_layout.addWidget(zoom_title_label)
-        control_layout.addWidget(self.zoom_slider, 1)
+        # 两侧使用等权伸缩空间，确保按钮组始终保持在窗口水平中心。
+        control_layout.addStretch(1)
+        control_layout.addWidget(self.zoom_out_button)
         control_layout.addWidget(self.zoom_value_label)
+        control_layout.addWidget(self.zoom_in_button)
+        control_layout.addStretch(1)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(
@@ -138,10 +180,21 @@ class ImageSnapshotWindow(FluentWidget):
             self.BOTTOM_MARGIN,
         )
         layout.setSpacing(self.CONTROL_SPACING)
+        layout.addWidget(self.image_name_label)
         layout.addWidget(self.scroll_area, 1)
-        layout.addWidget(control_widget)
+        layout.addWidget(self.zoom_control_widget)
 
-        self.zoom_slider.valueChanged.connect(self._apply_zoom)
+        # 显式忽略 clicked(bool) 参数，避免布尔值被误作缩放步长。
+        self.zoom_out_button.clicked.connect(
+            lambda _checked=False: self._change_zoom(-1)
+        )
+        self.zoom_in_button.clicked.connect(
+            lambda _checked=False: self._change_zoom(1)
+        )
+        StyleSheet.SLICE_INTERFACE.apply(self)
+        # 保证普通窗口至少能完整容纳 1 倍原图，满足无滚动条适配下限。
+        self.setMinimumSize(self._window_size_for_zoom(self.MIN_ZOOM))
+        self._manual_resize_enabled = True
         self._apply_zoom(self.DEFAULT_ZOOM)
 
     @property
@@ -156,12 +209,7 @@ class ImageSnapshotWindow(FluentWidget):
     def _apply_zoom(self, zoom: int) -> None:
         """应用整数倍率并同步调整窗口状态与尺寸。"""
         bounded_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, int(zoom)))
-        scaled_size = QSize(
-            self._snapshot_image.width() * bounded_zoom,
-            self._snapshot_image.height() * bounded_zoom,
-        )
-        self.image_label.setScaledSize(scaled_size)
-        self.zoom_value_label.setText(f"{bounded_zoom}×")
+        self._set_zoom_content(bounded_zoom)
 
         window_size = self._window_size_for_zoom(bounded_zoom)
         available_size = self._available_screen_size()
@@ -169,15 +217,37 @@ class ImageSnapshotWindow(FluentWidget):
             window_size.width() > available_size.width()
             or window_size.height() > available_size.height()
         )
-        if exceeds_screen:
-            self.setWindowState(
-                self.windowState() | Qt.WindowState.WindowMaximized
-            )
-            return
+        self._syncing_window_geometry = True
+        try:
+            if exceeds_screen:
+                self.setWindowState(
+                    self.windowState() | Qt.WindowState.WindowMaximized
+                )
+                return
 
-        if self.isMaximized():
-            self.showNormal()
-        self.resize(window_size)
+            if self.isMaximized():
+                self.showNormal()
+            self.resize(window_size)
+        finally:
+            self._syncing_window_geometry = False
+        self._center_window()
+
+    def _set_zoom_content(self, zoom: int) -> None:
+        """仅更新图像倍率与控制状态，不改变窗口几何。"""
+        bounded_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, int(zoom)))
+        self._zoom = bounded_zoom
+        scaled_size = QSize(
+            self._snapshot_image.width() * bounded_zoom,
+            self._snapshot_image.height() * bounded_zoom,
+        )
+        self.image_label.setScaledSize(scaled_size)
+        self.zoom_value_label.setText(f"{bounded_zoom}×")
+        self.zoom_out_button.setEnabled(bounded_zoom > self.MIN_ZOOM)
+        self.zoom_in_button.setEnabled(bounded_zoom < self.MAX_ZOOM)
+
+    def _change_zoom(self, step: int) -> None:
+        """按指定步长应用新的整数倍率。"""
+        self._apply_zoom(self._zoom + step)
 
     def _window_size_for_zoom(self, zoom: int) -> QSize:
         """计算指定倍率下包含边距和控制区的窗口目标尺寸。"""
@@ -185,17 +255,59 @@ class ImageSnapshotWindow(FluentWidget):
             self._snapshot_image.width() * zoom + self.HORIZONTAL_MARGIN * 2,
             self._snapshot_image.height() * zoom
             + self.TOP_MARGIN
+            + self.NAME_LABEL_HEIGHT
+            + self.CONTROL_SPACING
             + self.CONTROL_SPACING
             + self.CONTROL_HEIGHT
             + self.BOTTOM_MARGIN,
         )
 
+    def _largest_fitting_zoom(self, window_size: QSize) -> int:
+        """计算指定普通窗口尺寸可完整容纳的最大整数倍率。"""
+        for zoom in range(self.MAX_ZOOM, self.MIN_ZOOM - 1, -1):
+            target_size = self._window_size_for_zoom(zoom)
+            if (
+                target_size.width() <= window_size.width()
+                and target_size.height() <= window_size.height()
+            ):
+                return zoom
+        return self.MIN_ZOOM
+
     def _available_screen_size(self) -> QSize:
         """返回窗口当前屏幕的可用尺寸。"""
+        return self._available_screen_geometry().size()
+
+    def _available_screen_geometry(self) -> QRect:
+        """返回窗口当前屏幕的可用区域。"""
         screen = self.screen() or QApplication.primaryScreen()
         if screen is None:
-            return QSize(1920, 1080)
-        return screen.availableGeometry().size()
+            return QRect(0, 0, 1920, 1080)
+        return screen.availableGeometry()
+
+    def _center_window(self) -> None:
+        """将普通状态窗口移动到当前屏幕可用区域中央。"""
+        # 隐藏窗口 resize 后 frameGeometry 可能仍保留旧尺寸，直接使用目标尺寸定位。
+        target_geometry = QRect(0, 0, self.width(), self.height())
+        target_geometry.moveCenter(self._available_screen_geometry().center())
+        self.move(target_geometry.topLeft())
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """手动调整普通窗口时自动应用完整适配的最大整数倍率。
+
+        Args:
+            event [QResizeEvent]: Qt 窗口尺寸变化事件。
+
+        Returns:
+            None: 无返回值。
+        """
+        super().resizeEvent(event)
+        if (
+            not self._manual_resize_enabled
+            or self._syncing_window_geometry
+            or self.isMaximized()
+        ):
+            return
+        self._set_zoom_content(self._largest_fitting_zoom(event.size()))
 
     def paintEvent(self, event: QPaintEvent) -> None:
         """绘制 Fluent 背景和主题适配的窗口外轮廓。

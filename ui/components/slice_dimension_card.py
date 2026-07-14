@@ -169,6 +169,7 @@ class SliceDimensionCard(QWidget):
         self.setObjectName(object_name)
         self._source_image: QImage | None = None
         self._snapshot_window: ImageSnapshotWindow | None = None
+        self._snapshot_window_title_base = snapshot_window_title
         self._snapshot_window_title = snapshot_window_title
         self.dimension_label = QLabel("\n".join(label_text), self)
         self.dimension_label.setObjectName("sliceDimensionLabel")
@@ -209,6 +210,42 @@ class SliceDimensionCard(QWidget):
         # 卡片保存独立源图像，确保创建窗口时获得触发瞬间的稳定快照。
         self._source_image = image.copy()
         self.image_label.set_image(image)
+
+    def set_snapshot_slice_number(self, slice_number: int) -> None:
+        """为独立图像窗口标题设置当前切片编号。
+
+        Args:
+            slice_number [int]: 1-based 切片编号，必须大于等于 1。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片编号小于 1 时抛出。
+        """
+        if slice_number < 1:
+            raise ValueError("slice_number 必须大于等于 1")
+        self._snapshot_window_title = (
+            f"切片 {slice_number} - {self._snapshot_window_title_base}"
+        )
+
+    def set_snapshot_window_title(self, title: str) -> None:
+        """更新后续独立图像窗口使用的完整标题。
+
+        已打开窗口仍保留创建时的快照标题，只有后续新窗口使用更新值。
+
+        Args:
+            title [str]: 非空完整窗口标题。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当标题为空或只包含空白字符时抛出。
+        """
+        if not title.strip():
+            raise ValueError("title 不能为空")
+        self._snapshot_window_title = title
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         """在有效图像卡片的右键位置显示独立查看命令。

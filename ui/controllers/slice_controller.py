@@ -544,6 +544,8 @@ class SliceController(QObject):
         # 更新左侧标题文本
         if hasattr(self.view, 'slice_title_label'):
             self.view.slice_title_label.setText(f"第 {slice_index + 1} / {total} 个切片数据  原始图像")
+        # 原始图像快照名称使用公开的 1-based 切片编号。
+        self.view.set_original_snapshot_slice_number(slice_index + 1)
         
         # 组装图像维度与界面卡片的映射关系
         cards = {

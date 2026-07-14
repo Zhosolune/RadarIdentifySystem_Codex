@@ -499,6 +499,7 @@ class IdentifyController(QObject):
             bundle=bundle,
             cluster=target_cluster,
             cluster_rec=target_rec,
+            slice_index=current_slice_index,
             display_index=self._current_cluster_index + 1,
             display_total=len(display_clusters),
             total_all=len(slice_cluster_result.clusters),
@@ -549,21 +550,37 @@ class IdentifyController(QObject):
         bundle: RenderedImageBundle,
         cluster: ClusterItem,
         cluster_rec: ClusterRecognition | None,
+        slice_index: int,
         display_index: int,
         display_total: int,
         total_all: int,
     ) -> None:
-        """使用指定的聚类图像包更新聚类结果 UI。"""
+        """使用指定聚类图像包更新图像、列标题和快照标题。
+
+        Args:
+            bundle [RenderedImageBundle]: 当前类别的各维度渲染图像。
+            cluster [ClusterItem]: 当前展示的聚类对象。
+            cluster_rec [ClusterRecognition | None]: 当前类别识别结果。
+            slice_index [int]: 当前类别所属的 0-based 切片索引。
+            display_index [int]: 当前展示列表内的 1-based 类别序号。
+            display_total [int]: 当前展示模式下的类别总数。
+            total_all [int]: 当前切片未经筛选的类别总数。
+
+        Returns:
+            None: 无返回值。
+        """
         # 更新中间标题文本
+        title_text = self._build_cluster_title(
+            cluster=cluster,
+            cluster_rec=cluster_rec,
+            display_index=display_index,
+            display_total=display_total,
+            total_all=total_all,
+        )
         if hasattr(self.view, 'cluster_title_label'):
-            title_text = self._build_cluster_title(
-                cluster=cluster,
-                cluster_rec=cluster_rec,
-                display_index=display_index,
-                display_total=display_total,
-                total_all=total_all,
-            )
             self.view.cluster_title_label.setText(title_text)
+        # 将当前切片和聚类列标题同步到全部维度快照，便于多窗口对比识别。
+        self.view.set_cluster_snapshot_context(slice_index + 1, title_text)
         
         # 构建维度到卡片的映射字典
         cards = {

@@ -1,5 +1,89 @@
 # 变更记录
 
+- 时间：2026-07-14 09:00
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：聚类列独立图像标题同步切片编号、当前聚类列标题及维度名称。
+- 原因：聚类快照需要明确所属切片、类别进度与具体维度，便于多窗口对比时识别。
+- 计划：
+  - [x] 添加聚类模式和类别切换时详细快照标题的 RED 测试。
+  - [x] 扩展维度卡片动态标题接口及 SliceInterface 聚类标题同步入口。
+  - [x] 在 IdentifyController 渲染聚类图像时同步当前切片与聚类标题。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认聚类卡片仍使用静态“聚类结果 - 维度”标题；GREEN 后 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_cluster_snapshot_title_final -p no:cacheprovider` 通过（32 passed，1 deselected，1 warning）；相关文件 `py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
+- 时间：2026-07-13 14:25
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\resource_rc.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：普通窗口拖动改尺寸时自动采用无滚动条的最大整数倍率，并接入横向单向平滑滚动区域。
+- 原因：用户要求手动调整窗口时完整显示图像，同时保留按钮放大至超屏后的完整像素滚动查看能力，并支持滚轮横向滚动。
+- 计划：
+  - [x] 添加手动窗口缩放自动适配、无滚动条及横向滚轮组件的 RED 测试。
+  - [x] 分离图像倍率更新与窗口几何更新，避免手动 resize 反向触发窗口重设。
+  - [x] 使用组件库 SingleDirectionScrollArea 承载图像并配置横向滚轮。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认手动窗口 resize 不更新倍率且滚动区仍为普通 ScrollArea 共 2 项失败；GREEN 后 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_snapshot_resize_final -p no:cacheprovider` 通过（32 passed，1 deselected，1 warning），窗口专项最终通过（11 passed，1 warning）；QSS 资源编译输出同步更新；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
+- 时间：2026-07-13 14:00
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\slice_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\slice_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：以居中的 Fluent 加减图标按钮替代倍率 Slider，并通过明暗主题 QSS 将图像滚动区域设为透明。
+- 原因：用户要求简化倍率交互、保持控制按钮相对窗口中心位置稳定，并统一滚动区域视觉背景。
+- 计划：
+  - [x] 添加居中加减按钮、倍率边界和 QSS 透明背景的 RED 测试。
+  - [x] 删除 Slider、ToolTip 及其专用事件处理，接入按钮离散倍率控制。
+  - [x] 在明暗主题 Slice QSS 中补充独立窗口滚动区规则并应用样式。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认加减按钮缺失、滚动区对象名缺失及明暗主题 QSS 规则缺失共 5 项失败；GREEN 后 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_snapshot_buttons_final_clean -p no:cacheprovider` 通过（31 passed，1 deselected，1 warning），窗口专项测试再次通过（10 passed，1 warning）；扩展加入分析结果卡片测试时仍有 1 个既有 `QTableView#analysisResultTable` QSS 断言失败，与本次快照滚动区规则无关；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
+- 时间：2026-07-13 13:35
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：固定倍率 Slider 宽度，增加手柄上方倍率提示与窗口缩放后居中，并为原始切片图像名称补充切片编号。
+- 原因：避免倍率控件随宽窗口过度拉伸，增强倍率反馈和缩放后窗口定位，并明确原始图像所属切片。
+- 计划：
+  - [x] 添加 Slider 固定宽度、组件库 ToolTip 倍率提示及缩放居中的 RED 测试。
+  - [x] 添加切片控制器同步原始图像名称切片编号的 RED 测试。
+  - [x] 最小实现窗口与标题数据流调整。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认 Slider 未固定宽度、倍率 ToolTip 缺失、窗口未居中及切片编号未同步共 4 项失败；GREEN 后 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_snapshot_layout_final -p no:cacheprovider` 通过（31 passed，1 deselected，1 warning）；相关文件 `py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
+- 时间：2026-07-13 13:10
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：调整图像快照窗口的倍率提交时机，并在内容区标注图像名称。
+- 原因：拖动 Slider 时即时缩放窗口会干扰用户调整；窗口还需明确展示“所属列标题 + 维度名称”。
+- 计划：
+  - [x] 添加倍率仅在鼠标释放后提交及图像名称展示的 RED 测试。
+  - [x] 使用组件库 Slider 子类统一处理拖动与轨道点击的鼠标释放提交。
+  - [x] 使用 SubtitleLabel 展示图像名称，并同步修正窗口尺寸计算。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认旧实现存在窗口尺寸计算、名称标签缺失及倍率即时应用共 3 项失败；GREEN 后 `D:/Miniforge3/envs/pyqt6/python.exe -m pytest tests/unit/test_image_snapshot_window.py tests/unit/test_slice_dimension_card.py tests/unit/test_slice_interface.py -q -k "not analysis_result_table_is_mounted_in_right_bottom_card" --basetemp=.pytest_tmp_snapshot_release_final -p no:cacheprovider` 通过（19 passed，1 deselected，1 warning）；`D:/Miniforge3/envs/pyqt6/python.exe -m py_compile ui/components/image_snapshot_window.py tests/unit/test_image_snapshot_window.py` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
 - 时间：2026-07-13 12:24
 - 操作类型：[修改]
 - 影响文件：

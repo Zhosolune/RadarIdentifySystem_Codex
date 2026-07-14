@@ -14,6 +14,7 @@ from qfluentwidgets import TableWidget
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from infra.plotting.types import RenderedImageBundle
 from ui.interfaces.slice_interface import SliceInterface
 from ui.components.analysis_result_card import AnalysisResultCard, RoundedAnalysisHeaderView
 
@@ -232,6 +233,36 @@ def test_slice_dimension_cards_have_explicit_snapshot_titles(
         assert interface.cluster_pa_card._snapshot_window_title == "聚类结果 - 幅度"
         assert interface.cluster_dtoa_card._snapshot_window_title == "聚类结果 - 一级差"
         assert interface.cluster_doa_card._snapshot_window_title == "聚类结果 - 方位角"
+    finally:
+        sip.delete(interface)
+
+
+def test_original_snapshot_titles_include_current_slice_number(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """切片控制器刷新原始图像时应同步其 1-based 切片编号。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    interface = SliceInterface()
+
+    try:
+        interface._slice_controller._update_ui_with_bundle(
+            RenderedImageBundle(images={}),
+            slice_index=6,
+        )
+
+        assert (
+            interface.original_cf_card._snapshot_window_title
+            == "第 7 个切片 - 原始图像 - 载频"
+        )
+        assert (
+            interface.original_doa_card._snapshot_window_title
+            == "第 7 个切片 - 原始图像 - 方位角"
+        )
+        assert interface.cluster_cf_card._snapshot_window_title == "聚类结果 - 载频"
     finally:
         sip.delete(interface)
 

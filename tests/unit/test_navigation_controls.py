@@ -509,6 +509,14 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
         interface.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._identify_controller.load_cluster_image(0, reset_index=True)
         assert interface.cluster_title_label.text() == "CF维聚类结果  第1/1类  总第1/2类"
+        assert (
+            interface.cluster_cf_card._snapshot_window_title
+            == "第 1 个切片 - CF维聚类结果  第1/1类  总第1/2类 - 载频"
+        )
+        assert (
+            interface.cluster_doa_card._snapshot_window_title
+            == "第 1 个切片 - CF维聚类结果  第1/1类  总第1/2类 - 方位角"
+        )
         assert not interface.next_cluster_button.isEnabled()
 
         interface.plot_option_card.show_mode_item.set("ALL")
@@ -518,6 +526,10 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
 
         interface._identify_controller._on_next_cluster()
         assert interface.cluster_title_label.text() == "PW维聚类结果  第2/2类  总第2/2类"
+        assert (
+            interface.cluster_pw_card._snapshot_window_title
+            == "第 1 个切片 - PW维聚类结果  第2/2类  总第2/2类 - 脉宽"
+        )
         assert interface.prev_cluster_button.isEnabled()
         assert not interface.next_cluster_button.isEnabled()
     finally:
