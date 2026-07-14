@@ -254,6 +254,7 @@ class ImageSnapshotWindow(FluentWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # self.setWindowTitle(title)
         self.setWindowTitle("图像快照")
+        self.setWindowIcon(FluentIcon.PHOTO.icon())
 
         self.image_label = PixelPerfectImageLabel(self._snapshot_image)
         self.image_label.setObjectName("imageSnapshotImageLabel")
