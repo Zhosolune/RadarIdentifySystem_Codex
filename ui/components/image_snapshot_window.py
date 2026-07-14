@@ -176,6 +176,16 @@ class _BidirectionalSmoothScrollArea(SmoothScrollArea):
                 horizontal_bar.height() if has_horizontal_overflow else 0,
             )
 
+            # 布局瞬时范围可能先显示 Fluent 浮动条；以最终内容尺寸再次校正显隐。
+            horizontal_bar.setVisible(
+                has_horizontal_overflow
+                and horizontal_bar.maximum() > horizontal_bar.minimum()
+            )
+            vertical_bar.setVisible(
+                has_vertical_overflow
+                and vertical_bar.maximum() > vertical_bar.minimum()
+            )
+
             # 视口和图像均不得覆盖组件库的浮动滚动条。
             self.delegate.hScrollBar.raise_()
             self.delegate.vScrollBar.raise_()
@@ -242,14 +252,15 @@ class ImageSnapshotWindow(FluentWidget):
         self._syncing_window_geometry = False
         self._manual_resize_enabled = False
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setWindowTitle(title)
+        # self.setWindowTitle(title)
+        self.setWindowTitle("图像快照")
 
         self.image_label = PixelPerfectImageLabel(self._snapshot_image)
         self.image_label.setObjectName("imageSnapshotImageLabel")
         self.image_label.setBorderRadius(0, 0, 0, 0)
 
         # 在内容区固定展示图像名称，避免仅依赖系统标题栏识别图像。
-        self.image_name_label = SubtitleLabel(title, self)
+        self.image_name_label = BodyLabel(title, self)
         self.image_name_label.setFixedHeight(self.NAME_LABEL_HEIGHT)
 
         self.scroll_area = _BidirectionalSmoothScrollArea(self)

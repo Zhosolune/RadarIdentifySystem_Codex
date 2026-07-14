@@ -1,5 +1,19 @@
 # 变更记录
 
+- 时间：2026-07-14 11:00
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：排查并修复图像无需滚动时鼠标悬停下边沿仍可能显示横向滚动条的问题。
+- 原因：组件库浮动滚动条可能受布局过程中的瞬时滚动范围影响，需要确保最终无溢出状态强制保持隐藏。
+- 计划：
+  - [x] 添加无横向溢出时悬停下边沿不显示滚动条的 RED 测试。
+  - [x] 修正滚动条最终显隐状态同步逻辑。
+  - [x] 运行相关 pytest、`py_compile`、`git diff --check` 并回填结果。
+- 测试状态：[已测试] RED 阶段确认无溢出时人为恢复组件库瞬时可见状态后，下边沿悬停会保留横向滚动条；GREEN 后窗口与卡片专项测试通过（22 passed，1 warning），覆盖无溢出悬停隐藏、真实高倍率溢出显示及既有缩放滚动行为；`py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
 - 时间：2026-07-14 10:30
 - 操作类型：[新增]
 - 影响文件：

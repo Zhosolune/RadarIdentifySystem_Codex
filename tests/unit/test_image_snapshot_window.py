@@ -231,6 +231,37 @@ def test_manual_window_resize_uses_largest_zoom_without_scrollbars() -> None:
         sip.delete(window)
 
 
+def test_bottom_hover_does_not_show_stale_horizontal_scrollbar() -> None:
+    """无横向溢出时下边沿悬停不应显示瞬时残留的滚动条。"""
+    _app()
+    window = ImageSnapshotWindow(
+        QImage(400, 80, QImage.Format.Format_RGB32),
+        "原始图像 - 脉宽",
+    )
+
+    try:
+        window.show()
+        window.resize(window._window_size_for_zoom(1))
+        QApplication.processEvents()
+
+        area = window.scroll_area
+        horizontal_bar = area.delegate.hScrollBar
+        assert area.horizontalScrollBar().maximum() == 0
+
+        # 模拟布局过程中瞬时滚动范围留下的可见状态，再执行最终状态同步。
+        horizontal_bar.setVisible(True)
+        area._sync_scrollbar_reservation()
+        QTest.mouseMove(
+            area,
+            QPoint(area.width() // 2, area.height() - 1),
+        )
+        QTest.qWait(250)
+
+        assert not horizontal_bar.isVisible()
+    finally:
+        sip.delete(window)
+
+
 def test_snapshot_window_displays_image_name_in_content_area() -> None:
     """内容区应展示由列标题和维度名称组成的图像名称。"""
     _app()
