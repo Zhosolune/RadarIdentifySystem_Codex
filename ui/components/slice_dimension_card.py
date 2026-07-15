@@ -295,14 +295,23 @@ class SliceDimensionCard(QWidget):
         event.accept()
 
     def _show_command_bar(self, global_pos: QPoint) -> None:
-        """在指定全局坐标显示独立查看命令。"""
+        """在指定全局坐标显示独立查看命令。
+
+        Args:
+            global_pos [QPoint]: 命令栏显示的全局坐标。
+
+        Returns:
+            None: 无返回值。
+        """
         if self._source_image is None or self._source_image.isNull():
             return
 
         view = CommandBarView()
-        action = Action(FluentIcon.FULL_SCREEN, "独立显示", view)
+        view.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        action = Action(FluentIcon.FULL_SCREEN, "展开", view)
         action.triggered.connect(self._show_snapshot_window)
         view.addAction(action)
+        view.resizeToSuitableWidth()
         Flyout.make(view, global_pos, self.window())
 
     def _show_snapshot_window(self) -> None:
