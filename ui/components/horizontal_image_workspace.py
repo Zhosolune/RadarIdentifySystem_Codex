@@ -164,11 +164,7 @@ class HorizontalImageWorkspace(SmoothScrollArea):
         """
         self._merge_active = active
         self._locked = not active
-        self.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-            if active
-            else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_to_pair(2 if active else 0, animated=True)
 
     def scroll_to_pair(self, pair_index: int, *, animated: bool = True) -> None:
