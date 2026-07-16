@@ -74,16 +74,17 @@ class SliceController(QObject):
         """连接切片相关按钮点击事件。"""
         
         # 绑定按钮点击事件
-        self.view.navigation_control_card.start_slicing_button.clicked.connect(self.handle_slice)
+        navigation_card = self.view.right_panel.navigation_control_card
+        navigation_card.start_slicing_button.clicked.connect(self.handle_slice)
         
         # 绑定标题旁边的透明导航按钮
-        self.view.prev_slice_button.clicked.connect(self._on_prev_slice)
-        self.view.next_slice_button.clicked.connect(self._on_next_slice)
+        self.view.original_column.prev_button.clicked.connect(self._on_prev_slice)
+        self.view.original_column.next_button.clicked.connect(self._on_next_slice)
         # 右侧控制卡的文字按钮复用同一组切片导航槽函数。
-        self.view.navigation_control_card.prev_slice_button.clicked.connect(
+        navigation_card.prev_slice_button.clicked.connect(
             self._on_prev_slice
         )
-        self.view.navigation_control_card.next_slice_button.clicked.connect(
+        navigation_card.next_slice_button.clicked.connect(
             self._on_next_slice
         )
 
@@ -92,7 +93,9 @@ class SliceController(QObject):
         signal_bus.stage_failed.connect(self._on_stage_failed)
 
         # 绑定重绘请求信号
-        self.view.redraw_option_card.redraw_requested.connect(self._on_redraw_requested)
+        self.view.right_panel.redraw_option_card.redraw_requested.connect(
+            self._on_redraw_requested
+        )
 
     def _check_workflow_state(self) -> None:
         """定期检查工作流状态，防止信号丢失导致 UI 卡死。
@@ -114,7 +117,7 @@ class SliceController(QObject):
             self._processing_dialog = None
             
             # 恢复按钮状态
-            self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+            self.view.right_panel.navigation_control_card.start_slicing_button.setEnabled(True)
             
             InfoBar.warning(
                 title="警告",
@@ -147,7 +150,10 @@ class SliceController(QObject):
             return
 
         # 判断当前选择的切片模式
-        is_adaptive = self.view.navigation_control_card.adaptive_slicing_checkbox.isChecked()
+        is_adaptive = (
+            self.view.right_panel.navigation_control_card
+            .adaptive_slicing_checkbox.isChecked()
+        )
         current_mode = "自适应切片" if is_adaptive else "开始切片"
         
         LOGGER.info(
@@ -158,7 +164,7 @@ class SliceController(QObject):
         )
 
         # 更新按钮状态
-        self.view.navigation_control_card.start_slicing_button.setEnabled(False)
+        self.view.right_panel.navigation_control_card.start_slicing_button.setEnabled(False)
 
         # 显示动画对话框
         self._processing_dialog = ProcessingDialog(
@@ -196,7 +202,7 @@ class SliceController(QObject):
             self._processing_dialog = None
             
         # 恢复按钮状态
-        self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+        self.view.right_panel.navigation_control_card.start_slicing_button.setEnabled(True)
         
         # 加载第0片
         self._load_slice_image(0)
@@ -245,7 +251,7 @@ class SliceController(QObject):
             self._processing_dialog = None
             
         # 恢复按钮状态
-        self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+        self.view.right_panel.navigation_control_card.start_slicing_button.setEnabled(True)
         
         # 弹出错误提示
         InfoBar.error(
@@ -278,7 +284,7 @@ class SliceController(QObject):
             self._processing_dialog = None
             
         # 恢复按钮状态
-        self.view.navigation_control_card.start_slicing_button.setEnabled(True)
+        self.view.right_panel.navigation_control_card.start_slicing_button.setEnabled(True)
         
         # 加载第0片
         self._load_slice_image(0)
@@ -480,11 +486,12 @@ class SliceController(QObject):
     ) -> None:
         """同步更新两组切片导航按钮状态。"""
         # 同步更新图像列标题区按钮。
-        self.view.prev_slice_button.setEnabled(prev_enabled)
-        self.view.next_slice_button.setEnabled(next_enabled)
+        self.view.original_column.prev_button.setEnabled(prev_enabled)
+        self.view.original_column.next_button.setEnabled(next_enabled)
         # 同步更新右侧控制卡文字按钮。
-        self.view.navigation_control_card.prev_slice_button.setEnabled(prev_enabled)
-        self.view.navigation_control_card.next_slice_button.setEnabled(next_enabled)
+        navigation_card = self.view.right_panel.navigation_control_card
+        navigation_card.prev_slice_button.setEnabled(prev_enabled)
+        navigation_card.next_slice_button.setEnabled(next_enabled)
 
     def _load_slice_image(self, index: int) -> None:
         """加载并展示指定索引的切片图像。
@@ -542,19 +549,14 @@ class SliceController(QObject):
         total = session.slice_result.slice_count if session.slice_result else 0
 
         # 更新左侧标题文本
-        if hasattr(self.view, 'slice_title_label'):
-            self.view.slice_title_label.setText(f"第 {slice_index + 1} / {total} 个切片数据  原始图像")
+        self.view.original_column.set_title(
+            f"第 {slice_index + 1} / {total} 个切片数据  原始图像"
+        )
         # 原始图像快照名称使用公开的 1-based 切片编号。
-        self.view.set_original_snapshot_slice_number(slice_index + 1)
+        self.view.original_column.set_snapshot_slice_number(slice_index + 1)
         
         # 组装图像维度与界面卡片的映射关系
-        cards = {
-            "CF": self.view.original_cf_card,
-            "PW": self.view.original_pw_card,
-            "PA": self.view.original_pa_card,
-            "DTOA": self.view.original_dtoa_card,
-            "DOA": self.view.original_doa_card,
-        }
+        cards = self.view.original_column.cards_by_dimension
 
         # 遍历图像数据并设置到卡片对象
         for dim_name, image_data in bundle.images.items():

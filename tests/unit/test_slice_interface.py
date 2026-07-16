@@ -11,15 +11,18 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
-from qfluentwidgets import TableWidget
+from qfluentwidgets import ScrollArea, TableWidget
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from infra.plotting.types import RenderedImageBundle
 from ui.interfaces.slice_interface import SliceInterface
 from ui.components.analysis_result_card import AnalysisResultCard, RoundedAnalysisHeaderView
+from ui.components.cluster_image_column import ClusterImageColumn
 from ui.components.merge_image_column import MergeImageColumn
 from ui.components.merge_operation_panel import MergeOperationPanel
+from ui.components.original_image_column import OriginalImageColumn
+from ui.components.slice_right_panel import SliceRightPanel
 
 
 _APP: QApplication | None = None
@@ -63,10 +66,13 @@ def test_slice_param_panel_is_mounted_in_matching_drawer(
     assert hasattr(interface, "slice_param_panel")
     assert hasattr(interface, "slice_param_drawer")
     assert not hasattr(interface, "slice_param_config")
-    assert interface.right_column.maximumWidth() == interface.RIGHT_COLUMN_MAX_WIDTH
+    assert interface.right_panel.maximumWidth() == interface.RIGHT_COLUMN_MAX_WIDTH
     assert interface.slice_param_drawer.drawerSize() == interface.RIGHT_COLUMN_MAX_WIDTH
     assert interface.slice_param_drawer.contentWidget() is interface.slice_param_panel
-    assert not hasattr(interface.navigation_control_card, "auto_recognize_card")
+    assert not hasattr(
+        interface.right_panel.navigation_control_card,
+        "auto_recognize_card",
+    )
     assert interface.slice_param_panel.export_path_card is not None
     # 控制器定时器与页面存在引用环，测试结束时显式释放 Qt 对象。
     sip.delete(interface)
@@ -99,10 +105,16 @@ def test_analysis_result_table_is_mounted_in_right_bottom_card(
         card = interface.findChild(AnalysisResultCard, "analysisResultCard")
         table = interface.findChild(TableWidget, "analysisResultTable")
 
-        assert card is interface.analysis_result_card
-        assert table is interface.analysis_result_table
-        assert interface.scroll_content_layout.indexOf(card) > interface.scroll_content_layout.indexOf(
-            interface.operate_panel_card
+        assert card is interface.right_panel.analysis_result_card
+        assert table is interface.right_panel.analysis_result_card.table
+        assert interface.right_panel.layout().indexOf(
+            card
+        ) > interface.right_panel.layout().indexOf(
+            interface.right_panel.operate_panel_card
+        )
+        assert (
+            interface.right_panel.findChild(ScrollArea, "rightPanelScrollArea")
+            is None
         )
         assert table.columnCount() == 2
         assert table.rowCount() == len(expected_labels)
@@ -147,20 +159,20 @@ def test_header_title_length_does_not_change_image_column_width(
 
         original_width = middle_column.width()
 
-        interface.cluster_title_label.setText(
+        interface.cluster_column.title_label.setText(
             "CF维聚类结果  第123/123类  总第123/123类  识别状态：未通过  "
             "这是一个非常长非常长非常长的标题，用于验证标题文本不会再撑开图像展示区域宽度"
         )
         QApplication.processEvents()
 
         assert middle_column.width() == original_width
-        assert interface.cluster_title_label.minimumWidth() == 0
+        assert interface.cluster_column.title_label.minimumWidth() == 0
         assert (
-            interface.cluster_title_label.sizePolicy().horizontalPolicy()
+            interface.cluster_column.title_label.sizePolicy().horizontalPolicy()
             == QSizePolicy.Policy.Ignored
         )
 
-        interface.slice_title_label.setText(
+        interface.original_column.title_label.setText(
             "第 123 / 123 个切片数据  原始图像  这是一个非常长非常长非常长的标题，用于验证原始图像列宽稳定"
         )
         QApplication.processEvents()
@@ -204,12 +216,47 @@ def test_slice_interface_uses_session_scale_mode_for_image_updates(
         QApplication.processEvents()
         test_image = QImage(16, 16, QImage.Format.Format_RGB32)
 
-        interface.original_cf_card.set_image(test_image)
+        interface.original_column.cf_card.set_image(test_image)
         assert used_modes[-1] == "STRETCH"
 
-        interface.plot_option_card.scale_mode_item.set("STRETCH_BILINEAR")
+        interface.right_panel.plot_option_card.scale_mode_item.set(
+            "STRETCH_BILINEAR"
+        )
         QApplication.processEvents()
         assert used_modes[-1] == "STRETCH_BILINEAR"
+    finally:
+        sip.delete(interface)
+
+
+def test_right_panel_keeps_controls_fixed_and_scrolls_table_when_height_is_limited(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """右栏高度不足时应只压缩结果表，操作区保持固定并由表格内部滚动。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    interface = SliceInterface()
+
+    try:
+        interface.resize(1400, 900)
+        interface.show()
+        QApplication.processEvents()
+
+        panel = interface.right_panel
+        table = panel.analysis_result_card.table
+        tall_operate_geometry = panel.operate_panel_card.geometry()
+        tall_table_height = table.height()
+        assert table.verticalScrollBar().maximum() == 0
+
+        interface.resize(1400, 560)
+        QApplication.processEvents()
+
+        assert panel.operate_panel_card.geometry() == tall_operate_geometry
+        assert table.height() < tall_table_height
+        assert table.verticalScrollBar().maximum() > 0
+        assert table.scrollDelagate.vScrollBar.isVisible()
     finally:
         sip.delete(interface)
 
@@ -226,16 +273,16 @@ def test_slice_dimension_cards_have_explicit_snapshot_titles(
     interface = SliceInterface()
 
     try:
-        assert interface.original_cf_card._snapshot_window_title == "原始图像 - 载频"
-        assert interface.original_pw_card._snapshot_window_title == "原始图像 - 脉宽"
-        assert interface.original_pa_card._snapshot_window_title == "原始图像 - 幅度"
-        assert interface.original_dtoa_card._snapshot_window_title == "原始图像 - 一级差"
-        assert interface.original_doa_card._snapshot_window_title == "原始图像 - 方位角"
-        assert interface.cluster_cf_card._snapshot_window_title == "聚类结果 - 载频"
-        assert interface.cluster_pw_card._snapshot_window_title == "聚类结果 - 脉宽"
-        assert interface.cluster_pa_card._snapshot_window_title == "聚类结果 - 幅度"
-        assert interface.cluster_dtoa_card._snapshot_window_title == "聚类结果 - 一级差"
-        assert interface.cluster_doa_card._snapshot_window_title == "聚类结果 - 方位角"
+        assert interface.original_column.cf_card._snapshot_window_title == "原始图像 - 载频"
+        assert interface.original_column.pw_card._snapshot_window_title == "原始图像 - 脉宽"
+        assert interface.original_column.pa_card._snapshot_window_title == "原始图像 - 幅度"
+        assert interface.original_column.dtoa_card._snapshot_window_title == "原始图像 - 一级差"
+        assert interface.original_column.doa_card._snapshot_window_title == "原始图像 - 方位角"
+        assert interface.cluster_column.cf_card._snapshot_window_title == "聚类结果 - 载频"
+        assert interface.cluster_column.pw_card._snapshot_window_title == "聚类结果 - 脉宽"
+        assert interface.cluster_column.pa_card._snapshot_window_title == "聚类结果 - 幅度"
+        assert interface.cluster_column.dtoa_card._snapshot_window_title == "聚类结果 - 一级差"
+        assert interface.cluster_column.doa_card._snapshot_window_title == "聚类结果 - 方位角"
     finally:
         sip.delete(interface)
 
@@ -256,8 +303,11 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         interface.show()
         QApplication.processEvents()
 
+        assert isinstance(interface.original_column, OriginalImageColumn)
+        assert isinstance(interface.cluster_column, ClusterImageColumn)
         assert isinstance(interface.merge_image_column, MergeImageColumn)
         assert isinstance(interface.merge_operation_panel, MergeOperationPanel)
+        assert isinstance(interface.right_panel, SliceRightPanel)
         assert interface.image_workspace.panels == (
             interface.original_column,
             interface.cluster_column,
@@ -272,7 +322,11 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             not panel.isHidden()
             for panel in interface.image_workspace.panels
         )
-        assert not interface.right_column.isHidden()
+        assert not interface.right_panel.isHidden()
+        assert not hasattr(interface, "original_cf_card")
+        assert not hasattr(interface, "cluster_cf_card")
+        assert not hasattr(interface, "navigation_control_card")
+        assert not hasattr(interface, "right_column")
 
         panel_widths = {
             panel.width()
@@ -324,11 +378,13 @@ def test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd(
         interface.show()
         QApplication.processEvents()
 
-        right_parent = interface.right_column.parent()
-        right_layout_index = interface.layout().indexOf(interface.right_column)
+        right_parent = interface.right_panel.parent()
+        right_layout_index = interface.layout().indexOf(interface.right_panel)
         workspace = interface.image_workspace
         workspace.setScrollAnimation(Qt.Orientation.Horizontal, 0)
-        merge_button = interface.navigation_control_card.merge_menu_button
+        merge_button = (
+            interface.right_panel.navigation_control_card.merge_menu_button
+        )
 
         assert merge_button.text() == "合并菜单"
         merge_button.click()
@@ -356,9 +412,9 @@ def test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd(
         assert all(not panel.isHidden() for panel in workspace.panels)
 
         # 原有右侧面板的父级、布局位置和显示状态均未改变。
-        assert interface.right_column.parent() is right_parent
-        assert interface.layout().indexOf(interface.right_column) == right_layout_index
-        assert not interface.right_column.isHidden()
+        assert interface.right_panel.parent() is right_parent
+        assert interface.layout().indexOf(interface.right_panel) == right_layout_index
+        assert not interface.right_panel.isHidden()
     finally:
         sip.delete(interface)
 
@@ -381,14 +437,17 @@ def test_original_snapshot_titles_include_current_slice_number(
         )
 
         assert (
-            interface.original_cf_card._snapshot_window_title
+            interface.original_column.cf_card._snapshot_window_title
             == "第 7 个切片 - 原始图像 - 载频"
         )
         assert (
-            interface.original_doa_card._snapshot_window_title
+            interface.original_column.doa_card._snapshot_window_title
             == "第 7 个切片 - 原始图像 - 方位角"
         )
-        assert interface.cluster_cf_card._snapshot_window_title == "聚类结果 - 载频"
+        assert (
+            interface.cluster_column.cf_card._snapshot_window_title
+            == "聚类结果 - 载频"
+        )
     finally:
         sip.delete(interface)
 

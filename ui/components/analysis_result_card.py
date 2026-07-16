@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
 
-from PyQt6.QtCore import QRect, QRectF, Qt
+from PyQt6.QtCore import QRect, QRectF, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QHeaderView, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget
 from qfluentwidgets import SimpleCardWidget, TableWidget, qconfig, themeColor
@@ -268,6 +268,8 @@ class AnalysisResultCard(SimpleCardWidget):
         """
         super().__init__(parent)
         self.setObjectName("analysisResultCard")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._preferred_table_height = 0
         self.table = TableWidget(self)
         self.table.setObjectName("analysisResultTable")
         self._result_column = 1
@@ -324,7 +326,7 @@ class AnalysisResultCard(SimpleCardWidget):
         self.table.setSelectionMode(TableWidget.SelectionMode.NoSelection)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -345,7 +347,32 @@ class AnalysisResultCard(SimpleCardWidget):
             self.table.setItem(row, 1, result_item)
 
         self._adjust_table_height_to_contents()
-        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # 表格填充结果卡剩余空间，内容溢出时使用自身滚动条。
+        self.table.setMinimumHeight(0)
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def sizeHint(self) -> QSize:
+        """返回可完整展示当前表格内容的首选卡片尺寸。
+
+        Returns:
+            QSize: 宽度沿用卡片默认建议值，高度包含表格内容和卡片边距。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> from PyQt6.QtWidgets import QApplication
+            >>> app = QApplication.instance() or QApplication([])
+            >>> card = AnalysisResultCard()
+            >>> card.sizeHint().height() > 0
+            True
+        """
+        hint = super().sizeHint()
+        margins = self.layout().contentsMargins()
+        hint.setHeight(
+            self._preferred_table_height + margins.top() + margins.bottom()
+        )
+        return hint
 
     def _create_centered_item(self, text: str) -> QTableWidgetItem:
         """创建居中并带 14px 微软雅黑字体的表格内容项。
@@ -422,7 +449,8 @@ class AnalysisResultCard(SimpleCardWidget):
         """按当前单元格内容自动调整表格高度。
 
         先使用 Qt 默认内容尺寸计算基础行高，再根据 PRI、PA 分类和 DTOA 分类
-        三个可能包含多行文本的结果行补足高度，最后同步表格整体固定高度。
+        三个可能包含多行文本的结果行补足高度。表格整体高度由右侧面板分配，
+        内容超出当前可用高度时通过表格内部滚动条浏览。
 
         Args:
             无。
@@ -439,10 +467,11 @@ class AnalysisResultCard(SimpleCardWidget):
         for label in ("PRI/us", "PA预测分类", "DTOA预测分类"):
             self._adjust_row_height_by_text(label)
 
-        table_height = self.table.horizontalHeader().height() + 2
+        # 记录完整内容的首选高度，但不锁定实际高度，允许右栏压缩表格。
+        self._preferred_table_height = self.table.horizontalHeader().height() + 2
         for row in range(self.table.rowCount()):
-            table_height += self.table.rowHeight(row)
-        self.table.setFixedHeight(table_height)
+            self._preferred_table_height += self.table.rowHeight(row)
+        self.updateGeometry()
 
     def _adjust_row_height_by_text(self, label: str) -> None:
         """根据指定指标行的实际文本行数设置当前行高度。

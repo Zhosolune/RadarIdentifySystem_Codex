@@ -63,18 +63,19 @@ class IdentifyController(QObject):
     def _connect_signals(self) -> None:
         """连接识别相关按钮点击事件。"""
         # 绑定按钮点击事件
-        self.view.navigation_control_card.start_recognition_button.clicked.connect(
+        navigation_card = self.view.right_panel.navigation_control_card
+        navigation_card.start_recognition_button.clicked.connect(
             lambda: self.handle_identify()
         )
         
         # 绑定聚类结果类别导航按钮
-        self.view.prev_cluster_button.clicked.connect(self._on_prev_cluster)
-        self.view.next_cluster_button.clicked.connect(self._on_next_cluster)
+        self.view.cluster_column.prev_button.clicked.connect(self._on_prev_cluster)
+        self.view.cluster_column.next_button.clicked.connect(self._on_next_cluster)
         # 右侧控制卡的文字按钮复用同一组类别导航槽函数。
-        self.view.navigation_control_card.prev_cluster_button.clicked.connect(
+        navigation_card.prev_cluster_button.clicked.connect(
             self._on_prev_cluster
         )
-        self.view.navigation_control_card.next_cluster_button.clicked.connect(
+        navigation_card.next_cluster_button.clicked.connect(
             self._on_next_cluster
         )
 
@@ -83,7 +84,7 @@ class IdentifyController(QObject):
         signal_bus.stage_failed.connect(self._on_stage_failed)
 
         # 监听当前 session 展示模式变化，并立即刷新当前聚类结果。
-        self.view.plot_option_card.showModeChanged.connect(
+        self.view.right_panel.plot_option_card.showModeChanged.connect(
             self._on_plot_show_mode_changed
         )
 
@@ -135,7 +136,7 @@ class IdentifyController(QObject):
         )
 
         # 更新按钮状态
-        self.view.navigation_control_card.start_recognition_button.setEnabled(False)
+        self.view.right_panel.navigation_control_card.start_recognition_button.setEnabled(False)
         # 清空旧聚类空态并禁用导航按钮。
         self.clear_cluster_ui()
         self.update_cluster_navigation_buttons(slice_index)
@@ -215,7 +216,7 @@ class IdentifyController(QObject):
             self._processing_dialog = None
             
         # 恢复按钮状态
-        self.view.navigation_control_card.start_recognition_button.setEnabled(True)
+        self.view.right_panel.navigation_control_card.start_recognition_button.setEnabled(True)
         
         # 聚类完成后，重置类别索引并渲染当前切片的第一个簇
         self._current_cluster_index = 0
@@ -282,7 +283,7 @@ class IdentifyController(QObject):
             self._processing_dialog = None
             
         # 恢复按钮状态
-        self.view.navigation_control_card.start_recognition_button.setEnabled(True)
+        self.view.right_panel.navigation_control_card.start_recognition_button.setEnabled(True)
         self.clear_cluster_ui()
         current_slice_index = self.view._slice_controller.current_slice_index
         self.update_cluster_navigation_buttons(current_slice_index)
@@ -436,11 +437,12 @@ class IdentifyController(QObject):
     ) -> None:
         """同步更新两组类别导航按钮状态。"""
         # 同步更新中间列图形按钮。
-        self.view.prev_cluster_button.setEnabled(prev_enabled)
-        self.view.next_cluster_button.setEnabled(next_enabled)
+        self.view.cluster_column.prev_button.setEnabled(prev_enabled)
+        self.view.cluster_column.next_button.setEnabled(next_enabled)
         # 同步更新右侧控制卡文字按钮。
-        self.view.navigation_control_card.prev_cluster_button.setEnabled(prev_enabled)
-        self.view.navigation_control_card.next_cluster_button.setEnabled(next_enabled)
+        navigation_card = self.view.right_panel.navigation_control_card
+        navigation_card.prev_cluster_button.setEnabled(prev_enabled)
+        navigation_card.next_cluster_button.setEnabled(next_enabled)
 
     def load_cluster_image(self, current_slice_index: int, reset_index: bool = False) -> None:
         """加载并展示当前切片下指定索引的聚类结果图像。
@@ -520,26 +522,11 @@ class IdentifyController(QObject):
         Raises:
             无。
         """
-        # 重置中间标题内容
-        if hasattr(self.view, 'cluster_title_label'):
-            self.view.cluster_title_label.setText(self.EMPTY_CLUSTER_TITLE)
-            
-        # 获取所有需要重置的聚类卡片
-        cards = [
-            self.view.cluster_cf_card,
-            self.view.cluster_pw_card,
-            self.view.cluster_pa_card,
-            self.view.cluster_dtoa_card,
-            self.view.cluster_doa_card,
-        ]
-        
-        # 使用卡片明确的空白状态，避免透明占位图被误判为可独立查看的有效图像。
-        for card in cards:
-            card.clear_image()
+        # 由聚类列统一恢复标题与五维卡片空态。
+        self.view.cluster_column.clear_images()
 
         # 清空右侧分析结果表格，避免无类别时残留上一次识别结果。
-        if hasattr(self.view, "analysis_result_card"):
-            self.view.analysis_result_card.clear_results()
+        self.view.right_panel.analysis_result_card.clear_results()
 
     def _update_cluster_ui_with_bundle(
         self,
@@ -573,23 +560,15 @@ class IdentifyController(QObject):
             display_total=display_total,
             total_all=total_all,
         )
-        if hasattr(self.view, 'cluster_title_label'):
-            self.view.cluster_title_label.setText(title_text)
+        self.view.cluster_column.set_title(title_text)
         # 将当前切片和聚类列标题同步到全部维度快照，便于多窗口对比识别。
-        self.view.set_cluster_snapshot_context(slice_index + 1, title_text)
+        self.view.cluster_column.set_snapshot_context(slice_index + 1, title_text)
         
         # 构建维度到卡片的映射字典
-        cards = {
-            "CF": self.view.cluster_cf_card,
-            "PW": self.view.cluster_pw_card,
-            "PA": self.view.cluster_pa_card,
-            "DTOA": self.view.cluster_dtoa_card,
-            "DOA": self.view.cluster_doa_card,
-        }
+        cards = self.view.cluster_column.cards_by_dimension
 
         # 使用识别阶段缓存的参数和概率刷新右侧表格，不在切换类别时重新提取。
-        if hasattr(self.view, "analysis_result_card"):
-            self.view.analysis_result_card.update_from_recognition(cluster_rec)
+        self.view.right_panel.analysis_result_card.update_from_recognition(cluster_rec)
 
         # 遍历图像数据并更新卡片
         for dim_name, image_data in bundle.images.items():

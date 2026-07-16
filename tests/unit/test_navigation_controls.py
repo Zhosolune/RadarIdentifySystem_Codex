@@ -160,7 +160,7 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
     monkeypatch.setattr(IdentifyController, "_on_next_cluster", count("next_cluster"))
     interface = SliceInterface()
     try:
-        interface.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
+        interface.right_panel.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
             slices=[
                 SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
@@ -198,14 +198,14 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
         interface._identify_controller._current_cluster_index = 1
         interface._identify_controller.update_cluster_navigation_buttons(1)
 
-        interface.prev_slice_button.click()
-        interface.navigation_control_card.prev_slice_button.click()
-        interface.next_slice_button.click()
-        interface.navigation_control_card.next_slice_button.click()
-        interface.prev_cluster_button.click()
-        interface.navigation_control_card.prev_cluster_button.click()
-        interface.next_cluster_button.click()
-        interface.navigation_control_card.next_cluster_button.click()
+        interface.original_column.prev_button.click()
+        interface.right_panel.navigation_control_card.prev_slice_button.click()
+        interface.original_column.next_button.click()
+        interface.right_panel.navigation_control_card.next_slice_button.click()
+        interface.cluster_column.prev_button.click()
+        interface.right_panel.navigation_control_card.prev_cluster_button.click()
+        interface.cluster_column.next_button.click()
+        interface.right_panel.navigation_control_card.next_cluster_button.click()
 
         assert calls == {
             "prev_slice": 2,
@@ -229,15 +229,16 @@ def test_navigation_buttons_are_disabled_in_initial_state(
     )
     interface = SliceInterface()
 
-    assert interface.cluster_title_label.text() == "暂无聚类结果"
-    assert not interface.prev_slice_button.isEnabled()
-    assert not interface.next_slice_button.isEnabled()
-    assert not interface.navigation_control_card.prev_slice_button.isEnabled()
-    assert not interface.navigation_control_card.next_slice_button.isEnabled()
-    assert not interface.prev_cluster_button.isEnabled()
-    assert not interface.next_cluster_button.isEnabled()
-    assert not interface.navigation_control_card.prev_cluster_button.isEnabled()
-    assert not interface.navigation_control_card.next_cluster_button.isEnabled()
+    assert interface.cluster_column.title_label.text() == "暂无聚类结果"
+    assert not interface.original_column.prev_button.isEnabled()
+    assert not interface.original_column.next_button.isEnabled()
+    navigation_card = interface.right_panel.navigation_control_card
+    assert not navigation_card.prev_slice_button.isEnabled()
+    assert not navigation_card.next_slice_button.isEnabled()
+    assert not interface.cluster_column.prev_button.isEnabled()
+    assert not interface.cluster_column.next_button.isEnabled()
+    assert not navigation_card.prev_cluster_button.isEnabled()
+    assert not navigation_card.next_cluster_button.isEnabled()
 
     sip.delete(interface)
 
@@ -253,7 +254,7 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
     )
     interface = SliceInterface()
     try:
-        interface.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
+        interface.right_panel.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
             slices=[
                 SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
@@ -274,10 +275,11 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
         interface._slice_controller.refresh_navigation_state()
         interface._slice_controller._load_slice_image(0)
 
-        assert not interface.prev_slice_button.isEnabled()
-        assert interface.next_slice_button.isEnabled()
-        assert not interface.navigation_control_card.prev_slice_button.isEnabled()
-        assert interface.navigation_control_card.next_slice_button.isEnabled()
+        assert not interface.original_column.prev_button.isEnabled()
+        assert interface.original_column.next_button.isEnabled()
+        navigation_card = interface.right_panel.navigation_control_card
+        assert not navigation_card.prev_slice_button.isEnabled()
+        assert navigation_card.next_slice_button.isEnabled()
 
         interface._session.mark_slice_cluster_succeeded(0)
         interface._session.mark_slice_recognition_succeeded(0)
@@ -295,17 +297,17 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
 
         interface._identify_controller._current_cluster_index = 0
         interface._identify_controller.update_cluster_navigation_buttons(0)
-        assert not interface.prev_cluster_button.isEnabled()
-        assert interface.next_cluster_button.isEnabled()
-        assert not interface.navigation_control_card.prev_cluster_button.isEnabled()
-        assert interface.navigation_control_card.next_cluster_button.isEnabled()
+        assert not interface.cluster_column.prev_button.isEnabled()
+        assert interface.cluster_column.next_button.isEnabled()
+        assert not navigation_card.prev_cluster_button.isEnabled()
+        assert navigation_card.next_cluster_button.isEnabled()
 
         interface._identify_controller._current_cluster_index = 1
         interface._identify_controller.update_cluster_navigation_buttons(0)
-        assert interface.prev_cluster_button.isEnabled()
-        assert not interface.next_cluster_button.isEnabled()
-        assert interface.navigation_control_card.prev_cluster_button.isEnabled()
-        assert not interface.navigation_control_card.next_cluster_button.isEnabled()
+        assert interface.cluster_column.prev_button.isEnabled()
+        assert not interface.cluster_column.next_button.isEnabled()
+        assert navigation_card.prev_cluster_button.isEnabled()
+        assert not navigation_card.next_cluster_button.isEnabled()
     finally:
         sip.delete(interface)
 
@@ -452,7 +454,7 @@ def test_manual_recognize_button_uses_current_slice_index(
         )
         interface._slice_controller._current_slice_index = 2
 
-        interface.navigation_control_card.start_recognition_button.click()
+        interface.right_panel.navigation_control_card.start_recognition_button.click()
 
         assert captured_indices == [2]
     finally:
@@ -495,9 +497,12 @@ def test_import_completed_does_not_replace_constructor_session(
     signal_bus.import_completed.emit(emitted_session)
 
     assert interface._session is constructor_session
-    assert interface.cluster_title_label.text() == "暂无聚类结果"
-    assert not interface.prev_slice_button.isEnabled()
-    assert not interface.navigation_control_card.prev_cluster_button.isEnabled()
+    assert interface.cluster_column.title_label.text() == "暂无聚类结果"
+    assert not interface.original_column.prev_button.isEnabled()
+    assert not (
+        interface.right_panel.navigation_control_card
+        .prev_cluster_button.isEnabled()
+    )
 
     sip.delete(interface)
 
@@ -537,31 +542,31 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
         interface._session.mark_slice_recognition_succeeded(0)
         interface._slice_controller.refresh_navigation_state()
 
-        interface.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
+        interface.right_panel.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._identify_controller.load_cluster_image(0, reset_index=True)
-        assert interface.cluster_title_label.text() == "CF维聚类结果  第1/1类  总第1/2类"
+        assert interface.cluster_column.title_label.text() == "CF维聚类结果  第1/1类  总第1/2类"
         assert (
-            interface.cluster_cf_card._snapshot_window_title
+            interface.cluster_column.cf_card._snapshot_window_title
             == "第 1 个切片 - CF维聚类结果  第1/1类  总第1/2类 - 载频"
         )
         assert (
-            interface.cluster_doa_card._snapshot_window_title
+            interface.cluster_column.doa_card._snapshot_window_title
             == "第 1 个切片 - CF维聚类结果  第1/1类  总第1/2类 - 方位角"
         )
-        assert not interface.next_cluster_button.isEnabled()
+        assert not interface.cluster_column.next_button.isEnabled()
 
-        interface.plot_option_card.show_mode_item.set("ALL")
+        interface.right_panel.plot_option_card.show_mode_item.set("ALL")
         QApplication.processEvents()
-        assert interface.cluster_title_label.text() == "CF维聚类结果  第1/2类  总第1/2类"
-        assert interface.next_cluster_button.isEnabled()
+        assert interface.cluster_column.title_label.text() == "CF维聚类结果  第1/2类  总第1/2类"
+        assert interface.cluster_column.next_button.isEnabled()
 
         interface._identify_controller._on_next_cluster()
-        assert interface.cluster_title_label.text() == "PW维聚类结果  第2/2类  总第2/2类"
+        assert interface.cluster_column.title_label.text() == "PW维聚类结果  第2/2类  总第2/2类"
         assert (
-            interface.cluster_pw_card._snapshot_window_title
+            interface.cluster_column.pw_card._snapshot_window_title
             == "第 1 个切片 - PW维聚类结果  第2/2类  总第2/2类 - 脉宽"
         )
-        assert interface.prev_cluster_button.isEnabled()
-        assert not interface.next_cluster_button.isEnabled()
+        assert interface.cluster_column.prev_button.isEnabled()
+        assert not interface.cluster_column.next_button.isEnabled()
     finally:
         sip.delete(interface)

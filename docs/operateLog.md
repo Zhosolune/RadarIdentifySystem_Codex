@@ -1,5 +1,47 @@
 # 变更记录
 
+- 时间：2026-07-16 10:11
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_right_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：移除切片页右侧面板的整体滚动，让切片信息与操作卡固定，分析结果表按内容选择首选高度并在空间不足时收缩、内部滚动。
+- 原因：当前整体 `ScrollArea` 会让表格上方控件随面板滚动，且结果表固定高度、禁用竖向滚动，不符合右栏的空间分配要求。
+- 计划：
+  - [x] 增加右栏固定区域与表格内部滚动的回归测试。
+  - [x] 改造 `SliceRightPanel` 为直接纵向布局并移除整体滚动容器。
+  - [x] 允许分析结果表纵向伸缩并按需显示内部滚动条。
+  - [x] 执行聚焦 pytest、相关回归测试、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_slice_interface.py::test_right_panel_keeps_controls_fixed_and_scrolls_table_when_height_is_limited tests/unit/test_analysis_result_card.py -q -k "not applies_theme_aware_table_styles"`：`5 passed, 1 deselected, 1 warning`。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q -k "not test_analysis_result_table_is_mounted_in_right_bottom_card and not test_original_snapshot_titles_include_current_slice_number and not test_plot_show_mode_switches_between_identified_and_all_clusters"`：`16 passed, 3 deselected, 1 warning`；排除项为现有 QSS 断言和两项与当前实现不一致的旧行为断言。
+  - `py_compile`：`slice_right_panel.py`、`analysis_result_card.py`、`test_slice_interface.py` 均通过。
+  - `git diff --check`：通过，仅输出 CRLF/LF 转换提示，无真实空白错误。
+- 测试状态：[已测试]
+
+- 时间：2026-07-16 09:33
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\original_image_column.py`（计划新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\cluster_image_column.py`（计划新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_right_panel.py`（计划新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`（相关 UI 与控制器测试）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：计划将原始图像列 A、聚类图像列 B 和右侧业务面板 E 提取为独立组件，与现有 C、D 统一由组件管理内部控件；`SliceInterface` 仅保留页面组合、跨组件信号和页面级参数抽屉。
+- 原因：五个稳定视觉区域目前分别采用页面函数和独立组件两种组织方式，且控制器直接依赖页面上的大量子控件属性，不利于后续合并功能和各面板独立演进。
+- 计划：
+  - [ ] 新增 A、B、E 组件并保持现有对象名、布局和视觉行为。
+  - [ ] 删除 `SliceInterface` 中 A、B、E 的内联创建函数和子控件兼容属性。
+  - [ ] 将控制器与测试迁移到组件公开 API，不保留页面级转发属性。
+  - [ ] 执行聚焦 pytest、相关回归测试、`py_compile` 与 `git diff --check`。
+- 测试状态：[待测试]
+
 - 时间：2026-07-16 08:48
 - 操作类型：[重构]
 - 影响文件：

@@ -209,7 +209,8 @@ class SliceDimensionCard(QWidget):
 
         # 为 image_card 设置布局（无内边距）
         card_layout = QHBoxLayout(self.image_card)
-        card_layout.setContentsMargins(1, 1, 1, 1)
+        # card_layout.setContentsMargins(1, 1, 1, 1)
+        card_layout.setContentsMargins(0, 0, 0, 0)
         card_layout.addWidget(self.image_label)
 
         self._init_layout()
