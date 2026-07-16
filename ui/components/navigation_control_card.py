@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPoint, QRect
 from PyQt6.QtGui import QResizeEvent
 from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -11,67 +10,11 @@ from qfluentwidgets import (
     HyperlinkButton,
     PrimaryPushButton,
     PushButton,
+    TogglePushButton,
     ToolTipFilter,
     ToolTipPosition,
 )
-from qfluentwidgets.components.layout import FlowLayout
 from app.custom_icon import CustomIcon
-
-
-class _NavigationFlowLayout(FlowLayout):
-    """在单行场景下让末尾按钮贴右的流式布局。"""
-
-    def _doLayout(self, rect: QRect, move: bool) -> int:
-        """在单行可容纳时吸附末尾按钮，否则退回默认换行布局。"""
-        visible_items = [
-            (index, item)
-            for index, item in enumerate(self._items)
-            if not (item.widget() and not item.widget().isVisible() and self.isTight)
-        ]
-        if not visible_items:
-            margin = self.contentsMargins()
-            return margin.top() + margin.bottom()
-
-        margin = self.contentsMargins()
-        available_width = rect.width() - margin.left() - margin.right()
-        space_x = self.horizontalSpacing()
-        total_width = sum(item.sizeHint().width() for _, item in visible_items)
-        total_width += max(0, len(visible_items) - 1) * space_x
-
-        # 单行可容纳时让最后一个按钮贴靠右侧。
-        if total_width > available_width:
-            return super()._doLayout(rect, move)
-
-        x = rect.x() + margin.left()
-        y = rect.y() + margin.top()
-        row_height = 0
-        ani_restart = False
-        last_visible_index = len(visible_items) - 1
-
-        for visible_index, (item_index, item) in enumerate(visible_items):
-            target_x = x
-            if visible_index == last_visible_index:
-                # 吸附重置按钮到单行最右侧。
-                target_x = rect.x() + rect.width() - margin.right() - item.sizeHint().width()
-
-            if move:
-                target = QRect(QPoint(target_x, y), item.sizeHint())
-                if not self.needAni:
-                    item.setGeometry(target)
-                elif target != self._anis[item_index].endValue():
-                    self._anis[item_index].stop()
-                    self._anis[item_index].setEndValue(target)
-                    ani_restart = True
-
-            if visible_index != last_visible_index:
-                x += item.sizeHint().width() + space_x
-            row_height = max(row_height, item.sizeHint().height())
-
-        if self.needAni and ani_restart:
-            self._aniGroup.stop()
-            self._aniGroup.start()
-
-        return y + row_height + margin.bottom() - rect.y()
 
 
 class NavigationControlCard(QWidget):
@@ -86,7 +29,10 @@ class NavigationControlCard(QWidget):
         next_cluster_button: 切换下一类别的文字按钮。
         prev_slice_button: 切换上一切片的文字按钮。
         next_slice_button: 切换下一切片的文字按钮。
+        merge_menu_button: 激活或退出合并横向浏览模式的按钮。
         reset_cur_slice_button: 重置当前切片的按钮。
+        slice_navigation_layout: 第一行切片与合并菜单按钮布局。
+        cluster_navigation_layout: 第二行类别与重置按钮布局。
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -108,7 +54,7 @@ class NavigationControlCard(QWidget):
         """
         super().__init__(parent)
         self.setObjectName("navigationControlCard")
-        # 允许导航区在窄宽度下自动增高换行。
+        # 为主操作区和固定两行导航区保留纵向伸缩空间。
         self.setMinimumHeight(72)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred,
@@ -166,6 +112,11 @@ class NavigationControlCard(QWidget):
             "下一片",
             self,
         )
+        self.merge_menu_button: TogglePushButton = TogglePushButton(
+            FluentIcon.LAYOUT,
+            "合并菜单",
+            self,
+        )
 
         self._init_layout()
 
@@ -201,17 +152,30 @@ class NavigationControlCard(QWidget):
         self._action_button_layout.addLayout(self._action_checkbox_layout)
         self._update_action_layout_mode()
         
-        # 导航行：单行时让重置按钮贴右，窄宽度下自动换行。
+        # 导航区固定为两行，避免按钮随宽度重排后改变业务分组。
         nav_container = QWidget(self)
-        nav_layout = _NavigationFlowLayout(nav_container, needAni=False, isTight=True)
+        nav_layout = QVBoxLayout(nav_container)
         nav_layout.setContentsMargins(0, 0, 0, 0)
-        nav_layout.setHorizontalSpacing(8)
-        nav_layout.setVerticalSpacing(8)
-        nav_layout.addWidget(self.prev_slice_button)
-        nav_layout.addWidget(self.prev_cluster_button)
-        nav_layout.addWidget(self.next_cluster_button)
-        nav_layout.addWidget(self.next_slice_button)
-        nav_layout.addWidget(self.reset_cur_slice_button)
+        nav_layout.setSpacing(8)
+
+        self.slice_navigation_layout = QHBoxLayout()
+        self.slice_navigation_layout.setContentsMargins(0, 0, 0, 0)
+        self.slice_navigation_layout.setSpacing(8)
+        self.slice_navigation_layout.addWidget(self.prev_slice_button)
+        self.slice_navigation_layout.addWidget(self.next_slice_button)
+        self.slice_navigation_layout.addWidget(self.merge_menu_button)
+        self.slice_navigation_layout.addStretch(1)
+
+        self.cluster_navigation_layout = QHBoxLayout()
+        self.cluster_navigation_layout.setContentsMargins(0, 0, 0, 0)
+        self.cluster_navigation_layout.setSpacing(8)
+        self.cluster_navigation_layout.addWidget(self.prev_cluster_button)
+        self.cluster_navigation_layout.addWidget(self.next_cluster_button)
+        self.cluster_navigation_layout.addWidget(self.reset_cur_slice_button)
+        self.cluster_navigation_layout.addStretch(1)
+
+        nav_layout.addLayout(self.slice_navigation_layout)
+        nav_layout.addLayout(self.cluster_navigation_layout)
 
         main_layout.addWidget(action_container)
         main_layout.addWidget(nav_container)

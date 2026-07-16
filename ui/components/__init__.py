@@ -19,6 +19,9 @@ from .file_list_page import FileListPage
 from .file_item import FileItem
 from .sliding_drawer import DrawerPosition, SlidingDrawer
 from .model_selection_card import ModelSelectionCard
+from .horizontal_image_workspace import HorizontalImageWorkspace
+from .merge_image_column import MergeImageColumn
+from .merge_operation_panel import MergeOperationPanel
 from .slice_param_panel import SliceParamPanel
 from .session_manager_panel import SessionManagerPanel
 from .card_navigation_list import CardNavigationItem, CardNavigationList
@@ -45,6 +48,9 @@ __all__ = [
     "DrawerPosition",
     "SlidingDrawer",
     "ModelSelectionCard",
+    "HorizontalImageWorkspace",
+    "MergeImageColumn",
+    "MergeOperationPanel",
     "SliceParamPanel",
     "SessionManagerPanel",
     "CardNavigationItem",

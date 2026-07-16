@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from PyQt6 import sip
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
@@ -17,6 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from infra.plotting.types import RenderedImageBundle
 from ui.interfaces.slice_interface import SliceInterface
 from ui.components.analysis_result_card import AnalysisResultCard, RoundedAnalysisHeaderView
+from ui.components.merge_image_column import MergeImageColumn
+from ui.components.merge_operation_panel import MergeOperationPanel
 
 
 _APP: QApplication | None = None
@@ -233,6 +236,129 @@ def test_slice_dimension_cards_have_explicit_snapshot_titles(
         assert interface.cluster_pa_card._snapshot_window_title == "聚类结果 - 幅度"
         assert interface.cluster_dtoa_card._snapshot_window_title == "聚类结果 - 一级差"
         assert interface.cluster_doa_card._snapshot_window_title == "聚类结果 - 方位角"
+    finally:
+        sip.delete(interface)
+
+
+def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """横向工作区应等宽承载 A/B/C/D，并在初始状态锁定 A+B。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    interface = SliceInterface()
+
+    try:
+        interface.resize(1500, 900)
+        interface.show()
+        QApplication.processEvents()
+
+        assert isinstance(interface.merge_image_column, MergeImageColumn)
+        assert isinstance(interface.merge_operation_panel, MergeOperationPanel)
+        assert interface.image_workspace.panels == (
+            interface.original_column,
+            interface.cluster_column,
+            interface.merge_image_column,
+            interface.merge_operation_panel,
+        )
+        assert all(
+            panel.parent() is interface.image_workspace.content_widget
+            for panel in interface.image_workspace.panels
+        )
+        assert all(
+            not panel.isHidden()
+            for panel in interface.image_workspace.panels
+        )
+        assert not interface.right_column.isHidden()
+
+        panel_widths = {
+            panel.width()
+            for panel in interface.image_workspace.panels
+        }
+        assert panel_widths == {interface.image_workspace.panel_width()}
+        assert (
+            interface.image_workspace.panel_width() * 2
+            + interface.image_workspace.COLUMN_SPACING
+            <= interface.image_workspace.viewport().width()
+        )
+        assert interface.image_workspace.is_locked()
+        assert not interface.image_workspace.is_merge_active()
+        assert interface.image_workspace.current_pair_index() == 0
+        assert interface.image_workspace.delegate.hScrollBar.value() == 0
+
+        assert [
+            card.objectName()
+            for card in interface.merge_image_column.dimension_cards
+        ] == [
+            "mergeCfCard",
+            "mergePwCard",
+            "mergePaCard",
+            "mergeDtoaCard",
+            "mergeDoaCard",
+        ]
+        assert all(
+            card._source_image is None
+            for card in interface.merge_image_column.dimension_cards
+        )
+        assert interface.merge_operation_panel.layout() is None
+    finally:
+        sip.delete(interface)
+
+
+def test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """合并菜单应解锁并定位 C+D，退出后返回并锁定 A+B。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    interface = SliceInterface()
+
+    try:
+        interface.resize(1500, 900)
+        interface.show()
+        QApplication.processEvents()
+
+        right_parent = interface.right_column.parent()
+        right_layout_index = interface.layout().indexOf(interface.right_column)
+        workspace = interface.image_workspace
+        workspace.setScrollAnimation(Qt.Orientation.Horizontal, 0)
+        merge_button = interface.navigation_control_card.merge_menu_button
+
+        assert merge_button.text() == "合并菜单"
+        merge_button.click()
+        QApplication.processEvents()
+        assert merge_button.isChecked()
+        assert workspace.is_merge_active()
+        assert not workspace.is_locked()
+        assert workspace.current_pair_index() == 2
+        assert workspace.delegate.hScrollBar.value() == workspace.delegate.hScrollBar.maximum()
+
+        # 解锁后用户可以移动到中间的 B+C 完整双列位置。
+        workspace.scroll_to_pair(1, animated=False)
+        assert workspace.current_pair_index() == 1
+        assert workspace.delegate.hScrollBar.value() == (
+            workspace.panel_width() + workspace.COLUMN_SPACING
+        )
+
+        merge_button.click()
+        QApplication.processEvents()
+        assert not merge_button.isChecked()
+        assert not workspace.is_merge_active()
+        assert workspace.is_locked()
+        assert workspace.current_pair_index() == 0
+        assert workspace.delegate.hScrollBar.value() == 0
+        assert all(not panel.isHidden() for panel in workspace.panels)
+
+        # 原有右侧面板的父级、布局位置和显示状态均未改变。
+        assert interface.right_column.parent() is right_parent
+        assert interface.layout().indexOf(interface.right_column) == right_layout_index
+        assert not interface.right_column.isHidden()
     finally:
         sip.delete(interface)
 

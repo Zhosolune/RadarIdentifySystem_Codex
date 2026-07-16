@@ -8,7 +8,7 @@ from typing import Callable
 
 import numpy as np
 from PyQt6 import sip
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QLayout
 from pytest import MonkeyPatch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -29,6 +29,7 @@ from core.models.slice_result import SingleSlice, SliceResult
 from app.signal_bus import signal_bus
 from ui.controllers.identify_controller import IdentifyController
 from ui.controllers.slice_controller import SliceController
+from ui.components.navigation_control_card import NavigationControlCard
 from ui.interfaces.slice_interface import SliceInterface
 
 
@@ -43,6 +44,36 @@ def _app() -> QApplication:
         _APP = QApplication([])
         return _APP
     return app
+
+
+def _layout_widgets(layout: QLayout) -> list[object]:
+    """返回布局中按顺序排列的直接子控件。"""
+    return [
+        item.widget()
+        for index in range(layout.count())
+        if (item := layout.itemAt(index)).widget() is not None
+    ]
+
+
+def test_navigation_card_uses_requested_two_row_button_order() -> None:
+    """导航卡应按切片行和类别行固定排列按钮。"""
+    _app()
+    card = NavigationControlCard()
+
+    try:
+        assert card.merge_menu_button.text() == "合并菜单"
+        assert _layout_widgets(card.slice_navigation_layout) == [
+            card.prev_slice_button,
+            card.next_slice_button,
+            card.merge_menu_button,
+        ]
+        assert _layout_widgets(card.cluster_navigation_layout) == [
+            card.prev_cluster_button,
+            card.next_cluster_button,
+            card.reset_cur_slice_button,
+        ]
+    finally:
+        sip.delete(card)
 
 
 def _fake_cluster_bundle() -> object:

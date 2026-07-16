@@ -1,5 +1,57 @@
 # 变更记录
 
+- 时间：2026-07-16 08:48
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\horizontal_image_workspace.py`（计划新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\navigation_control_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将 A/B/C/D 改为 1:1:1:1 等宽的横向滑动工作区，视口固定显示两列；普通状态锁定 A+B，激活“合并菜单”后解锁并自动滑动到 C+D，同时重排右侧导航按钮为指定的两行结构。
+- 原因：用户实测认为逐项展开/折叠 B、D 操作繁琐且不直观，要求改为可自由横向浏览并按列定位的滑动窗口交互。
+- 计划：
+  - [x] 新增组件库兼容的横向平滑滚动工作区，统一管理四列等宽、锁定、自动定位和停靠吸附。
+  - [x] 移除上一版 C 标题栏中的 B/D 显隐控制，仅保留五维合并图像布局。
+  - [x] 在右侧导航卡新增固定文本“合并菜单”的模式按钮，并接入工作区激活/退出。
+  - [x] 将“上一片、下一片、合并菜单”放在第一行，将“上一类、下一类、重置当前切片”放在第二行。
+  - [x] 更新聚焦 UI 测试并执行 pytest、`py_compile`、`git diff --check`。
+- 验证结果：
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_slice_interface.py::test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab tests/unit/test_slice_interface.py::test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd tests/unit/test_navigation_controls.py::test_navigation_card_uses_requested_two_row_button_order -q`：`3 passed, 1 warning`。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_slice_interface.py tests/unit/test_navigation_controls.py -q -k "not test_analysis_result_table_is_mounted_in_right_bottom_card and not test_original_snapshot_titles_include_current_slice_number and not test_plot_show_mode_switches_between_identified_and_all_clusters"`：`15 passed, 3 deselected, 1 warning`；三项排除断言分别要求当前 QSS 中不存在的 `QTableView#analysisResultTable`，以及两处已与当前实现不一致的旧快照标题格式，均与本次布局重构无关。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m py_compile ...`：通过，字节码缓存定向到工作区临时目录。
+  - 旧版显隐入口与状态符号检索：无残留。
+  - `git diff --check`：通过，仅输出 CRLF/LF 转换提示，无真实空白错误。
+- 测试状态：[已测试]
+
+- 时间：2026-07-15 17:20
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_panel.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在切片页面内容区新增五维合并图像列 C 与空白操作面板 D，实现普通 A+B、合并 C+D、聚类列 B 独立展开/折叠、操作面板 D 独立展开/折叠及退出恢复；现有右侧业务面板实例、宽度和内部结构保持不变。
+- 原因：用户确认采用 A/B/C/D 内容工作区设计，并明确本阶段只实现 UI 骨架和布局交互，不接入合并数据与业务逻辑。
+- 计划：
+  - [x] 将 C、D 分别实现为 `ui/components` 下的独立组件。
+  - [x] 使用内容工作区包裹 A/B/C/D，保持外层右侧业务面板实例、最大宽度和内部结构不变。
+  - [x] 普通状态显示 A+B；激活合并后显示 C+D；支持独立展开 B、折叠 D，并可退出恢复 A+B。
+  - [x] 为初始状态、五维卡片组成和折叠交互补充聚焦单元测试。
+  - [x] 执行聚焦 pytest、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_slice_interface.py::test_merge_workspace_starts_with_existing_columns_and_blank_cd_panels tests/unit/test_slice_interface.py::test_merge_workspace_toggles_b_and_d_without_touching_right_panel -q`：`2 passed, 1 warning`。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_slice_interface.py -q -k "not test_analysis_result_table_is_mounted_in_right_bottom_card and not test_original_snapshot_titles_include_current_slice_number"`：`6 passed, 2 deselected, 1 warning`；两项排除断言分别要求当前 QSS 中不存在的 `QTableView#analysisResultTable` 和已与实现不一致的旧快照标题格式，均未在本次任务中修改。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m py_compile ...`：通过，字节码缓存定向到工作区临时目录以避开既有 `__pycache__` 权限限制。
+  - `git diff --check`：通过，仅输出 CRLF/LF 转换提示，无真实空白错误。
+- 测试状态：[已测试]
+
 - 时间：2026-07-14 11:30
 - 操作类型：[修复]
 - 影响文件：

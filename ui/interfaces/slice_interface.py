@@ -31,7 +31,10 @@ from core.models.processing_session import ProcessingSession
 from ui.components import (
     AnalysisResultCard,
     DrawerPosition,
+    HorizontalImageWorkspace,
     JitterFreeCardGroup,
+    MergeImageColumn,
+    MergeOperationPanel,
     NavigationControlCard,
     PlotOptionCard,
     RedrawOptionCard,
@@ -236,10 +239,12 @@ class SliceInterface(QFrame):
         )
 
     def _init_layout(self) -> None:
-        """初始化三栏主布局。
+        """初始化内容工作区与右侧业务面板布局。
 
         功能描述：
-            创建左栏、中栏、右栏容器并按 1:1:1 比例加入主布局。
+            使用等宽横向滚动工作区承载 A/B/C/D，视口固定显示两列；该工作区
+            与原有右侧业务面板按 4:3 比例加入外层布局，因此默认 A+B+E 的
+            视觉比例与原三栏布局保持一致。
 
         参数说明：
             无。
@@ -255,13 +260,31 @@ class SliceInterface(QFrame):
         root_layout.setContentsMargins(20, 20, 20, 20)
         root_layout.setSpacing(12)
 
-        left_column = self._create_left_column()
-        middle_column = self._create_middle_column()
+        self.original_column = self._create_left_column()
+        self.cluster_column = self._create_middle_column()
+        self.merge_image_column = MergeImageColumn(
+            self,
+            scale_mode_getter=self._current_plot_scale_mode,
+        )
+        self.merge_operation_panel = MergeOperationPanel(self)
+        self.image_workspace = HorizontalImageWorkspace(
+            (
+                self.original_column,
+                self.cluster_column,
+                self.merge_image_column,
+                self.merge_operation_panel,
+            ),
+            self,
+        )
         self.right_column = self._create_right_column()
 
-        # 添加三列控件
-        root_layout.addWidget(left_column, 2)
-        root_layout.addWidget(middle_column, 2)
+        # 右侧固定按钮只切换滚动锁定和目标位置，不接入任何合并业务逻辑。
+        self.navigation_control_card.merge_menu_button.toggled.connect(
+            self.image_workspace.set_merge_active
+        )
+
+        # 内容工作区保持原 A+B 合计伸缩权重，右侧业务面板结构和权重不变。
+        root_layout.addWidget(self.image_workspace, 4)
         root_layout.addWidget(self.right_column, 3)
 
         # 设置右侧面板最大宽度
@@ -289,6 +312,7 @@ class SliceInterface(QFrame):
             self.original_dtoa_card, self.original_doa_card,
             self.cluster_cf_card, self.cluster_pw_card, self.cluster_pa_card,
             self.cluster_dtoa_card, self.cluster_doa_card,
+            *self.merge_image_column.dimension_cards,
         ]
         for card in cards:
             if hasattr(card, "update_image_mode"):
@@ -321,11 +345,6 @@ class SliceInterface(QFrame):
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(0)
-
-        from qfluentwidgets import TransparentToolButton, ToolTipFilter, ToolTipPosition, themeColor
-        from PyQt6.QtCore import QSize
-        from PyQt6.QtGui import QColor
-        from app.custom_icon import CustomIcon
         
         self.prev_slice_button = TransparentToolButton(CustomIcon.CHEVRONS_LEFT.colored(themeColor(), QColor("white")), column)
         self.prev_slice_button.setFixedSize(25, 25)
