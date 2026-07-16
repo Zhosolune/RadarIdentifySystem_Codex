@@ -7,9 +7,9 @@ from types import SimpleNamespace
 from PyQt6 import sip
 from PyQt6.QtCore import QEvent, QPoint, Qt
 from PyQt6.QtGui import QColor, QContextMenuEvent, QImage
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 from pytest import MonkeyPatch
-from qfluentwidgets import CommandBarView
+from qfluentwidgets import CommandBarView, SimpleCardWidget
 
 from ui.components import slice_dimension_card as slice_dimension_card_module
 from ui.components.slice_dimension_card import SliceDimensionCard
@@ -45,6 +45,31 @@ def _delete_card(card: SliceDimensionCard) -> None:
         QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         QApplication.processEvents()
     sip.delete(card)
+
+
+def test_image_label_owns_rounded_border_painting() -> None:
+    """图像控件应使用同一路径裁剪图像并绘制圆角边框。"""
+    _app()
+    card = _card()
+
+    try:
+        card.resize(240, 160)
+        card.show()
+        QApplication.processEvents()
+        image = QImage(20, 20, QImage.Format.Format_RGB32)
+        image.fill(Qt.GlobalColor.red)
+        card.set_image(image)
+        QApplication.processEvents()
+
+        assert isinstance(card.image_card, QWidget)
+        assert not isinstance(card.image_card, SimpleCardWidget)
+        assert card.image_label._radius == card.IMAGE_CARD_BORDER_RADIUS
+        assert card.image_label._border_width == card.IMAGE_CARD_BORDER_WIDTH
+        rendered = card.image_label.grab().toImage()
+        top_center = rendered.pixelColor(rendered.width() // 2, 0)
+        assert top_center == card.image_label._border_color()
+    finally:
+        _delete_card(card)
 
 
 def test_right_click_without_image_does_not_create_command_bar(

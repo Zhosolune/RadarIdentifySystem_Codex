@@ -1,5 +1,37 @@
 # 变更记录
 
+- 时间：2026-07-16 11:25
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：计划将图像裁剪、背景和边框合并到图像控件的同一次绘制中，消除圆角处接缝。
+- 原因：父级 `SimpleCardWidget` 和子图像分别绘制圆角，即使半径相同，独立的绘制区域与抗锯齿边缘仍会产生视觉缝隙。
+- 计划：
+  - [ ] 使用无边框容器替代父级 `SimpleCardWidget` 绘制职责。
+  - [ ] 在图像控件中使用同一圆角路径依次绘制背景、裁剪图像和覆盖边框。
+  - [ ] 增加绘制归属回归测试并执行 pytest、`py_compile`、`git diff --check`。
+- 测试状态：[待测试]
+
+- 时间：2026-07-16 10:57
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_dimension_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：使用 6px 单一常量统一无内边距图像的裁剪圆角与 `SimpleCardWidget` 实际绘制的边框圆角。
+- 原因：QSS 与图像裁剪使用 6px 圆角，但组件库 `SimpleCardWidget` 的运行时边框圆角仍为默认 5px，导致图像贴边后轮廓不一致。
+- 计划：
+  - [x] 增加图像圆角与卡片运行时边框圆角一致性测试。
+  - [x] 使用单一圆角常量同步卡片边框与图像裁剪半径。
+  - [x] 执行聚焦 pytest、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_slice_dimension_card.py -q -k "not test_right_click_with_image_creates_one_snapshot_action"`：`8 passed, 1 deselected, 1 warning`；排除项仍断言旧文案“独立显示”，当前实现文案为“展开”，与本次圆角修复无关。
+  - `py_compile`：`slice_dimension_card.py`、`test_slice_dimension_card.py` 均通过。
+  - `git diff --check`：通过，仅输出 CRLF/LF 转换提示，无真实空白错误。
+- 测试状态：[已测试]
+
 - 时间：2026-07-16 10:11
 - 操作类型：[修改]
 - 影响文件：

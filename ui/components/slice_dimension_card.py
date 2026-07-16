@@ -5,14 +5,24 @@ from collections.abc import Callable
 
 
 from PyQt6.QtCore import QObject, QPoint, Qt, QRectF
-from PyQt6.QtGui import QContextMenuEvent, QPixmap, QImage, QPainter, QPainterPath
+from PyQt6.QtGui import (
+    QColor,
+    QContextMenuEvent,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+)
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
 from qfluentwidgets import (
     Action,
     CommandBarView,
     FluentIcon,
     Flyout,
-    SimpleCardWidget,
+    isDarkTheme,
+    qconfig,
+    themeColor,
 )
 
 from ui.components.image_snapshot_window import ImageSnapshotWindow
@@ -39,6 +49,7 @@ class RoundedImageLabel(QLabel):
     def __init__(
         self,
         radius: int = 4,
+        border_width: int = 1,
         parent: QWidget | None = None,
         scale_mode_getter: Callable[[], str] | None = None,
     ) -> None:
@@ -49,13 +60,16 @@ class RoundedImageLabel(QLabel):
 
         参数说明：
             radius (int): 圆角半径，默认值为 4。
+            border_width (int): 边框宽度，默认值为 1px。
             parent (QWidget | None): 父级控件，默认值为 None。
         """
         super().__init__(parent)
         self._radius = radius
+        self._border_width = border_width
         self._source_image: QImage | None = None
         self._cached_pixmap: QPixmap | None = None
         self._scale_mode_getter = scale_mode_getter
+        qconfig.themeChanged.connect(self.update)
 
     def set_image(self, image: QImage) -> None:
         """设置源图像并触发更新。
@@ -114,28 +128,54 @@ class RoundedImageLabel(QLabel):
         self.update()
 
     def paintEvent(self, event) -> None:
-        """绘制带有圆角的图像。
+        """使用同一圆角路径绘制背景、图像和覆盖边框。
 
         功能描述：
-            如果存在缓存图像，则使用 QPainter 开启抗锯齿并应用圆角裁剪路径后，绘制该图像。
-            由于图像已经按尺寸缩放，无需再指定 SmoothPixmapTransform。
+            先绘制圆角背景，再用相同路径裁剪图像，最后覆盖绘制边框，
+            避免父子控件独立抗锯齿造成圆角接缝。
 
         参数说明：
             event (QPaintEvent): 绘制事件对象。
         """
-        if self._cached_pixmap is None or self._cached_pixmap.isNull():
-            super().paintEvent(event)
-            return
-
         with QPainter(self) as painter:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-            # 构建圆角裁剪路径
+            # 让边框中心线完整落在控件范围内，避免最外侧像素被裁切。
+            half_border = self._border_width / 2
+            frame_rect = QRectF(self.rect()).adjusted(
+                half_border,
+                half_border,
+                -half_border,
+                -half_border,
+            )
             path = QPainterPath()
-            path.addRoundedRect(QRectF(self.rect()), self._radius, self._radius)
-            painter.setClipPath(path)
+            path.addRoundedRect(frame_rect, self._radius, self._radius)
+            painter.fillPath(path, self._background_color())
 
-            painter.drawPixmap(self.rect(), self._cached_pixmap)
+            if self._cached_pixmap is not None and not self._cached_pixmap.isNull():
+                painter.save()
+                painter.setClipPath(path)
+                painter.drawPixmap(self.rect(), self._cached_pixmap)
+                painter.restore()
+
+            # 边框最后覆盖在图像边缘，确保圆角处不存在背景缝隙。
+            pen = QPen(self._border_color(), self._border_width)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(path)
+
+    def _background_color(self) -> QColor:
+        """返回与原图像卡片 QSS 一致的主题背景色。"""
+        if isDarkTheme():
+            return QColor(255, 255, 255, 20)
+        return QColor(255, 255, 255, 184)
+
+    def _border_color(self) -> QColor:
+        """返回当前主题下的图像卡片边框颜色。"""
+        if isDarkTheme():
+            return QColor(255, 255, 255, 20)
+        return themeColor()
 
 
 class SliceDimensionCard(QWidget):
@@ -144,10 +184,15 @@ class SliceDimensionCard(QWidget):
     提供左侧竖排维度标签与右侧图像卡片，并管理当前卡片的右键独立查看交互。
 
     Attributes:
+        IMAGE_CARD_BORDER_RADIUS [int]: 图像卡片边框与图像裁剪共用的圆角半径。
+        IMAGE_CARD_BORDER_WIDTH [int]: 图像卡片边框宽度。
         dimension_label [QLabel]: 竖排显示维度名称的标签。
-        image_card [SimpleCardWidget]: 承载当前维度图像的卡片。
+        image_card [QWidget]: 不参与绘制、仅承载当前维度图像的容器。
         image_label [RoundedImageLabel]: 绘制圆角图像的标签。
     """
+
+    IMAGE_CARD_BORDER_RADIUS: int = 6
+    IMAGE_CARD_BORDER_WIDTH: int = 1
 
     def __init__(
         self,
@@ -192,13 +237,16 @@ class SliceDimensionCard(QWidget):
         self.dimension_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.dimension_label.setFixedWidth(25)
 
-        self.image_card = SimpleCardWidget(self)
+        # 容器不再单独绘制边框，避免与子图像的圆角抗锯齿边缘分离。
+        self.image_card = QWidget(self)
         self.image_card.setObjectName("sliceImageCard")
+        self.image_card.setMinimumHeight(120)
         self.image_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        # 添加用于显示圆角图像的 QLabel（内边距 0px，卡片外圆角 6px，故图片圆角设为 6px）
+        # 图像贴边显示时，与卡片运行时边框共用同一圆角尺寸。
         self.image_label = RoundedImageLabel(
-            radius=6,
+            radius=self.IMAGE_CARD_BORDER_RADIUS,
+            border_width=self.IMAGE_CARD_BORDER_WIDTH,
             parent=self.image_card,
             scale_mode_getter=scale_mode_getter,
         )
