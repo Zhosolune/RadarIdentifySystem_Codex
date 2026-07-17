@@ -14,8 +14,9 @@ def test_slice_by_toa_basic():
     data = np.column_stack([
         np.full(n, 5000.0),  # CF
         np.full(n, 1.0),     # PW
-        np.full(n, 90.0),    # DOA
         np.full(n, 100.0),   # PA
+        np.full(n, 90.0),    # DOA
+        np.full(n, 90.0),    # PDOA
         toa,                 # TOA
     ])
     
@@ -40,8 +41,9 @@ def test_slice_by_toa_empty_skip():
     data = np.column_stack([
         np.full(n, 5000.0),
         np.full(n, 1.0),
-        np.full(n, 90.0),
         np.full(n, 100.0),
+        np.full(n, 90.0),
+        np.full(n, 90.0),
         toa,
     ])
     
@@ -57,8 +59,9 @@ def test_slice_by_toa_single_point():
     data = np.column_stack([
         np.full(n, 5000.0),
         np.full(n, 1.0),
-        np.full(n, 90.0),
         np.full(n, 100.0),
+        np.full(n, 90.0),
+        np.full(n, 90.0),
         toa,
     ])
     

@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import numpy as np
 
-from core.data.preprocess import clean_pa, fix_toa_flip, detect_band, preprocess
+from core.preprocess import clean_pa, fix_toa_flip, detect_band, preprocess
 from core.models.pulse_batch import COL_PA, COL_TOA, COL_CF
 
 
@@ -32,7 +32,7 @@ from core.models.pulse_batch import COL_PA, COL_TOA, COL_CF
 # -------------------------------------------------------------------
 
 def _make_data(rows: list[list[float]]) -> np.ndarray:
-    """快速构造 shape=(N, 5) 测试数组。"""
+    """快速构造 shape=(N, 6) 测试数组。"""
     return np.array(rows, dtype=float)
 
 
@@ -43,7 +43,7 @@ def _make_uniform(n: int, cf=5000.0, pw=1.0, doa=90.0, pa=100.0, toa_start=0.0, 
     pw_arr = np.full(n, pw)
     doa_arr = np.full(n, doa)
     pa_arr = np.full(n, pa)
-    return np.column_stack([cf_arr, pw_arr, doa_arr, pa_arr, toa])
+    return np.column_stack([cf_arr, pw_arr, pa_arr, doa_arr, doa_arr, toa])
 
 
 # -------------------------------------------------------------------
@@ -53,20 +53,20 @@ def _make_uniform(n: int, cf=5000.0, pw=1.0, doa=90.0, pa=100.0, toa_start=0.0, 
 def test_clean_pa_removes_invalid():
     """剔除 PA=255 行，保留其余行。"""
     data = _make_data([
-        [5000, 1, 90, 100, 0.0],
-        [5000, 1, 90, 255, 0.1],  # 无效
-        [5000, 1, 90, 80,  0.2],
+        [5000, 1, 100, 90, 90, 0.0],
+        [5000, 1, 255, 90, 90, 0.1],  # 无效
+        [5000, 1, 80, 90, 90, 0.2],
     ])
     result = clean_pa(data)
-    assert result.shape == (2, 5), f"期望2行，实际{result.shape}"
+    assert result.shape == (2, 6), f"期望2行，实际{result.shape}"
     assert 255 not in result[:, COL_PA], "结果中不应有 PA=255"
 
 
 def test_clean_pa_all_invalid():
     """全部为 PA=255 时返回空数组。"""
     data = _make_data([
-        [5000, 1, 90, 255, 0.0],
-        [5000, 1, 90, 255, 0.1],
+        [5000, 1, 255, 90, 90, 0.0],
+        [5000, 1, 255, 90, 90, 0.1],
     ])
     result = clean_pa(data)
     assert result.shape[0] == 0, "全部无效应返回空数组"
@@ -80,10 +80,10 @@ def test_clean_pa_all_valid():
 
 
 def test_clean_pa_empty():
-    """空数组（0行5列）正常处理，不抛异常。"""
-    data = np.empty((0, 5))
+    """空数组（0行6列）正常处理，不抛异常。"""
+    data = np.empty((0, 6))
     result = clean_pa(data)
-    assert result.shape == (0, 5)
+    assert result.shape == (0, 6)
 
 
 # -------------------------------------------------------------------
@@ -107,8 +107,9 @@ def test_fix_toa_flip_single_flip():
     data = np.column_stack([
         np.full(n, 5000.0),  # CF
         np.full(n, 1.0),     # PW
-        np.full(n, 90.0),    # DOA
         np.full(n, 100.0),   # PA
+        np.full(n, 90.0),    # DOA
+        np.full(n, 90.0),    # PDOA
         toa,                 # TOA
     ])
     fixed, count = fix_toa_flip(data)
@@ -131,8 +132,9 @@ def test_fix_toa_flip_multiple_flips():
     data = np.column_stack([
         np.full(n, 5000.0),
         np.full(n, 1.0),
-        np.full(n, 90.0),
         np.full(n, 100.0),
+        np.full(n, 90.0),
+        np.full(n, 90.0),
         toa,
     ])
     fixed, count = fix_toa_flip(data)
@@ -144,10 +146,10 @@ def test_fix_toa_flip_multiple_flips():
 
 def test_fix_toa_flip_empty():
     """空数组不抛异常，flip_count=0。"""
-    data = np.empty((0, 5))
+    data = np.empty((0, 6))
     fixed, count = fix_toa_flip(data)
     assert count == 0
-    assert fixed.shape == (0, 5)
+    assert fixed.shape == (0, 6)
 
 
 def test_fix_toa_original_not_modified():
@@ -190,7 +192,7 @@ def test_detect_band_below_1000():
 
 def test_detect_band_empty():
     """空数组时返回 None。"""
-    data = np.empty((0, 5))
+    data = np.empty((0, 6))
     assert detect_band(data) is None
 
 
@@ -231,8 +233,9 @@ def test_preprocess_estimated_slice_count():
     data = np.column_stack([
         np.full(n, 5000.0),
         np.full(n, 1.0),
-        np.full(n, 90.0),
         np.full(n, 100.0),
+        np.full(n, 90.0),
+        np.full(n, 90.0),
         toa,
     ])
     result = preprocess(data, slice_length=2_500_000)
@@ -243,7 +246,7 @@ def test_preprocess_estimated_slice_count():
 
 def test_preprocess_empty_data():
     """空数据不抛异常，统计均为 0。"""
-    data = np.empty((0, 5))
+    data = np.empty((0, 6))
     result = preprocess(data)
     assert result.total_pulses == 0
     assert result.filtered_pulses == 0

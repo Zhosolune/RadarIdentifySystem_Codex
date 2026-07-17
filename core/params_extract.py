@@ -114,7 +114,7 @@ def extract_cluster_params(
         本函数不修改输入矩阵，且不依赖任何 UI/Qt/线程能力。
 
     Args:
-        points [np.ndarray]: 单个识别通过类的点云矩阵，shape=(N, 5)；空矩阵时返回空结果。
+        points [np.ndarray]: 单个识别通过类的点云矩阵，shape=(N, 6)；空矩阵时返回空结果。
         extract_params [ExtractParams]: 参数提取配置快照，控制 DBSCAN 邻域与门限。
 
     Returns:
@@ -126,9 +126,9 @@ def extract_cluster_params(
     Example:
         >>> import numpy as np
         >>> pts = np.array([
-        ...     [1000.0, 1.0, 10.0, 20.0, 0.0],
-        ...     [1000.0, 1.0, 20.0, 20.0, 100.0],
-        ...     [1000.0, 1.0, 30.0, 20.0, 200.0],
+        ...     [1000.0, 1.0, 20.0, 10.0, 10.0, 0.0],
+        ...     [1000.0, 1.0, 20.0, 20.0, 20.0, 100.0],
+        ...     [1000.0, 1.0, 20.0, 30.0, 30.0, 200.0],
         ... ])
         >>> params = ExtractParams(min_pts_cf=2, min_pts_pw=2, min_pts_pri=2)
         >>> result = extract_cluster_params(pts, params)

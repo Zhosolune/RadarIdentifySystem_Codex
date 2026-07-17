@@ -187,7 +187,9 @@ class HomeController(QObject):
         self._show_processing_dialog()
 
         try:
-            import_workflow.start_import(session, str(entry.path))
+            # 点击解析时冻结格式选择，后台线程不再读取可变 UI 状态。
+            data_format = self.view.import_panel.current_excel_data_format()
+            import_workflow.start_import(session, str(entry.path), data_format)
         except Exception as exc:
             self._active_parse_session_id = None
             self.view.import_panel.parseButton.setEnabled(True)

@@ -51,9 +51,9 @@ def slice_by_toa(
                     append slice and time_range
 
     参数说明：
-        data (np.ndarray): shape=(N, 5) 的预处理后脉冲数组。
+        data (np.ndarray): shape=(N, 6) 的预处理后脉冲数组。
         slice_length (float): 时间窗口长度（0.1us），默认 2_500_000（250ms）。
-        toa_col (int): TOA 列的列索引，默认 COL_TOA=4。
+        toa_col (int): TOA 列的列索引，默认 COL_TOA=5。
         session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：

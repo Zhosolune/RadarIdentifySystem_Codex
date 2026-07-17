@@ -32,6 +32,7 @@ from core.models.cluster_result import (
     SliceClusterResult,
 )
 from core.models.processing_session import ProcessingSession, ProcessingStage, SliceProcessStatus
+from core.models.pulse_batch import COL_DOA
 from core.models.recognition_result import (
     ClusterRecognition,
     RecognitionResult,
@@ -59,12 +60,12 @@ def test_slice_identify_pipeline_attaches_extracted_params_to_valid_recognition(
     """最终识别通过的类应携带 CF、PW、PRI、DOA 提取结果。"""
     points = np.array(
         [
-            [1000.0, 1.0, 10.0, 20.0, 0.0],
-            [1000.0, 1.0, 20.0, 20.0, 100.0],
-            [1000.0, 1.0, 30.0, 20.0, 200.0],
-            [1100.0, 2.0, 20.0, 20.0, 400.0],
-            [1100.0, 2.0, 30.0, 20.0, 600.0],
-            [1100.0, 2.0, 40.0, 20.0, 800.0],
+            [1000.0, 1.0, 20.0, 10.0, 10.0, 0.0],
+            [1000.0, 1.0, 20.0, 20.0, 20.0, 100.0],
+            [1000.0, 1.0, 20.0, 30.0, 30.0, 200.0],
+            [1100.0, 2.0, 20.0, 20.0, 20.0, 400.0],
+            [1100.0, 2.0, 20.0, 30.0, 30.0, 600.0],
+            [1100.0, 2.0, 20.0, 40.0, 40.0, 800.0],
         ],
         dtype=float,
     )
@@ -164,8 +165,9 @@ def test_extract_cluster_params_filters_related_pri_values_after_grouping() -> N
         (
             np.full(len(toa_values), 1000.0),
             np.full(len(toa_values), 1.0),
-            np.full(len(toa_values), 30.0),
             np.full(len(toa_values), 20.0),
+            np.full(len(toa_values), 30.0),
+            np.full(len(toa_values), 30.0),
             toa_values,
         )
     )
@@ -196,8 +198,9 @@ def test_extract_cluster_params_extracts_doa_with_trimmed_circular_mean() -> Non
         (
             np.full(len(doa_values), 1000.0),
             np.full(len(doa_values), 1.0),
-            doa_values,
             np.full(len(doa_values), 20.0),
+            doa_values,
+            doa_values,
             np.arange(len(doa_values), dtype=float) * 100.0,
         )
     )
@@ -260,8 +263,8 @@ def test_slice_identify_pipeline_passes_split_min_pts_to_cf_and_pw(
         index=0,
         data=np.array(
             [
-                [1000.0, 1.0, 90.0, 10.0, 0.0],
-                [2000.0, 5.0, 91.0, 11.0, 1000.0],
+                [1000.0, 1.0, 10.0, 90.0, 90.0, 0.0],
+                [2000.0, 5.0, 11.0, 91.0, 91.0, 1000.0],
             ]
         ),
         time_range=(0.0, 1.0),
@@ -291,7 +294,7 @@ def test_slice_identify_pipeline_saves_all_clusters_by_cluster_index(
         return ClusterItem(
             cluster_idx=cluster_idx,
             dim_name=dim_name,
-            points=np.zeros((len(points_indices), 5), dtype=float),
+            points=np.zeros((len(points_indices), 6), dtype=float),
             points_indices=points_indices,
             slice_idx=0,
             time_ranges=(0.0, 1.0),
@@ -384,7 +387,7 @@ def test_slice_identify_pipeline_saves_all_clusters_by_cluster_index(
     )
     slice_data = SimpleNamespace(
         index=0,
-        data=np.zeros((3, 5), dtype=float),
+        data=np.zeros((3, 6), dtype=float),
         time_range=(0.0, 1.0),
     )
 
@@ -420,11 +423,11 @@ def test_slice_identify_pipeline_clusters_valid_results_by_doa(
     pw_input_doa_values: list[float] = []
     points = np.array(
         [
-            [1000.0, 1.0, 10.0, 20.0, 0.0],
-            [1000.0, 1.0, 11.0, 20.0, 1.0],
-            [1000.0, 1.0, 35.0, 20.0, 2.0],
-            [2000.0, 2.0, 40.0, 20.0, 3.0],
-            [3000.0, 3.0, 50.0, 20.0, 4.0],
+            [1000.0, 1.0, 20.0, 10.0, 10.0, 0.0],
+            [1000.0, 1.0, 20.0, 11.0, 11.0, 1.0],
+            [1000.0, 1.0, 20.0, 35.0, 35.0, 2.0],
+            [2000.0, 2.0, 20.0, 40.0, 40.0, 3.0],
+            [3000.0, 3.0, 20.0, 50.0, 50.0, 4.0],
         ],
         dtype=float,
     )
@@ -480,7 +483,7 @@ def test_slice_identify_pipeline_clusters_valid_results_by_doa(
         if kwargs["dim_name"] == "DOA":
             doa_calls.append((kwargs["dim_idx"], kwargs["epsilon"], kwargs["min_pts"]))
             source_points = kwargs["points"]
-            if source_points[:, 2].tolist() == [10.0, 11.0, 35.0]:
+            if source_points[:, COL_DOA].tolist() == [10.0, 11.0, 35.0]:
                 return (
                     [
                         make_cluster(1, "DOA", source_points, np.array([0, 1])),
@@ -490,7 +493,7 @@ def test_slice_identify_pipeline_clusters_valid_results_by_doa(
                 )
             return [make_cluster(1, "DOA", source_points, np.arange(len(source_points)))], np.array([], dtype=int)
 
-        pw_input_doa_values.extend(kwargs["points"][:, 2].tolist())
+        pw_input_doa_values.extend(kwargs["points"][:, COL_DOA].tolist())
         return (
             [
                 make_cluster(3, "PW", kwargs["points"], np.array([0, 1])),
@@ -616,7 +619,7 @@ def test_cluster_doa_children_keeps_largest_clusters_until_clip_threshold(
         "core.identify_stages.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
-    parent_points = np.zeros((12, 5), dtype=float)
+    parent_points = np.zeros((12, 6), dtype=float)
     parent_cluster = ClusterItem(
         cluster_idx=1,
         dim_name="CF",
@@ -681,7 +684,7 @@ def test_cluster_doa_children_keeps_at_most_three_clusters(
         "core.identify_stages.process_dimension_clustering",
         fake_process_dimension_clustering,
     )
-    parent_points = np.zeros((10, 5), dtype=float)
+    parent_points = np.zeros((10, 6), dtype=float)
     parent_cluster = ClusterItem(
         cluster_idx=1,
         dim_name="PW",
@@ -751,9 +754,9 @@ def test_identify_workflow_injects_session_params_and_models(
     session.slice_result = SimpleNamespace(
         slice_count=3,
         slices=[
-            SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0)),
-            SimpleNamespace(index=1, data=np.zeros((1, 5), dtype=float), time_range=(1.0, 2.0)),
-            SimpleNamespace(index=2, data=np.zeros((1, 5), dtype=float), time_range=(2.0, 3.0)),
+            SimpleNamespace(index=0, data=np.zeros((1, 6), dtype=float), time_range=(0.0, 1.0)),
+            SimpleNamespace(index=1, data=np.zeros((1, 6), dtype=float), time_range=(1.0, 2.0)),
+            SimpleNamespace(index=2, data=np.zeros((1, 6), dtype=float), time_range=(2.0, 3.0)),
         ],
     )
     session.model_selection.pa_model_path = "E:/models/pa.onnx"
@@ -829,7 +832,7 @@ def test_identify_workflow_injects_extract_params(
     session.slice_result = SimpleNamespace(
         slice_count=1,
         slices=[
-            SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0)),
+            SimpleNamespace(index=0, data=np.zeros((1, 6), dtype=float), time_range=(0.0, 1.0)),
         ],
     )
     session.model_selection.pa_model_path = "E:/models/pa.onnx"
@@ -898,7 +901,7 @@ def test_multiple_identify_workflow_instances_can_start_in_parallel(
     session_a = ProcessingSession(session_id="session_a")
     session_a.slice_result = SimpleNamespace(
         slice_count=1,
-        slices=[SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0))],
+        slices=[SimpleNamespace(index=0, data=np.zeros((1, 6), dtype=float), time_range=(0.0, 1.0))],
     )
     session_a.model_selection.pa_model_path = "E:/models/pa_a.onnx"
     session_a.model_selection.dtoa_model_path = "E:/models/dtoa_a.onnx"
@@ -906,8 +909,8 @@ def test_multiple_identify_workflow_instances_can_start_in_parallel(
     session_b.slice_result = SimpleNamespace(
         slice_count=2,
         slices=[
-            SimpleNamespace(index=0, data=np.zeros((1, 5), dtype=float), time_range=(0.0, 1.0)),
-            SimpleNamespace(index=1, data=np.zeros((1, 5), dtype=float), time_range=(1.0, 2.0)),
+            SimpleNamespace(index=0, data=np.zeros((1, 6), dtype=float), time_range=(0.0, 1.0)),
+            SimpleNamespace(index=1, data=np.zeros((1, 6), dtype=float), time_range=(1.0, 2.0)),
         ],
     )
     session_b.model_selection.pa_model_path = "E:/models/pa_b.onnx"

@@ -25,7 +25,16 @@ import numpy as np
 from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
 from core.models.processing_session import ProcessingStage
-from core.models.pulse_batch import PulseBatch
+from core.models.pulse_batch import (
+    COL_CF,
+    COL_DOA,
+    COL_PA,
+    COL_PDOA,
+    COL_PW,
+    COL_TOA,
+    PULSE_COLUMN_COUNT,
+    PulseBatch,
+)
 from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
 from core.models.slice_result import PreprocessResult
@@ -33,6 +42,8 @@ from utils.paths import get_session_config_dir
 
 
 _WINDOWS_INVALID_FILENAME_CHARS = set('<>:"|?*')
+_IMPORT_CACHE_SCHEMA_VERSION = 2
+_LEGACY_PULSE_COLUMN_COUNT = 5
 _WINDOWS_RESERVED_NAMES = {
     "CON",
     "PRN",
@@ -48,6 +59,29 @@ def _require_string_session_id(value: object) -> str:
     if not isinstance(value, str):
         raise ValueError("session_id 必须是字符串")
     return value
+
+
+def _normalize_cached_pulse_data(
+    data: np.ndarray,
+    schema_version: int,
+) -> np.ndarray:
+    """将旧版五列缓存迁移为当前六列脉冲契约。"""
+    if data.ndim != 2:
+        raise ValueError("缓存脉冲数据必须为二维数组")
+    if data.shape[1] == PULSE_COLUMN_COUNT:
+        return data
+    if schema_version != 1 or data.shape[1] != _LEGACY_PULSE_COLUMN_COUNT:
+        raise ValueError("缓存脉冲数据列数与版本不匹配")
+
+    # 旧缓存顺序为 CF/PW/DOA/PA/TOA，且没有 PDOA；迁移时用 DOA 补齐 PDOA。
+    normalized = np.empty((len(data), PULSE_COLUMN_COUNT), dtype=data.dtype)
+    normalized[:, COL_CF] = data[:, 0]
+    normalized[:, COL_PW] = data[:, 1]
+    normalized[:, COL_PA] = data[:, 3]
+    normalized[:, COL_DOA] = data[:, 2]
+    normalized[:, COL_PDOA] = data[:, 2]
+    normalized[:, COL_TOA] = data[:, 4]
+    return normalized
 
 
 @dataclass
@@ -448,7 +482,7 @@ class SessionStore:
 
             cache_path = self._import_cache_path(session.session_id)
             metadata = {
-                "schema_version": 1,
+                "schema_version": _IMPORT_CACHE_SCHEMA_VERSION,
                 "raw_batch": {
                     "source_path": session.raw_batch.source_path,
                     "source_type": session.raw_batch.source_type,
@@ -503,10 +537,17 @@ class SessionStore:
             try:
                 with np.load(cache_path, allow_pickle=False) as cache:
                     metadata = json.loads(str(cache["metadata"].item()))
-                    if int(metadata.get("schema_version", 0)) != 1:
+                    schema_version = int(metadata.get("schema_version", 0))
+                    if schema_version not in (1, _IMPORT_CACHE_SCHEMA_VERSION):
                         return False
-                    raw_data = np.array(cache["raw_data"])
-                    preprocess_data = np.array(cache["preprocess_data"])
+                    raw_data = _normalize_cached_pulse_data(
+                        np.array(cache["raw_data"]),
+                        schema_version,
+                    )
+                    preprocess_data = _normalize_cached_pulse_data(
+                        np.array(cache["preprocess_data"]),
+                        schema_version,
+                    )
 
                 raw_payload = metadata["raw_batch"]
                 preprocess_payload = metadata["preprocess_result"]

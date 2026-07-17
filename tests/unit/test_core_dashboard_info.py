@@ -23,9 +23,9 @@ def test_builds_excel_dashboard_info_from_preprocess_result() -> None:
     """从 Excel 预处理结果生成六项仪表盘指标。"""
     data = np.array(
         [
-            [5000.0, 1.0, 90.0, 100.0, 1000.0],
-            [5000.0, 1.0, 91.0, 255.0, 2000.0],
-            [5000.0, 1.0, 92.0, 80.0, 2_501_000.0],
+            [5000.0, 1.0, 100.0, 90.0, 90.0, 1000.0],
+            [5000.0, 1.0, 255.0, 91.0, 91.0, 2000.0],
+            [5000.0, 1.0, 80.0, 92.0, 92.0, 2_501_000.0],
         ],
         dtype=float,
     )
@@ -45,10 +45,10 @@ def test_excel_dashboard_duration_uses_fixed_toa_last_minus_first() -> None:
     """持续时间来自翻折修正后的最后一个 TOA 减第一个 TOA。"""
     data = np.array(
         [
-            [5000.0, 1.0, 90.0, 100.0, 10_000.0],
-            [5000.0, 1.0, 91.0, 100.0, 20_000.0],
-            [5000.0, 1.0, 92.0, 100.0, -1_000_000_000.0],
-            [5000.0, 1.0, 93.0, 100.0, -999_990_000.0],
+            [5000.0, 1.0, 100.0, 90.0, 90.0, 10_000.0],
+            [5000.0, 1.0, 100.0, 91.0, 91.0, 20_000.0],
+            [5000.0, 1.0, 100.0, 92.0, 92.0, -1_000_000_000.0],
+            [5000.0, 1.0, 100.0, 93.0, 93.0, -999_990_000.0],
         ],
         dtype=float,
     )
@@ -64,7 +64,7 @@ def test_excel_dashboard_duration_uses_fixed_toa_last_minus_first() -> None:
 
 def test_build_returns_none_for_unimplemented_source_type() -> None:
     """尚未实现的文件类型返回 None，预留 bin/mat 后续扩展。"""
-    preprocess_result = preprocess(np.empty((0, 5)), source_type="excel")
+    preprocess_result = preprocess(np.empty((0, 6)), source_type="excel")
 
     info = DashboardInfoManager().build("bin", preprocess_result)
 

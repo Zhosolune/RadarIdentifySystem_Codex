@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
+import numpy as np
 from PyQt6.QtCore import QObject
 from pytest import MonkeyPatch
 
@@ -24,7 +26,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.signal_bus import signal_bus
 from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
+from core.models.pulse_batch import PulseBatch
+import runtime.threading.import_worker as import_worker_module
+from runtime.threading.import_worker import ImportWorker
+import runtime.workflows.import_workflow as import_workflow_module
 from runtime.workflows.import_workflow import ImportWorkflow
+import ui.controllers.home_controller as home_controller_module
 from ui.controllers.home_controller import HomeController
 
 
@@ -116,10 +123,25 @@ class _ImportPanelStub:
         self.descendAction = _ActionStub()
         self.parseButton = _ButtonStub()
         self.files_by_type: object | None = None
+        self.format_key = "excel"
+        self.selected_row = 0
+        self.excel_data_format = "old"
 
     def set_files_by_type(self, files_by_type: object) -> None:
         """记录渲染到列表的数据。"""
         self.files_by_type = files_by_type
+
+    def current_format_key(self) -> str:
+        """返回测试配置的文件类型。"""
+        return self.format_key
+
+    def current_selected_row(self) -> int:
+        """返回测试配置的选中行。"""
+        return self.selected_row
+
+    def current_excel_data_format(self) -> str:
+        """返回测试配置的 Excel 列格式。"""
+        return self.excel_data_format
 
 
 class _DashboardPanelStub:
@@ -265,6 +287,124 @@ def test_import_workflow_finished_emits_only_parse_completed() -> None:
             signal_bus.parse_completed.disconnect(receiver.receive_parse)
         if import_connected:
             signal_bus.import_completed.disconnect(receiver.receive_import)
+
+
+def test_home_controller_passes_selected_excel_format(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """主页解析入口应把当前新旧格式选择传给导入工作流。"""
+    view = _HomeViewStub()
+    view.import_panel.excel_data_format = "new"
+    controller = HomeController(view)
+    captured: dict[str, object] = {}
+    entry = SimpleNamespace(path=Path("new_format.xlsx"), format_key="excel")
+
+    monkeypatch.setattr(
+        controller.file_manager,
+        "get_entry_at",
+        lambda _format_key, _row_index: entry,
+    )
+    monkeypatch.setattr(home_controller_module.import_workflow, "is_running", lambda: False)
+    monkeypatch.setattr(
+        home_controller_module.import_workflow,
+        "start_import",
+        lambda session, file_path, data_format: captured.update(
+            session=session,
+            file_path=file_path,
+            data_format=data_format,
+        ),
+    )
+    monkeypatch.setattr(controller, "_show_processing_dialog", lambda: None)
+
+    try:
+        controller.parse_selected_file()
+
+        assert captured["file_path"] == "new_format.xlsx"
+        assert captured["data_format"] == "new"
+        assert isinstance(captured["session"], ProcessingSession)
+    finally:
+        signal_bus.parse_completed.disconnect(controller.render_import_dashboard)
+        signal_bus.stage_failed.disconnect(controller._on_parse_stage_failed)
+
+
+def test_import_worker_passes_excel_format_to_parser(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """后台导入线程应使用工作流传入的 Excel 格式解析文件。"""
+    captured: dict[str, str] = {}
+
+    class ParserStub:
+        """记录后台线程传入的解析参数。"""
+
+        def parse(self, file_path: str, data_format: str = "old") -> PulseBatch:
+            """返回符合六列契约的单脉冲批次。"""
+            captured["file_path"] = file_path
+            captured["data_format"] = data_format
+            return PulseBatch(
+                data=np.array([[5000.0, 1.0, 100.0, 90.0, 90.0, 0.0]]),
+                source_path=file_path,
+                source_type="excel",
+                total_pulses=1,
+            )
+
+    monkeypatch.setattr(import_worker_module, "ExcelPulseParser", ParserStub)
+    session = ProcessingSession(source_path="new_format.xlsx", source_type="excel")
+    worker = ImportWorker(session, "new_format.xlsx", data_format="new")
+
+    worker.run()
+
+    assert captured == {
+        "file_path": "new_format.xlsx",
+        "data_format": "new",
+    }
+    assert session.raw_batch is not None
+    assert session.raw_batch.data.shape == (1, 6)
+
+
+def test_import_workflow_passes_excel_format_to_worker(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """导入工作流应把格式选择传给后台线程构造函数。"""
+    captured: dict[str, object] = {}
+
+    class WorkerStub:
+        """记录工作流构造参数并模拟线程启动。"""
+
+        def __init__(
+            self,
+            session: ProcessingSession,
+            file_path: str,
+            data_format: str = "old",
+            parent: QObject | None = None,
+        ) -> None:
+            """保存工作流传入的参数。"""
+            captured.update(
+                session=session,
+                file_path=file_path,
+                data_format=data_format,
+                parent=parent,
+            )
+            self.finished_signal = _SignalStub()
+
+        def isRunning(self) -> bool:
+            """模拟未运行状态。"""
+            return False
+
+        def start(self) -> None:
+            """记录线程启动请求。"""
+            captured["started"] = True
+
+    monkeypatch.setattr(import_workflow_module, "ImportWorker", WorkerStub)
+    workflow = ImportWorkflow()
+    session = ProcessingSession(source_path="new_format.xlsx", source_type="excel")
+
+    workflow.start_import(session, "new_format.xlsx", data_format="new")
+
+    assert captured["session"] is session
+    assert captured["file_path"] == "new_format.xlsx"
+    assert captured["data_format"] == "new"
+    assert captured["parent"] is workflow
+    assert captured["started"] is True
 
 
 def test_home_controller_parse_completed_renders_dashboard() -> None:

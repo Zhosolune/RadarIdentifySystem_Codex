@@ -103,7 +103,7 @@ def _build_cluster(cluster_idx: int, dim_name: str, state: ClusterState) -> Clus
     return ClusterItem(
         cluster_idx=cluster_idx,
         dim_name=dim_name,
-        points=np.zeros((4, 5), dtype=float),
+        points=np.zeros((4, 6), dtype=float),
         points_indices=np.arange(4),
         slice_idx=0,
         time_ranges=(0.0, 1.0),
@@ -163,9 +163,9 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
         interface.right_panel.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
             slices=[
-                SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
-                SingleSlice(1, np.ones((2, 5), dtype=float), (1.0, 2.0)),
-                SingleSlice(2, np.full((2, 5), 2.0, dtype=float), (2.0, 3.0)),
+                SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0)),
+                SingleSlice(1, np.ones((2, 6), dtype=float), (1.0, 2.0)),
+                SingleSlice(2, np.full((2, 6), 2.0, dtype=float), (2.0, 3.0)),
             ]
         )
         interface._session.cluster_result = ClusteringResult(
@@ -257,8 +257,8 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
         interface.right_panel.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
             slices=[
-                SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
-                SingleSlice(1, np.ones((2, 5), dtype=float), (1.0, 2.0)),
+                SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0)),
+                SingleSlice(1, np.ones((2, 6), dtype=float), (1.0, 2.0)),
             ]
         )
         interface._session.cluster_result = ClusteringResult(
@@ -342,9 +342,9 @@ def test_next_slice_auto_recognize_passes_target_slice_index(
         interface._session.config_snapshot.business.auto_recognize_next_slice = True
         interface._session.slice_result = SliceResult(
             slices=[
-                SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
-                SingleSlice(1, np.ones((2, 5), dtype=float), (1.0, 2.0)),
-                SingleSlice(2, np.full((2, 5), 2.0, dtype=float), (2.0, 3.0)),
+                SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0)),
+                SingleSlice(1, np.ones((2, 6), dtype=float), (1.0, 2.0)),
+                SingleSlice(2, np.full((2, 6), 2.0, dtype=float), (2.0, 3.0)),
             ]
         )
         interface._slice_controller._load_slice_image(0)
@@ -387,9 +387,9 @@ def test_redraw_auto_recognize_passes_target_slice_index(
         interface._session.config_snapshot.business.auto_recognize_next_slice = True
         interface._session.slice_result = SliceResult(
             slices=[
-                SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
-                SingleSlice(1, np.ones((2, 5), dtype=float), (1.0, 2.0)),
-                SingleSlice(2, np.full((2, 5), 2.0, dtype=float), (2.0, 3.0)),
+                SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0)),
+                SingleSlice(1, np.ones((2, 6), dtype=float), (1.0, 2.0)),
+                SingleSlice(2, np.full((2, 6), 2.0, dtype=float), (2.0, 3.0)),
             ]
         )
         interface._slice_controller._load_slice_image(0)
@@ -447,9 +447,9 @@ def test_manual_recognize_button_uses_current_slice_index(
     try:
         interface._session.slice_result = SliceResult(
             slices=[
-                SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0)),
-                SingleSlice(1, np.ones((2, 5), dtype=float), (1.0, 2.0)),
-                SingleSlice(2, np.full((2, 5), 2.0, dtype=float), (2.0, 3.0)),
+                SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0)),
+                SingleSlice(1, np.ones((2, 6), dtype=float), (1.0, 2.0)),
+                SingleSlice(2, np.full((2, 6), 2.0, dtype=float), (2.0, 3.0)),
             ]
         )
         interface._slice_controller._current_slice_index = 2
@@ -524,7 +524,7 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
     interface = SliceInterface()
     try:
         interface._session.slice_result = SliceResult(
-            slices=[SingleSlice(0, np.zeros((2, 5), dtype=float), (0.0, 1.0))]
+            slices=[SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0))]
         )
         interface._session.cluster_result = ClusteringResult(
             slice_results={

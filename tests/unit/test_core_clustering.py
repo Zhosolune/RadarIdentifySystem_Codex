@@ -38,7 +38,7 @@ def test_cluster_single_slice():
     pa = np.full(n, 100.0)
     toa = np.arange(n) * 10_000  # TOA 以 0.1us 递增，diff=10000(0.1us)×0.1=1000us，DTOA 具周期性
     
-    data = np.column_stack([cf, pw, doa, pa, toa])
+    data = np.column_stack([cf, pw, pa, doa, doa, toa])
     slice_data = SingleSlice(index=0, data=data, time_range=(0.0, 200_000.0))
     
     # 执行级联聚类

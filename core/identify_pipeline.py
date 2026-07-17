@@ -127,7 +127,7 @@ class SliceIdentifyPipeline:
         Example:
             >>> from types import SimpleNamespace
             >>> import numpy as np
-            >>> data = SimpleNamespace(index=0, data=np.empty((0, 5)), time_range=(0.0, 1.0))
+            >>> data = SimpleNamespace(index=0, data=np.empty((0, 6)), time_range=(0.0, 1.0))
             >>> pipeline = SliceIdentifyPipeline(inference_service=object())
             >>> cluster_res, rec_res = pipeline.run(data)
             >>> cluster_res.slice_idx, rec_res.slice_index

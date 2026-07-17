@@ -7,18 +7,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 import numpy as np
 
 
-# 数据列索引（0-based），与 data_processor 保持一致
-COL_CF = 0   # 载频 (MHz)
-COL_PW = 1   # 脉宽 (us)
-COL_DOA = 2  # 到达角 (度)
-COL_PA = 3   # 脉冲幅度 (dB)
-COL_TOA = 4  # 到达时间 (0.1us)
+# 算法内部统一脉冲描述字列索引（0-based）。
+COL_CF = 0    # 载频 (MHz)
+COL_PW = 1    # 脉宽 (us)
+COL_PA = 2    # 脉冲幅度 (dB)
+COL_DOA = 3   # 比幅方位角 (度)
+COL_PDOA = 4  # 比相方位角 (度)
+COL_TOA = 5   # 到达时间 (0.1us)
+PULSE_COLUMN_COUNT = 6
 
 
 @dataclass
@@ -30,14 +31,14 @@ class PulseBatch:
         原始脉冲数据集合，作为预处理与切片的统一输入契约。
 
     属性：
-        data (np.ndarray): shape=(N, 5)，列顺序为
-            [CF(MHz), PW(us), DOA(度), PA(dB), TOA(0.1us)]。
+        data [np.ndarray]: shape=(N, 6)，列顺序为
+            [CF(MHz), PW(us), PA(dB), DOA(度), PDOA(度), TOA(0.1us)]。
         source_path (str): 数据来源文件路径，用于日志与审计追踪。
         source_type (str): 数据来源类型，如 "excel" / "bin" / "mat"。
         total_pulses (int): 归一化前的脉冲总数（含无效脉冲）。
 
     参数说明：
-        data: 归一化后的 ndarray，shape=(N, 5)。
+        data: 归一化后的 ndarray，shape=(N, 6)。
         source_path: 文件路径字符串，默认空串。
         source_type: 来源类型标识，默认 "unknown"。
         total_pulses: 原始总脉冲数，默认 0（由调用方在过滤前记录）。
@@ -52,7 +53,7 @@ class PulseBatch:
         """校验数据形状合法性。
 
         功能描述：
-            确保 data 为二维数组且列数恰好为 5，防止后续列索引越界。
+            确保 data 为二维数组且列数恰好为 6，防止后续列索引越界。
 
         参数说明：
             无。
@@ -61,11 +62,11 @@ class PulseBatch:
             None。
 
         异常说明：
-            ValueError: data 的 ndim != 2 或 shape[1] != 5 时抛出。
+            ValueError: data 的 ndim != 2 或 shape[1] != 6 时抛出。
         """
-        if self.data.ndim != 2 or self.data.shape[1] != 5:
+        if self.data.ndim != 2 or self.data.shape[1] != PULSE_COLUMN_COUNT:
             raise ValueError(
-                f"PulseBatch.data 必须为 shape=(N, 5) 的二维数组，"
+                f"PulseBatch.data 必须为 shape=(N, {PULSE_COLUMN_COUNT}) 的二维数组，"
                 f"实际 shape={self.data.shape}"
             )
 

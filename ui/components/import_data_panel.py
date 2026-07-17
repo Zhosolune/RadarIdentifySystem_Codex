@@ -7,6 +7,8 @@ CommandBar → EdgeTabWidget 两层结构。
 
 from __future__ import annotations
 
+from typing import Literal
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QActionGroup
 from PyQt6.QtWidgets import (QHeaderView, QHBoxLayout, QVBoxLayout, QWidget, QTableWidgetItem)
@@ -379,6 +381,25 @@ class ImportDataPanel(SimpleCardWidget):
             无显式抛出异常。
         """
         return not self.descendAction.isChecked()
+
+    def current_excel_data_format(self) -> Literal["old", "new"]:
+        """返回当前选择的 Excel 原始列格式。
+
+        Args:
+            无。
+
+        Returns:
+            Literal["old", "new"]: ``new`` 表示新格式，``old`` 表示旧格式。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> from typing import get_args
+            >>> get_args(Literal["old", "new"])
+            ('old', 'new')
+        """
+        return "new" if self.newFormatAction.isChecked() else "old"
 
     def _connect_menu_feedback(self) -> None:
         """连接可选中菜单项的状态提示信号。

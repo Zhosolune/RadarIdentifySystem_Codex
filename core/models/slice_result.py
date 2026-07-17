@@ -23,7 +23,7 @@ class PreprocessResult:
         TOA 翻折修复后的中间产物及统计信息。
 
     属性：
-        data (np.ndarray): 预处理后的脉冲数据，shape=(M, 5)。
+        data (np.ndarray): 预处理后的脉冲数据，shape=(M, 6)。
         total_pulses (int): 预处理前的脉冲总数。
         filtered_pulses (int): 因 PA=255 被剔除的脉冲数量。
         toa_flip_count (int): 检测到的时间翻折点数量。
@@ -61,7 +61,7 @@ class SingleSlice:
 
     属性：
         index (int): 切片在全局切片序列中的索引下标。
-        data (np.ndarray): 本切片包含的脉冲数据，shape=(K, 5)。
+        data (np.ndarray): 本切片包含的脉冲数据，shape=(K, 6)。
         time_range (tuple[float, float]): 本切片的时间跨度 (start, end)，单位 0.1us。
     """
 

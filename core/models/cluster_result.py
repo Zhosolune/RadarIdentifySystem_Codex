@@ -10,7 +10,7 @@ Example:
 
     >>> import numpy as np
     >>> from core.models.cluster_result import ClusterItem, ClusterState
-    >>> pts = np.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+    >>> pts = np.array([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]])
     >>> item = ClusterItem(
     ...     cluster_idx=0,
     ...     dim_name='CF',
@@ -61,7 +61,7 @@ class ClusterItem:
     Attributes:
         cluster_idx [int]: 簇的唯一序号，在其所属切片与维度内唯一。
         dim_name [str]: 聚类维度名称，取值 'CF'（载频）或 'PW'（脉宽）。
-        points [np.ndarray]: 簇内点云数据，shape=(N, 5)，列含义由上游统一约定。
+        points [np.ndarray]: 簇内点云数据，shape=(N, 6)，列含义由上游统一约定。
         points_indices [np.ndarray]: 簇内点在当前维度处理前的数据数组中的索引，shape=(N,)。
         slice_idx [int]: 所属切片索引，用于定位其归属的 SliceClusterResult。
         time_ranges [tuple[float, float]]: 该簇所处的时间范围 (start, end)，单位 0.1us。
@@ -75,7 +75,7 @@ class ClusterItem:
     
     cluster_idx: int                            # 簇的唯一序号
     dim_name: str                               # 聚类维度名称 ('CF' 或 'PW')
-    points: np.ndarray                          # 簇内点云数据，shape=(N, 5)
+    points: np.ndarray                          # 簇内点云数据，shape=(N, 6)
     points_indices: np.ndarray                  # 簇内点在当前维度处理前的数据数组中的索引
     slice_idx: int                              # 所属切片索引
     time_ranges: tuple[float, float]            # 该簇所处的时间范围 (start, end)，单位 0.1us
@@ -109,8 +109,8 @@ class SliceClusterResult:
     Attributes:
         slice_idx [int]: 切片索引，与原始切片一一对应。
         clusters [list[ClusterItem]]: 该切片产生的全部簇，包含各维度与各状态。
-        unprocessed_points [np.ndarray | None]: 历经所有维度仍未被聚类的离散点，shape=(M, 5)。
-        recycled_points [np.ndarray | None]: 被识别为无效（INVALID）后回收的点，shape=(K, 5)。
+        unprocessed_points [np.ndarray | None]: 历经所有维度仍未被聚类的离散点，shape=(M, 6)。
+        recycled_points [np.ndarray | None]: 被识别为无效（INVALID）后回收的点，shape=(K, 6)。
     """
     
     slice_idx: int                                              # 切片索引，与原始切片一一对应

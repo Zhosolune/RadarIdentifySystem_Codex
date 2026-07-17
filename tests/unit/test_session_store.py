@@ -95,8 +95,8 @@ def test_session_store_round_trips_import_cache(tmp_path: Path) -> None:
     """session 导入缓存应能恢复到导入/预处理完成态。"""
     store = SessionStore(tmp_path)
     session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
-    raw_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
-    preprocess_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
+    raw_data = np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]])
+    preprocess_data = np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]])
     dashboard_info = ExcelDashboardInfo(
         total_pulses=1,
         removed_pulses=0,
@@ -134,6 +134,58 @@ def test_session_store_round_trips_import_cache(tmp_path: Path) -> None:
     assert restored.stage is ProcessingStage.PREPROCESSED
     np.testing.assert_array_equal(restored.raw_batch.data, raw_data)
     np.testing.assert_array_equal(restored.preprocess_result.data, preprocess_data)
+
+
+def test_session_store_migrates_legacy_five_column_import_cache(
+    tmp_path: Path,
+) -> None:
+    """旧版五列缓存恢复时应重排列并使用 DOA 补齐 PDOA。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(
+        session_id="legacy-cache",
+        source_path="E:/data/legacy.xlsx",
+        source_type="excel",
+    )
+    legacy_data = np.array([[1000.0, 2.0, 30.0, 40.0, 50.0]])
+    metadata = {
+        "schema_version": 1,
+        "raw_batch": {
+            "source_path": session.source_path,
+            "source_type": session.source_type,
+            "total_pulses": 1,
+        },
+        "preprocess_result": {
+            "total_pulses": 1,
+            "filtered_pulses": 0,
+            "toa_flip_count": 0,
+            "time_range": 0.0,
+            "estimated_slice_count": 0,
+            "band": "L波段",
+        },
+        "dashboard_info": {
+            "total_pulses": 1,
+            "removed_pulses": 0,
+            "amplitude_dropped_pulses": 0,
+            "duration": 0.0,
+            "band": "L波段",
+            "estimated_slice_count": 0,
+        },
+    }
+    cache_path = store._import_cache_path(session.session_id)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        cache_path,
+        raw_data=legacy_data,
+        preprocess_data=legacy_data,
+        metadata=np.array(json.dumps(metadata, ensure_ascii=False)),
+    )
+
+    assert store.load_import_cache(session) is True
+    assert session.raw_batch is not None
+    assert session.preprocess_result is not None
+    expected = np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 50.0]])
+    np.testing.assert_array_equal(session.raw_batch.data, expected)
+    np.testing.assert_array_equal(session.preprocess_result.data, expected)
 
 
 def test_session_store_delete_removes_session_dir(tmp_path: Path) -> None:

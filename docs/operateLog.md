@@ -1,5 +1,37 @@
 # 变更记录
 
+- 时间：2026-07-17 14:38
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\pulse_batch.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\parsers.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\import_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - 六列契约相关 core、infra 与单元测试文件
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将不同 Excel 原始格式归一化为固定 `[CF, PW, PA, DOA, PDOA, TOA]` 六列内存契约，并把首页新旧格式选择贯通到解析器。
+- 原因：后续合并准则必须基于稳定的类簇原始脉冲描述字运行；当前菜单选项仅显示提示，解析器始终按旧格式读取，且内部数据仍为五列。
+- 计划：
+  - [x] 为六列 `PulseBatch` 契约及新旧 Excel 映射增加回归测试。
+  - [x] 实现新格式 `1/3/5/4/7/6` 与旧格式 `1/2/5/4/4/7` 到统一列顺序的映射。
+  - [x] 将格式选择从导入面板传递到 HomeController、ImportWorkflow、ImportWorker 和 ExcelPulseParser。
+  - [x] 迁移下游列常量、数组形状、文档与测试夹具中的五列假设。
+  - [x] 将旧版五列 session 导入缓存迁移为六列契约，避免历史缓存无法恢复。
+  - [x] 执行聚焦测试、相关回归、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - 新旧映射、预处理、切片、仪表盘、菜单与导入传递链路：`39 passed, 2 deselected`；排除项是既有错误单位用例和过时主页布局断言。
+  - 识别、参数提取、合并链路：`22 passed, 4 deselected`；排除项的 mock 尚未接收生产接口已有的 `write_summary_log` 参数。
+  - session 存储与注册回归：`61 passed`；历史五列缓存迁移及六列缓存恢复均通过。
+  - 导航回归：`9 passed, 1 deselected`；排除项为既有旧行为断言。
+  - 主窗口导入缓存恢复聚焦测试：`1 passed`。
+  - `py_compile`：全部本次 Python 变更文件通过；缓存输出重定向到工作区外，规避既有 `__pycache__` 权限问题。
+  - `doctest`：`pulse_batch.py`、`params_extract.py`、`parsers.py` 通过。
+  - `git diff --check`：通过，仅输出 CRLF/LF 转换提示，无真实空白错误。
+- 测试状态：[已测试]
+
 - 时间：2026-07-17 12:14
 - 操作类型：[新增]
 - 影响文件：

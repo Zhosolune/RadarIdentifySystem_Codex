@@ -9,7 +9,7 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from app.logger import bind_session_log_context, unbind_session_log_context
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.preprocess import preprocess
-from infra.parsers import ExcelPulseParser
+from infra.parsers import ExcelDataFormat, ExcelPulseParser
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ class ImportWorker(QThread):
     参数说明：
         session (ProcessingSession): 需要写入数据的会话对象。
         file_path (str): Excel 文件路径。
+        data_format (ExcelDataFormat): Excel 原始列格式。
         parent (QObject | None): 挂载的 Qt 父节点。
 
     属性说明：
@@ -37,6 +38,7 @@ class ImportWorker(QThread):
         self,
         session: ProcessingSession,
         file_path: str,
+        data_format: ExcelDataFormat = "old",
         parent: QObject | None = None
     ) -> None:
         """初始化导入工作线程。
@@ -44,11 +46,13 @@ class ImportWorker(QThread):
         参数说明：
             session (ProcessingSession): 会话实例。
             file_path (str): 文件路径。
+            data_format (ExcelDataFormat): Excel 原始列格式，默认使用旧格式。
             parent (QObject | None): 挂载的 Qt 父节点。
         """
         super().__init__(parent)
         self._session = session
         self._file_path = file_path
+        self._data_format = data_format
 
     @property
     def session(self) -> ProcessingSession:
@@ -83,7 +87,10 @@ class ImportWorker(QThread):
         log_token = bind_session_log_context(self._session.session_id)
         try:
             LOGGER.info("开始导入并预处理数据", extra={"session_id": self._session.session_id})
-            batch = ExcelPulseParser().parse(self._file_path)
+            batch = ExcelPulseParser().parse(
+                self._file_path,
+                data_format=self._data_format,
+            )
 
             # 调用 core 中的预处理纯函数
             preprocess_res = preprocess(

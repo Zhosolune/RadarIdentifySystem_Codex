@@ -253,13 +253,13 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
             estimated_slice_count=0,
         )
         session.raw_batch = PulseBatch(
-            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]]),
             session.source_path,
             "excel",
             1,
         )
         session.preprocess_result = PreprocessResult(
-            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]]),
             total_pulses=1,
             filtered_pulses=0,
             toa_flip_count=0,
@@ -325,13 +325,13 @@ def test_main_window_add_session_from_import_stays_on_home_and_persists_remark(
             estimated_slice_count=0,
         )
         session.raw_batch = PulseBatch(
-            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]]),
             session.source_path,
             "excel",
             1,
         )
         session.preprocess_result = PreprocessResult(
-            np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]]),
+            np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]]),
             total_pulses=1,
             filtered_pulses=0,
             toa_flip_count=0,
@@ -606,8 +606,8 @@ def test_main_window_restores_import_cache_for_sessions(
         source_path="E:/data/cache.xlsx",
         source_type="excel",
     )
-    raw_data = np.array([[1200.0, 3.0, 40.0, 50.0, 10.0]])
-    preprocess_data = np.array([[1200.0, 3.0, 40.0, 50.0, 10.0]])
+    raw_data = np.array([[1200.0, 3.0, 50.0, 40.0, 40.0, 10.0]])
+    preprocess_data = np.array([[1200.0, 3.0, 50.0, 40.0, 40.0, 10.0]])
     dashboard_info = ExcelDashboardInfo(
         total_pulses=1,
         removed_pulses=0,

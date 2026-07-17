@@ -151,8 +151,8 @@ def test_persist_session_overwrites_existing_import_cache(
     store = SessionStore(tmp_path)
     registry = SessionRegistry(store)
     session = _make_session("session-cache", "cache.xlsx")
-    old_raw_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
-    old_preprocess_data = np.array([[1000.0, 2.0, 30.0, 40.0, 0.0]])
+    old_raw_data = np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]])
+    old_preprocess_data = np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]])
     _attach_import_cache_payload(
         session,
         raw_data=old_raw_data,
@@ -161,8 +161,8 @@ def test_persist_session_overwrites_existing_import_cache(
     )
     registry.register(session)
 
-    new_raw_data = np.array([[2000.0, 4.0, 60.0, 80.0, 10.0]])
-    new_preprocess_data = np.array([[2100.0, 4.0, 60.0, 80.0, 10.0]])
+    new_raw_data = np.array([[2000.0, 4.0, 80.0, 60.0, 60.0, 10.0]])
+    new_preprocess_data = np.array([[2100.0, 4.0, 80.0, 60.0, 60.0, 10.0]])
     _attach_import_cache_payload(
         session,
         raw_data=new_raw_data,

@@ -21,7 +21,7 @@ def run_1d_dbscan(data: np.ndarray, dim_idx: int, epsilon: float, min_pts: int, 
     """使用 DBSCAN 算法对指定维度进行一维聚类。
 
     Args:
-        data (np.ndarray): 待聚类的数据矩阵，shape=(N, 5)。
+        data (np.ndarray): 待聚类的数据矩阵，shape=(N, 6)。
         dim_idx (int): 用于聚类的特征列索引（0=CF, 1=PW 等）。
         epsilon (float): DBSCAN 邻域半径。
         min_pts (int): DBSCAN 核心点最小样本数。
@@ -75,7 +75,7 @@ def process_dimension_clustering(
         过滤出有效的簇，其余标记为离散点（噪声）。
 
     Args:
-        points (np.ndarray): 待聚类点云，shape=(N, 5)。
+        points (np.ndarray): 待聚类点云，shape=(N, 6)。
         dim_name (str): 维度名称 ('CF' 或 'PW')。
         dim_idx (int): 维度索引（CF为0，PW为1）。
         epsilon (float): DBSCAN 半径。

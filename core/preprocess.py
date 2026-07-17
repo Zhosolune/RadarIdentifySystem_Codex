@@ -11,7 +11,7 @@
     cores/data_processor.py — DataProcessor.process_raw_data
     对齐差异：
         - 旧版通过 self.slice_dim=4 硬编码 TOA 列索引；新版改为显式传参，
-          默认与旧版一致（COL_TOA=4）。
+          默认使用统一六列契约（COL_TOA=5）。
         - 旧版 logger 耦合在实例上；新版改为纯函数，不产生副作用。
         - 翻折判断阈值 -6e4（ms）与旧版保持一致。
 
@@ -66,12 +66,12 @@ def clean_pa(data: np.ndarray, pa_col: int = COL_PA, session_id: str = "-") -> n
         处理前过滤掉。
 
     参数说明：
-        data (np.ndarray): shape=(N, 5) 的脉冲数据数组（操作在副本上进行）。
-        pa_col (int): PA 列的列索引，默认 COL_PA=3。
+        data (np.ndarray): shape=(N, 6) 的脉冲数据数组（操作在副本上进行）。
+        pa_col (int): PA 列的列索引，默认 COL_PA=2。
         session_id (str): 会话标识，用于日志追踪。
 
     返回值说明：
-        np.ndarray: 剔除无效行后的新数组，shape=(M, 5)，M <= N。
+        np.ndarray: 剔除无效行后的新数组，shape=(M, 6)，M <= N。
 
     异常说明：
         ValueError: data.ndim != 2 或列数不足时抛出。
@@ -111,8 +111,8 @@ def fix_toa_flip(
             time_data -= time_data[0]
 
     参数说明：
-        data (np.ndarray): shape=(N, 5) 的脉冲数据数组（不修改原数组）。
-        toa_col (int): TOA 列的列索引，默认 COL_TOA=4。
+        data (np.ndarray): shape=(N, 6) 的脉冲数据数组（不修改原数组）。
+        toa_col (int): TOA 列的列索引，默认 COL_TOA=5。
         flip_threshold (float): 差分阈值（0.1us），低于此值判定为翻折，默认 -6e8。
         session_id (str): 会话标识，用于日志追踪。
 
@@ -166,7 +166,7 @@ def detect_band(data: np.ndarray, cf_col: int = COL_CF, session_id: str = "-") -
         - "X波段" : CF ≥ 8000
 
     参数说明：
-        data (np.ndarray): shape=(N, 5) 的脉冲数据数组。
+        data (np.ndarray): shape=(N, 6) 的脉冲数据数组。
         cf_col (int): CF 列的列索引，默认 COL_CF=0。
         session_id (str): 会话标识，用于日志追踪。
 
@@ -221,12 +221,12 @@ def preprocess(
         不依赖任何实例状态、日志器或绘图器。
 
     参数说明：
-        data (np.ndarray): shape=(N, 5) 的原始脉冲数组。
+        data (np.ndarray): shape=(N, 6) 的原始脉冲数组。
         source_path (str): 数据来源路径，用于日志，默认空串。
         source_type (str): 数据来源类型，默认 "unknown"。
         slice_length (float): 估算切片数的时间窗口，默认 2_500_000（0.1us，即 250ms）。
-        toa_col (int): TOA 列索引，默认 COL_TOA=4。
-        pa_col (int): PA 列索引，默认 COL_PA=3。
+        toa_col (int): TOA 列索引，默认 COL_TOA=5。
+        pa_col (int): PA 列索引，默认 COL_PA=2。
         cf_col (int): CF 列索引，默认 COL_CF=0。
         session_id (str): 会话标识，用于日志追踪。
 
@@ -234,7 +234,7 @@ def preprocess(
         PreprocessResult: 预处理结果数据对象。
 
     异常说明：
-        ValueError: data 不符合 shape=(N, 5) 要求时，由内部函数抛出。
+        ValueError: data 不是二维脉冲矩阵时，由内部函数抛出。
     """
     LOGGER.info("开始预处理，来源=%s type=%s 行数=%d",
                  source_path, source_type, len(data), extra={"session_id": session_id})

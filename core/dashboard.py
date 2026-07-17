@@ -43,7 +43,7 @@ class DashboardInfoManager:
         Example:
             >>> import numpy as np
             >>> from core.models.slice_result import PreprocessResult
-            >>> result = PreprocessResult(data=np.empty((0, 5)))
+            >>> result = PreprocessResult(data=np.empty((0, 6)))
             >>> DashboardInfoManager().build("bin", result) is None
             True
         """
@@ -76,7 +76,7 @@ class DashboardInfoManager:
         Example:
             >>> import numpy as np
             >>> from core.models.slice_result import PreprocessResult
-            >>> data = np.array([[5000, 1, 90, 100, 0], [5000, 1, 90, 100, 10]], dtype=float)
+            >>> data = np.array([[5000, 1, 100, 90, 90, 0], [5000, 1, 100, 90, 90, 10]], dtype=float)
             >>> result = PreprocessResult(data=data, total_pulses=2, band="C波段")
             >>> DashboardInfoManager().build_excel_info(result).duration
             10.0

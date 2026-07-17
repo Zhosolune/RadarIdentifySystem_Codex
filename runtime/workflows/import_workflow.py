@@ -9,6 +9,7 @@ from PyQt6.QtCore import QObject
 
 from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingSession, ProcessingStage
+from infra.parsers import ExcelDataFormat
 from runtime.threading.import_worker import ImportWorker
 
 LOGGER = logging.getLogger(__name__)
@@ -34,7 +35,12 @@ class ImportWorkflow(QObject):
         """返回工作流当前是否正在运行。"""
         return self._worker is not None and self._worker.isRunning()
 
-    def start_import(self, session: ProcessingSession, file_path: str) -> None:
+    def start_import(
+        self,
+        session: ProcessingSession,
+        file_path: str,
+        data_format: ExcelDataFormat = "old",
+    ) -> None:
         """启动导入工作流。
 
         功能描述：
@@ -44,6 +50,7 @@ class ImportWorkflow(QObject):
         参数说明：
             session (ProcessingSession): 处理会话实例。
             file_path (str): 要导入的 Excel 文件路径。
+            data_format (ExcelDataFormat): Excel 原始列格式，默认使用旧格式。
 
         返回值说明：
             None: 无返回值。
@@ -57,7 +64,12 @@ class ImportWorkflow(QObject):
         LOGGER.info("启动导入工作流", extra={"session_id": session.session_id})
         signal_bus.stage_started.emit(session.session_id, "importing", None)
 
-        self._worker = ImportWorker(session, file_path, parent=self)
+        self._worker = ImportWorker(
+            session,
+            file_path,
+            data_format=data_format,
+            parent=self,
+        )
         self._worker.finished_signal.connect(self._on_worker_finished)
         self._worker.start()
 

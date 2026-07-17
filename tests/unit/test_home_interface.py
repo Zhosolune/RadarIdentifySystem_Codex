@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QApplication, QSizePolicy, QWidget
 
 from ui.interfaces.home_interface import HomeInterface
+from ui.components.import_data_panel import ImportDataPanel
 
 
 _APP: QApplication | None = None
@@ -37,3 +38,16 @@ def test_home_interface_uses_fixed_columns_without_root_scroll_area() -> None:
     assert right_layout.stretch(0) == 1
     assert right_layout.stretch(1) == 1
     assert interface.session_placeholder_card.objectName() == "homeRightPlaceholderCard"
+
+
+def test_import_data_panel_reports_selected_excel_format() -> None:
+    """导入菜单的新旧格式单选状态应转换为稳定格式键。"""
+    _app()
+    panel = ImportDataPanel()
+
+    assert panel.current_excel_data_format() == "old"
+
+    panel.newFormatAction.setChecked(True)
+
+    assert panel.current_excel_data_format() == "new"
+    assert panel.oldFormatAction.isChecked() is False

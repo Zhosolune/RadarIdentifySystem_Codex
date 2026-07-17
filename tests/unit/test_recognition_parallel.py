@@ -122,8 +122,8 @@ def _make_cluster(cluster_idx: int) -> ClusterItem:
         dim_name="CF",
         points=np.array(
             [
-                [1000.0 + cluster_idx, 1.0, 80.0, 10.0, 0.0],
-                [2000.0 + cluster_idx, 2.0, 81.0, 11.0, 1000.0],
+                [1000.0 + cluster_idx, 1.0, 10.0, 80.0, 80.0, 0.0],
+                [2000.0 + cluster_idx, 2.0, 11.0, 81.0, 81.0, 1000.0],
             ]
         ),
         points_indices=np.array([0, 1]),

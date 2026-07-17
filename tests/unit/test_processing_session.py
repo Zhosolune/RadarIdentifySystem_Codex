@@ -73,8 +73,8 @@ def test_slice_processing_state_tracks_partial_cluster_progress() -> None:
     session = ProcessingSession()
     session.slice_result = SliceResult(
         slices=[
-            SingleSlice(index=0, data=np.empty((0, 5)), time_range=(0.0, 250.0)),
-            SingleSlice(index=1, data=np.empty((0, 5)), time_range=(250.0, 500.0)),
+            SingleSlice(index=0, data=np.empty((0, 6)), time_range=(0.0, 250.0)),
+            SingleSlice(index=1, data=np.empty((0, 6)), time_range=(250.0, 500.0)),
         ]
     )
 
@@ -110,8 +110,8 @@ def test_slice_processing_state_requires_all_slices_to_finish() -> None:
     session = ProcessingSession()
     session.slice_result = SliceResult(
         slices=[
-            SingleSlice(index=0, data=np.empty((0, 5)), time_range=(0.0, 250.0)),
-            SingleSlice(index=1, data=np.empty((0, 5)), time_range=(250.0, 500.0)),
+            SingleSlice(index=0, data=np.empty((0, 6)), time_range=(0.0, 250.0)),
+            SingleSlice(index=1, data=np.empty((0, 6)), time_range=(250.0, 500.0)),
         ]
     )
 
@@ -167,7 +167,7 @@ def test_reset_to_imported_clears_downstream_products() -> None:
     session.stage = ProcessingStage.CLUSTERED
     session.slice_result = SliceResult(
         slices=[
-            SingleSlice(index=0, data=np.empty((0, 5)), time_range=(0.0, 250.0)),
+            SingleSlice(index=0, data=np.empty((0, 6)), time_range=(0.0, 250.0)),
         ]
     )
     session.reset_slice_processing_states(1)

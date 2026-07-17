@@ -24,6 +24,7 @@ from core.models.processing_session import (
     ProcessingStage,
     SliceProcessStatus,
 )
+from core.models.pulse_batch import COL_TOA
 from core.models.recognition_result import (
     ClusterRecognition,
     RecognitionResult,
@@ -55,7 +56,10 @@ def _cluster(cluster_index: int, points: np.ndarray) -> ClusterItem:
         points=points,
         points_indices=np.arange(len(points)) + cluster_index * 10,
         slice_idx=0,
-        time_ranges=(float(points[:, 4].min()), float(points[:, 4].max())),
+        time_ranges=(
+            float(points[:, COL_TOA].min()),
+            float(points[:, COL_TOA].max()),
+        ),
         state=ClusterState.VALID,
         valid_cluster_idx=cluster_index - 1,
     )
@@ -84,14 +88,14 @@ def _source_results() -> tuple[SliceClusterResult, SliceRecognitionResult]:
     """构造包含两个有效识别类的切片结果。"""
     first_points = np.array(
         [
-            [5000.0, 1.0, 50.0, 20.0, 100.0],
-            [5001.0, 1.1, 51.0, 21.0, 200.0],
+            [5000.0, 1.0, 20.0, 50.0, 50.0, 100.0],
+            [5001.0, 1.1, 21.0, 51.0, 51.0, 200.0],
         ]
     )
     second_points = np.array(
         [
-            [6000.0, 2.0, 60.0, 30.0, 300.0],
-            [6001.0, 2.1, 61.0, 31.0, 400.0],
+            [6000.0, 2.0, 30.0, 60.0, 60.0, 300.0],
+            [6001.0, 2.1, 31.0, 61.0, 61.0, 400.0],
         ]
     )
     return (
