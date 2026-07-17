@@ -22,6 +22,7 @@ from ui.components import (
 )
 from ui.controllers.slice_controller import SliceController
 from ui.controllers.identify_controller import IdentifyController
+from ui.controllers.merge_controller import MergeController
 
 
 class SliceInterface(QFrame):
@@ -36,6 +37,7 @@ class SliceInterface(QFrame):
         image_workspace [HorizontalImageWorkspace]: A/B/C/D 横向滑动工作区。
         slice_param_drawer [SlidingDrawer]: 覆盖页面的参数抽屉。
         slice_param_panel [SliceParamPanel]: 参数抽屉内容组件。
+        _merge_controller [MergeController]: 显式合并目标的流程控制器。
     """
 
     RIGHT_COLUMN_MAX_WIDTH = 580
@@ -74,6 +76,7 @@ class SliceInterface(QFrame):
         # 初始化控制器，将业务逻辑抽离
         self._slice_controller = SliceController(self)
         self._identify_controller = IdentifyController(self)
+        self._merge_controller = MergeController(self)
 
     def _init_layout(self) -> None:
         """初始化内容工作区与右侧业务面板布局。

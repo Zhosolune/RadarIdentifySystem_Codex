@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Optional
 import threading
 
 from core.models.pulse_batch import PulseBatch
@@ -34,6 +34,7 @@ from core.models.slice_result import PreprocessResult, SliceResult
 from core.models.dashboard_info import FileDashboardInfo
 from core.models.cluster_result import ClusteringResult
 from core.models.recognition_result import RecognitionResult
+from core.models.merge_result import MergeResult
 from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
 
@@ -131,7 +132,7 @@ class ProcessingSession:
         cluster_result (Any | None): CF/PW 聚类结果（P04 落地后替换为具体类型）。
         slice_processing_states (dict[int, SliceProcessingState]): 切片级局部状态映射。
         recognition_result (Any | None): 识别与参数提取结果（P05 落地后替换）。
-        merge_result (Any | None): 合并结果（P06 落地后替换）。
+        merge_result (MergeResult | None): 显式目标合并结果。
 
     参数说明：
         source_path (str): 文件路径，默认空串。
@@ -172,9 +173,8 @@ class ProcessingSession:
     # ── P05：识别与参数产物 ──────────────────────────
     recognition_result: Optional[RecognitionResult] = field(default=None)
 
-    # ── P06：合并产物（待 P06 完成后替换） ────────────────────────────────
-    # TODO(P06): 替换为 MergeResult
-    merge_result: Optional[Any] = field(default=None)
+    # ── P06：显式目标合并产物 ────────────────────────────────────────────
+    merge_result: Optional[MergeResult] = field(default=None)
 
     # ── 线程安全锁 ───────────────────────────────────────────────────
     lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
@@ -465,6 +465,76 @@ class ProcessingSession:
         slice_state = self.get_slice_processing_state(slice_index)
         slice_state.recognition_status = SliceProcessStatus.FAILED
         slice_state.last_recognition_error = error_msg
+
+    def mark_slice_merge_running(self, slice_index: int) -> None:
+        """标记指定切片正在执行合并。
+
+        Args:
+            slice_index [int]: 目标切片的 0-based 索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片索引为负数时抛出。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.merge_status = SliceProcessStatus.RUNNING
+        slice_state.last_merge_error = None
+
+    def mark_slice_merge_succeeded(self, slice_index: int) -> None:
+        """标记指定切片合并成功。
+
+        Args:
+            slice_index [int]: 目标切片的 0-based 索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片索引为负数时抛出。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.merge_status = SliceProcessStatus.SUCCEEDED
+        slice_state.last_merge_error = None
+
+    def mark_slice_merge_failed(self, slice_index: int, error_msg: str) -> None:
+        """标记指定切片合并失败并记录原因。
+
+        Args:
+            slice_index [int]: 目标切片的 0-based 索引。
+            error_msg [str]: 合并失败原因。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片索引为负数时抛出。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.merge_status = SliceProcessStatus.FAILED
+        slice_state.last_merge_error = error_msg
+
+    def clear_slice_merge_results(self, slice_index: int) -> None:
+        """清除指定切片依赖旧识别结果生成的合并产物。
+
+        Args:
+            slice_index [int]: 需要失效合并结果的 0-based 切片索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片索引为负数时抛出。
+        """
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.merge_status = SliceProcessStatus.NOT_STARTED
+        slice_state.last_merge_error = None
+        if self.merge_result is None:
+            return
+        self.merge_result.slice_results.pop(slice_index, None)
+        if not self.merge_result.slice_results:
+            self.merge_result = None
 
     def are_all_slices_clustered(self) -> bool:
         """判断全部切片是否已完成聚类。

@@ -166,6 +166,8 @@ class IdentifyWorkflow(QObject):
                 # 先把聚类状态置为运行中，识别状态保持待开始，等线程进入识别阶段再推进。
                 session.mark_slice_cluster_running(slice_index)
                 session.mark_slice_recognition_pending(slice_index)
+                # 重新识别会改变来源簇，必须同步失效该切片的旧合并结果。
+                session.clear_slice_merge_results(slice_index)
 
             # 发射阶段开始事件，通知 UI 和其它监听者进入 identifying 流程。
             signal_bus.stage_started.emit(session_id, "identifying", slice_index)

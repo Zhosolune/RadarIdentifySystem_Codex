@@ -1,17 +1,26 @@
-"""合并图像列组件。
-
-该组件只负责合并工作区中的五维空白图像卡片，
-不读取合并结果，也不包含任何合并业务逻辑。
-"""
+"""合并工作区五维多颜色图像列组件。"""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
+from core.models.merge_result import MergedClusterResult
+from infra.plotting.types import RenderedImageBundle
+
 from .slice_dimension_card import SliceDimensionCard
+
+
+_DIMENSION_DISPLAY_NAMES: dict[str, str] = {
+    "CF": "载频",
+    "PW": "脉宽",
+    "PA": "幅度",
+    "DTOA": "一级差",
+    "DOA": "方位角",
+}
 
 
 class MergeImageColumn(QWidget):
@@ -25,6 +34,7 @@ class MergeImageColumn(QWidget):
         merge_dtoa_card [SliceDimensionCard]: 一级差合并图像卡片。
         merge_doa_card [SliceDimensionCard]: 方位角合并图像卡片。
         dimension_cards [tuple[SliceDimensionCard, ...]]: 按五维显示顺序排列的卡片集合。
+        cards_by_dimension [dict[str, SliceDimensionCard]]: 维度名到图像卡片的映射。
     """
 
     def __init__(
@@ -107,8 +117,72 @@ class MergeImageColumn(QWidget):
             self.merge_dtoa_card,
             self.merge_doa_card,
         )
+        self.cards_by_dimension = dict(
+            zip(
+                ("CF", "PW", "PA", "DTOA", "DOA"),
+                self.dimension_cards,
+                strict=True,
+            )
+        )
 
         self._init_layout()
+
+    def update_from_merge(
+        self,
+        bundle: RenderedImageBundle,
+        result: MergedClusterResult,
+    ) -> None:
+        """显示一次合并生成的五维多颜色图像。
+
+        Args:
+            bundle [RenderedImageBundle]: 五维 RGB 合并图像。
+            result [MergedClusterResult]: 对应的合并领域结果。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 图像不是 ``H×W×3`` 的 uint8 RGB 数组时抛出。
+        """
+        source_text = "+".join(str(index) for index in result.source_cluster_indices)
+        title = f"合并结果 第{result.merge_index}组（原第{source_text}类）"
+        self.title_label.setText(title)
+        for dimension, card in self.cards_by_dimension.items():
+            image_data = bundle.images.get(dimension)
+            if image_data is None:
+                card.clear_image()
+                continue
+            if (
+                image_data.ndim != 3
+                or image_data.shape[2] != 3
+                or image_data.dtype.name != "uint8"
+            ):
+                raise ValueError(f"{dimension} 合并图像必须为 H×W×3 的 uint8 RGB 数组")
+            height, width, _channels = image_data.shape
+            q_image = QImage(
+                image_data.data,
+                width,
+                height,
+                width * 3,
+                QImage.Format.Format_RGB888,
+            )
+            card.set_image(q_image)
+            card.set_snapshot_window_title(
+                f"{title} - {_DIMENSION_DISPLAY_NAMES[dimension]}"
+            )
+
+    def clear_images(self) -> None:
+        """清空全部合并图像并恢复默认标题。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无显式抛出异常。
+        """
+        self.title_label.setText("合并结果")
+        for card in self.dimension_cards:
+            card.clear_image()
 
     def _init_layout(self) -> None:
         """创建标题栏和五维图像卡片布局。"""

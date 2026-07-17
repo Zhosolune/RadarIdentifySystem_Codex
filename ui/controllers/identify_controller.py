@@ -139,6 +139,8 @@ class IdentifyController(QObject):
         self.view.right_panel.navigation_control_card.start_recognition_button.setEnabled(False)
         # 清空旧聚类空态并禁用导航按钮。
         self.clear_cluster_ui()
+        # 当前切片重新识别后旧合并图已失效，立即清空避免继续展示陈旧结果。
+        self.view.merge_image_column.clear_images()
         self.update_cluster_navigation_buttons(slice_index)
         
         # 启动识别工作流，参数由 runtime 层内部自行获取

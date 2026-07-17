@@ -1,18 +1,53 @@
 # 变更记录
 
+- 时间：2026-07-17 12:14
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\merge_result.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：以显式合并目标为入口，打通已识别类点云拼接、多颜色绘图、跳过重新识别、重新参数提取及 session/UI 写回链路。
+- 原因：当前只有空白合并面板和独立绘图函数，缺少从识别结果到合并结果的稳定数据模型与工作流；合并准则尚未确定，应与执行链路解耦。
+- 计划：
+  - [x] 定义合并目标和合并结果模型，保留来源类及原识别结果。
+  - [x] 实现不调用推理服务的合并流程，并对拼接点云重新执行参数提取。
+  - [x] 工作流写回 session、维护切片合并状态并生成多颜色五维图像。
+  - [x] 提供 UI 控制器显式目标入口并刷新合并图像列，不提前实现合并准则。
+  - [x] 重新识别目标切片时失效旧合并结果和旧合并图像。
+  - [x] 执行聚焦测试、相关回归、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - `pytest tests/unit/test_merge_pipeline.py tests/unit/test_slice_dimension_card.py::test_image_label_owns_rounded_border_painting -q`：`8 passed, 1 warning`。
+  - 切片页面与导航回归：`16 passed, 3 deselected, 1 warning`；排除项为既有 QSS 断言和旧行为断言。
+  - session 与持久化回归：`46 passed, 1 deselected`；排除项要求当前模型中不存在的旧 `reset_to_imported()` API。
+  - 识别工作流回归：`12 passed, 4 deselected, 1 warning`；四项排除测试的 mock 尚未接收当前生产接口已有的 `write_summary_log` 参数，与本次合并链路无关。
+  - `py_compile`：全部本次 Python 变更文件通过。
+  - `doctest core/merge.py`：通过。
+  - `git diff --check`：通过，仅输出 CRLF/LF 转换提示，无真实空白错误。
+- 测试状态：[已测试]
+
 - 时间：2026-07-16 11:25
 - 操作类型：[修复]
 - 影响文件：
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_dimension_card.py`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_dimension_card.py`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
-- 变更摘要：计划将图像裁剪、背景和边框合并到图像控件的同一次绘制中，消除圆角处接缝。
+- 变更摘要：将图像裁剪、背景和边框合并到图像控件的同一次绘制中，消除圆角处接缝。
 - 原因：父级 `SimpleCardWidget` 和子图像分别绘制圆角，即使半径相同，独立的绘制区域与抗锯齿边缘仍会产生视觉缝隙。
 - 计划：
-  - [ ] 使用无边框容器替代父级 `SimpleCardWidget` 绘制职责。
-  - [ ] 在图像控件中使用同一圆角路径依次绘制背景、裁剪图像和覆盖边框。
-  - [ ] 增加绘制归属回归测试并执行 pytest、`py_compile`、`git diff --check`。
-- 测试状态：[待测试]
+  - [x] 使用无边框容器替代父级 `SimpleCardWidget` 绘制职责。
+  - [x] 在图像控件中使用同一圆角路径依次绘制背景、裁剪图像和覆盖边框。
+  - [x] 增加绘制归属和边框像素回归测试并执行 pytest、`py_compile`、`git diff --check`。
+- 验证结果：图像顶部边框像素与当前主题边框色的 RGBA 值一致，边框下一像素直接进入图像内容；相关测试纳入 2026-07-17 合并链路聚焦测试并通过。
+- 测试状态：[已测试]
 
 - 时间：2026-07-16 10:57
 - 操作类型：[修复]

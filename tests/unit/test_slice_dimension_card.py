@@ -67,7 +67,7 @@ def test_image_label_owns_rounded_border_painting() -> None:
         assert card.image_label._border_width == card.IMAGE_CARD_BORDER_WIDTH
         rendered = card.image_label.grab().toImage()
         top_center = rendered.pixelColor(rendered.width() // 2, 0)
-        assert top_center == card.image_label._border_color()
+        assert top_center.getRgb() == card.image_label._border_color().getRgb()
     finally:
         _delete_card(card)
 
