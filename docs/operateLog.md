@@ -1,5 +1,43 @@
 # 变更记录
 
+- 时间：2026-07-17 17:22
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\edge_tab_view.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_edge_tab_view.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：悬浮或按下未选中标签时隐藏其左右相邻分隔线，保留远端标签边界。
+- 原因：交互态背景应形成完整标签轮廓，不能被相邻分隔线穿过。
+- 计划：
+  - [x] 增加悬浮标签相邻分隔线隐藏的回归断言。
+  - [x] 调整分隔线边界筛选逻辑，不影响其他连续未选中标签。
+  - [x] 执行聚焦 pytest、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - RED 阶段新增用例确认悬浮标签左/右分隔线仍然可见。
+  - `pytest tests/unit/test_edge_tab_view.py -q`：`3 passed, 1 warning`。
+  - `py_compile` 与 `git diff --check`：通过。
+- 测试状态：[已测试]
+
+- 时间：2026-07-17 17:10
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\edge_tab_view.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_edge_tab_view.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为连续排列的未选中 Edge 风格标签增加主题自适应纵向分隔线。
+- 原因：多个未选中标签连续排列时缺少清晰的视觉边界，与目标 Edge 标签栏效果不一致。
+- 计划：
+  - [x] 增加连续未选中标签边界和明暗主题颜色的回归测试。
+  - [x] 在标签栏绘制层增加分隔线，选中标签两侧不显示。
+  - [x] 执行聚焦 pytest、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - RED 阶段两个新增用例均因分隔线边界与主题颜色接口尚不存在而失败。
+  - `pytest tests/unit/test_edge_tab_view.py -q`：`2 passed, 1 warning`。
+  - Edge 标签、首页导入格式与仪表盘格式联合回归：`6 passed, 1 failed, 1 warning`；失败项 `test_home_interface_uses_fixed_columns_without_root_scroll_area` 仍断言主页不存在 `homeLeftScrollArea`，与当前生产布局和本次标签绘制修改无关。
+  - `py_compile`：`edge_tab_view.py` 与新增测试通过。
+  - `git diff --check`：通过，仅输出 LF/CRLF 转换提示，无真实空白错误。
+- 测试状态：[已测试]
+
 - 时间：2026-07-17 14:38
 - 操作类型：[重构]
 - 影响文件：

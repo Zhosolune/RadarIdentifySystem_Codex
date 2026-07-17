@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QRectF, QRect, QSize, pyqtSignal, pyqtProperty
+from PyQt6.QtCore import Qt, QLineF, QRectF, QRect, QSize, pyqtSignal, pyqtProperty
 from PyQt6.QtGui import (
     QPainter, QPainterPath, QColor, QPen, QIcon,
     QMouseEvent
@@ -232,6 +232,8 @@ class EdgeTabBar(QWidget):
 
     currentChanged = pyqtSignal(int)
 
+    _SEPARATOR_HEIGHT = 16
+
     def __init__(self, parent: QWidget | None = None) -> None:
         """
         Args:
@@ -445,7 +447,7 @@ class EdgeTabBar(QWidget):
     # ── 绘制 ──────────────────────────────────────────────────────────
 
     def paintEvent(self, event) -> None:
-        """绘制未选中标签的悬浮态。
+        """绘制未选中标签的悬浮态及连续标签分隔线。
 
         Args:
             event: Qt 绘制事件。
@@ -465,7 +467,50 @@ class EdgeTabBar(QWidget):
             if item.isHover or item.isPressed:
                 self._drawHoverTabBackground(painter, item)
 
+        # 分隔线后绘制，避免被相邻标签的悬浮背景覆盖。
+        for boundary_index in self._separatorBoundaryIndexes():
+            self._drawUnselectedTabSeparator(painter, boundary_index)
+
         painter.end()
+
+    def _separatorBoundaryIndexes(self) -> list[int]:
+        """返回两侧标签均为静止未选中状态的边界右侧索引。"""
+        return [
+            index
+            for index in range(1, len(self.items))
+            if not self.items[index - 1].isSelected
+            and not self.items[index].isSelected
+            and not self.items[index - 1].isHover
+            and not self.items[index].isHover
+            and not self.items[index - 1].isPressed
+            and not self.items[index].isPressed
+        ]
+
+    def _separatorColor(self) -> QColor:
+        """返回与当前明暗主题匹配的低对比度分隔线颜色。"""
+        if isDarkTheme():
+            return QColor(255, 255, 255, 26)
+        return QColor(0, 0, 0, 20)
+
+    def _drawUnselectedTabSeparator(
+        self,
+        painter: QPainter,
+        boundary_index: int,
+    ) -> None:
+        """在相邻未选中标签的公共边界绘制纵向分隔线。"""
+        right_item_rect = self.items[boundary_index].geometry()
+        center_y = float(right_item_rect.center().y())
+        half_height = self._SEPARATOR_HEIGHT / 2
+        # 线条落在两个零间距标签的公共边界上，并对齐物理像素中心。
+        x = float(right_item_rect.left()) - 0.5
+
+        pen = QPen(self._separatorColor(), 1)
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(
+            QLineF(x, center_y - half_height, x, center_y + half_height)
+        )
 
     def _drawHoverTabBackground(self, painter: QPainter, item: EdgeTabItem) -> None:
         """绘制悬浮标签背景。
