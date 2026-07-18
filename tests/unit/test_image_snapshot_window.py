@@ -17,6 +17,8 @@ from qfluentwidgets import (
     SubtitleLabel,
     Theme,
     TransparentToolButton,
+    qconfig,
+    setTheme,
 )
 
 from app.style_sheet import StyleSheet
@@ -514,3 +516,38 @@ def test_snapshot_window_renders_a_visible_outer_outline() -> None:
         assert canvas.pixelColor(0, middle_y) != canvas.pixelColor(2, middle_y)
     finally:
         sip.delete(window)
+
+
+def test_snapshot_window_background_adapts_to_runtime_theme_changes() -> None:
+    """独立窗口应使用组件库明暗底色并跟随运行时主题切换。"""
+    _app()
+    previous_theme = qconfig.theme
+    setTheme(Theme.LIGHT)
+    window = ImageSnapshotWindow(
+        QImage(80, 40, QImage.Format.Format_RGB32),
+        "原始图像 - 载频",
+    )
+
+    def render_background_color() -> QColor:
+        """渲染并返回窗口内容边缘处的实际背景色。"""
+        canvas = QImage(window.size(), QImage.Format.Format_ARGB32)
+        canvas.fill(Qt.GlobalColor.transparent)
+        window.render(canvas)
+        return canvas.pixelColor(2, window.height() // 2)
+
+    try:
+        window.resize(480, 320)
+        window.show()
+        QApplication.processEvents()
+
+        assert not window.isMicaEffectEnabled()
+        assert render_background_color() == QColor(240, 244, 249)
+
+        setTheme(Theme.DARK)
+        QTest.qWait(150)
+        QApplication.processEvents()
+
+        assert render_background_color() == QColor(32, 32, 32)
+    finally:
+        sip.delete(window)
+        setTheme(previous_theme)

@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-07-17 17:38
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复图像独立窗口在深色主题下仍显示浅色背景的问题。
+- 原因：独立 `FluentWidget` 启用 Mica 后背景变为透明；当窗口特效未提供有效底色时，会回退到固定浅色窗口调色板。
+- 计划：
+  - [x] 增加独立窗口明暗主题背景及运行时切换回归测试。
+  - [x] 使用组件库稳定背景绘制链路替代该窗口的透明 Mica 底色。
+  - [x] 执行聚焦 pytest、相关回归、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - RED 阶段确认窗口仍启用 Mica，明暗主题渲染均回退为 `(239, 239, 239)` 浅色背景。
+  - 主题背景、外轮廓和透明滚动区聚焦测试：`3 passed, 1 warning`；运行时由浅色切换深色后，窗口底色从 `(240, 244, 249)` 更新为 `(32, 32, 32)`。
+  - 快照窗口完整测试以 `-x` 运行时仍首先失败于既有窗口标题断言：生产代码固定为“图像快照”，旧测试要求传入的图像名称；与本次主题背景修改无关。
+  - 切片卡片快照回归以 `-x` 运行时 `1 passed` 后仍失败于既有动作文案断言：生产代码为“展开”，旧测试要求“独立显示”；与本次修改无关。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-17 17:22
 - 操作类型：[修改]
 - 影响文件：

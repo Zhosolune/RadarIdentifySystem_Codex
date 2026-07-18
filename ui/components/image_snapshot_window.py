@@ -247,6 +247,8 @@ class ImageSnapshotWindow(FluentWidget):
 
         # 不设置 parent，确保对象保持可自由移动和缩放的独立顶层窗口。
         super().__init__()
+        # 独立窗口使用组件库自带明暗底色，避免透明 Mica 失效时回退为浅色调色板。
+        self.setMicaEffectEnabled(False)
         self._snapshot_image = image.copy()
         self._zoom = self.DEFAULT_ZOOM
         self._syncing_window_geometry = False
