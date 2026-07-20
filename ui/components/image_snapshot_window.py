@@ -382,9 +382,13 @@ class ImageSnapshotWindow(FluentWidget):
         return self._snapshot_image.copy()
 
     def _apply_zoom(self, zoom: int) -> None:
-        """应用整数倍率并同步调整窗口状态与尺寸。"""
+        """应用整数倍率，并仅在普通窗口状态下同步窗口尺寸。"""
         bounded_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, int(zoom)))
         self._set_zoom_content(bounded_zoom)
+
+        # 最大化是用户明确选择的窗口状态，缩放只更新图像内容，不改动窗口几何。
+        if self.isMaximized():
+            return
 
         window_size = self._window_size_for_zoom(bounded_zoom)
         available_size = self._available_screen_size()
@@ -400,8 +404,6 @@ class ImageSnapshotWindow(FluentWidget):
                 )
                 return
 
-            if self.isMaximized():
-                self.showNormal()
             self.resize(window_size)
         finally:
             self._syncing_window_geometry = False

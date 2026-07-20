@@ -233,6 +233,45 @@ def test_manual_window_resize_uses_largest_zoom_without_scrollbars() -> None:
         sip.delete(window)
 
 
+def test_zoom_buttons_preserve_manual_maximized_window_geometry() -> None:
+    """窗口最大化后缩放按钮应只调整图像，不改变窗口状态和尺寸。"""
+    _app()
+
+    class MaximizedSnapshotWindow(ImageSnapshotWindow):
+        """模拟保持最大化状态并记录恢复调用的快照窗口。"""
+
+        def __init__(self, image: QImage, title: str) -> None:
+            """初始化测试窗口并清除构造阶段的恢复调用计数。"""
+            self.show_normal_call_count = 0
+            super().__init__(image, title)
+            self.show_normal_call_count = 0
+
+        def isMaximized(self) -> bool:
+            """返回固定的最大化状态。"""
+            return True
+
+        def showNormal(self) -> None:
+            """记录生产逻辑尝试恢复普通窗口的次数。"""
+            self.show_normal_call_count += 1
+
+    window = MaximizedSnapshotWindow(
+        QImage(80, 40, QImage.Format.Format_RGB32),
+        "原始图像 - 脉宽",
+    )
+
+    try:
+        maximized_size = window.size()
+
+        window.zoom_out_button.click()
+
+        assert window.show_normal_call_count == 0
+        assert window.size() == maximized_size
+        assert window.zoom_value_label.text() == "2×"
+        assert window.image_label.size() == QSize(160, 80)
+    finally:
+        sip.delete(window)
+
+
 def test_bottom_hover_does_not_show_stale_horizontal_scrollbar() -> None:
     """无横向溢出时下边沿悬停不应显示瞬时残留的滚动条。"""
     _app()
@@ -440,23 +479,49 @@ def test_snapshot_scroll_area_transparency_is_defined_in_qss() -> None:
         assert "background: transparent" in qss
 
 
-def test_zoom_updates_image_and_window_size_until_maximized(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    """倍率变化应同步调整窗口，超屏时最大化并在降低倍率后恢复。"""
+def test_zoom_updates_image_and_window_size_until_maximized() -> None:
+    """普通窗口应自适应尺寸，超屏最大化后保持状态直至用户恢复。"""
     _app()
-    window = ImageSnapshotWindow(
+
+    class SimulatedWindowStateSnapshotWindow(ImageSnapshotWindow):
+        """使用内存状态模拟最大化切换的快照窗口。"""
+
+        def __init__(self, image: QImage, title: str) -> None:
+            """初始化具有可控窗口状态的测试窗口。"""
+            self._test_maximized = False
+            super().__init__(image, title)
+
+        def isMaximized(self) -> bool:
+            """返回测试维护的最大化状态。
+
+            Returns:
+                bool: 当前是否处于模拟最大化状态。
+            """
+            return self._test_maximized
+
+        def setWindowState(self, state: Qt.WindowState) -> None:
+            """记录生产逻辑请求的最大化状态。
+
+            Args:
+                state [Qt.WindowState]: 目标窗口状态标志。
+
+            Returns:
+                None: 无返回值。
+            """
+            self._test_maximized = bool(
+                state & Qt.WindowState.WindowMaximized
+            )
+
+        def _available_screen_size(self) -> QSize:
+            """返回测试使用的固定可用屏幕尺寸。"""
+            return QSize(1600, 900)
+
+    window = SimulatedWindowStateSnapshotWindow(
         QImage(400, 80, QImage.Format.Format_RGB32),
         "原始图像 - 脉宽",
     )
 
     try:
-        monkeypatch.setattr(
-            window,
-            "_available_screen_size",
-            lambda: QSize(1600, 900),
-            raising=False,
-        )
         window.show()
         QApplication.processEvents()
 
@@ -488,6 +553,14 @@ def test_zoom_updates_image_and_window_size_until_maximized(
         for _ in range(9):
             window.zoom_out_button.click()
         QApplication.processEvents()
+
+        assert window.isMaximized()
+        assert window.image_label.size() == QSize(400, 80)
+
+        # 用户主动恢复普通状态后，后续缩放重新启用图像自适应窗口尺寸。
+        window._test_maximized = False
+        window._apply_zoom(1)
+
         assert not window.isMaximized()
         assert window.size() == window._window_size_for_zoom(1)
     finally:

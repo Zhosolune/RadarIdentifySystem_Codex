@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-07-18 16:14
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_image_snapshot_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：使图像独立窗口的最大化状态不再被缩放按钮自动取消。
+- 原因：当前缩放流程在目标图像可放入屏幕时强制执行 `showNormal()` 和窗口尺寸重算，覆盖了用户主动选择的最大化窗口状态。
+- 计划：
+  - [x] 增加最大化状态下缩放仅改变图像倍率的回归测试。
+  - [x] 将最大化窗口状态与普通窗口的图像自适应尺寸逻辑解耦。
+  - [x] 执行聚焦 pytest、相关回归、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - RED 阶段确认最大化窗口点击缩放后仍调用一次 `showNormal()`，并重新计算窗口尺寸。
+  - 最大化状态、普通窗口自适应尺寸、超屏最大化、主题背景及窗口轮廓聚焦回归：`4 passed, 1 warning`。
+  - 最大化后连续缩放仅更新图像尺寸；用户主动恢复普通状态后，后续缩放重新按图像倍率调整窗口尺寸。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-17 17:38
 - 操作类型：[修复]
 - 影响文件：
