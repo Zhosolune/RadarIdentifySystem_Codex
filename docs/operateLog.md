@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-07-20 09:03
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为合并操作面板增加与右侧操作面板一致的标题栏。
+- 原因：横向工作区 D 区当前仅有无标题空白卡片，与右侧操作区域及其他图像列的顶部层级不一致。
+- 计划：
+  - [x] 增加合并操作标题文字、高度、样式对象名和布局层级回归测试。
+  - [x] 将合并操作组件重构为“标题栏 + 操作卡片”的组合结构并复用现有样式。
+  - [x] 执行聚焦 pytest、相关回归、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - RED 阶段确认 `MergeOperationPanel` 不存在标题标签，仍是无布局的空白卡片。
+  - 合并工作区结构、合并菜单横向切换及右侧面板固定布局回归：`3 passed, 1 warning`。
+  - 合并标题固定高度为 25px，并复用右侧标题的 `sliceInfoLabel` 样式对象名；标题与操作卡片保持 10px 间距。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-18 16:14
 - 操作类型：[修复]
 - 影响文件：

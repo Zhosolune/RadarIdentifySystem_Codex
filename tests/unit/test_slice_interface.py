@@ -357,7 +357,28 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             card._source_image is None
             for card in interface.merge_image_column.dimension_cards
         )
-        assert interface.merge_operation_panel.layout() is None
+        merge_panel = interface.merge_operation_panel
+        right_panel = interface.right_panel
+        assert merge_panel.title_label.text() == "合并操作"
+        assert (
+            merge_panel.title_label.objectName()
+            == right_panel.slice_info_label.objectName()
+            == "sliceInfoLabel"
+        )
+        assert (
+            merge_panel.title_label.minimumHeight()
+            == merge_panel.title_label.maximumHeight()
+            == right_panel.slice_info_label.height()
+            == 25
+        )
+        assert type(merge_panel.operate_panel_card) is type(
+            right_panel.operate_panel_card
+        )
+        assert merge_panel.layout().contentsMargins().isNull()
+        assert merge_panel.layout().spacing() == 10
+        assert merge_panel.layout().spacing() == right_panel.layout().spacing()
+        assert merge_panel.layout().indexOf(merge_panel.title_label) == 0
+        assert merge_panel.layout().indexOf(merge_panel.operate_panel_card) == 1
     finally:
         sip.delete(interface)
 
