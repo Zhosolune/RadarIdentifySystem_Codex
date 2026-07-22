@@ -1,5 +1,28 @@
 # 变更记录
 
+- 时间：2026-07-21 17:28
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_action_button_bar.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为合并操作面板增加独立四按钮操作区、按钮卡片及默认类别骨架屏卡片。
+- 原因：合并操作面板当前只有空白卡片，缺少后续人工选择与合并流程所需的基础交互结构。
+- 计划：
+  - [x] 将“合并、上一类、下一类、重置”水平按钮区提取为独立组件。
+  - [x] 使用现有操作卡片包裹按钮区，并在下方增加类别显示控制卡片。
+  - [x] 默认展示三条等长、左对齐、宽度为面板一半的灰色圆角骨架条。
+  - [x] 增加组件结构与响应式几何回归测试，并执行聚焦测试、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - 合并面板结构及合并菜单横向切换聚焦测试：`2 passed, 1 warning`。
+  - 合并执行链路回归：`7 passed, 2 warnings`。
+  - 切片界面完整测试：`7 passed, 2 failed, 1 warning`；两个失败分别来自用户已暂存的分析表格样式调整与既有快照标题文案差异，与本次合并面板结构无关。
+  - 离屏视觉渲染确认四按钮保持单行等宽；620px 面板下三条骨架均为 310px，并保持相同左边界。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-20 10:11
 - 操作类型：[修复]
 - 影响文件：

@@ -23,6 +23,7 @@ from .horizontal_image_workspace import HorizontalImageWorkspace
 from .original_image_column import OriginalImageColumn
 from .cluster_image_column import ClusterImageColumn
 from .merge_image_column import MergeImageColumn
+from .merge_action_button_bar import MergeActionButtonBar
 from .merge_operation_panel import MergeOperationPanel
 from .slice_right_panel import SliceRightPanel
 from .slice_param_panel import SliceParamPanel
@@ -55,6 +56,7 @@ __all__ = [
     "OriginalImageColumn",
     "ClusterImageColumn",
     "MergeImageColumn",
+    "MergeActionButtonBar",
     "MergeOperationPanel",
     "SliceRightPanel",
     "SliceParamPanel",

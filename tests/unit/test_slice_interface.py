@@ -11,7 +11,13 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
-from qfluentwidgets import ScrollArea, TableWidget
+from qfluentwidgets import (
+    PrimaryPushButton,
+    PushButton,
+    ScrollArea,
+    SimpleCardWidget,
+    TableWidget,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -19,6 +25,7 @@ from infra.plotting.types import RenderedImageBundle
 from ui.interfaces.slice_interface import SliceInterface
 from ui.components.analysis_result_card import AnalysisResultCard, RoundedAnalysisHeaderView
 from ui.components.cluster_image_column import ClusterImageColumn
+from ui.components.merge_action_button_bar import MergeActionButtonBar
 from ui.components.merge_image_column import MergeImageColumn
 from ui.components.merge_operation_panel import MergeOperationPanel
 from ui.components.original_image_column import OriginalImageColumn
@@ -359,12 +366,8 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         )
         merge_panel = interface.merge_operation_panel
         right_panel = interface.right_panel
-        assert merge_panel.title_label.text() == "合并操作"
-        assert (
-            merge_panel.title_label.objectName()
-            == right_panel.slice_info_label.objectName()
-            == "sliceInfoLabel"
-        )
+        assert merge_panel.title_label.text() == "合并操作面板"
+        assert merge_panel.title_label.objectName() == "sliceMiddleTitle"
         assert (
             merge_panel.title_label.minimumHeight()
             == merge_panel.title_label.maximumHeight()
@@ -374,11 +377,44 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         assert type(merge_panel.operate_panel_card) is type(
             right_panel.operate_panel_card
         )
+        assert isinstance(merge_panel.operate_panel_card, SimpleCardWidget)
+        assert isinstance(merge_panel.category_display_card, SimpleCardWidget)
+        assert isinstance(merge_panel.button_bar, MergeActionButtonBar)
+        assert isinstance(merge_panel.button_bar.merge_button, PrimaryPushButton)
+        assert all(
+            isinstance(button, PushButton)
+            and not isinstance(button, PrimaryPushButton)
+            for button in (
+                merge_panel.button_bar.prev_cluster_button,
+                merge_panel.button_bar.next_cluster_button,
+                merge_panel.button_bar.reset_button,
+            )
+        )
+        assert [
+            merge_panel.button_bar.layout().itemAt(index).widget().text()
+            for index in range(4)
+        ] == ["合并", "上一类", "下一类", "重置"]
+        assert merge_panel.operate_panel_card.layout().indexOf(
+            merge_panel.button_bar
+        ) == 0
+        assert merge_panel.category_display_card.layout().indexOf(
+            merge_panel.category_skeleton
+        ) == 0
+        skeleton_bars = merge_panel.category_skeleton.skeleton_bars
+        assert len(skeleton_bars) == 3
+        assert len({bar.width() for bar in skeleton_bars}) == 1
+        assert skeleton_bars[0].width() == merge_panel.category_skeleton.width() // 2
+        assert len({bar.x() for bar in skeleton_bars}) == 1
+        assert all(
+            bar.objectName() == "mergeCategorySkeletonBar"
+            for bar in skeleton_bars
+        )
         assert merge_panel.layout().contentsMargins().isNull()
         assert merge_panel.layout().spacing() == 10
         assert merge_panel.layout().spacing() == right_panel.layout().spacing()
         assert merge_panel.layout().indexOf(merge_panel.title_label) == 0
         assert merge_panel.layout().indexOf(merge_panel.operate_panel_card) == 1
+        assert merge_panel.layout().indexOf(merge_panel.category_display_card) == 2
     finally:
         sip.delete(interface)
 
