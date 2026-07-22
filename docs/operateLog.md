@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-07-20 10:11
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将分析结果表格的 Fluent 纵向滚动条及内部滑块统一限制在表头下方的内容视口内。
+- 原因：组件库浮动滚动条默认按整个 `QTableWidget` 定位并计算滑块比例；仅缩短外层轨道后，内部滑块仍按含表头的整表高度计算，视觉长度偏大。
+- 计划：
+  - [x] 增加表头、内容视口、纵向滚动条及滑块比例的几何关系回归测试。
+  - [x] 在分析结果表格组件内同步 Fluent 滚动条轨道与滑块到内容视口几何。
+  - [x] 执行聚焦 pytest、相关回归、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - RED 阶段实测表头范围为 `y=1..36`、内容视口为 `y=37..214`，但 Fluent 纵向滚动条仍占据 `y=1..214`，确认其顶部被表头覆盖。
+  - 二次 RED 阶段实测内容视口高度为 `178px`，按实际内容比例滑块应为 `74px`，组件库仍按整表高度计算为 `100px`；修复后滑块为 `74px` 且未越出轨道有效区。
+  - 分析结果卡片聚焦回归：`5 passed, 1 deselected, 1 warning`；排除项为既有切片 QSS 选择器断言，与本次代码几何修复无关。
+  - 右侧面板受限高度回归：`1 passed, 1 warning`；纵向滚动条最终与内容视口上下边界完全一致。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-20 09:03
 - 操作类型：[修改]
 - 影响文件：

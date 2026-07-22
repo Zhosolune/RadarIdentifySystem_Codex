@@ -5,9 +5,17 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_HALF_UP
 
 from PyQt6.QtCore import QRect, QRectF, QSize, Qt
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
+from PyQt6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QResizeEvent,
+)
 from PyQt6.QtWidgets import QHeaderView, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget
-from qfluentwidgets import SimpleCardWidget, TableWidget, qconfig, themeColor
+from qfluentwidgets import SimpleCardWidget, SmoothScrollBar, TableWidget, qconfig, themeColor
 from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.style_sheet import isDarkTheme
 
@@ -221,6 +229,71 @@ class RoundedAnalysisHeaderView(QHeaderView):
         )
 
 
+class _AnalysisResultTableWidget(TableWidget):
+    """将 Fluent 浮动滚动条限制在表头下方的分析结果表格。"""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """初始化表格并监听纵向滚动范围变化。
+
+        Args:
+            parent [QWidget | None]: 父级控件，默认值为 None。
+
+        Returns:
+            None: 无返回值。
+        """
+        super().__init__(parent)
+        # 范围变化后，组件库会再次按整个表格高度计算滑块，因此在其后重新同步。
+        self.verticalScrollBar().rangeChanged.connect(
+            lambda _minimum, _maximum: self._sync_vertical_scrollbar_geometry()
+        )
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """表格尺寸变化后把纵向滚动条同步到内容视口。
+
+        Args:
+            event [QResizeEvent]: 表格尺寸变化事件。
+
+        Returns:
+            None: 无返回值。
+        """
+        super().resizeEvent(event)
+        self._sync_vertical_scrollbar_geometry()
+
+    def _sync_vertical_scrollbar_geometry(self) -> None:
+        """使 Fluent 纵向滚动条与表格内容视口共用几何范围。"""
+        scroll_delegate = getattr(self, "scrollDelagate", None)
+        if scroll_delegate is None:
+            return
+
+        viewport_rect = self.viewport().geometry()
+        if not viewport_rect.isValid():
+            return
+
+        vertical_bar = scroll_delegate.vScrollBar
+        # 使用视口上下边界排除水平表头，同时保持滚动条贴合表格右边框内侧。
+        vertical_bar.setGeometry(
+            viewport_rect.right() - vertical_bar.width() + 1,
+            viewport_rect.top(),
+            vertical_bar.width(),
+            viewport_rect.height(),
+        )
+        self._sync_vertical_scrollbar_handle_geometry(vertical_bar, viewport_rect.height())
+        vertical_bar.raise_()
+
+    @staticmethod
+    def _sync_vertical_scrollbar_handle_geometry(
+        vertical_bar: SmoothScrollBar,
+        viewport_height: int,
+    ) -> None:
+        """按内容视口高度重算 Fluent 纵向滚动条滑块。"""
+        groove_length = max(0, vertical_bar.height() - 2 * vertical_bar._padding)
+        content_height = vertical_bar.maximum() - vertical_bar.minimum() + viewport_height
+        handle_height = int(groove_length * viewport_height / max(content_height, 1))
+        # 保留组件库 30px 的最小滑块，同时避免极小视口下越出轨道。
+        vertical_bar.handle.setFixedHeight(min(groove_length, max(30, handle_height)))
+        vertical_bar._adjustHandlePos()
+
+
 class AnalysisResultCard(SimpleCardWidget):
     """分析结果表格卡片。
 
@@ -270,7 +343,7 @@ class AnalysisResultCard(SimpleCardWidget):
         self.setObjectName("analysisResultCard")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._preferred_table_height = 0
-        self.table = TableWidget(self)
+        self.table = _AnalysisResultTableWidget(self)
         self.table.setObjectName("analysisResultTable")
         self._result_column = 1
         self._init_layout()
@@ -350,6 +423,7 @@ class AnalysisResultCard(SimpleCardWidget):
         # 表格填充结果卡剩余空间，内容溢出时使用自身滚动条。
         self.table.setMinimumHeight(0)
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.table._sync_vertical_scrollbar_geometry()
 
     def sizeHint(self) -> QSize:
         """返回可完整展示当前表格内容的首选卡片尺寸。
