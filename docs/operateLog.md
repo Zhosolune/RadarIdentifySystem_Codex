@@ -1,5 +1,78 @@
 # 变更记录
 
+- 时间：2026-07-22 15:59
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_category_display_card.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在操作卡片内增加左对齐“类别显示控制”标签，并使用独立卡片包裹默认骨架屏。
+- 原因：类别显示区域需要明确的标题层级和独立卡片边界，不能让骨架屏直接成为操作卡片的内容项。
+- 计划：
+  - [x] 新增自持骨架屏的类别显示卡片组件。
+  - [x] 在操作卡片内按“按钮区、标签、类别卡片”顺序纵向排列。
+  - [x] 保留现有骨架尺寸、圆角及响应式半宽行为。
+  - [x] 更新结构测试并执行聚焦 pytest、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - 合并面板结构与合并菜单切换测试：`2 passed, 7 deselected, 1 warning`。
+  - 合并执行链路回归：`7 passed, 2 warnings`。
+  - 离屏渲染确认标签位于操作卡片 `y=49`，骨架卡片从 `y=79` 开始，标签在骨架卡片外部上方且保持左对齐。
+  - 骨架屏父级为 `MergeCategoryDisplayCard`，三条骨架继续保持 20px 高、5px 圆角及内容区半宽。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-22 11:49
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_card.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_result_table_card.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_category_display_card.py`（删除）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将类别显示控制并入操作卡片，并在其下方新增与右侧分析结果表格同款的两列四数据行表格卡片。
+- 原因：合并面板应按“操作面板卡片 + 结果表格卡片”等模块纵向组合，类别显示控制属于操作模块内部状态，不应继续占用独立卡片层级。
+- 计划：
+  - [x] 新增操作卡片组件，组合四按钮区和默认类别骨架屏。
+  - [x] 将右侧分析表格控件公开为复用边界，并新增两列、四数据行的合并表格卡片。
+  - [x] 精简透明合并面板，仅组合标题、操作卡片和表格卡片。
+  - [x] 更新组件导出和结构回归测试，执行聚焦 pytest、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - 合并面板结构与合并菜单切换测试：`2 passed, 7 deselected, 1 warning`。
+  - 右侧分析结果表格非过时样式断言回归：`5 passed, 1 deselected, 1 warning`。
+  - 合并执行链路回归：`7 passed, 2 warnings`。
+  - 离屏渲染确认操作卡片为 141px 高，内部包含按钮和三条类别骨架；表格卡片包含两列表头及四数据行。
+  - 表格复用 `AnalysisResultTableWidget`、`RoundedAnalysisHeaderView`、4px 圆角及 14px 字体，未修改用户 QSS。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-22 11:28
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_category_display_card.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将类别显示控制区提取为自持骨架屏的独立卡片组件，并明确合并操作面板仅承担透明组合容器职责。
+- 原因：类别骨架屏不应由面板直接持有；后续合并结果表格等模块也需要与按钮区、类别控制区保持相同的独立卡片边界。
+- 计划：
+  - [x] 新增类别显示控制卡片组件，将骨架绘制与响应式宽度逻辑迁入卡片内部。
+  - [x] 移除面板对骨架屏的直接持有，仅组合按钮卡片和类别显示控制卡片。
+  - [x] 更新组件导出与结构测试，验证透明面板及模块卡片归属关系。
+  - [x] 执行聚焦 pytest、`py_compile` 与 `git diff --check`。
+- 验证结果：
+  - 合并面板结构及合并菜单横向切换聚焦测试：`2 passed, 1 warning`。
+  - 合并执行链路回归：`7 passed, 2 warnings`。
+  - 离屏渲染确认外层 `MergeOperationPanel` 不是卡片，类别模块是独立 `MergeCategoryDisplayCard`，骨架屏父级为该卡片。
+  - 620px 面板下三条骨架均保持 310px，并继承用户已调整的 20px 高度与 5px 圆角。
+  - `py_compile` 与 `git diff --check`：通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-21 17:28
 - 操作类型：[新增]
 - 影响文件：

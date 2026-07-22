@@ -229,8 +229,8 @@ class RoundedAnalysisHeaderView(QHeaderView):
         )
 
 
-class _AnalysisResultTableWidget(TableWidget):
-    """将 Fluent 浮动滚动条限制在表头下方的分析结果表格。"""
+class AnalysisResultTableWidget(TableWidget):
+    """将 Fluent 浮动滚动条限制在表头下方的通用结果表格。"""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化表格并监听纵向滚动范围变化。
@@ -343,7 +343,7 @@ class AnalysisResultCard(SimpleCardWidget):
         self.setObjectName("analysisResultCard")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._preferred_table_height = 0
-        self.table = _AnalysisResultTableWidget(self)
+        self.table = AnalysisResultTableWidget(self)
         self.table.setObjectName("analysisResultTable")
         self._result_column = 1
         self._init_layout()

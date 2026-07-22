@@ -23,11 +23,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from infra.plotting.types import RenderedImageBundle
 from ui.interfaces.slice_interface import SliceInterface
-from ui.components.analysis_result_card import AnalysisResultCard, RoundedAnalysisHeaderView
+from ui.components.analysis_result_card import (
+    AnalysisResultCard,
+    AnalysisResultTableWidget,
+    RoundedAnalysisHeaderView,
+)
 from ui.components.cluster_image_column import ClusterImageColumn
 from ui.components.merge_action_button_bar import MergeActionButtonBar
+from ui.components.merge_category_display_card import MergeCategoryDisplayCard
 from ui.components.merge_image_column import MergeImageColumn
+from ui.components.merge_operation_card import MergeOperationCard
 from ui.components.merge_operation_panel import MergeOperationPanel
+from ui.components.merge_result_table_card import MergeResultTableCard
 from ui.components.original_image_column import OriginalImageColumn
 from ui.components.slice_right_panel import SliceRightPanel
 
@@ -366,6 +373,8 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         )
         merge_panel = interface.merge_operation_panel
         right_panel = interface.right_panel
+        assert not isinstance(merge_panel, SimpleCardWidget)
+        assert not merge_panel.autoFillBackground()
         assert merge_panel.title_label.text() == "合并操作面板"
         assert merge_panel.title_label.objectName() == "sliceMiddleTitle"
         assert (
@@ -374,47 +383,91 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             == right_panel.slice_info_label.height()
             == 25
         )
-        assert type(merge_panel.operate_panel_card) is type(
-            right_panel.operate_panel_card
+        operation_card = merge_panel.operation_card
+        assert isinstance(operation_card, MergeOperationCard)
+        assert isinstance(operation_card, SimpleCardWidget)
+        assert isinstance(
+            merge_panel.result_table_card,
+            MergeResultTableCard,
         )
-        assert isinstance(merge_panel.operate_panel_card, SimpleCardWidget)
-        assert isinstance(merge_panel.category_display_card, SimpleCardWidget)
-        assert isinstance(merge_panel.button_bar, MergeActionButtonBar)
-        assert isinstance(merge_panel.button_bar.merge_button, PrimaryPushButton)
+        assert isinstance(operation_card.button_bar, MergeActionButtonBar)
+        assert isinstance(operation_card.button_bar.merge_button, PrimaryPushButton)
         assert all(
             isinstance(button, PushButton)
             and not isinstance(button, PrimaryPushButton)
             for button in (
-                merge_panel.button_bar.prev_cluster_button,
-                merge_panel.button_bar.next_cluster_button,
-                merge_panel.button_bar.reset_button,
+                operation_card.button_bar.prev_cluster_button,
+                operation_card.button_bar.next_cluster_button,
+                operation_card.button_bar.reset_button,
             )
         )
         assert [
-            merge_panel.button_bar.layout().itemAt(index).widget().text()
+            operation_card.button_bar.layout().itemAt(index).widget().text()
             for index in range(4)
         ] == ["合并", "上一类", "下一类", "重置"]
-        assert merge_panel.operate_panel_card.layout().indexOf(
-            merge_panel.button_bar
+        assert operation_card.layout().indexOf(operation_card.button_bar) == 0
+        assert operation_card.category_title_label.text() == "类别显示控制"
+        assert operation_card.category_title_label.alignment() == (
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        assert operation_card.layout().indexOf(operation_card.category_title_label) == 1
+        assert isinstance(
+            operation_card.category_display_card,
+            MergeCategoryDisplayCard,
+        )
+        assert operation_card.layout().indexOf(operation_card.category_display_card) == 2
+        assert operation_card.button_bar.parent() is operation_card
+        assert operation_card.category_title_label.parent() is operation_card
+        assert operation_card.category_display_card.parent() is operation_card
+        category_skeleton = operation_card.category_display_card.skeleton
+        assert category_skeleton.parent() is operation_card.category_display_card
+        assert operation_card.category_display_card.layout().indexOf(
+            category_skeleton
         ) == 0
-        assert merge_panel.category_display_card.layout().indexOf(
-            merge_panel.category_skeleton
-        ) == 0
-        skeleton_bars = merge_panel.category_skeleton.skeleton_bars
+        assert not hasattr(operation_card, "category_skeleton")
+        assert not hasattr(merge_panel, "category_skeleton")
+        skeleton_bars = category_skeleton.skeleton_bars
         assert len(skeleton_bars) == 3
         assert len({bar.width() for bar in skeleton_bars}) == 1
-        assert skeleton_bars[0].width() == merge_panel.category_skeleton.width() // 2
+        assert skeleton_bars[0].width() == category_skeleton.width() // 2
         assert len({bar.x() for bar in skeleton_bars}) == 1
         assert all(
             bar.objectName() == "mergeCategorySkeletonBar"
             for bar in skeleton_bars
         )
+
+        merge_table = merge_panel.result_table_card.table
+        right_table = right_panel.analysis_result_card.table
+        assert isinstance(merge_table, AnalysisResultTableWidget)
+        assert merge_table.objectName() == "mergeResultTable"
+        assert merge_table.columnCount() == 2
+        assert merge_table.rowCount() + 1 == 5
+        assert [
+            merge_table.horizontalHeaderItem(column).text()
+            for column in range(merge_table.columnCount())
+        ] == ["类别", "合并结果"]
+        assert isinstance(merge_table.horizontalHeader(), RoundedAnalysisHeaderView)
+        assert (
+            merge_table.horizontalHeader().corner_radius
+            == right_table.horizontalHeader().corner_radius
+            == 4
+        )
+        # 两张表共用组件库基础样式；右侧表格额外继承切片页整体 QSS。
+        assert right_table.styleSheet().startswith(merge_table.styleSheet().rstrip())
+        assert merge_table.showGrid() == right_table.showGrid()
+        assert merge_table.verticalHeader().isHidden()
+        assert all(
+            merge_table.item(row, column).text() == ""
+            and merge_table.item(row, column).font().pixelSize() == 14
+            for row in range(merge_table.rowCount())
+            for column in range(merge_table.columnCount())
+        )
         assert merge_panel.layout().contentsMargins().isNull()
         assert merge_panel.layout().spacing() == 10
         assert merge_panel.layout().spacing() == right_panel.layout().spacing()
         assert merge_panel.layout().indexOf(merge_panel.title_label) == 0
-        assert merge_panel.layout().indexOf(merge_panel.operate_panel_card) == 1
-        assert merge_panel.layout().indexOf(merge_panel.category_display_card) == 2
+        assert merge_panel.layout().indexOf(operation_card) == 1
+        assert merge_panel.layout().indexOf(merge_panel.result_table_card) == 2
     finally:
         sip.delete(interface)
 

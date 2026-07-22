@@ -24,7 +24,10 @@ from .original_image_column import OriginalImageColumn
 from .cluster_image_column import ClusterImageColumn
 from .merge_image_column import MergeImageColumn
 from .merge_action_button_bar import MergeActionButtonBar
+from .merge_category_display_card import MergeCategoryDisplayCard
+from .merge_operation_card import MergeOperationCard
 from .merge_operation_panel import MergeOperationPanel
+from .merge_result_table_card import MergeResultTableCard
 from .slice_right_panel import SliceRightPanel
 from .slice_param_panel import SliceParamPanel
 from .session_manager_panel import SessionManagerPanel
@@ -57,7 +60,10 @@ __all__ = [
     "ClusterImageColumn",
     "MergeImageColumn",
     "MergeActionButtonBar",
+    "MergeCategoryDisplayCard",
+    "MergeOperationCard",
     "MergeOperationPanel",
+    "MergeResultTableCard",
     "SliceRightPanel",
     "SliceParamPanel",
     "SessionManagerPanel",
