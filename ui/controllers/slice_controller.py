@@ -528,6 +528,11 @@ class SliceController(QObject):
             time_range=target_slice.time_range,
         )
         self._update_ui_with_bundle(bundle, index)
+        # 切片索引稳定后显式刷新该片的派生合并候选，避免依赖按钮连接顺序。
+        if hasattr(self.view, "_merge_controller"):
+            self.view._merge_controller.refresh_current_slice_state(
+                reset_index=True
+            )
 
     def _update_ui_with_bundle(self, bundle: RenderedImageBundle, slice_index: int) -> None:
         """使用指定的图像包更新 UI。

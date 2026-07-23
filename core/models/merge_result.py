@@ -20,6 +20,7 @@ class MergedClusterResult:
     Attributes:
         merge_index [int]: 当前切片内从 1 开始的合并结果序号。
         slice_index [int]: 来源切片的 0-based 索引。
+        strategy_id [str]: 生成本次目标的准则标识；人工显式目标使用 ``explicit``。
         source_cluster_indices [tuple[int, ...]]: 按合并顺序保存的来源簇编号。
         source_dim_names [tuple[str, ...]]: 各来源簇原聚类维度。
         source_point_clouds [tuple[np.ndarray, ...]]: 保持独立的来源点云，供多颜色绘图。
@@ -33,6 +34,7 @@ class MergedClusterResult:
 
     merge_index: int
     slice_index: int
+    strategy_id: str
     source_cluster_indices: tuple[int, ...]
     source_dim_names: tuple[str, ...]
     source_point_clouds: tuple[np.ndarray, ...]

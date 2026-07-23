@@ -1,5 +1,33 @@
 # 变更记录
 
+- 时间：2026-07-23 09:43
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\merge_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_core_merge_strategy.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：新增可插拔的切片内识别簇合并准则，并把规则生成的合并目标接入现有合并工作流与界面状态。
+- 原因：当前合并链路只支持上层显式提供簇编号，缺少可替换的业务准则、自动候选分组及合并菜单可用状态。
+- 计划：
+  - [x] 将 `tmp.py` 的TOA、PRI、DOA/PDOA辅助算法迁移为遵循六列脉冲契约的core纯逻辑。
+  - [x] 定义可插拔合并准则协议和默认准则，实现固定种子CF与贪婪扩展分组。
+  - [x] 保留现有显式合并执行能力，并通过runtime向UI提供候选目标与执行入口。
+  - [x] 补齐全部规则分支、循环角/格子边界、2°任一成员条件和层级边界测试。
+  - [x] 运行聚焦测试、编译检查和差异检查，并由独立审查智能体复核。
+- 验证结果：
+  - core准则、runtime合并链路及合并菜单聚焦测试：`22 passed, 2 warnings`。
+  - 导航回归（排除1项既有失败）：`9 passed, 1 deselected`；SliceInterface回归（排除3项既有失败）：`6 passed, 3 deselected`。
+  - `py_compile`、core/runtime doctest及`git diff --check`：通过，仅有LF/CRLF转换提示。
+  - 独立架构复审确认：识别失败后的旧候选已阻断、同来源集合不可重复写入、显式与策略驱动合并的`strategy_id`归因正确，且保持`ui -> runtime -> core`边界。
+  - 全量相关测试中的快照标题、QSS选择器、旧布局索引及`ProcessingSession.reset_to_imported`缺失属于本次变更前的既有问题，未修改无关UI/QSS。
+- 测试状态：[已测试]
+
 - 时间：2026-07-22 15:59
 - 操作类型：[修改]
 - 影响文件：

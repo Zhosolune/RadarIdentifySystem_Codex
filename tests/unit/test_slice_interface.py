@@ -497,6 +497,9 @@ def test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd(
         )
 
         assert merge_button.text() == "合并菜单"
+        # 空session下业务控制器会禁用菜单；本测试仅验证工作区切换行为。
+        assert not merge_button.isEnabled()
+        merge_button.setEnabled(True)
         merge_button.click()
         QApplication.processEvents()
         assert merge_button.isChecked()
