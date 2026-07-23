@@ -212,12 +212,6 @@ class _FixedSingleStrategy:
         )
 
 
-class _AlternateSingleStrategy(_FixedSingleStrategy):
-    """使用不同标识模拟运行时切换的新准则。"""
-
-    strategy_id = "alternate_single_v1"
-
-
 def test_merge_pipeline_concatenates_points_and_only_reextracts_parameters(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -437,10 +431,43 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
             """清空当前来源类别。"""
             self.category_checkboxes.clear()
 
-        def set_all_checked(self) -> None:
-            """把全部来源类别恢复为选中。"""
+        def set_all_visible(self, visible: bool) -> None:
+            """统一更新全部来源类别状态。"""
             for checkbox in self.category_checkboxes.values():
-                checkbox.setChecked(True)
+                checkbox.setChecked(visible)
+
+    class FakeOperationCard:
+        """提供控制器所需的操作卡片接口。"""
+
+        def __init__(
+            self,
+            button_bar: SimpleNamespace,
+            category_card: FakeCategoryCard,
+        ) -> None:
+            """初始化按钮、类别卡和界面状态。"""
+            self.button_bar = button_bar
+            self.category_display_card = category_card
+            self.global_visibility_changed = FakeSignal()
+            self.result_count: int | None = None
+
+        def set_result_count(self, result_count: int | None) -> None:
+            """记录当前合并结果数量。"""
+            self.result_count = result_count
+
+        def set_categories(
+            self,
+            categories: tuple[tuple[int, tuple[int, int, int]], ...],
+            checked_indices: tuple[int, ...],
+        ) -> None:
+            """转发来源类别更新。"""
+            self.category_display_card.set_categories(
+                categories,
+                checked_indices,
+            )
+
+        def clear_categories(self) -> None:
+            """清空来源类别。"""
+            self.category_display_card.clear_categories()
 
     class FakeResultTable:
         """记录当前结果表格内容。"""
@@ -468,11 +495,9 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
                 reset_button=FakeButton(),
             )
             category_card = FakeCategoryCard()
+            operation_card = FakeOperationCard(button_bar, category_card)
             self.merge_operation_panel = SimpleNamespace(
-                operation_card=SimpleNamespace(
-                    button_bar=button_bar,
-                    category_display_card=category_card,
-                ),
+                operation_card=operation_card,
                 result_table_card=FakeResultTable(),
             )
             self.right_panel = SimpleNamespace(
@@ -509,6 +534,7 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
         assert not button_bar.merge_button.enabled
         assert not button_bar.prev_cluster_button.enabled
         assert button_bar.next_cluster_button.enabled
+        assert view.merge_operation_panel.operation_card.result_count == 2
         assert "第1/2组" in image_updates[-1][1]
 
         controller._show_next_result()
@@ -520,6 +546,17 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
             view.merge_operation_panel.operation_card.category_display_card.category_checkboxes
         ) == {3, 4}
         assert table_updates
+
+        controller._reset_merge_state()
+
+        assert session.merge_plan is None
+        assert session.merge_result is None
+        assert (
+            session.get_slice_processing_state(0).merge_judgment_suppressed
+            is True
+        )
+        assert view.merge_operation_panel.operation_card.result_count is None
+        assert not view.right_panel.navigation_control_card.merge_menu_button.enabled
     finally:
         sip.delete(view)
 
@@ -554,6 +591,21 @@ def test_merge_workflow_executes_full_plan_without_mutating_recognition() -> Non
     assert "已经执行" in duplicate.error_message
     assert session.merge_result is not None
     assert len(session.merge_result.slice_results[0].merged_clusters) == 2
+
+    workflow.reset_merge_state(session, 0)
+
+    slice_state = session.get_slice_processing_state(0)
+    assert session.merge_plan is None
+    assert session.merge_result is None
+    assert session.stage is ProcessingStage.RECOGNIZED
+    assert slice_state.merge_status is SliceProcessStatus.NOT_STARTED
+    assert slice_state.merge_judgment_suppressed is True
+    assert workflow.get_merge_groups(session, 0) == ()
+    assert workflow.get_merge_groups(session, 0, force=True) == (
+        (1, 2),
+        (3, 4),
+    )
+    assert slice_state.merge_judgment_suppressed is False
 
 
 def test_batch_merge_failure_does_not_write_partial_results(
@@ -640,6 +692,33 @@ def test_merge_image_column_displays_rgb_bundle_from_workflow() -> None:
         sip.delete(column)
 
 
+def test_merge_presentation_wraps_pri_values_every_six_items() -> None:
+    """合并呈现模型应按右侧表格规则把PRI每六项分为一行。"""
+    session = _session_with_source_results()
+    workflow = MergeWorkflow(strategy=_FixedSingleStrategy())
+    workflow.prepare_merge_plan(session, 0)
+    execution = workflow.execute_merge_plan(session, 0)
+    assert execution.success
+    assert session.merge_result is not None
+
+    slice_result = session.merge_result.slice_results[0]
+    merged = slice_result.merged_clusters[0]
+    slice_result.merged_clusters[0] = replace(
+        merged,
+        extracted_params=replace(
+            merged.extracted_params,
+            pri_values=[float(value) for value in range(1, 9)],
+        ),
+    )
+
+    presentation = workflow.render_result(session, 0, 0)
+
+    assert presentation.table_rows[2] == (
+        "PRI",
+        "1、2、3、4、5、6\n7、8",
+    )
+
+
 def test_hiding_merge_source_preserves_other_source_color() -> None:
     """隐藏一个来源后，其余来源的固定颜色不得重新分配。"""
     session = _session_with_four_source_results()
@@ -671,10 +750,10 @@ def test_merge_palette_assigns_distinct_colors_beyond_default_capacity() -> None
     assert len(set(colors)) == 12
 
 
-def test_single_result_keeps_cd_and_uses_binary_category_controls(
+def test_single_result_uses_global_visibility_and_resets_merge_state(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """单结果合并后应保持C+D，并用双态复选框控制来源显隐。"""
+    """单结果合并后应支持全局显隐，并可重置回未判别状态。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -709,8 +788,10 @@ def test_single_result_keeps_cd_and_uses_binary_category_controls(
         assert not button_bar.merge_button.isEnabled()
         assert not button_bar.prev_cluster_button.isEnabled()
         assert not button_bar.next_cluster_button.isEnabled()
+        operation_card = interface.merge_operation_panel.operation_card
+        assert operation_card.result_count_label.text() == "共获得1个合并结果"
         category_card = (
-            interface.merge_operation_panel.operation_card.category_display_card
+            operation_card.category_display_card
         )
         assert set(category_card.category_checkboxes) == {1, 2}
         assert all(
@@ -718,23 +799,60 @@ def test_single_result_keeps_cd_and_uses_binary_category_controls(
             for checkbox in category_card.category_checkboxes.values()
         )
         assert len(set(category_card.category_colors.values())) == 2
+        global_checkbox = operation_card.global_visibility_checkbox
+        assert global_checkbox.isTristate()
+        assert global_checkbox.isEnabled()
+        assert global_checkbox.checkState() == Qt.CheckState.Checked
+        assert category_card.height() == category_card.sizeHint().height()
+        assert all(
+            checkbox.parentWidget() is not None
+            and checkbox.parentWidget().height() > 0
+            for checkbox in category_card.category_checkboxes.values()
+        )
 
         category_card.category_checkboxes[1].setChecked(False)
         QApplication.processEvents()
         assert category_card.visible_cluster_indices() == (2,)
+        assert global_checkbox.checkState() == Qt.CheckState.PartiallyChecked
 
-        button_bar.reset_button.click()
+        global_checkbox.click()
         QApplication.processEvents()
         assert category_card.visible_cluster_indices() == (1, 2)
+        assert global_checkbox.checkState() == Qt.CheckState.Checked
 
-        # 切换准则只清除派生计划/结果，原识别结果保持不变并可重新执行。
+        global_checkbox.click()
+        QApplication.processEvents()
+        assert category_card.visible_cluster_indices() == ()
+        assert global_checkbox.checkState() == Qt.CheckState.Unchecked
+
+        global_checkbox.click()
+        QApplication.processEvents()
+        assert category_card.visible_cluster_indices() == (1, 2)
+        assert global_checkbox.checkState() == Qt.CheckState.Checked
+
         recognition_result = interface._session.recognition_result
-        interface._merge_controller.set_strategy(_AlternateSingleStrategy())
+        button_bar.reset_button.click()
+        QApplication.processEvents()
+
         assert interface._session.recognition_result is recognition_result
+        assert interface._session.merge_plan is None
         assert interface._session.merge_result is None
-        assert menu_button.isEnabled()
-        assert menu_button.isChecked()
-        assert button_bar.merge_button.isEnabled()
+        assert (
+            interface._session.get_slice_processing_state(
+                0
+            ).merge_judgment_suppressed
+            is True
+        )
+        assert not menu_button.isEnabled()
+        assert not menu_button.isChecked()
+        assert not interface.image_workspace.is_merge_active()
+        assert interface.image_workspace.current_pair_index() == 0
+        assert not button_bar.merge_button.isEnabled()
+        assert not button_bar.reset_button.isEnabled()
+        assert operation_card.result_count_label.text() == "共获得？个合并结果"
+        assert not operation_card.global_visibility_checkbox.isEnabled()
+        assert not category_card.category_checkboxes
+        assert category_card.skeleton.isVisible()
     finally:
         sip.delete(interface)
 

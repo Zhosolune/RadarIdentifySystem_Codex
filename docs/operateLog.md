@@ -1,5 +1,54 @@
 # 变更记录
 
+- 时间：2026-07-23 16:25
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_action_button_bar.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_category_display_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_result_table_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：补充合并结果计数、全局三态显隐、PRI多行动态行高和合并状态重置。
+- 原因：合并操作面板缺少结果总量反馈、批量显隐入口和可恢复到未判别状态的重置语义，PRI多值也会受固定行高限制。
+- 计划：
+  - [x] 在按钮区下方增加与切片信息同样式的合并结果计数标签。
+  - [x] 放大类别标题，并增加汇总子类别状态的组件库三态复选框。
+  - [x] 按右侧分析表格的六项换行、字体行距和垂直留白规则动态调整PRI行高。
+  - [x] 清除当前切片合并计划和结果，并抑制普通刷新立即重新执行判别。
+  - [x] 补齐控制器、真实界面、工作流、持久化和状态回归。
+- 验证结果：
+  - 合并准则、批量执行、计数、全局显隐、PRI换行和重置链路：`29 passed, 1 warning`。
+  - 合并面板结构、动态行高和菜单切换：`3 passed, 7 deselected, 1 warning`。
+  - SessionStore与SessionRegistry回归：`61 passed, 1 warning`。
+  - ProcessingSession相关回归：`5 passed, 1 deselected`；排除项为既有`reset_to_imported`缺失。
+  - SliceInterface全量回归：`8 passed, 2 failed, 1 warning`；失败项仍为既有QSS选择器断言和快照标题文案差异。
+  - 两个变更UI模块doctest：`8 attempted, 0 failed`。
+  - `py_compile`与`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-23 14:57
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_category_display_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复合并完成后来源类别复选框行被压缩为零高度的问题。
+- 原因：动态类别行尚未进入可见布局时就同步固定高度，类别卡片只取得24px边距高度。
+- 计划：
+  - [x] 显式展示新增类别行后再同步类别卡片高度。
+  - [x] 增加类别卡片高度及复选框父行非零高度回归断言。
+  - [x] 运行聚焦测试、编译检查和差异检查。
+- 验证结果：
+  - 合并流程与真实切片界面聚焦回归：`14 passed, 1 warning`。
+  - `py_compile`：通过。
+  - `git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-23 11:30
 - 操作类型：[修改]
 - 影响文件：

@@ -15,7 +15,7 @@ class MergeActionButtonBar(QWidget):
         merge_button [PrimaryPushButton]: 触发合并操作的主题色按钮。
         prev_cluster_button [PushButton]: 切换至上一类别的普通按钮。
         next_cluster_button [PushButton]: 切换至下一类别的普通按钮。
-        reset_button [PushButton]: 重置当前合并选择的普通按钮。
+        reset_button [PushButton]: 重置当前切片合并计划与结果的普通按钮。
 
     Example:
         >>> from PyQt6.QtWidgets import QApplication

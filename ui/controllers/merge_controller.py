@@ -50,9 +50,12 @@ class MergeController(QObject):
         button_bar.merge_button.clicked.connect(self._execute_merge_plan)
         button_bar.prev_cluster_button.clicked.connect(self._show_previous_result)
         button_bar.next_cluster_button.clicked.connect(self._show_next_result)
-        button_bar.reset_button.clicked.connect(self._reset_visibility)
+        button_bar.reset_button.clicked.connect(self._reset_merge_state)
         operation_card.category_display_card.visibility_changed.connect(
             self._on_category_visibility_changed
+        )
+        operation_card.global_visibility_changed.connect(
+            self._on_global_visibility_changed
         )
         signal_bus.stage_started.connect(self._on_stage_started)
         signal_bus.stage_finished.connect(self._on_stage_finished)
@@ -132,7 +135,11 @@ class MergeController(QObject):
             menu_button.setChecked(False)
         menu_button.setEnabled(can_open_merge)
 
-        button_bar = self.view.merge_operation_panel.operation_card.button_bar
+        operation_card = self.view.merge_operation_panel.operation_card
+        operation_card.set_result_count(
+            self._result_count if has_results else None
+        )
+        button_bar = operation_card.button_bar
 
         # 完整计划只执行一次；结果导航按钮依据当前浏览位置分别控制。
         button_bar.merge_button.setEnabled(has_plan and not has_results)
@@ -204,7 +211,7 @@ class MergeController(QObject):
             presentation.images,
             presentation.title,
         )
-        self.view.merge_operation_panel.operation_card.category_display_card.set_categories(
+        self.view.merge_operation_panel.operation_card.set_categories(
             tuple(
                 (category.cluster_index, category.color)
                 for category in presentation.categories
@@ -244,17 +251,16 @@ class MergeController(QObject):
             presentation.title,
         )
 
-    def _reset_visibility(self) -> None:
-        """恢复当前结果全部来源类别可见。"""
+    def _on_global_visibility_changed(self, visible: bool) -> None:
+        """根据全局三态复选框一次重绘全部来源类别。"""
         if not self._result_count:
             return
         category_card = (
             self.view.merge_operation_panel.operation_card.category_display_card
         )
-
-        # 先阻断复选框信号批量复位，再统一触发一次重绘，避免每项重复绘图。
-        category_card.set_all_checked()
-        self._visible_cluster_indices = set(category_card.category_checkboxes)
+        self._visible_cluster_indices = (
+            set(category_card.category_checkboxes) if visible else set()
+        )
         presentation = self._workflow.render_result(
             self.view._session,
             self.view._slice_controller.current_slice_index,
@@ -266,11 +272,27 @@ class MergeController(QObject):
             presentation.title,
         )
 
+    def _reset_merge_state(self) -> None:
+        """清除当前切片合并计划和结果并回到未判别状态。"""
+        if not self._result_count:
+            return
+        self._workflow.reset_merge_state(
+            self.view._session,
+            self.view._slice_controller.current_slice_index,
+        )
+        self._merge_groups = ()
+        self._result_count = 0
+        self._current_result_index = 0
+        self._clear_presentation()
+        self._update_controls()
+
     def _clear_presentation(self) -> None:
         """清空当前切片的合并结果展示状态。"""
         self._visible_cluster_indices.clear()
         self.view.merge_image_column.clear_images()
-        self.view.merge_operation_panel.operation_card.category_display_card.clear_categories()
+        operation_card = self.view.merge_operation_panel.operation_card
+        operation_card.clear_categories()
+        operation_card.set_result_count(None)
         self.view.merge_operation_panel.result_table_card.clear_rows()
 
     def _on_stage_started(

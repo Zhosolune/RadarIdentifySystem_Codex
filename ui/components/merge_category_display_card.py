@@ -192,6 +192,9 @@ class MergeCategoryDisplayCard(SimpleCardWidget):
             self.category_checkboxes[cluster_index] = row.checkbox
             self.category_colors[cluster_index] = color
             self._content_layout.addWidget(row)
+            # 新增子控件默认要等到下一轮事件循环才显示；先显式展示，确保本轮
+            # 高度同步能把真实行高计入sizeHint，避免卡片被固定成仅边距高度。
+            row.show()
         self._sync_height()
 
     def clear_categories(self) -> None:
@@ -216,16 +219,19 @@ class MergeCategoryDisplayCard(SimpleCardWidget):
             if checkbox.isChecked()
         )
 
-    def set_all_checked(self) -> None:
-        """将当前结果全部来源类别恢复为选中。
+    def set_all_visible(self, visible: bool) -> None:
+        """统一设置当前结果全部来源类别的显隐状态。
+
+        Args:
+            visible [bool]: ``True`` 表示全部显示，``False`` 表示全部隐藏。
 
         Returns:
             None: 无返回值。
         """
         for checkbox in self.category_checkboxes.values():
-            # 批量复位时阻断逐项toggled信号，由控制器在循环后只重绘一次。
+            # 批量切换时阻断逐项toggled信号，由控制器在循环后只重绘一次。
             blocker = QSignalBlocker(checkbox)
-            checkbox.setChecked(True)
+            checkbox.setChecked(visible)
             del blocker
 
     def _clear_rows(self) -> None:

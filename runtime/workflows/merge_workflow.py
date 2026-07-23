@@ -214,6 +214,9 @@ class MergeWorkflow(QObject):
             raise ValueError("slice_index 不能为负数")
         if not session.is_slice_recognized(slice_index):
             return None
+        slice_state = session.get_slice_processing_state(slice_index)
+        if slice_state.merge_judgment_suppressed and not force:
+            return None
 
         # 同一准则的已有计划可直接复用，避免界面刷新时反复执行合并判别。
         existing = (
@@ -241,6 +244,9 @@ class MergeWorkflow(QObject):
                 session.merge_plan = MergePlan()
             # 切片索引是计划唯一槽位；强制重算时原位替换旧派生计划。
             session.merge_plan.slice_plans[slice_index] = plan
+            session.get_slice_processing_state(
+                slice_index
+            ).merge_judgment_suppressed = False
         return plan
 
     def get_merge_groups(
@@ -419,6 +425,34 @@ class MergeWorkflow(QObject):
         slice_result = session.merge_result.slice_results.get(slice_index)
         return 0 if slice_result is None else len(slice_result.merged_clusters)
 
+    def reset_merge_state(
+        self,
+        session: ProcessingSession,
+        slice_index: int,
+    ) -> None:
+        """清除当前切片计划和结果并保持未进行合并判别状态。
+
+        Args:
+            session [ProcessingSession]: 目标会话。
+            slice_index [int]: 目标切片的0-based索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 切片索引为负数时抛出。
+        """
+        if slice_index < 0:
+            raise ValueError("slice_index 不能为负数")
+        with session.lock:
+            session.reset_slice_merge_state(slice_index)
+            # 当前会话不再包含任何合并结果时，全局阶段同步回退到识别完成。
+            if (
+                session.merge_result is None
+                and session.stage is ProcessingStage.MERGED
+            ):
+                session.stage = ProcessingStage.RECOGNIZED
+
     def render_result(
         self,
         session: ProcessingSession,
@@ -503,7 +537,7 @@ class MergeWorkflow(QObject):
             table_rows=(
                 ("CF", self._format_values(params.cf_values)),
                 ("PW", self._format_values(params.pw_values)),
-                ("PRI", self._format_values(params.pri_values)),
+                ("PRI", self._format_values(params.pri_values, values_per_line=6)),
                 ("DOA", self._format_values(params.doa_values)),
             ),
         )
@@ -746,7 +780,18 @@ class MergeWorkflow(QObject):
         slice_result.merged_clusters.append(merged)
 
     @staticmethod
-    def _format_values(values: Iterable[float]) -> str:
-        """把参数值格式化为结果表格文本。"""
+    def _format_values(
+        values: Iterable[float],
+        *,
+        values_per_line: int | None = None,
+    ) -> str:
+        """把参数值格式化为可按固定数量换行的结果表格文本。"""
         formatted = [f"{float(value):g}" for value in values]
-        return "、".join(formatted) if formatted else "——"
+        if not formatted:
+            return "——"
+        if values_per_line is None or values_per_line <= 0:
+            return "、".join(formatted)
+        return "\n".join(
+            "、".join(formatted[index : index + values_per_line])
+            for index in range(0, len(formatted), values_per_line)
+        )

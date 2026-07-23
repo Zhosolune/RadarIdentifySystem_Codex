@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import (
     QHeaderView,
     QSizePolicy,
@@ -15,6 +16,7 @@ from qfluentwidgets.common.font import getFont
 
 from .analysis_result_card import (
     ANALYSIS_FONT_FAMILIES,
+    AnalysisResultCard,
     AnalysisResultTableWidget,
     RoundedAnalysisHeaderView,
 )
@@ -38,8 +40,9 @@ class MergeResultTableCard(SimpleCardWidget):
     """
 
     ROW_COUNT = 4
-    ROW_HEIGHT = 36
+    ROW_HEIGHT = AnalysisResultCard.DEFAULT_ROW_HEIGHT
     HEADER_HEIGHT = 36
+    ROW_VERTICAL_PADDING = AnalysisResultCard.ROW_VERTICAL_PADDING
     TABLE_BORDER_RADIUS = 4
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -114,9 +117,7 @@ class MergeResultTableCard(SimpleCardWidget):
                 self.table.setItem(row, column, self._create_empty_item())
             self.table.setRowHeight(row, self.ROW_HEIGHT)
 
-        table_height = self.HEADER_HEIGHT + self.ROW_COUNT * self.ROW_HEIGHT + 2
-        self.table.setFixedHeight(table_height)
-        self.table._sync_vertical_scrollbar_geometry()
+        self._adjust_table_height_to_contents()
 
     def update_rows(self, rows: tuple[tuple[str, str], ...]) -> None:
         """显示当前合并结果的参数行。
@@ -137,6 +138,7 @@ class MergeResultTableCard(SimpleCardWidget):
         for row_index, (label, value) in enumerate(rows):
             self.table.item(row_index, 0).setText(label)
             self.table.item(row_index, 1).setText(value)
+        self._adjust_table_height_to_contents()
 
     def clear_rows(self) -> None:
         """清空全部参数文本并保留表格结构。
@@ -150,6 +152,50 @@ class MergeResultTableCard(SimpleCardWidget):
                 item = self.table.item(row, column)
                 if item is not None:
                     item.setText("")
+        self._adjust_table_height_to_contents()
+
+    def _adjust_table_height_to_contents(self) -> None:
+        """按实际多行文本调整行高，并同步表格与卡片总高度。"""
+        self.table.resizeRowsToContents()
+        for row in range(self.ROW_COUNT):
+            self.table.setRowHeight(
+                row,
+                max(self.ROW_HEIGHT, self.table.rowHeight(row)),
+            )
+
+        pri_row = self._find_row("PRI")
+        if pri_row is not None:
+            pri_item = self.table.item(pri_row, 1)
+            if pri_item is not None:
+                line_count = max(1, pri_item.text().count("\n") + 1)
+                line_height = QFontMetrics(pri_item.font()).lineSpacing()
+                target_height = max(
+                    self.ROW_HEIGHT,
+                    line_count * line_height + self.ROW_VERTICAL_PADDING,
+                )
+                self.table.setRowHeight(
+                    pri_row,
+                    max(target_height, self.table.rowHeight(pri_row)),
+                )
+        self._resize_card_to_table()
+
+    def _resize_card_to_table(self) -> None:
+        """根据当前全部行高同步表格和外层卡片高度。"""
+        table_height = self.HEADER_HEIGHT + 2 + sum(
+            self.table.rowHeight(row) for row in range(self.ROW_COUNT)
+        )
+        self.table.setFixedHeight(table_height)
+        margins = self.layout().contentsMargins()
+        self.setFixedHeight(table_height + margins.top() + margins.bottom())
+        self.table._sync_vertical_scrollbar_geometry()
+
+    def _find_row(self, label: str) -> int | None:
+        """返回指定左列表签所在行；不存在时返回 ``None``。"""
+        for row in range(self.ROW_COUNT):
+            item = self.table.item(row, 0)
+            if item is not None and item.text() == label:
+                return row
+        return None
 
     @staticmethod
     def _create_empty_item() -> QTableWidgetItem:

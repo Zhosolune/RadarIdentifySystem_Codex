@@ -86,6 +86,7 @@ class SliceProcessingState:
         cluster_status (SliceProcessStatus): 当前切片的聚类状态。
         recognition_status (SliceProcessStatus): 当前切片的识别状态。
         merge_status (SliceProcessStatus): 当前切片的合并状态。
+        merge_judgment_suppressed (bool): 是否保持在人工重置后的未判别状态。
         last_cluster_error (str | None): 最近一次聚类失败消息。
         last_recognition_error (str | None): 最近一次识别失败消息。
         last_merge_error (str | None): 最近一次合并失败消息。
@@ -94,6 +95,7 @@ class SliceProcessingState:
     cluster_status: SliceProcessStatus = SliceProcessStatus.NOT_STARTED
     recognition_status: SliceProcessStatus = SliceProcessStatus.NOT_STARTED
     merge_status: SliceProcessStatus = SliceProcessStatus.NOT_STARTED
+    merge_judgment_suppressed: bool = False
     last_cluster_error: str | None = None
     last_recognition_error: str | None = None
     last_merge_error: str | None = None
@@ -535,6 +537,7 @@ class ProcessingSession:
 
         # 合并计划与结果均依赖当前识别代次；识别重跑或策略切换时必须同时失效。
         slice_state.merge_status = SliceProcessStatus.NOT_STARTED
+        slice_state.merge_judgment_suppressed = False
         slice_state.last_merge_error = None
         if self.merge_plan is not None:
             self.merge_plan.slice_plans.pop(slice_index, None)
@@ -549,6 +552,22 @@ class ProcessingSession:
         # 清理合并派生数据不会触碰cluster_result或recognition_result。
         if not self.merge_result.slice_results:
             self.merge_result = None
+
+    def reset_slice_merge_state(self, slice_index: int) -> None:
+        """重置指定切片并保持在尚未执行合并判别的状态。
+
+        Args:
+            slice_index [int]: 需要重置的 0-based 切片索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片索引为负数时抛出。
+        """
+        self.clear_slice_merge_results(slice_index)
+        # 人工重置与识别失效不同：普通界面刷新不得立即重新生成合并计划。
+        self.get_slice_processing_state(slice_index).merge_judgment_suppressed = True
 
     def are_all_slices_clustered(self) -> bool:
         """判断全部切片是否已完成聚类。

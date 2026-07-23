@@ -12,6 +12,7 @@ from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
 from qfluentwidgets import (
+    CheckBox,
     PrimaryPushButton,
     PushButton,
     ScrollArea,
@@ -406,18 +407,37 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             for index in range(4)
         ] == ["合并", "上一类", "下一类", "重置"]
         assert operation_card.layout().indexOf(operation_card.button_bar) == 0
+        assert operation_card.result_count_label.text() == "共获得？个合并结果"
+        assert operation_card.result_count_label.objectName() == "sliceInfoLabel"
+        assert operation_card.result_count_label.height() == 25
+        assert operation_card.layout().indexOf(
+            operation_card.result_count_label
+        ) == 2
         assert operation_card.category_title_label.text() == "类别显示控制"
+        assert operation_card.category_title_label.font().pixelSize() == 16
         assert operation_card.category_title_label.alignment() == (
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
-        assert operation_card.layout().indexOf(operation_card.category_title_label) == 1
+        assert operation_card.layout().indexOf(operation_card.category_header) == 4
+        assert isinstance(operation_card.global_visibility_checkbox, CheckBox)
+        assert operation_card.global_visibility_checkbox.isTristate()
+        assert not operation_card.global_visibility_checkbox.isEnabled()
+        assert (
+            operation_card.global_visibility_checkbox.checkState()
+            is Qt.CheckState.Unchecked
+        )
         assert isinstance(
             operation_card.category_display_card,
             MergeCategoryDisplayCard,
         )
-        assert operation_card.layout().indexOf(operation_card.category_display_card) == 2
+        assert operation_card.layout().indexOf(operation_card.category_display_card) == 6
         assert operation_card.button_bar.parent() is operation_card
-        assert operation_card.category_title_label.parent() is operation_card
+        assert operation_card.result_count_label.parent() is operation_card
+        assert operation_card.category_title_label.parent() is operation_card.category_header
+        assert (
+            operation_card.global_visibility_checkbox.parent()
+            is operation_card.category_header
+        )
         assert operation_card.category_display_card.parent() is operation_card
         category_skeleton = operation_card.category_display_card.skeleton
         assert category_skeleton.parent() is operation_card.category_display_card
@@ -470,6 +490,39 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         assert merge_panel.layout().indexOf(merge_panel.result_table_card) == 2
     finally:
         sip.delete(interface)
+
+
+def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
+    """合并结果PRI行应复用右侧表格规则按实际文本行数动态增高。"""
+    _app()
+    card = MergeResultTableCard()
+
+    try:
+        base_height = card.height()
+        base_pri_height = card.table.rowHeight(2)
+        card.update_rows(
+            (
+                ("CF", "100"),
+                ("PW", "1"),
+                ("PRI", "1、2、3、4、5、6\n7、8"),
+                ("DOA", "30"),
+            )
+        )
+
+        pri_row = 2
+        assert card.ROW_HEIGHT == AnalysisResultCard.DEFAULT_ROW_HEIGHT
+        assert (
+            card.ROW_VERTICAL_PADDING
+            == AnalysisResultCard.ROW_VERTICAL_PADDING
+        )
+        assert card.table.rowHeight(pri_row) > card.ROW_HEIGHT
+        assert card.height() > base_height
+
+        card.clear_rows()
+        assert card.table.rowHeight(pri_row) == base_pri_height
+        assert card.height() == base_height
+    finally:
+        sip.delete(card)
 
 
 def test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd(
