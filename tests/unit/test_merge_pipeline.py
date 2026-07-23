@@ -692,8 +692,8 @@ def test_merge_image_column_displays_rgb_bundle_from_workflow() -> None:
         sip.delete(column)
 
 
-def test_merge_presentation_wraps_pri_values_every_six_items() -> None:
-    """合并呈现模型应按右侧表格规则把PRI每六项分为一行。"""
+def test_merge_presentation_formats_pri_like_right_panel() -> None:
+    """合并呈现模型应与右侧表格一致保留一位小数并交由UI分行。"""
     session = _session_with_source_results()
     workflow = MergeWorkflow(strategy=_FixedSingleStrategy())
     workflow.prepare_merge_plan(session, 0)
@@ -715,7 +715,7 @@ def test_merge_presentation_wraps_pri_values_every_six_items() -> None:
 
     assert presentation.table_rows[2] == (
         "PRI",
-        "1、2、3、4、5、6\n7、8",
+        "1.0、2.0、3.0、4.0、5.0、6.0、7.0、8.0",
     )
 
 

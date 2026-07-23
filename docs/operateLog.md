@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-07-23 17:17
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_result_table_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按合并结果列的真实像素宽度重新组织PRI多行文本，并按右侧表格的字体行距与垂直留白动态补足行高。
+- 原因：原实现只统计显式换行，未覆盖窄结果列产生的视觉换行；同时PRI数值格式比右侧表格更长，导致内容行数和行高均被低估。
+- 计划：
+  - [x] 将合并PRI统一为右侧表格的`ROUND_HALF_UP`一位小数格式。
+  - [x] 按实际结果列宽贪婪分行，每行最多六项，并保留原始文本供列宽变化后重新计算。
+  - [x] 使用`文本行数 × 字体行距 + 16px`计算PRI行高，同步表格和外层卡片高度。
+  - [x] 增加窄列完整容纳、每行像素宽度、最多六项及放宽列后回缩行高的回归断言。
+- 验证结果：
+  - 合并准则、执行链路、PRI格式及重置状态回归：`29 passed, 1 warning`。
+  - 合并面板结构、PRI动态分行和宽度变化重排：`3 passed, 7 deselected, 1 warning`。
+  - `py_compile`与`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-23 16:25
 - 操作类型：[修改]
 - 影响文件：
@@ -18,7 +39,7 @@
 - 计划：
   - [x] 在按钮区下方增加与切片信息同样式的合并结果计数标签。
   - [x] 放大类别标题，并增加汇总子类别状态的组件库三态复选框。
-  - [x] 按右侧分析表格的六项换行、字体行距和垂直留白规则动态调整PRI行高。
+  - [x] 按右侧分析表格的最多六项规则，并结合实际列宽、字体行距和垂直留白动态调整PRI行高。
   - [x] 清除当前切片合并计划和结果，并抑制普通刷新立即重新执行判别。
   - [x] 补齐控制器、真实界面、工作流、持久化和状态回归。
 - 验证结果：

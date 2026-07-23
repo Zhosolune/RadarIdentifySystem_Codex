@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PyQt6 import sip
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QImage
+from PyQt6.QtGui import QFontMetrics, QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
 from qfluentwidgets import (
@@ -493,30 +493,65 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
 
 
 def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
-    """合并结果PRI行应复用右侧表格规则按实际文本行数动态增高。"""
+    """合并结果PRI行应按实际窄列宽度分行并完整容纳文本。"""
     _app()
     card = MergeResultTableCard()
 
     try:
+        card.resize(404, card.height())
+        card.show()
+        QApplication.processEvents()
         base_height = card.height()
         base_pri_height = card.table.rowHeight(2)
         card.update_rows(
             (
                 ("CF", "100"),
                 ("PW", "1"),
-                ("PRI", "1、2、3、4、5、6\n7、8"),
+                (
+                    "PRI",
+                    "1234.6、2234.6、3234.6、4234.6、5234.6、6234.6、"
+                    "7234.6、8234.6",
+                ),
                 ("DOA", "30"),
             )
         )
+        QApplication.processEvents()
 
         pri_row = 2
+        pri_item = card.table.item(pri_row, 1)
+        pri_lines = pri_item.text().splitlines()
+        font_metrics = QFontMetrics(pri_item.font())
+        available_width = (
+            card.table.columnWidth(1) - card.CELL_HORIZONTAL_PADDING
+        )
         assert card.ROW_HEIGHT == AnalysisResultCard.DEFAULT_ROW_HEIGHT
         assert (
             card.ROW_VERTICAL_PADDING
             == AnalysisResultCard.ROW_VERTICAL_PADDING
         )
+        assert len(pri_lines) >= 3
+        assert all(
+            font_metrics.horizontalAdvance(line) <= available_width
+            for line in pri_lines
+        )
+        assert all(
+            len(line.split("、")) <= card.PRI_MAX_VALUES_PER_LINE
+            for line in pri_lines
+        )
         assert card.table.rowHeight(pri_row) > card.ROW_HEIGHT
+        assert card.table.rowHeight(pri_row) >= (
+            len(pri_lines) * font_metrics.lineSpacing()
+            + card.ROW_VERTICAL_PADDING
+        )
         assert card.height() > base_height
+
+        narrow_line_count = len(pri_lines)
+        narrow_row_height = card.table.rowHeight(pri_row)
+        card.resize(620, card.height())
+        QApplication.processEvents()
+        wide_lines = card.table.item(pri_row, 1).text().splitlines()
+        assert len(wide_lines) < narrow_line_count
+        assert card.table.rowHeight(pri_row) < narrow_row_height
 
         card.clear_rows()
         assert card.table.rowHeight(pri_row) == base_pri_height

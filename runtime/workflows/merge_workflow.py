@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 
 import numpy as np
@@ -537,7 +538,7 @@ class MergeWorkflow(QObject):
             table_rows=(
                 ("CF", self._format_values(params.cf_values)),
                 ("PW", self._format_values(params.pw_values)),
-                ("PRI", self._format_values(params.pri_values, values_per_line=6)),
+                ("PRI", self._format_values(params.pri_values, decimal_places=1)),
                 ("DOA", self._format_values(params.doa_values)),
             ),
         )
@@ -783,15 +784,26 @@ class MergeWorkflow(QObject):
     def _format_values(
         values: Iterable[float],
         *,
-        values_per_line: int | None = None,
+        decimal_places: int | None = None,
     ) -> str:
-        """把参数值格式化为可按固定数量换行的结果表格文本。"""
-        formatted = [f"{float(value):g}" for value in values]
+        """把参数值格式化为由界面根据可用列宽分行的结果文本。"""
+        formatted: list[str] = []
+        for value in values:
+            if decimal_places is None:
+                formatted.append(f"{float(value):g}")
+                continue
+            quantizer = (
+                Decimal("1")
+                if decimal_places == 0
+                else Decimal(f"1e-{decimal_places}")
+            )
+            rounded = Decimal(str(value)).quantize(
+                quantizer,
+                rounding=ROUND_HALF_UP,
+            )
+            if rounded == Decimal("0"):
+                rounded = Decimal("0")
+            formatted.append(f"{rounded:.{decimal_places}f}")
         if not formatted:
             return "——"
-        if values_per_line is None or values_per_line <= 0:
-            return "、".join(formatted)
-        return "\n".join(
-            "、".join(formatted[index : index + values_per_line])
-            for index in range(0, len(formatted), values_per_line)
-        )
+        return "、".join(formatted)
