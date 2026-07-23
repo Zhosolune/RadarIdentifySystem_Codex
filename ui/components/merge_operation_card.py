@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import CheckBox, SimpleCardWidget, StrongBodyLabel
+from qfluentwidgets import CheckBox, SimpleCardWidget, BodyLabel
 
 from .merge_action_button_bar import MergeActionButtonBar
 from .merge_category_display_card import MergeCategoryDisplayCard
@@ -58,12 +58,12 @@ class MergeOperationCard(SimpleCardWidget):
             QSizePolicy.Policy.Fixed,
         )
         self.button_bar = MergeActionButtonBar(self)
-        self.result_count_label = QLabel("共获得？个合并结果", self)
+        self.result_count_label = QLabel("共获得 ？个合并结果", self)
         self.result_count_label.setObjectName("sliceInfoLabel")
         self.result_count_label.setFixedHeight(25)
 
         self.category_header = QWidget(self)
-        self.category_title_label = StrongBodyLabel("类别显示控制", self.category_header)
+        self.category_title_label = BodyLabel("类别显示控制", self.category_header)
         self.category_title_label.setObjectName("mergeCategoryTitleLabel")
         self.category_title_label.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -73,7 +73,7 @@ class MergeOperationCard(SimpleCardWidget):
         self.category_title_label.setFont(category_title_font)
         self.category_title_label.setFixedHeight(24)
         self.global_visibility_checkbox = CheckBox(
-            "全部显示",
+            "勾选全部",
             self.category_header,
         )
         self.global_visibility_checkbox.setTristate(True)
@@ -131,7 +131,7 @@ class MergeOperationCard(SimpleCardWidget):
         if result_count is not None and result_count < 0:
             raise ValueError("合并结果数量不能为负数")
         count_text = "？" if result_count is None else str(result_count)
-        self.result_count_label.setText(f"共获得{count_text}个合并结果")
+        self.result_count_label.setText(f"共获得 {count_text} 个合并结果")
 
     def set_categories(
         self,

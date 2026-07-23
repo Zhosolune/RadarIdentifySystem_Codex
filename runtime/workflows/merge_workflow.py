@@ -515,10 +515,8 @@ class MergeWorkflow(QObject):
             visible_cluster_indices=visible_positions,
             palette=palette,
         )
-        source_text = "+".join(str(index) for index in source_indices)
         title = (
-            f"合并结果 第{result_index + 1}/{len(slice_result.merged_clusters)}组"
-            f"（原第{source_text}类）"
+            f"合并结果 第{result_index + 1}/{len(slice_result.merged_clusters)}类"
         )
         categories = tuple(
             MergeCategoryPresentation(
