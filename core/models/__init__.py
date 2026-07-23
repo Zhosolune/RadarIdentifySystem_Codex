@@ -21,7 +21,14 @@ from .algorithm_params import (
     MergeParams,
 )
 from .extraction_result import ExtractedClusterParams
-from .merge_result import MergeResult, MergedClusterResult, SliceMergeResult
+from .merge_result import (
+    MergeGroup,
+    MergePlan,
+    MergeResult,
+    MergedClusterResult,
+    SliceMergePlan,
+    SliceMergeResult,
+)
 from .recognition_result import ClusterRecognition, SliceRecognitionResult, RecognitionResult
 from .session_config import (
     BusinessConfigSnapshot,

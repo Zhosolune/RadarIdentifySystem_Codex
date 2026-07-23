@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from colorsys import hsv_to_rgb
+
 import numpy as np
 
 from core.models.pulse_batch import COL_CF, COL_DOA, COL_PA, COL_PW, COL_TOA
 from .types import MergePalette, PlotProfile, RenderedImageBundle, _DIMENSION_ORDER
 from .utils import (
+    _DEFAULT_MERGE_PALETTE,
     build_dtoa_series,
     build_plot_profile,
     collect_toa,
@@ -15,6 +18,85 @@ from .utils import (
     validate_points,
 )
 from .engine import convert_color_index_to_rgb, rasterize_dimension, rasterize_merge_dimension
+
+
+def resolve_merge_source_colors(
+    source_count: int,
+    palette: MergePalette | None = None,
+) -> tuple[tuple[int, int, int], ...]:
+    """按完整合并结果中的来源位置返回稳定RGB颜色。
+
+    Args:
+        source_count [int]: 来源类簇数量，必须大于等于0。
+        palette [MergePalette | None]: 可选调色板，默认使用合并图调色板。
+
+    Returns:
+        tuple[tuple[int, int, int], ...]: 与来源位置一一对应的RGB颜色。
+
+    Raises:
+        ValueError: 来源数量为负数或调色板没有非黑颜色时抛出。
+
+    Example:
+        >>> len(resolve_merge_source_colors(2))
+        2
+    """
+    if source_count < 0:
+        raise ValueError("source_count 不能为负数")
+    palette_obj = palette or build_merge_palette(source_count)
+    color_indices = sorted(index for index in palette_obj.colors if index > 0)
+    if not color_indices and source_count:
+        raise ValueError("合并调色板至少需要一个非黑颜色")
+    return tuple(
+        palette_obj.colors[color_indices[position % len(color_indices)]]
+        for position in range(source_count)
+    )
+
+
+def build_merge_palette(source_count: int) -> MergePalette:
+    """为完整合并结果构造足量且稳定的来源颜色。
+
+    默认沿用项目既有颜色；来源超过默认容量时，以黄金分割步长生成额外颜色，
+    保证支持范围内每个来源位置拥有不同RGB值。
+
+    Args:
+        source_count [int]: 来源类簇数量，允许范围为0到255。
+
+    Returns:
+        MergePalette: 包含黑色背景和足量来源颜色的调色板。
+
+    Raises:
+        ValueError: 来源数量不在0到255范围内时抛出。
+
+    Example:
+        >>> len(set(resolve_merge_source_colors(12)))
+        12
+    """
+    if not 0 <= source_count <= 255:
+        raise ValueError("source_count 必须位于0到255之间")
+    base_colors = [
+        _DEFAULT_MERGE_PALETTE.colors[index]
+        for index in sorted(_DEFAULT_MERGE_PALETTE.colors)
+        if index > 0
+    ]
+    colors: dict[int, tuple[int, int, int]] = {0: (0, 0, 0)}
+    used_colors = set(base_colors[:source_count])
+    for position in range(source_count):
+        if position < len(base_colors):
+            rgb = base_colors[position]
+        else:
+            hue = (position * 0.618033988749895) % 1.0
+            red, green, blue = hsv_to_rgb(hue, 0.72, 1.0)
+            rgb = (
+                int(round(red * 255)),
+                int(round(green * 255)),
+                int(round(blue * 255)),
+            )
+            # 极少数取整碰撞时按位置确定性扰动蓝色通道。
+            while rgb in used_colors:
+                rgb = (rgb[0], rgb[1], (rgb[2] + 1) % 256)
+        used_colors.add(rgb)
+        colors[position + 1] = rgb
+    return MergePalette(colors=colors)
 
 
 def render_slice_images(

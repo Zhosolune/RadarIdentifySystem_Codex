@@ -371,3 +371,23 @@ def test_strategy_rejects_mismatched_slice_results() -> None:
             cluster_result,
             wrong_recognition_result,
         )
+
+
+def test_strategy_builds_complete_plan_with_stable_id() -> None:
+    """新准则接口应返回带策略标识的完整互斥计划。"""
+    cluster_result, recognition_result = _results(
+        [
+            (_default_points(), [100.0], [], [0.0], 1),
+            (_default_points(), [101.0], [], [0.0], 1),
+            (_default_points(), [150.0], [], [90.0], 2),
+        ]
+    )
+
+    plan = DefaultMergeStrategy().build_plan(
+        cluster_result,
+        recognition_result,
+    )
+
+    assert plan.strategy_id == "hybrid_parameter_v1"
+    assert [group.cluster_indices for group in plan.groups] == [(1, 2)]
+    assert plan.group_count == 1

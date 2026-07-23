@@ -1,5 +1,42 @@
 # 变更记录
 
+- 时间：2026-07-23 10:40
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge_strategy.py`（新增）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\merge_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\engine.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\facades.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_category_display_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_result_table_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_core_merge_strategy.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按切片预生成完整合并计划，用户一次点击执行全部合并组，并在独立合并结果中浏览和控制各来源类别显隐。
+- 原因：原实现把合并组作为逐个执行的候选，最后一组执行后自动退出C+D，和识别结果只读、批量执行及结果浏览的业务流程不一致。
+- 计划：
+  - [x] 拆分可插拔合并准则与纯辅助算法，建立切片级合并计划模型。
+  - [x] 将runtime改为一次执行完整计划，独立写入若干合并结果且不修改识别结果。
+  - [x] 重构菜单、合并按钮和结果导航状态，合并完成后保持C+D。
+  - [x] 使用双态复选框展示来源类别及稳定颜色，并支持图像显隐。
+  - [x] 补齐批量执行、结果独立性、导航、颜色显隐和生命周期测试。
+  - [x] 完成聚焦测试、编译、doctest、差异检查和独立架构复审。
+- 验证结果：
+  - 合并准则、批量工作流、结果浏览、双态显隐与生命周期聚焦测试：`28 passed, 1 warning`。
+  - 切片导航回归（排除1项既有快照标题失败）：`9 passed, 1 deselected, 1 warning`。
+  - SliceInterface回归（排除既有QSS、旧布局索引和快照标题3项失败）：`6 passed, 3 deselected, 1 warning`。
+  - ProcessingSession与SessionStore回归（排除既有`reset_to_imported`缺失）：`47 passed, 1 deselected`。
+  - `py_compile`、core/runtime/infra doctest和`git diff --check`：通过，仅有LF/CRLF转换提示。
+  - 独立架构复审确认：批量写回原子性、识别结果只读、非当前切片预判、策略切换失效、计划/来源代次校验及`ui -> runtime -> core/infra`边界均无阻断问题。
+- 测试状态：[已测试]
+
 - 时间：2026-07-23 09:43
 - 操作类型：[新增]
 - 影响文件：

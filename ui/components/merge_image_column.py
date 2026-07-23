@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
+import numpy as np
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
-
-from core.models.merge_result import MergedClusterResult
-from infra.plotting.types import RenderedImageBundle
 
 from .slice_dimension_card import SliceDimensionCard
 
@@ -127,16 +125,16 @@ class MergeImageColumn(QWidget):
 
         self._init_layout()
 
-    def update_from_merge(
+    def update_images(
         self,
-        bundle: RenderedImageBundle,
-        result: MergedClusterResult,
+        images: Mapping[str, np.ndarray],
+        title: str,
     ) -> None:
-        """显示一次合并生成的五维多颜色图像。
+        """显示runtime提供的当前合并结果五维图像。
 
         Args:
-            bundle [RenderedImageBundle]: 五维 RGB 合并图像。
-            result [MergedClusterResult]: 对应的合并领域结果。
+            images [Mapping[str, np.ndarray]]: 维度名到RGB图像的映射。
+            title [str]: 当前结果标题。
 
         Returns:
             None: 无返回值。
@@ -144,11 +142,9 @@ class MergeImageColumn(QWidget):
         Raises:
             ValueError: 图像不是 ``H×W×3`` 的 uint8 RGB 数组时抛出。
         """
-        source_text = "+".join(str(index) for index in result.source_cluster_indices)
-        title = f"合并结果 第{result.merge_index}组（原第{source_text}类）"
         self.title_label.setText(title)
         for dimension, card in self.cards_by_dimension.items():
-            image_data = bundle.images.get(dimension)
+            image_data = images.get(dimension)
             if image_data is None:
                 card.clear_image()
                 continue

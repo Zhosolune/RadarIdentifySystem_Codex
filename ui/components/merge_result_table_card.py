@@ -118,6 +118,37 @@ class MergeResultTableCard(SimpleCardWidget):
         self.table.setFixedHeight(table_height)
         self.table._sync_vertical_scrollbar_geometry()
 
+    def update_rows(self, rows: tuple[tuple[str, str], ...]) -> None:
+        """显示当前合并结果的参数行。
+
+        Args:
+            rows [tuple[tuple[str, str], ...]]: ``(类别, 合并结果)``文本行。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 数据行数量超过固定表格容量时抛出。
+        """
+        if len(rows) > self.ROW_COUNT:
+            raise ValueError("合并结果表格数据行超过容量")
+        self.clear_rows()
+        for row_index, (label, value) in enumerate(rows):
+            self.table.item(row_index, 0).setText(label)
+            self.table.item(row_index, 1).setText(value)
+
+    def clear_rows(self) -> None:
+        """清空全部参数文本并保留表格结构。
+
+        Returns:
+            None: 无返回值。
+        """
+        for row in range(self.ROW_COUNT):
+            for column in range(self.table.columnCount()):
+                item = self.table.item(row, column)
+                if item is not None:
+                    item.setText("")
+
     @staticmethod
     def _create_empty_item() -> QTableWidgetItem:
         """创建与右侧分析结果表格一致的空白居中单元格。"""

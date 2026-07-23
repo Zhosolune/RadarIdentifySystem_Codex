@@ -34,7 +34,7 @@ from core.models.slice_result import PreprocessResult, SliceResult
 from core.models.dashboard_info import FileDashboardInfo
 from core.models.cluster_result import ClusteringResult
 from core.models.recognition_result import RecognitionResult
-from core.models.merge_result import MergeResult
+from core.models.merge_result import MergePlan, MergeResult
 from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
 
@@ -132,7 +132,8 @@ class ProcessingSession:
         cluster_result (Any | None): CF/PW 聚类结果（P04 落地后替换为具体类型）。
         slice_processing_states (dict[int, SliceProcessingState]): 切片级局部状态映射。
         recognition_result (Any | None): 识别与参数提取结果（P05 落地后替换）。
-        merge_result (MergeResult | None): 显式目标合并结果。
+        merge_plan (MergePlan | None): 识别完成后生成的切片合并计划。
+        merge_result (MergeResult | None): 与识别结果独立保存的合并结果。
 
     参数说明：
         source_path (str): 文件路径，默认空串。
@@ -173,7 +174,8 @@ class ProcessingSession:
     # ── P05：识别与参数产物 ──────────────────────────
     recognition_result: Optional[RecognitionResult] = field(default=None)
 
-    # ── P06：显式目标合并产物 ────────────────────────────────────────────
+    # ── P06：合并判别计划与独立合并产物 ──────────────────────────────────
+    merge_plan: Optional[MergePlan] = field(default=None)
     merge_result: Optional[MergeResult] = field(default=None)
 
     # ── 线程安全锁 ───────────────────────────────────────────────────
@@ -281,6 +283,7 @@ class ProcessingSession:
         # 清空下游结果对象
         self.cluster_result = None
         self.recognition_result = None
+        self.merge_plan = None
         self.merge_result = None
 
     def reset_to_preprocessed_state(self) -> None:
@@ -309,6 +312,7 @@ class ProcessingSession:
         self.cluster_result = None
         self.slice_processing_states = {}
         self.recognition_result = None
+        self.merge_plan = None
         self.merge_result = None
         # 回退阶段到预处理完成。
         self.stage = ProcessingStage.PREPROCESSED
@@ -516,7 +520,7 @@ class ProcessingSession:
         slice_state.last_merge_error = error_msg
 
     def clear_slice_merge_results(self, slice_index: int) -> None:
-        """清除指定切片依赖旧识别结果生成的合并产物。
+        """清除指定切片依赖旧识别结果生成的合并计划与结果。
 
         Args:
             slice_index [int]: 需要失效合并结果的 0-based 切片索引。
@@ -530,6 +534,10 @@ class ProcessingSession:
         slice_state = self.get_slice_processing_state(slice_index)
         slice_state.merge_status = SliceProcessStatus.NOT_STARTED
         slice_state.last_merge_error = None
+        if self.merge_plan is not None:
+            self.merge_plan.slice_plans.pop(slice_index, None)
+            if not self.merge_plan.slice_plans:
+                self.merge_plan = None
         if self.merge_result is None:
             return
         self.merge_result.slice_results.pop(slice_index, None)

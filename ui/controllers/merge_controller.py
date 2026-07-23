@@ -1,4 +1,4 @@
-"""切片页合并流程控制器。"""
+"""切片页批量合并与独立结果浏览控制器。"""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from PyQt6.QtCore import QObject
 
 from app.signal_bus import signal_bus
 from runtime.workflows.merge_workflow import (
+    MergeBatchWorkflowResult,
     MergeStrategy,
     MergeWorkflow,
     MergeWorkflowResult,
@@ -19,154 +20,240 @@ if TYPE_CHECKING:
 
 
 class MergeController(QObject):
-    """管理当前切片的规则候选状态并接入合并工作流。
-
-    本控制器只保存可重算的界面候选与浏览索引，不判断业务准则，也不把候选
-    写入session。规则计算、目标构造、参数重提取和结果写回均由runtime/core完成。
-
-    Attributes:
-        view [SliceInterface]: 当前切片页面视图。
-    """
+    """管理切片合并计划、批量执行、结果浏览和来源显隐。"""
 
     def __init__(self, view: SliceInterface) -> None:
-        """初始化当前 session 的合并控制器。
+        """初始化合并控制器。
 
         Args:
             view [SliceInterface]: 绑定的切片页面视图。
 
         Returns:
             None: 无返回值。
-
-        Raises:
-            无显式抛出异常。
         """
         super().__init__(view)
         self.view = view
         self._workflow = MergeWorkflow(self)
-        self._merge_candidates: tuple[tuple[int, ...], ...] = ()
-        self._current_candidate_index = 0
+        self._merge_groups: tuple[tuple[int, ...], ...] = ()
+        self._result_count = 0
+        self._current_result_index = 0
+        self._visible_cluster_indices: set[int] = set()
         self._connect_signals()
         self.refresh_current_slice_state(reset_index=True)
 
     def _connect_signals(self) -> None:
-        """连接合并操作按钮和识别生命周期信号。"""
-        button_bar = self.view.merge_operation_panel.operation_card.button_bar
-        button_bar.merge_button.clicked.connect(self._merge_current_candidate)
-        button_bar.prev_cluster_button.clicked.connect(self._show_previous_candidate)
-        button_bar.next_cluster_button.clicked.connect(self._show_next_candidate)
-        button_bar.reset_button.clicked.connect(
-            lambda: self.refresh_current_slice_state(reset_index=True)
+        """连接批量合并、结果导航、显隐控制和识别生命周期信号。"""
+        operation_card = self.view.merge_operation_panel.operation_card
+        button_bar = operation_card.button_bar
+        button_bar.merge_button.clicked.connect(self._execute_merge_plan)
+        button_bar.prev_cluster_button.clicked.connect(self._show_previous_result)
+        button_bar.next_cluster_button.clicked.connect(self._show_next_result)
+        button_bar.reset_button.clicked.connect(self._reset_visibility)
+        operation_card.category_display_card.visibility_changed.connect(
+            self._on_category_visibility_changed
         )
         signal_bus.stage_started.connect(self._on_stage_started)
         signal_bus.stage_finished.connect(self._on_stage_finished)
         signal_bus.stage_failed.connect(self._on_stage_failed)
 
     def set_strategy(self, strategy: MergeStrategy) -> None:
-        """切换当前页面后续候选计算使用的合并准则。
+        """切换后续合并判别使用的准则并重新生成计划。
 
         Args:
-            strategy [MergeStrategy]: 由runtime暴露的可插拔合并准则实现。
+            strategy [MergeStrategy]: 新准则实例。
 
         Returns:
             None: 无返回值。
-
-        Raises:
-            TypeError: 准则未实现规定接口时由workflow抛出。
-
-        Example:
-            该入口供应用装配层或后续策略选择功能调用：
-
-            >>> hasattr(MergeController, "set_strategy")
-            True
         """
-        self._workflow.set_strategy(strategy)
-        self.refresh_current_slice_state(reset_index=True)
+        self._workflow.switch_strategy(
+            self.view._session,
+            self.view._slice_controller.current_slice_index,
+            strategy,
+        )
+        self.refresh_current_slice_state(
+            reset_index=True,
+            force_plan=True,
+        )
 
-    def refresh_current_slice_state(self, reset_index: bool = False) -> None:
-        """重算当前切片候选并同步菜单及操作按钮状态。
+    def refresh_current_slice_state(
+        self,
+        reset_index: bool = False,
+        force_plan: bool = False,
+    ) -> None:
+        """加载当前切片计划和已有独立合并结果。
 
         Args:
-            reset_index [bool]: 是否把候选浏览位置重置到第一组。
+            reset_index [bool]: 是否把结果浏览位置重置到第一项。
+            force_plan [bool]: 是否强制重新执行合并判别。
 
         Returns:
             None: 无返回值。
-
-        Raises:
-            无显式抛出异常。
         """
         slice_index = self.view._slice_controller.current_slice_index
-        self._merge_candidates = self._workflow.find_merge_candidates(
+        self._merge_groups = self._workflow.get_merge_groups(
+            self.view._session,
+            slice_index,
+            force=force_plan,
+        )
+        self._result_count = self._workflow.get_result_count(
             self.view._session,
             slice_index,
         )
         if reset_index:
-            self._current_candidate_index = 0
-        elif self._merge_candidates:
-            self._current_candidate_index = min(
-                self._current_candidate_index,
-                len(self._merge_candidates) - 1,
+            self._current_result_index = 0
+        elif self._result_count:
+            self._current_result_index = min(
+                self._current_result_index,
+                self._result_count - 1,
             )
         else:
-            self._current_candidate_index = 0
+            self._current_result_index = 0
+
+        if self._result_count:
+            self._present_current_result(reset_visibility=True)
+        else:
+            self._clear_presentation()
         self._update_controls()
 
     def _update_controls(self) -> None:
-        """根据候选数量和当前位置同步全部合并控制按钮。"""
-        has_candidates = bool(self._merge_candidates)
+        """按计划与结果两个独立状态同步全部按钮。"""
+        has_plan = bool(self._merge_groups)
+        has_results = self._result_count > 0
         menu_button = self.view.right_panel.navigation_control_card.merge_menu_button
-        # 先取消勾选再禁用，确保横向工作区同步退出合并浏览模式。
-        if not has_candidates and menu_button.isChecked():
+        can_open_merge = has_plan or has_results
+        if not can_open_merge and menu_button.isChecked():
             menu_button.setChecked(False)
-        menu_button.setEnabled(has_candidates)
+        menu_button.setEnabled(can_open_merge)
 
         button_bar = self.view.merge_operation_panel.operation_card.button_bar
-        button_bar.merge_button.setEnabled(has_candidates)
+        button_bar.merge_button.setEnabled(has_plan and not has_results)
         button_bar.prev_cluster_button.setEnabled(
-            has_candidates and self._current_candidate_index > 0
+            has_results and self._current_result_index > 0
         )
         button_bar.next_cluster_button.setEnabled(
-            has_candidates
-            and self._current_candidate_index < len(self._merge_candidates) - 1
+            has_results
+            and self._current_result_index < self._result_count - 1
         )
-        button_bar.reset_button.setEnabled(has_candidates)
+        button_bar.reset_button.setEnabled(has_results)
 
-    def _show_previous_candidate(self) -> None:
-        """切换到上一组合并候选。"""
-        if self._current_candidate_index > 0:
-            self._current_candidate_index -= 1
-        self._update_controls()
-
-    def _show_next_candidate(self) -> None:
-        """切换到下一组合并候选。"""
-        if self._current_candidate_index < len(self._merge_candidates) - 1:
-            self._current_candidate_index += 1
-        self._update_controls()
-
-    def _merge_current_candidate(self) -> None:
-        """执行当前浏览位置对应的规则候选组。"""
-        if not self._merge_candidates:
+    def _execute_merge_plan(self) -> None:
+        """一次执行当前切片完整计划中的全部合并分组。"""
+        if not self._merge_groups or self._result_count:
             return
-        target_indices = self._merge_candidates[self._current_candidate_index]
-        execution = self._workflow.start_strategy_merge_by_indices(
+        execution = self._workflow.execute_merge_plan(
             self.view._session,
             self.view._slice_controller.current_slice_index,
-            target_indices,
         )
-        self._present_execution(execution)
-        if execution.success:
-            self.refresh_current_slice_state(reset_index=False)
+        self._present_batch_execution(execution)
 
-    def _present_execution(self, execution: MergeWorkflowResult) -> None:
-        """把成功执行的合并图像和领域结果交给视图。"""
-        if (
-            execution.success
-            and execution.merge_result is not None
-            and execution.rendered_bundle is not None
-        ):
-            self.view.merge_image_column.update_from_merge(
-                execution.rendered_bundle,
-                execution.merge_result,
-            )
+    def _present_batch_execution(
+        self,
+        execution: MergeBatchWorkflowResult,
+    ) -> None:
+        """在整批成功后默认显示第一项结果并保持C+D。"""
+        if not execution.success:
+            self._update_controls()
+            return
+        self._result_count = execution.result_count
+        self._current_result_index = 0
+        self._present_current_result(reset_visibility=True)
+        self._update_controls()
+
+    def _show_previous_result(self) -> None:
+        """显示上一项已生成的独立合并结果。"""
+        if self._current_result_index > 0:
+            self._current_result_index -= 1
+            self._present_current_result(reset_visibility=True)
+        self._update_controls()
+
+    def _show_next_result(self) -> None:
+        """显示下一项已生成的独立合并结果。"""
+        if self._current_result_index < self._result_count - 1:
+            self._current_result_index += 1
+            self._present_current_result(reset_visibility=True)
+        self._update_controls()
+
+    def _present_current_result(self, *, reset_visibility: bool) -> None:
+        """同步当前结果的图像、类别复选框和参数表。"""
+        visible_indices = None if reset_visibility else self._visible_cluster_indices
+        presentation = self._workflow.render_result(
+            self.view._session,
+            self.view._slice_controller.current_slice_index,
+            self._current_result_index,
+            visible_indices,
+        )
+        if reset_visibility:
+            self._visible_cluster_indices = {
+                category.cluster_index for category in presentation.categories
+            }
+        self.view.merge_image_column.update_images(
+            presentation.images,
+            presentation.title,
+        )
+        self.view.merge_operation_panel.operation_card.category_display_card.set_categories(
+            tuple(
+                (category.cluster_index, category.color)
+                for category in presentation.categories
+            ),
+            checked_indices=tuple(
+                category.cluster_index
+                for category in presentation.categories
+                if category.visible
+            ),
+        )
+        self.view.merge_operation_panel.result_table_card.update_rows(
+            presentation.table_rows
+        )
+
+    def _on_category_visibility_changed(
+        self,
+        cluster_index: int,
+        visible: bool,
+    ) -> None:
+        """根据双态复选框重新绘制当前结果而不重新执行合并。"""
+        if not self._result_count:
+            return
+        if visible:
+            self._visible_cluster_indices.add(cluster_index)
+        else:
+            self._visible_cluster_indices.discard(cluster_index)
+        presentation = self._workflow.render_result(
+            self.view._session,
+            self.view._slice_controller.current_slice_index,
+            self._current_result_index,
+            self._visible_cluster_indices,
+        )
+        self.view.merge_image_column.update_images(
+            presentation.images,
+            presentation.title,
+        )
+
+    def _reset_visibility(self) -> None:
+        """恢复当前结果全部来源类别可见。"""
+        if not self._result_count:
+            return
+        category_card = (
+            self.view.merge_operation_panel.operation_card.category_display_card
+        )
+        category_card.set_all_checked()
+        self._visible_cluster_indices = set(category_card.category_checkboxes)
+        presentation = self._workflow.render_result(
+            self.view._session,
+            self.view._slice_controller.current_slice_index,
+            self._current_result_index,
+            self._visible_cluster_indices,
+        )
+        self.view.merge_image_column.update_images(
+            presentation.images,
+            presentation.title,
+        )
+
+    def _clear_presentation(self) -> None:
+        """清空当前切片的合并结果展示状态。"""
+        self._visible_cluster_indices.clear()
+        self.view.merge_image_column.clear_images()
+        self.view.merge_operation_panel.operation_card.category_display_card.clear_categories()
+        self.view.merge_operation_panel.result_table_card.clear_rows()
 
     def _on_stage_started(
         self,
@@ -174,15 +261,13 @@ class MergeController(QObject):
         stage: str,
         slice_index: int | None,
     ) -> None:
-        """识别开始时立即失效目标切片的旧候选状态。"""
-        if (
-            session_id != self.view._session.session_id
-            or stage != "identifying"
-            or slice_index != self.view._slice_controller.current_slice_index
-        ):
+        """重新识别开始时失效当前切片旧计划和旧展示。"""
+        if not self._is_current_identify_event(session_id, stage, slice_index):
             return
-        self._merge_candidates = ()
-        self._current_candidate_index = 0
+        self._merge_groups = ()
+        self._result_count = 0
+        self._current_result_index = 0
+        self._clear_presentation()
         self._update_controls()
 
     def _on_stage_finished(
@@ -191,14 +276,25 @@ class MergeController(QObject):
         stage: str,
         slice_index: int | None,
     ) -> None:
-        """识别完成后重算当前切片的可合并候选。"""
+        """识别完成后立即判别完整合并计划。"""
         if (
             session_id != self.view._session.session_id
             or stage != "identifying"
-            or slice_index != self.view._slice_controller.current_slice_index
+            or slice_index is None
         ):
             return
-        self.refresh_current_slice_state(reset_index=True)
+        # 即使用户已切换到其它切片，也先为本次完成的切片保存判别计划。
+        self._workflow.prepare_merge_plan(
+            self.view._session,
+            slice_index,
+            force=True,
+        )
+        if slice_index != self.view._slice_controller.current_slice_index:
+            return
+        self.refresh_current_slice_state(
+            reset_index=True,
+            force_plan=False,
+        )
 
     def _on_stage_failed(
         self,
@@ -207,42 +303,51 @@ class MergeController(QObject):
         slice_index: int | None,
         _error_message: str,
     ) -> None:
-        """识别失败时保持目标切片合并菜单禁用。"""
-        if (
-            session_id != self.view._session.session_id
-            or stage != "identifying"
-            or slice_index != self.view._slice_controller.current_slice_index
-        ):
+        """识别失败时保持当前切片合并入口禁用。"""
+        if not self._is_current_identify_event(session_id, stage, slice_index):
             return
-        self._merge_candidates = ()
-        self._current_candidate_index = 0
+        self._merge_groups = ()
+        self._result_count = 0
+        self._current_result_index = 0
+        self._clear_presentation()
         self._update_controls()
+
+    def _is_current_identify_event(
+        self,
+        session_id: str,
+        stage: str,
+        slice_index: int | None,
+    ) -> bool:
+        """判断生命周期事件是否属于当前会话和切片。"""
+        return (
+            session_id == self.view._session.session_id
+            and stage == "identifying"
+            and slice_index == self.view._slice_controller.current_slice_index
+        )
 
     def merge_clusters(
         self,
         cluster_indices: Iterable[int],
     ) -> MergeWorkflowResult:
-        """合并当前切片中上层明确指定的识别类。
+        """兼容上层人工指定来源簇的单组合并入口。
 
         Args:
-            cluster_indices [Iterable[int]]: 来源簇编号，迭代顺序决定多颜色绘图顺序。
+            cluster_indices [Iterable[int]]: 原识别类簇编号。
 
         Returns:
-            MergeWorkflowResult: 合并、参数提取和绘图的完整执行结果。
-
-        Raises:
-            ValueError: 来源少于两个、包含重复编号或编号结构非法时抛出。
-
-        Example:
-            该入口由后续人工选择或合并准则调用：
-
-            >>> hasattr(MergeController, "merge_clusters")
-            True
+            MergeWorkflowResult: 单组合并结果。
         """
         execution = self._workflow.start_merge_by_indices(
             self.view._session,
             self.view._slice_controller.current_slice_index,
             cluster_indices,
         )
-        self._present_execution(execution)
+        if execution.success:
+            self._result_count = self._workflow.get_result_count(
+                self.view._session,
+                self.view._slice_controller.current_slice_index,
+            )
+            self._current_result_index = max(0, self._result_count - 1)
+            self._present_current_result(reset_visibility=True)
+            self._update_controls()
         return execution

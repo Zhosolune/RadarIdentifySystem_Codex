@@ -132,7 +132,7 @@ def rasterize_merge_dimension(
         raise ValueError("y_max 必须大于 y_min")
 
     # 按传入的顺序逐个 cluster 绘制
-    for order_idx, cluster_idx in enumerate(target_indices):
+    for cluster_idx in target_indices:
         # 越界保护
         if cluster_idx < 0 or cluster_idx >= len(cluster_data_list):
             continue
@@ -169,9 +169,9 @@ def rasterize_merge_dimension(
             & (scaled_y <= spec.img_height)
         )
         
-        # 将合法散点写进索引图，根据绘制顺序循环分配不同颜色标号
+        # 颜色绑定完整结果中的固定来源位置，显隐变化不得导致其它来源换色。
         if np.any(valid_mask):
-            color_value = color_indices[order_idx % len(color_indices)]
+            color_value = color_indices[cluster_idx % len(color_indices)]
             image[scaled_y[valid_mask] - 1, scaled_x[valid_mask] - 1] = color_value
             
     return image

@@ -52,8 +52,11 @@ class MergeOperationCard(SimpleCardWidget):
         )
         self.category_title_label.setFixedHeight(20)
         self.category_display_card = MergeCategoryDisplayCard(self)
+        self.category_display_card.height_changed.connect(
+            lambda _height: self._sync_height()
+        )
         self._init_layout()
-        self.setFixedHeight(self.sizeHint().height())
+        self._sync_height()
 
     def _init_layout(self) -> None:
         """纵向排列按钮区、外部标签和类别骨架卡片。"""
@@ -65,3 +68,8 @@ class MergeOperationCard(SimpleCardWidget):
         layout.addWidget(self.category_title_label)
         layout.addSpacing(5)
         layout.addWidget(self.category_display_card)
+
+    def _sync_height(self) -> None:
+        """根据动态类别控制卡片更新操作卡片高度。"""
+        self.layout().activate()
+        self.setFixedHeight(self.sizeHint().height())

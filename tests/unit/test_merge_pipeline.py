@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
 from PyQt6 import sip
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch, raises
+from qfluentwidgets import CheckBox
 
 from core.merge import MergePipeline, MergeTarget
 from core.models.algorithm_params import ExtractParams
@@ -19,6 +21,7 @@ from core.models.cluster_result import (
     SliceClusterResult,
 )
 from core.models.extraction_result import ExtractedClusterParams
+from core.models.merge_result import MergeGroup, SliceMergePlan, SliceMergeResult
 from core.models.processing_session import (
     ProcessingSession,
     ProcessingStage,
@@ -30,9 +33,11 @@ from core.models.recognition_result import (
     RecognitionResult,
     SliceRecognitionResult,
 )
+from infra.plotting.facades import resolve_merge_source_colors
 from runtime.workflows.merge_workflow import MergeWorkflow
 from ui.components.merge_image_column import MergeImageColumn
 from ui.controllers.merge_controller import MergeController
+from ui.interfaces.slice_interface import SliceInterface
 
 
 _APP: QApplication | None = None
@@ -122,6 +127,95 @@ def _session_with_source_results() -> ProcessingSession:
     session.mark_slice_cluster_succeeded(0)
     session.mark_slice_recognition_succeeded(0)
     return session
+
+
+def _session_with_four_source_results() -> ProcessingSession:
+    """构造包含四个识别通过类的测试session。"""
+    clusters: list[ClusterItem] = []
+    recognitions: list[ClusterRecognition] = []
+    for cluster_index in range(1, 5):
+        base_cf = 4500.0 + cluster_index * 300.0
+        base_toa = 100.0 + cluster_index * 300.0
+        points = np.array(
+            [
+                [base_cf, cluster_index, 20.0, 40.0, 50.0, base_toa],
+                [
+                    base_cf + 1.0,
+                    cluster_index + 0.1,
+                    21.0,
+                    41.0,
+                    51.0,
+                    base_toa + 100.0,
+                ],
+            ]
+        )
+        clusters.append(_cluster(cluster_index, points))
+        recognitions.append(_recognition(cluster_index))
+    session = ProcessingSession()
+    session.reset_slice_processing_states(1)
+    session.cluster_result = ClusteringResult(
+        slice_results={
+            0: SliceClusterResult(slice_idx=0, clusters=clusters),
+        }
+    )
+    session.recognition_result = RecognitionResult(
+        slice_results={
+            0: SliceRecognitionResult(
+                slice_index=0,
+                valid_clusters=recognitions,
+            ),
+        }
+    )
+    session.mark_slice_cluster_succeeded(0)
+    session.mark_slice_recognition_succeeded(0)
+    return session
+
+
+class _FixedBatchStrategy:
+    """把四个测试类固定划分为两个互斥合并组。"""
+
+    strategy_id = "fixed_batch_v1"
+
+    def build_plan(
+        self,
+        slice_cluster_result: SliceClusterResult,
+        _slice_recognition_result: SliceRecognitionResult,
+    ) -> SliceMergePlan:
+        """返回两组固定合并计划。"""
+        slice_index = slice_cluster_result.slice_idx
+        return SliceMergePlan(
+            slice_index=slice_index,
+            strategy_id=self.strategy_id,
+            groups=(
+                MergeGroup(slice_index, (1, 2)),
+                MergeGroup(slice_index, (3, 4)),
+            ),
+        )
+
+
+class _FixedSingleStrategy:
+    """把两个测试类固定为一个合并结果。"""
+
+    strategy_id = "fixed_single_v1"
+
+    def build_plan(
+        self,
+        slice_cluster_result: SliceClusterResult,
+        _slice_recognition_result: SliceRecognitionResult,
+    ) -> SliceMergePlan:
+        """返回单组固定合并计划。"""
+        slice_index = slice_cluster_result.slice_idx
+        return SliceMergePlan(
+            slice_index=slice_index,
+            strategy_id=self.strategy_id,
+            groups=(MergeGroup(slice_index, (1, 2)),),
+        )
+
+
+class _AlternateSingleStrategy(_FixedSingleStrategy):
+    """使用不同标识模拟运行时切换的新准则。"""
+
+    strategy_id = "alternate_single_v1"
 
 
 def test_merge_pipeline_concatenates_points_and_only_reextracts_parameters(
@@ -239,26 +333,47 @@ def test_merge_workflow_records_failure_without_overwriting_results() -> None:
 
 
 def test_reidentify_invalidation_clears_only_target_slice_merge_results() -> None:
-    """重新识别前应只清除目标切片依赖旧识别结果的合并产物。"""
-    session = _session_with_source_results()
-    execution = MergeWorkflow().start_merge(
-        session,
-        MergeTarget(slice_index=0, cluster_indices=(1, 2)),
-    )
+    """重新识别前应同时清除目标切片的合并计划和独立结果。"""
+    session = _session_with_four_source_results()
+    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+    plan = workflow.prepare_merge_plan(session, 0)
+    execution = workflow.execute_merge_plan(session, 0)
+
+    assert plan is not None
     assert execution.success
+    assert session.merge_plan is not None
+    assert session.merge_result is not None
+
+    # 构造另一个切片的独立计划与结果，验证目标切片失效不会误删相邻切片。
+    session.merge_plan.slice_plans[1] = SliceMergePlan(
+        slice_index=1,
+        strategy_id="other_slice_v1",
+        groups=(MergeGroup(1, (1, 2)),),
+    )
+    session.merge_result.slice_results[1] = SliceMergeResult(
+        slice_index=1,
+        merged_clusters=[
+            replace(result, slice_index=1)
+            for result in session.merge_result.slice_results[0].merged_clusters
+        ],
+    )
 
     session.clear_slice_merge_results(0)
 
-    assert session.merge_result is None
+    assert session.merge_plan is not None
+    assert set(session.merge_plan.slice_plans) == {1}
+    assert session.merge_result is not None
+    assert set(session.merge_result.slice_results) == {1}
     state = session.get_slice_processing_state(0)
     assert state.merge_status is SliceProcessStatus.NOT_STARTED
     assert state.last_merge_error is None
 
 
-def test_merge_controller_is_explicit_target_boundary_and_updates_image_column() -> None:
-    """控制器应接收明确簇编号并把成功结果交给合并图像列。"""
-    session = _session_with_source_results()
-    updates: list[tuple[object, object]] = []
+def test_merge_controller_executes_full_plan_and_browses_results() -> None:
+    """控制器应一次执行完整计划，并用上一类下一类浏览结果。"""
+    session = _session_with_four_source_results()
+    image_updates: list[tuple[dict[str, np.ndarray], str]] = []
+    table_updates: list[tuple[tuple[str, str], ...]] = []
 
     class FakeSignal:
         """提供控制器连接所需的最小信号接口。"""
@@ -270,6 +385,11 @@ def test_merge_controller_is_explicit_target_boundary_and_updates_image_column()
         def connect(self, slot: object) -> None:
             """记录一个待调用槽函数。"""
             self.slots.append(slot)
+
+        def emit(self, *args: object) -> None:
+            """同步调用全部槽函数。"""
+            for slot in self.slots:
+                slot(*args)
 
     class FakeButton:
         """提供控制器状态同步所需的最小按钮接口。"""
@@ -292,6 +412,47 @@ def test_merge_controller_is_explicit_target_boundary_and_updates_image_column()
             """更新当前启用状态。"""
             self.enabled = enabled
 
+    class FakeCategoryCard:
+        """记录动态类别与显隐状态。"""
+
+        def __init__(self) -> None:
+            """初始化伪类别卡。"""
+            self.visibility_changed = FakeSignal()
+            self.category_checkboxes: dict[int, FakeButton] = {}
+
+        def set_categories(
+            self,
+            categories: tuple[tuple[int, tuple[int, int, int]], ...],
+            checked_indices: tuple[int, ...],
+        ) -> None:
+            """保存当前来源类别。"""
+            checked_set = set(checked_indices)
+            self.category_checkboxes = {
+                index: FakeButton() for index, _color in categories
+            }
+            for index, checkbox in self.category_checkboxes.items():
+                checkbox.setChecked(index in checked_set)
+
+        def clear_categories(self) -> None:
+            """清空当前来源类别。"""
+            self.category_checkboxes.clear()
+
+        def set_all_checked(self) -> None:
+            """把全部来源类别恢复为选中。"""
+            for checkbox in self.category_checkboxes.values():
+                checkbox.setChecked(True)
+
+    class FakeResultTable:
+        """记录当前结果表格内容。"""
+
+        def update_rows(self, rows: tuple[tuple[str, str], ...]) -> None:
+            """保存表格行。"""
+            table_updates.append(rows)
+
+        def clear_rows(self) -> None:
+            """清空表格行。"""
+            table_updates.clear()
+
     class FakeView(QObject):
         """提供合并控制器所需最小页面接口。"""
 
@@ -306,8 +467,13 @@ def test_merge_controller_is_explicit_target_boundary_and_updates_image_column()
                 next_cluster_button=FakeButton(),
                 reset_button=FakeButton(),
             )
+            category_card = FakeCategoryCard()
             self.merge_operation_panel = SimpleNamespace(
-                operation_card=SimpleNamespace(button_bar=button_bar)
+                operation_card=SimpleNamespace(
+                    button_bar=button_bar,
+                    category_display_card=category_card,
+                ),
+                result_table_card=FakeResultTable(),
             )
             self.right_panel = SimpleNamespace(
                 navigation_control_card=SimpleNamespace(
@@ -315,114 +481,154 @@ def test_merge_controller_is_explicit_target_boundary_and_updates_image_column()
                 )
             )
             self.merge_image_column = SimpleNamespace(
-                update_from_merge=lambda bundle, result: updates.append(
-                    (bundle, result)
-                )
+                update_images=lambda images, title: image_updates.append(
+                    (images, title)
+                ),
+                clear_images=lambda: image_updates.clear(),
             )
 
     view = FakeView()
     controller = MergeController(view)
 
-    class ControllerFixedStrategy:
-        """为控制器提供固定候选的测试准则。"""
-
-        strategy_id = "controller_fixed_v1"
-
-        def build_targets(
-            self,
-            slice_cluster_result: SliceClusterResult,
-            _slice_recognition_result: SliceRecognitionResult,
-        ) -> tuple[MergeTarget, ...]:
-            """返回固定的第1、2类合并目标。"""
-            return (
-                MergeTarget(
-                    slice_index=slice_cluster_result.slice_idx,
-                    cluster_indices=(1, 2),
-                ),
-            )
-
     try:
         assert not view.right_panel.navigation_control_card.merge_menu_button.enabled
-        controller.set_strategy(ControllerFixedStrategy())
+        controller.set_strategy(_FixedBatchStrategy())
         assert view.right_panel.navigation_control_card.merge_menu_button.enabled
 
-        controller._merge_current_candidate()
+        controller._execute_merge_plan()
 
         assert session.merge_result is not None
-        merged_result = session.merge_result.slice_results[0].merged_clusters[0]
-        assert merged_result.strategy_id == "controller_fixed_v1"
-        assert len(updates) == 1
-        assert updates[0][1] is merged_result
-        assert not view.right_panel.navigation_control_card.merge_menu_button.enabled
+        results = session.merge_result.slice_results[0].merged_clusters
+        assert [result.source_cluster_indices for result in results] == [
+            (1, 2),
+            (3, 4),
+        ]
+        assert all(result.strategy_id == "fixed_batch_v1" for result in results)
+        button_bar = view.merge_operation_panel.operation_card.button_bar
+        assert view.right_panel.navigation_control_card.merge_menu_button.enabled
+        assert not button_bar.merge_button.enabled
+        assert not button_bar.prev_cluster_button.enabled
+        assert button_bar.next_cluster_button.enabled
+        assert "第1/2组" in image_updates[-1][1]
+
+        controller._show_next_result()
+
+        assert button_bar.prev_cluster_button.enabled
+        assert not button_bar.next_cluster_button.enabled
+        assert "第2/2组" in image_updates[-1][1]
+        assert set(
+            view.merge_operation_panel.operation_card.category_display_card.category_checkboxes
+        ) == {3, 4}
+        assert table_updates
     finally:
         sip.delete(view)
 
 
-def test_merge_workflow_supports_strategy_switch_and_filters_completed_target() -> None:
-    """runtime应允许替换准则，并过滤已经执行的同来源候选。"""
-    session = _session_with_source_results()
+def test_merge_workflow_executes_full_plan_without_mutating_recognition() -> None:
+    """runtime应一次执行全部分组，并保持识别结果对象与内容不变。"""
+    session = _session_with_four_source_results()
+    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+    recognition_result = session.recognition_result
+    assert recognition_result is not None
+    recognition_slice = recognition_result.slice_results[0]
+    recognition_items = tuple(recognition_slice.valid_clusters)
 
-    class FixedStrategy:
-        """始终返回第1、2类作为候选的测试准则。"""
+    assert workflow.strategy_id == "fixed_batch_v1"
+    assert workflow.get_merge_groups(session, 0) == ((1, 2), (3, 4))
 
-        strategy_id = "fixed_test_v1"
-
-        def build_targets(
-            self,
-            slice_cluster_result: SliceClusterResult,
-            _slice_recognition_result: SliceRecognitionResult,
-        ) -> tuple[MergeTarget, ...]:
-            """返回固定来源目标。"""
-            return (
-                MergeTarget(
-                    slice_index=slice_cluster_result.slice_idx,
-                    cluster_indices=(1, 2),
-                ),
-            )
-
-    workflow = MergeWorkflow(strategy=FixedStrategy())
-
-    assert workflow.strategy_id == "fixed_test_v1"
-    assert workflow.find_merge_candidates(session, 0) == ((1, 2),)
-
-    # 识别失败时旧结果仍在session，但runtime不得重新暴露陈旧候选。
+    # 识别失败时即使旧对象仍在session，也不得暴露旧计划。
     session.mark_slice_recognition_failed(0, "测试识别失败")
-    assert workflow.find_merge_candidates(session, 0) == ()
+    assert workflow.get_merge_groups(session, 0) == ()
     session.mark_slice_recognition_succeeded(0)
 
-    execution = workflow.start_strategy_merge_by_indices(session, 0, (1, 2))
+    execution = workflow.execute_merge_plan(session, 0)
 
     assert execution.success
-    assert execution.merge_result is not None
-    assert execution.merge_result.strategy_id == "fixed_test_v1"
-    assert workflow.find_merge_candidates(session, 0) == ()
+    assert execution.result_count == 2
+    assert session.recognition_result is recognition_result
+    assert tuple(recognition_slice.valid_clusters) == recognition_items
+    assert workflow.get_merge_groups(session, 0) == ((1, 2), (3, 4))
 
-    duplicate = workflow.start_strategy_merge_by_indices(session, 0, (2, 1))
+    duplicate = workflow.execute_merge_plan(session, 0)
     assert not duplicate.success
-    assert "不能重复执行" in duplicate.error_message
+    assert "已经执行" in duplicate.error_message
     assert session.merge_result is not None
-    assert len(session.merge_result.slice_results[0].merged_clusters) == 1
+    assert len(session.merge_result.slice_results[0].merged_clusters) == 2
+
+
+def test_batch_merge_failure_does_not_write_partial_results(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """整批执行任一步失败时不应写入半完成结果。"""
+    session = _session_with_four_source_results()
+    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+    workflow.prepare_merge_plan(session, 0)
+
+    def fail_run_plan(*_args: object, **_kwargs: object) -> object:
+        """模拟批量执行中途失败。"""
+        raise ValueError("模拟第二组合并失败")
+
+    monkeypatch.setattr(MergePipeline, "run_plan", fail_run_plan)
+
+    execution = workflow.execute_merge_plan(session, 0)
+
+    assert not execution.success
+    assert "模拟第二组合并失败" in execution.error_message
+    assert session.merge_result is None
+    assert (
+        session.get_slice_processing_state(0).merge_status
+        is SliceProcessStatus.FAILED
+    )
+
+
+def test_batch_merge_discards_results_when_recognition_changes(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """批量执行期间来源识别失效时不得写回旧计划结果。"""
+    session = _session_with_four_source_results()
+    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+    workflow.prepare_merge_plan(session, 0)
+    original_run_plan = MergePipeline.run_plan
+
+    def invalidate_after_run(
+        pipeline: MergePipeline,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        """先生成结果，再模拟目标切片进入重新识别。"""
+        results = original_run_plan(pipeline, *args, **kwargs)
+        session.mark_slice_recognition_running(0)
+        session.clear_slice_merge_results(0)
+        return results
+
+    monkeypatch.setattr(MergePipeline, "run_plan", invalidate_after_run)
+
+    execution = workflow.execute_merge_plan(session, 0)
+
+    assert not execution.success
+    assert "来源或计划已变化" in execution.error_message
+    assert session.merge_result is None
+    assert (
+        session.get_slice_processing_state(0).merge_status
+        is SliceProcessStatus.NOT_STARTED
+    )
 
 
 def test_merge_image_column_displays_rgb_bundle_from_workflow() -> None:
-    """合并图像列应显示工作流生成的五维 RGB 图像。"""
+    """合并图像列应显示runtime呈现数据中的五维RGB图像。"""
     _app()
-    session = _session_with_source_results()
-    execution = MergeWorkflow().start_merge(
-        session,
-        MergeTarget(slice_index=0, cluster_indices=(1, 2)),
-    )
+    session = _session_with_four_source_results()
+    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+    workflow.prepare_merge_plan(session, 0)
+    execution = workflow.execute_merge_plan(session, 0)
+    presentation = workflow.render_result(session, 0, 0)
     column = MergeImageColumn()
 
     try:
-        assert execution.merge_result is not None
-        assert execution.rendered_bundle is not None
-        column.update_from_merge(
-            execution.rendered_bundle,
-            execution.merge_result,
-        )
+        assert execution.success
+        column.update_images(presentation.images, presentation.title)
 
-        assert column.title_label.text() == "合并结果 第1组（原第1+2类）"
+        assert column.title_label.text() == "合并结果 第1/2组（原第1+2类）"
         assert all(
             card._source_image is not None for card in column.dimension_cards
         )
@@ -432,3 +638,135 @@ def test_merge_image_column_displays_rgb_bundle_from_workflow() -> None:
         )
     finally:
         sip.delete(column)
+
+
+def test_hiding_merge_source_preserves_other_source_color() -> None:
+    """隐藏一个来源后，其余来源的固定颜色不得重新分配。"""
+    session = _session_with_four_source_results()
+    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+    workflow.prepare_merge_plan(session, 0)
+    execution = workflow.execute_merge_plan(session, 0)
+    assert execution.success
+
+    full = workflow.render_result(session, 0, 0)
+    hidden = workflow.render_result(session, 0, 0, visible_cluster_indices=(2,))
+
+    assert [category.color for category in full.categories] == [
+        category.color for category in hidden.categories
+    ]
+    second_color = np.asarray(full.categories[1].color, dtype=np.uint8)
+    assert np.any(np.all(full.images["CF"] == second_color, axis=2))
+    assert np.any(np.all(hidden.images["CF"] == second_color, axis=2))
+    first_color = np.asarray(full.categories[0].color, dtype=np.uint8)
+    assert not np.any(np.all(hidden.images["CF"] == first_color, axis=2))
+    assert hidden.categories[0].visible is False
+    assert hidden.categories[1].visible is True
+
+
+def test_merge_palette_assigns_distinct_colors_beyond_default_capacity() -> None:
+    """来源超过默认色板容量时仍应为每类分配不同颜色。"""
+    colors = resolve_merge_source_colors(12)
+
+    assert len(colors) == 12
+    assert len(set(colors)) == 12
+
+
+def test_single_result_keeps_cd_and_uses_binary_category_controls(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """单结果合并后应保持C+D，并用双态复选框控制来源显隐。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda _model_type: [],
+    )
+    interface = SliceInterface(session=_session_with_source_results())
+
+    try:
+        interface.resize(1500, 900)
+        interface.show()
+        QApplication.processEvents()
+        interface.image_workspace.setScrollAnimation(Qt.Orientation.Horizontal, 0)
+        interface._merge_controller.set_strategy(_FixedSingleStrategy())
+        menu_button = (
+            interface.right_panel.navigation_control_card.merge_menu_button
+        )
+        button_bar = interface.merge_operation_panel.operation_card.button_bar
+
+        assert menu_button.isEnabled()
+        menu_button.click()
+        QApplication.processEvents()
+        assert menu_button.isChecked()
+        assert interface.image_workspace.is_merge_active()
+
+        button_bar.merge_button.click()
+        QApplication.processEvents()
+
+        assert menu_button.isEnabled()
+        assert menu_button.isChecked()
+        assert interface.image_workspace.is_merge_active()
+        assert interface.image_workspace.current_pair_index() == 2
+        assert not button_bar.merge_button.isEnabled()
+        assert not button_bar.prev_cluster_button.isEnabled()
+        assert not button_bar.next_cluster_button.isEnabled()
+        category_card = (
+            interface.merge_operation_panel.operation_card.category_display_card
+        )
+        assert set(category_card.category_checkboxes) == {1, 2}
+        assert all(
+            isinstance(checkbox, CheckBox) and not checkbox.isTristate()
+            for checkbox in category_card.category_checkboxes.values()
+        )
+        assert len(set(category_card.category_colors.values())) == 2
+
+        category_card.category_checkboxes[1].setChecked(False)
+        QApplication.processEvents()
+        assert category_card.visible_cluster_indices() == (2,)
+
+        button_bar.reset_button.click()
+        QApplication.processEvents()
+        assert category_card.visible_cluster_indices() == (1, 2)
+
+        # 切换准则只清除派生计划/结果，原识别结果保持不变并可重新执行。
+        recognition_result = interface._session.recognition_result
+        interface._merge_controller.set_strategy(_AlternateSingleStrategy())
+        assert interface._session.recognition_result is recognition_result
+        assert interface._session.merge_result is None
+        assert menu_button.isEnabled()
+        assert menu_button.isChecked()
+        assert button_bar.merge_button.isEnabled()
+    finally:
+        sip.delete(interface)
+
+
+def test_identify_finished_prepares_plan_for_non_current_slice(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """识别完成事件应为非当前切片立即保存合并计划。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda _model_type: [],
+    )
+    session = _session_with_source_results()
+    interface = SliceInterface(session=session)
+
+    try:
+        interface._merge_controller._workflow.set_strategy(_FixedSingleStrategy())
+        session.merge_plan = None
+        interface._slice_controller._current_slice_index = 1
+
+        interface._merge_controller._on_stage_finished(
+            session.session_id,
+            "identifying",
+            0,
+        )
+
+        assert session.merge_plan is not None
+        assert session.merge_plan.slice_plans[0].strategy_id == "fixed_single_v1"
+        assert [
+            group.cluster_indices
+            for group in session.merge_plan.slice_plans[0].groups
+        ] == [(1, 2)]
+    finally:
+        sip.delete(interface)
