@@ -42,6 +42,7 @@ def resolve_merge_source_colors(
     """
     if source_count < 0:
         raise ValueError("source_count 不能为负数")
+    # 颜色按完整结果中的来源位置解析，不受当前可见子集的顺序影响。
     palette_obj = palette or build_merge_palette(source_count)
     color_indices = sorted(index for index in palette_obj.colors if index > 0)
     if not color_indices and source_count:
@@ -73,6 +74,7 @@ def build_merge_palette(source_count: int) -> MergePalette:
     """
     if not 0 <= source_count <= 255:
         raise ValueError("source_count 必须位于0到255之间")
+    # 优先沿用项目默认颜色，保证常见少类别场景的视觉风格保持不变。
     base_colors = [
         _DEFAULT_MERGE_PALETTE.colors[index]
         for index in sorted(_DEFAULT_MERGE_PALETTE.colors)
@@ -84,6 +86,7 @@ def build_merge_palette(source_count: int) -> MergePalette:
         if position < len(base_colors):
             rgb = base_colors[position]
         else:
+            # 黄金分割步长可将新增颜色均匀散布在色相环上，并保持确定性。
             hue = (position * 0.618033988749895) % 1.0
             red, green, blue = hsv_to_rgb(hue, 0.72, 1.0)
             rgb = (

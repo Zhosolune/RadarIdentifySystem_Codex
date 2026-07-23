@@ -130,6 +130,7 @@ class MergeWorkflow(QObject):
         self._strategy: MergeStrategy = (
             DefaultMergeStrategy() if strategy is None else strategy
         )
+        # 在工作流边界校验最小插件契约，避免错误准则延迟到识别完成后才暴露。
         self._validate_strategy(self._strategy)
 
     @property
@@ -183,6 +184,8 @@ class MergeWorkflow(QObject):
         if strategy.strategy_id == previous_strategy_id:
             return False
         with session.lock:
+            # 计划和结果都是旧准则的派生产物；切换时只清理当前切片，
+            # 聚类与识别结果继续保留，随后可直接基于新准则重新判别。
             self._strategy = strategy
             session.clear_slice_merge_results(slice_index)
         return True
@@ -212,6 +215,7 @@ class MergeWorkflow(QObject):
         if not session.is_slice_recognized(slice_index):
             return None
 
+        # 同一准则的已有计划可直接复用，避免界面刷新时反复执行合并判别。
         existing = (
             session.merge_plan.slice_plans.get(slice_index)
             if session.merge_plan is not None
@@ -227,12 +231,15 @@ class MergeWorkflow(QObject):
         source_results = self._find_source_results(session, slice_index)
         if source_results is None:
             return None
+
+        # 准则只读取当前切片的聚类与识别结果，并返回独立的派生计划。
         plan = self._build_plan(*source_results)
         if plan.slice_index != slice_index:
             raise ValueError("合并准则返回了错误的切片索引")
         with session.lock:
             if session.merge_plan is None:
                 session.merge_plan = MergePlan()
+            # 切片索引是计划唯一槽位；强制重算时原位替换旧派生计划。
             session.merge_plan.slice_plans[slice_index] = plan
         return plan
 
@@ -252,6 +259,9 @@ class MergeWorkflow(QObject):
 
         Returns:
             tuple[tuple[int, ...], ...]: 全部互斥合并分组。
+
+        Raises:
+            ValueError: 切片索引为负数或准则返回跨切片计划时抛出。
         """
         plan = self.prepare_merge_plan(session, slice_index, force=force)
         if plan is None:
@@ -271,6 +281,9 @@ class MergeWorkflow(QObject):
 
         Returns:
             tuple[tuple[int, ...], ...]: 全部互斥合并分组。
+
+        Raises:
+            ValueError: 切片索引为负数或准则返回跨切片计划时抛出。
         """
         return self.get_merge_groups(session, slice_index)
 
@@ -288,6 +301,7 @@ class MergeWorkflow(QObject):
         Returns:
             MergeBatchWorkflowResult: 整批执行结果。
         """
+        # 一个切片的完整计划只允许批量执行一次，已有结果时拒绝覆盖。
         existing_count = self.get_result_count(session, slice_index)
         if existing_count:
             return MergeBatchWorkflowResult(
@@ -307,6 +321,7 @@ class MergeWorkflow(QObject):
             session.mark_slice_merge_running(slice_index)
 
         try:
+            # 锁外执行点云拼接和参数提取，避免长时间阻塞其它session状态读取。
             slice_clusters, slice_recognitions = self._get_source_results(
                 session,
                 slice_index,
@@ -320,7 +335,7 @@ class MergeWorkflow(QObject):
             if not merged_results:
                 raise ValueError("合并计划没有生成任何结果")
 
-            # 写回前验证每个结果都可绘制，任一失败都不留下半批结果。
+            # 先验证整批每个结果都可绘制；任一失败时一个结果也不写入session。
             for merged in merged_results:
                 palette = build_merge_palette(len(merged.source_point_clouds))
                 render_merge_images(
@@ -331,6 +346,8 @@ class MergeWorkflow(QObject):
                 )
 
             with session.lock:
+                # 重新读取来源和计划，并用对象身份检查执行期间是否发生重新识别、
+                # 策略切换或计划重建，防止异步旧结果污染新一代数据。
                 current_sources = self._find_source_results(session, slice_index)
                 current_plan = (
                     session.merge_plan.slice_plans.get(slice_index)
@@ -348,6 +365,8 @@ class MergeWorkflow(QObject):
                     raise ValueError("合并执行期间来源或计划已变化，已放弃旧计划结果")
                 if session.merge_result is None:
                     session.merge_result = MergeResult()
+
+                # 全部计算和代次校验成功后一次性替换切片结果，保证批量写回原子性。
                 session.merge_result.slice_results[slice_index] = SliceMergeResult(
                     slice_index=slice_index,
                     merged_clusters=list(merged_results),
@@ -432,6 +451,8 @@ class MergeWorkflow(QObject):
 
         result = slice_result.merged_clusters[result_index]
         source_indices = result.source_cluster_indices
+
+        # UI传入的是业务簇编号；绘图引擎使用来源点云在结果内的0-based位置。
         visible_set = (
             None
             if visible_cluster_indices is None
@@ -447,6 +468,7 @@ class MergeWorkflow(QObject):
             ]
         )
         palette = build_merge_palette(len(source_indices))
+        # 调色板由完整来源数生成，类别隐藏后其它类别仍使用原位置颜色。
         colors = resolve_merge_source_colors(
             len(source_indices),
             palette=palette,
@@ -501,6 +523,9 @@ class MergeWorkflow(QObject):
 
         Returns:
             MergeWorkflowResult: 单组合并结果。
+
+        Raises:
+            ValueError: 来源簇数量、编号或切片索引不合法时抛出。
         """
         return self.start_merge(
             session,
@@ -526,6 +551,9 @@ class MergeWorkflow(QObject):
 
         Returns:
             MergeWorkflowResult: 单组合并结果。
+
+        Raises:
+            ValueError: 来源簇数量、编号或切片索引不合法时抛出。
         """
         return self.start_merge(
             session,
@@ -552,6 +580,7 @@ class MergeWorkflow(QObject):
         Returns:
             MergeWorkflowResult: 单组合并和绘图结果。
         """
+        # 来源集合按无序集合判重，人工以不同排列提交也不能重复生成相同结果。
         if frozenset(target.cluster_indices) in self._completed_source_sets(
             session,
             target.slice_index,
@@ -569,6 +598,7 @@ class MergeWorkflow(QObject):
         with session.lock:
             session.mark_slice_merge_running(target.slice_index)
         try:
+            # 兼容入口仍生成独立合并结果，不会从识别结果中删除任何来源簇。
             slice_clusters, slice_recognitions = self._get_source_results(
                 session,
                 target.slice_index,

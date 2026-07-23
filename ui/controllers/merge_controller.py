@@ -34,6 +34,8 @@ class MergeController(QObject):
         super().__init__(view)
         self.view = view
         self._workflow = MergeWorkflow(self)
+
+        # 计划分组与执行结果是两套状态：有计划时允许执行，有结果时允许浏览。
         self._merge_groups: tuple[tuple[int, ...], ...] = ()
         self._result_count = 0
         self._current_result_index = 0
@@ -70,6 +72,7 @@ class MergeController(QObject):
             self.view._slice_controller.current_slice_index,
             strategy,
         )
+        # 切换策略会失效旧派生数据，当前切片随后立即按新策略重新判别。
         self.refresh_current_slice_state(
             reset_index=True,
             force_plan=True,
@@ -99,6 +102,8 @@ class MergeController(QObject):
             self.view._session,
             slice_index,
         )
+
+        # 切片切换或识别完成时从第一项开始；普通刷新则尽量保留当前浏览位置。
         if reset_index:
             self._current_result_index = 0
         elif self._result_count:
@@ -120,12 +125,16 @@ class MergeController(QObject):
         has_plan = bool(self._merge_groups)
         has_results = self._result_count > 0
         menu_button = self.view.right_panel.navigation_control_card.merge_menu_button
+
+        # 合并菜单默认禁用；当前切片存在可执行计划或已有合并结果时才可进入C+D。
         can_open_merge = has_plan or has_results
         if not can_open_merge and menu_button.isChecked():
             menu_button.setChecked(False)
         menu_button.setEnabled(can_open_merge)
 
         button_bar = self.view.merge_operation_panel.operation_card.button_bar
+
+        # 完整计划只执行一次；结果导航按钮依据当前浏览位置分别控制。
         button_bar.merge_button.setEnabled(has_plan and not has_results)
         button_bar.prev_cluster_button.setEnabled(
             has_results and self._current_result_index > 0
@@ -154,6 +163,8 @@ class MergeController(QObject):
         if not execution.success:
             self._update_controls()
             return
+
+        # 批量工作流已一次生成全部结果，界面默认呈现第一组且不退出C+D。
         self._result_count = execution.result_count
         self._current_result_index = 0
         self._present_current_result(reset_visibility=True)
@@ -175,6 +186,7 @@ class MergeController(QObject):
 
     def _present_current_result(self, *, reset_visibility: bool) -> None:
         """同步当前结果的图像、类别复选框和参数表。"""
+        # 切换合并结果时恢复全部来源可见；同一结果内显隐刷新则沿用当前集合。
         visible_indices = None if reset_visibility else self._visible_cluster_indices
         presentation = self._workflow.render_result(
             self.view._session,
@@ -186,6 +198,8 @@ class MergeController(QObject):
             self._visible_cluster_indices = {
                 category.cluster_index for category in presentation.categories
             }
+
+        # runtime一次返回完整呈现模型，UI不直接读取core合并结果或调用绘图层。
         self.view.merge_image_column.update_images(
             presentation.images,
             presentation.title,
@@ -217,6 +231,8 @@ class MergeController(QObject):
             self._visible_cluster_indices.add(cluster_index)
         else:
             self._visible_cluster_indices.discard(cluster_index)
+
+        # 只把可见簇集合交回runtime重绘，不修改已保存的合并点云和识别结果。
         presentation = self._workflow.render_result(
             self.view._session,
             self.view._slice_controller.current_slice_index,
@@ -235,6 +251,8 @@ class MergeController(QObject):
         category_card = (
             self.view.merge_operation_panel.operation_card.category_display_card
         )
+
+        # 先阻断复选框信号批量复位，再统一触发一次重绘，避免每项重复绘图。
         category_card.set_all_checked()
         self._visible_cluster_indices = set(category_card.category_checkboxes)
         presentation = self._workflow.render_result(
@@ -267,6 +285,8 @@ class MergeController(QObject):
         self._merge_groups = ()
         self._result_count = 0
         self._current_result_index = 0
+
+        # 新识别代次开始后，旧计划和旧结果均不可继续展示或执行。
         self._clear_presentation()
         self._update_controls()
 
@@ -283,7 +303,8 @@ class MergeController(QObject):
             or slice_index is None
         ):
             return
-        # 即使用户已切换到其它切片，也先为本次完成的切片保存判别计划。
+        # 即使用户已切换到其它切片，也先为本次完成的切片保存判别计划；
+        # 用户稍后返回该切片时无需重新识别或临时等待判别。
         self._workflow.prepare_merge_plan(
             self.view._session,
             slice_index,

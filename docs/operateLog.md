@@ -1,5 +1,32 @@
 # 变更记录
 
+- 时间：2026-07-23 11:30
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge_strategy.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\merge_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_category_display_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\engine.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\facades.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：补齐合并功能关键算法分支、批量原子写回、界面状态同步和多颜色绘图的中文注释。
+- 原因：原实现虽有函数级docstring，但核心分支和跨层状态约束的行内注释不足，不符合项目当前代码注释规范。
+- 计划：
+  - [x] 按TOA/PRI/CF/PA/DOA/PDOA规则分支补充与业务条款对应的中文注释。
+  - [x] 补充计划生成、批量校验写回、结果浏览、显隐控制及颜色稳定性的关键过程注释。
+  - [x] 复查本次合并相关公共接口docstring、类型注解和异常说明。
+  - [x] 运行聚焦测试、`py_compile`、doctest和差异检查。
+- 验证结果：
+  - 合并准则、批量执行、结果浏览、双态显隐和界面状态聚焦测试：`29 passed, 8 deselected, 1 warning`。
+  - 包含既有旧布局索引断言的合并相关测试：`29 passed, 1 failed, 7 deselected, 1 warning`；失败项仍为操作卡片加入间距项后的旧`layout().indexOf(...)`断言，与本次纯注释修改无关。
+  - 本次12个Python变更文件的模块、类和函数docstring完整性审查：通过。
+  - `py_compile`、core/runtime/infra doctest与`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-23 10:40
 - 操作类型：[重构]
 - 影响文件：

@@ -34,6 +34,7 @@ class MergeGroup:
 
     def __post_init__(self) -> None:
         """校验合并分组的结构约束。"""
+        # 模型入口统一拒绝非法分组，避免runtime和core分别维护重复校验。
         if self.slice_index < 0:
             raise ValueError("slice_index 不能为负数")
         if len(self.cluster_indices) < 2:
@@ -74,6 +75,7 @@ class SliceMergePlan:
             raise ValueError("slice_index 不能为负数")
         if not self.strategy_id.strip():
             raise ValueError("strategy_id 不能为空")
+        # 逐组累计已占用簇编号，保证一次批量计划不会重复消费同一来源簇。
         seen_indices: set[int] = set()
         for group in self.groups:
             if group.slice_index != self.slice_index:

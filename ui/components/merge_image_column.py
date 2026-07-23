@@ -145,6 +145,7 @@ class MergeImageColumn(QWidget):
         self.title_label.setText(title)
         for dimension, card in self.cards_by_dimension.items():
             image_data = images.get(dimension)
+            # runtime可能只返回部分维度；缺失项必须清空，不能保留上一结果旧图。
             if image_data is None:
                 card.clear_image()
                 continue
@@ -154,6 +155,7 @@ class MergeImageColumn(QWidget):
                 or image_data.dtype.name != "uint8"
             ):
                 raise ValueError(f"{dimension} 合并图像必须为 H×W×3 的 uint8 RGB 数组")
+            # NumPy数组采用连续RGB三通道布局，每行字节数固定为width * 3。
             height, width, _channels = image_data.shape
             q_image = QImage(
                 image_data.data,
@@ -162,6 +164,7 @@ class MergeImageColumn(QWidget):
                 width * 3,
                 QImage.Format.Format_RGB888,
             )
+            # 卡片负责持有QImage并刷新独立窗口标题，UI层不参与再次绘图。
             card.set_image(q_image)
             card.set_snapshot_window_title(
                 f"{title} - {_DIMENSION_DISPLAY_NAMES[dimension]}"

@@ -80,11 +80,13 @@ class MergePipeline:
         if slice_recognition_result.slice_index != target.slice_index:
             raise ValueError("识别结果与合并目标的切片索引不一致")
 
+        # 先按target顺序解析两类来源，确保点云、原索引和识别记录位置严格对应。
         source_clusters, source_recognitions = self._resolve_sources(
             target,
             slice_cluster_result,
             slice_recognition_result,
         )
+        # 合并结果使用新数组承载拼接数据；来源簇和识别结果保持只读、继续独立存在。
         merged_points = self._concatenate_arrays(
             tuple(cluster.points for cluster in source_clusters),
             "点云",
@@ -93,6 +95,7 @@ class MergePipeline:
             tuple(cluster.points_indices for cluster in source_clusters),
             "点索引",
         )
+        # 仅对合并后的点云重新提取参数，当前功能不触发重新识别。
         extracted_params = extract_cluster_params(merged_points, self.extract_params)
         return MergedClusterResult(
             merge_index=merge_index,
@@ -143,6 +146,7 @@ class MergePipeline:
             raise ValueError("聚类结果与合并计划的切片索引不一致")
         if slice_recognition_result.slice_index != plan.slice_index:
             raise ValueError("识别结果与合并计划的切片索引不一致")
+        # 计划已保证组间互斥；执行层只保持计划顺序并连续分配结果序号。
         return tuple(
             self.run(
                 target=group,
@@ -161,6 +165,7 @@ class MergePipeline:
         slice_recognition_result: SliceRecognitionResult,
     ) -> tuple[list[ClusterItem], list[ClusterRecognition]]:
         """按分组顺序解析已识别通过的来源簇和识别记录。"""
+        # 映射仅用于查找，最终返回顺序仍以target.cluster_indices为准。
         cluster_map = {
             cluster.cluster_idx: cluster for cluster in slice_cluster_result.clusters
         }
@@ -172,6 +177,7 @@ class MergePipeline:
         source_clusters: list[ClusterItem] = []
         source_recognitions: list[ClusterRecognition] = []
         for cluster_index in target.cluster_indices:
+            # 合并只接受最终有效且识别通过的簇，防止人工入口绕过领域约束。
             cluster = cluster_map.get(cluster_index)
             if cluster is None:
                 raise ValueError(f"未找到来源簇 {cluster_index}")

@@ -532,15 +532,21 @@ class ProcessingSession:
             ValueError: 当切片索引为负数时抛出。
         """
         slice_state = self.get_slice_processing_state(slice_index)
+
+        # 合并计划与结果均依赖当前识别代次；识别重跑或策略切换时必须同时失效。
         slice_state.merge_status = SliceProcessStatus.NOT_STARTED
         slice_state.last_merge_error = None
         if self.merge_plan is not None:
             self.merge_plan.slice_plans.pop(slice_index, None)
+
+            # 容器不再含任何切片计划时恢复None，保持is_merged等状态判断语义清晰。
             if not self.merge_plan.slice_plans:
                 self.merge_plan = None
         if self.merge_result is None:
             return
         self.merge_result.slice_results.pop(slice_index, None)
+
+        # 清理合并派生数据不会触碰cluster_result或recognition_result。
         if not self.merge_result.slice_results:
             self.merge_result = None
 

@@ -52,6 +52,7 @@ class MergeOperationCard(SimpleCardWidget):
         )
         self.category_title_label.setFixedHeight(20)
         self.category_display_card = MergeCategoryDisplayCard(self)
+        # 类别行数量会改变子卡片高度，外层操作卡片必须同步更新固定高度。
         self.category_display_card.height_changed.connect(
             lambda _height: self._sync_height()
         )

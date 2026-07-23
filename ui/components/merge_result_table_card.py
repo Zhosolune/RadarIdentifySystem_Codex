@@ -132,6 +132,7 @@ class MergeResultTableCard(SimpleCardWidget):
         """
         if len(rows) > self.ROW_COUNT:
             raise ValueError("合并结果表格数据行超过容量")
+        # 先清空固定四行，防止较短的新结果保留上一结果尾部文本。
         self.clear_rows()
         for row_index, (label, value) in enumerate(rows):
             self.table.item(row_index, 0).setText(label)
@@ -143,6 +144,7 @@ class MergeResultTableCard(SimpleCardWidget):
         Returns:
             None: 无返回值。
         """
+        # 只清除单元格文本，保留统一字体、对齐方式、行高和表头结构。
         for row in range(self.ROW_COUNT):
             for column in range(self.table.columnCount()):
                 item = self.table.item(row, column)

@@ -167,10 +167,12 @@ class MergeCategoryDisplayCard(SimpleCardWidget):
         Returns:
             None: 无返回值。
         """
+        # 切换结果时先销毁旧行，防止复选框信号和颜色映射残留到新结果。
         self._clear_rows()
         checked_set = (
             None if checked_indices is None else {int(index) for index in checked_indices}
         )
+        # 有真实类别时隐藏骨架；无类别时继续展示固定三行占位。
         self.skeleton.setVisible(not categories)
         for cluster_index, color in categories:
             row = _CategoryControlRow(
@@ -179,6 +181,7 @@ class MergeCategoryDisplayCard(SimpleCardWidget):
                 checked_set is None or cluster_index in checked_set,
                 self,
             )
+            # 默认参数固定当前循环的簇编号，避免闭包晚绑定导致全部信号指向末项。
             row.checkbox.toggled.connect(
                 lambda checked, index=cluster_index: self.visibility_changed.emit(
                     index,
@@ -220,6 +223,7 @@ class MergeCategoryDisplayCard(SimpleCardWidget):
             None: 无返回值。
         """
         for checkbox in self.category_checkboxes.values():
+            # 批量复位时阻断逐项toggled信号，由控制器在循环后只重绘一次。
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(True)
             del blocker
@@ -227,6 +231,7 @@ class MergeCategoryDisplayCard(SimpleCardWidget):
     def _clear_rows(self) -> None:
         """移除当前动态类别行。"""
         for row in self._rows:
+            # 先从布局移除，再交给Qt事件循环安全销毁控件。
             self._content_layout.removeWidget(row)
             row.deleteLater()
         self._rows.clear()

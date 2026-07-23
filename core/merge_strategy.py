@@ -106,7 +106,8 @@ class HybridParameterMergeStrategy:
         if slice_cluster_result.slice_idx != slice_recognition_result.slice_index:
             raise ValueError("聚类结果与识别结果的切片索引不一致")
 
-        # 只为识别通过且最终状态有效的簇建立特征，识别结果本身保持只读。
+        # 合并判别只消费“聚类有效且识别通过”的交集，避免把无效簇带入计划。
+        # 此处构造新映射和特征快照，不修改识别结果与聚类结果。
         recognition_map = {
             recognition.cluster_index: recognition
             for recognition in slice_recognition_result.valid_clusters
@@ -124,12 +125,15 @@ class HybridParameterMergeStrategy:
             if feature is not None:
                 features.append(feature)
 
-        # 固定种子贪婪扩展形成互斥分组，每个来源簇最多进入一个合并结果。
+        # 每轮取最小未处理簇作为合并种子；组内后续CF阈值始终以该种子为基准。
         remaining = features.copy()
         groups: list[MergeGroup] = []
         while remaining:
             seed = remaining.pop(0)
             merged_group = [seed]
+
+            # 新成员可能成为其它候选的“至少一个已合并类别”，因此需要持续扫描
+            # 到本轮不再扩展，才能完整实现2°等“与组内任一类满足即可”的规则。
             changed = True
             while changed:
                 changed = False
@@ -138,6 +142,7 @@ class HybridParameterMergeStrategy:
                         merged_group.append(candidate)
                         remaining.remove(candidate)
                         changed = True
+            # 单个簇不构成合并结果；已入组簇已从remaining移除，最终各组合并互斥。
             if len(merged_group) >= 2:
                 groups.append(
                     MergeGroup(
@@ -195,6 +200,7 @@ class HybridParameterMergeStrategy:
         if not cf_values or not doa_values or not toa_values:
             return None
 
+        # PRI允许提取失败，空元组本身就是后续规则第2分支的有效输入。
         pri_values = tuple(self._finite_values(params.pri_values))
         return _MergeFeatures(
             cluster_index=cluster.cluster_idx,
@@ -213,6 +219,7 @@ class HybridParameterMergeStrategy:
         candidate: _MergeFeatures,
     ) -> bool:
         """判断候选类别是否与组内至少一个类别满足完整规则。"""
+        # “至少一个”是组扩展规则的关键，尤其适用于PA类型不一致时的2°比较。
         return any(
             self._matches_member(seed, member, candidate)
             for member in merged_group
@@ -225,17 +232,21 @@ class HybridParameterMergeStrategy:
         candidate: _MergeFeatures,
     ) -> bool:
         """使用固定种子CF评估候选与一个已合并类别。"""
+        # TOA存在严格交叠是所有后续规则成立的大前提；端点相接不视为交叠。
         if max(member.toa_range[0], candidate.toa_range[0]) >= min(
             member.toa_range[1],
             candidate.toa_range[1],
         ):
             return False
 
+        # CF差距只和本组合并种子比较，不能在组扩展时改用新成员重新定基准。
         cf_difference = abs(candidate.cf_mean - seed.cf_mean)
         has_common_pri = self._has_common_pri(
             member.pri_values,
             candidate.pri_values,
         )
+
+        # 规则1：双方PRI均可提取且存在共同值时，使用10% CF与20° DOA门限。
         if has_common_pri:
             return (
                 cf_difference <= abs(seed.cf_mean) * 0.10
@@ -246,9 +257,12 @@ class HybridParameterMergeStrategy:
                 <= 20.0
             )
 
+        # 规则2：PRI不能全提取或没有共同值时，CF门限收紧为种子CF的5%。
         if cf_difference > abs(seed.cf_mean) * 0.05:
             return False
 
+        # 规则2.1.1：PA类型不一致时，只按双方DOA均值的2°门限判定。
+        # 上层_can_join_group会将候选与全部已合并类别逐一比较。
         if member.pa_label != candidate.pa_label:
             return (
                 self._circular_angle_difference(
@@ -260,6 +274,9 @@ class HybridParameterMergeStrategy:
 
         member_stats = member.direction_stats
         candidate_stats = candidate.direction_stats
+
+        # 规则2.1.2.1：PA类型一致且双方PDOA均有效时，
+        # PDOA均值差不大于6°或循环格子距离不大于2即可合并。
         if member_stats.pdoa_valid and candidate_stats.pdoa_valid:
             if member_stats.pdoa_mean is None or candidate_stats.pdoa_mean is None:
                 return False
@@ -277,6 +294,8 @@ class HybridParameterMergeStrategy:
                 <= 2
             )
 
+        # 规则2.1.2.2：至少一方PDOA无效时，回退到DOA；
+        # DOA均值差不大于16.8°或循环格子距离不大于2即可合并。
         return (
             self._circular_angle_difference(
                 member.doa_mean,
@@ -293,15 +312,18 @@ class HybridParameterMergeStrategy:
 
     def _extract_direction_stats(self, points: np.ndarray) -> _DirectionStats:
         """从六列点云计算DOA/PDOA主格及PDOA有效性。"""
+        # DOA按5.625°划分64个循环格，保留出现次数最多的主格。
         doa_values = np.asarray(points[:, COL_DOA], dtype=np.float64)
         doa_values = doa_values[np.isfinite(doa_values)]
         doa_bin, _ = self._dominant_direction(doa_values, 5.625, 64)
 
+        # PDOA占位值655.35不参与均值、主格和有效比例计算。
         raw_pdoa = np.asarray(points[:, COL_PDOA], dtype=np.float64)
         valid_pdoa = raw_pdoa[
             np.isfinite(raw_pdoa) & (raw_pdoa != self.pdoa_invalid_value)
         ]
         pdoa_bin, _ = self._dominant_direction(valid_pdoa, 2.0, 180)
+        # 延续辅助算法的有效性定义：存在主格且有效PDOA占总点数比例严格大于40%。
         valid_ratio = len(valid_pdoa) / len(points)
         return _DirectionStats(
             doa_bin=doa_bin,
@@ -319,6 +341,7 @@ class HybridParameterMergeStrategy:
         """计算角度序列的主格子索引和格子中心角。"""
         if angle_values.size == 0:
             return -1, 0.0
+        # 先归一化到[0, 360)，再映射到循环格，保证负角度也能正确分箱。
         normalized = np.mod(angle_values, 360.0)
         bin_indices = np.floor(normalized / step_degree).astype(int)
         bin_indices = np.clip(bin_indices, 0, bin_count - 1)
@@ -333,6 +356,7 @@ class HybridParameterMergeStrategy:
         second_values: tuple[float, ...],
     ) -> bool:
         """判断双方PRI是否均可提取且存在容差内共同值。"""
+        # 任一侧为空即属于“PRI不能全都提取”；非空时逐项寻找容差内共同值。
         return bool(first_values) and bool(second_values) and any(
             abs(first - second) <= self.pri_common_tolerance
             for first in first_values

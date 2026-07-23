@@ -122,6 +122,8 @@ def rasterize_merge_dimension(
         if visible_cluster_indices is None
         else visible_cluster_indices
     )
+    # target_indices始终保存完整结果中的来源位置，而不是过滤后的连续序号。
+    # 因此隐藏任一来源后，其余来源仍会命中原调色板索引，不会发生换色。
     
     # 解析时间与 Y 轴跨度界限
     x_min, x_max = float(time_range[0]), float(time_range[1])
