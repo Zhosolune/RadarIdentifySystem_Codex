@@ -719,16 +719,17 @@ def test_merge_presentation_formats_pri_like_right_panel() -> None:
     )
 
 
-def test_hiding_merge_source_preserves_other_source_color() -> None:
-    """隐藏一个来源后，其余来源的固定颜色不得重新分配。"""
-    session = _session_with_four_source_results()
-    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+def test_hiding_merge_source_updates_parameters_and_preserves_color() -> None:
+    """隐藏来源后参数应按可见点云更新，且其余来源颜色不得重分配。"""
+    session = _session_with_source_results()
+    workflow = MergeWorkflow(strategy=_FixedSingleStrategy())
     workflow.prepare_merge_plan(session, 0)
     execution = workflow.execute_merge_plan(session, 0)
     assert execution.success
 
     full = workflow.render_result(session, 0, 0)
     hidden = workflow.render_result(session, 0, 0, visible_cluster_indices=(2,))
+    empty = workflow.render_result(session, 0, 0, visible_cluster_indices=())
 
     assert [category.color for category in full.categories] == [
         category.color for category in hidden.categories
@@ -740,6 +741,9 @@ def test_hiding_merge_source_preserves_other_source_color() -> None:
     assert not np.any(np.all(hidden.images["CF"] == first_color, axis=2))
     assert hidden.categories[0].visible is False
     assert hidden.categories[1].visible is True
+    assert full.table_rows[3] == ("DOA", "55.5")
+    assert hidden.table_rows[3] == ("DOA", "60.5")
+    assert all(value == "——" for _label, value in empty.table_rows)
 
 
 def test_merge_palette_assigns_distinct_colors_beyond_default_capacity() -> None:
@@ -748,6 +752,53 @@ def test_merge_palette_assigns_distinct_colors_beyond_default_capacity() -> None
 
     assert len(colors) == 12
     assert len(set(colors)) == 12
+
+
+def test_visibility_controls_update_merge_parameter_table(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """类别及全局复选框变化时应按当前选中点云刷新参数表格。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda _model_type: [],
+    )
+    interface = SliceInterface(session=_session_with_source_results())
+
+    try:
+        interface.resize(1500, 900)
+        interface.show()
+        QApplication.processEvents()
+        controller = interface._merge_controller
+        controller.set_strategy(_FixedSingleStrategy())
+        controller._execute_merge_plan()
+        QApplication.processEvents()
+
+        operation_card = interface.merge_operation_panel.operation_card
+        category_card = operation_card.category_display_card
+        result_table = interface.merge_operation_panel.result_table_card.table
+        global_checkbox = operation_card.global_visibility_checkbox
+        assert result_table.item(3, 1).text() == "55.5"
+
+        category_card.category_checkboxes[1].setChecked(False)
+        QApplication.processEvents()
+        assert category_card.visible_cluster_indices() == (2,)
+        assert result_table.item(3, 1).text() == "60.5"
+
+        global_checkbox.click()
+        QApplication.processEvents()
+        assert category_card.visible_cluster_indices() == (1, 2)
+        assert result_table.item(3, 1).text() == "55.5"
+
+        global_checkbox.click()
+        QApplication.processEvents()
+        assert category_card.visible_cluster_indices() == ()
+        assert all(
+            result_table.item(row, 1).text() == "——"
+            for row in range(result_table.rowCount())
+        )
+    finally:
+        sip.delete(interface)
 
 
 def test_single_result_uses_global_visibility_and_resets_merge_state(

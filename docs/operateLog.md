@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-07-23 17:37
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：类别显示控制勾选项变化后，合并参数表与图像统一按当前可见来源类别刷新。
+- 原因：原显隐处理只重绘图像，参数表始终展示全部来源的持久化合并参数，与当前勾选状态不一致。
+- 计划：
+  - [x] 全选时复用已保存的完整合并参数。
+  - [x] 部分选择时按可见来源点云即时重提取CF、PW、PRI和DOA。
+  - [x] 全部取消时将四类参数统一显示为`——`。
+  - [x] 个别复选框和全局三态复选框均同步刷新参数表。
+- 验证结果：
+  - 动态参数、颜色稳定性和真实界面显隐链路聚焦回归：`3 passed, 13 deselected, 1 warning`。
+  - 排除3项既有文案断言后的合并相关回归：`27 passed, 3 deselected, 1 warning`。
+  - 合并相关全量回归：`27 passed, 3 failed, 1 warning`；失败仍为既有“组/类”标题及结果计数空格文案断言。
+  - `py_compile`与`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-23 17:17
 - 操作类型：[修复]
 - 影响文件：

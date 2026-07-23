@@ -231,7 +231,7 @@ class MergeController(QObject):
         cluster_index: int,
         visible: bool,
     ) -> None:
-        """根据双态复选框重新绘制当前结果而不重新执行合并。"""
+        """根据双态复选框刷新当前图像和参数而不重新执行合并。"""
         if not self._result_count:
             return
         if visible:
@@ -239,7 +239,7 @@ class MergeController(QObject):
         else:
             self._visible_cluster_indices.discard(cluster_index)
 
-        # 只把可见簇集合交回runtime重绘，不修改已保存的合并点云和识别结果。
+        # 只把可见簇集合交回runtime重绘并重提取参数，不修改已保存的合并结果。
         presentation = self._workflow.render_result(
             self.view._session,
             self.view._slice_controller.current_slice_index,
@@ -250,9 +250,12 @@ class MergeController(QObject):
             presentation.images,
             presentation.title,
         )
+        self.view.merge_operation_panel.result_table_card.update_rows(
+            presentation.table_rows
+        )
 
     def _on_global_visibility_changed(self, visible: bool) -> None:
-        """根据全局三态复选框一次重绘全部来源类别。"""
+        """根据全局三态复选框一次刷新全部来源图像和参数。"""
         if not self._result_count:
             return
         category_card = (
@@ -270,6 +273,9 @@ class MergeController(QObject):
         self.view.merge_image_column.update_images(
             presentation.images,
             presentation.title,
+        )
+        self.view.merge_operation_panel.result_table_card.update_rows(
+            presentation.table_rows
         )
 
     def _reset_merge_state(self) -> None:

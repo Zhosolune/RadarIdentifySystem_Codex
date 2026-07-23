@@ -19,6 +19,7 @@ from core.merge import (
 )
 from core.models.algorithm_params import ExtractParams
 from core.models.cluster_result import SliceClusterResult
+from core.models.extraction_result import ExtractedClusterParams
 from core.models.merge_result import (
     MergePlan,
     MergeResult,
@@ -28,6 +29,7 @@ from core.models.merge_result import (
 )
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.recognition_result import SliceRecognitionResult
+from core.params_extract import extract_cluster_params
 from infra.plotting.facades import (
     build_merge_palette,
     render_merge_images,
@@ -46,7 +48,7 @@ class MergeCategoryPresentation:
     Attributes:
         cluster_index [int]: 原识别类簇编号。
         color [tuple[int, int, int]]: 与合并图一致的RGB颜色。
-        visible [bool]: 当前是否参与绘图。
+        visible [bool]: 当前是否参与绘图和参数计算。
     """
 
     cluster_index: int
@@ -526,7 +528,13 @@ class MergeWorkflow(QObject):
             )
             for position, cluster_index in enumerate(source_indices)
         )
-        params = result.extracted_params
+        # 参数与图像使用同一组选中来源；全选时复用已保存的合并参数，
+        # 部分选择时对可见来源点云即时重提取，且不修改持久化合并结果。
+        params = self._extract_visible_params(
+            session,
+            result,
+            visible_positions,
+        )
         return MergeResultPresentation(
             title=title,
             result_index=result_index,
@@ -539,6 +547,34 @@ class MergeWorkflow(QObject):
                 ("PRI", self._format_values(params.pri_values, decimal_places=1)),
                 ("DOA", self._format_values(params.doa_values)),
             ),
+        )
+
+    def _extract_visible_params(
+        self,
+        session: ProcessingSession,
+        result: MergedClusterResult,
+        visible_positions: list[int] | None,
+    ) -> ExtractedClusterParams:
+        """按当前可见来源点云返回参数提取结果。"""
+        if (
+            visible_positions is None
+            or len(visible_positions) == len(result.source_point_clouds)
+        ):
+            return result.extracted_params
+        if not visible_positions:
+            return ExtractedClusterParams()
+
+        # 来源点云在合并执行阶段已经完成结构校验，此处仅按稳定位置顺序拼接。
+        visible_points = np.concatenate(
+            [
+                result.source_point_clouds[position]
+                for position in visible_positions
+            ],
+            axis=0,
+        )
+        return extract_cluster_params(
+            visible_points,
+            self._build_extract_params(session),
         )
 
     def start_merge_by_indices(
