@@ -467,6 +467,10 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
             """更新当前启用状态。"""
             self.enabled = enabled
 
+        def isEnabled(self) -> bool:
+            """返回当前启用状态。"""
+            return self.enabled
+
     class FakeCategoryCard:
         """记录动态类别与显隐状态。"""
 
@@ -1094,5 +1098,50 @@ def test_identify_finished_does_not_prepare_plan_for_non_current_slice(
         )
 
         assert session.merge_plan is None
+    finally:
+        sip.delete(interface)
+
+
+def test_identify_finished_logs_merge_menu_activation_judgment(
+    monkeypatch: MonkeyPatch,
+    caplog: LogCaptureFixture,
+) -> None:
+    """识别完成后应记录合并菜单激活判别的输入、规则和最终状态。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda _model_type: [],
+    )
+    session = _session_with_source_results()
+    interface = SliceInterface(session=session)
+
+    try:
+        caplog.set_level(logging.INFO, logger="ui.controllers.merge_controller")
+        caplog.clear()
+
+        interface._merge_controller._on_stage_finished(
+            session.session_id,
+            "identifying",
+            0,
+        )
+
+        records = [
+            record
+            for record in caplog.records
+            if record.name == "ui.controllers.merge_controller"
+        ]
+        messages = "\n".join(record.getMessage() for record in records)
+        assert "收到阶段完成事件并开始合并菜单激活判别" in messages
+        assert "识别完成事件通过合并菜单激活前置校验" in messages
+        assert "开始合并菜单可用性判别" in messages
+        assert "规则=is_recognized OR has_results" in messages
+        assert "is_recognized=True" in messages
+        assert "activation_reason=当前切片识别完成" in messages
+        assert "enabled=True" in messages
+        assert "识别完成后的合并菜单激活流程结束" in messages
+        assert all(
+            getattr(record, "session_id", None) == session.session_id
+            for record in records
+        )
     finally:
         sip.delete(interface)

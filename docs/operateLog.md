@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-07-24 09:52
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：补充识别生命周期触发的合并菜单按钮激活判别日志。
+- 原因：已有日志覆盖核心策略和合并执行，但没有记录识别完成事件如何影响合并菜单按钮状态。
+- 完成内容：
+  - [x] 记录识别阶段开始、完成、失败事件及事件Session、阶段和切片归属检查。
+  - [x] 记录非当前Session、非识别阶段、缺失切片索引和非当前切片等事件忽略原因。
+  - [x] 记录当前切片识别状态、既有计划、判别状态、分组、结果数量及重置抑制状态。
+  - [x] 记录当前菜单激活公式`is_recognized OR has_results`、输入值、激活原因和按钮变更前后状态。
+  - [x] 记录合并、上一类、下一类、重置按钮及结果计数标签的同步状态。
+  - [x] 补充识别完成后菜单激活日志的Session归属和内容断言。
+- 验证结果：
+  - 合并策略、工作流及菜单激活回归：`33 passed, 3 deselected, 1 warning`；3项排除项仍为既有文案断言。
+  - Session日志上下文回归：`5 passed`。
+  - `py_compile`及`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-24 09:29
 - 操作类型：[修改]
 - 影响文件：
