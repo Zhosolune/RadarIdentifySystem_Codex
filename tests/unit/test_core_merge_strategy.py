@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pytest
 
@@ -391,3 +393,88 @@ def test_strategy_builds_complete_plan_with_stable_id() -> None:
     assert plan.strategy_id == "hybrid_parameter_v1"
     assert [group.cluster_indices for group in plan.groups] == [(1, 2)]
     assert plan.group_count == 1
+
+
+def test_strategy_logs_parameters_features_and_common_pri_branch(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """策略日志应记录硬编码参数、类别特征和共同PRI分支判别详情。"""
+    cluster_result, recognition_result = _results(
+        [
+            (_default_points(doa=359.0), [100.0], [10.0], [359.0], 1),
+            (
+                _default_points(doa=19.0, toa_start=5.0),
+                [110.0],
+                [10.2],
+                [19.0],
+                2,
+            ),
+        ]
+    )
+    caplog.set_level(logging.INFO, logger="core.merge_strategy")
+
+    plan = DefaultMergeStrategy().build_plan(
+        cluster_result,
+        recognition_result,
+    )
+
+    assert plan.group_count == 1
+    messages = "\n".join(record.getMessage() for record in caplog.records)
+    assert "合并策略硬编码参数" in messages
+    assert "PRI共同值容差=0.2us" in messages
+    assert "cluster_index=1" in messages
+    assert "cluster_index=2" in messages
+    assert "seed_cluster=1, member_cluster=1, candidate_cluster=2" in messages
+    assert "分支=规则1_存在共同PRI" in messages
+    assert "cf_limit=10" in messages
+    assert "doa_limit=20°" in messages
+    assert "result=True" in messages
+    assert "合并组=((1, 2),)" in messages
+
+
+def test_strategy_logs_toa_rejection_and_pdoa_fallback_branch(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """策略日志应明确记录TOA拒绝及PDOA无效时的DOA回退分支。"""
+    toa_inputs = _results(
+        [
+            (_default_points(), [100.0], [10.0], [0.0], 1),
+            (
+                _default_points(toa_start=40.0),
+                [100.0],
+                [10.0],
+                [0.0],
+                1,
+            ),
+        ]
+    )
+    fallback_inputs = _results(
+        [
+            (
+                _default_points(doa=359.0, pdoa=655.35),
+                [100.0],
+                [],
+                [359.0],
+                1,
+            ),
+            (
+                _default_points(doa=1.0, pdoa=655.35, toa_start=5.0),
+                [100.0],
+                [],
+                [1.0],
+                1,
+            ),
+        ]
+    )
+    caplog.set_level(logging.INFO, logger="core.merge_strategy")
+
+    DefaultMergeStrategy().build_plan(*toa_inputs)
+    DefaultMergeStrategy().build_plan(*fallback_inputs)
+
+    messages = "\n".join(record.getMessage() for record in caplog.records)
+    assert "分支=TOA严格交叠前置条件" in messages
+    assert "条件=overlap_start < overlap_end, 结果=False" in messages
+    assert "分支=规则2.1.2.2_PA一致且至少一方PDOA无效_回退DOA" in messages
+    assert "member_pdoa_valid=False" in messages
+    assert "candidate_pdoa_valid=False" in messages
+    assert "组合条件=mean_passed OR bin_passed, result=True" in messages

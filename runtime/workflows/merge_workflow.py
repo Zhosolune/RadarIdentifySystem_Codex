@@ -10,6 +10,7 @@ import logging
 import numpy as np
 from PyQt6.QtCore import QObject
 
+from app.logger import bind_session_log_context, unbind_session_log_context
 from app.signal_bus import signal_bus
 from core.merge import (
     DefaultMergeStrategy,
@@ -158,6 +159,11 @@ class MergeWorkflow(QObject):
             TypeError: 准则不满足最小接口时抛出。
         """
         self._validate_strategy(strategy)
+        LOGGER.info(
+            "替换合并策略: old_strategy_id=%s, new_strategy_id=%s",
+            self.strategy_id,
+            strategy.strategy_id,
+        )
         self._strategy = strategy
 
     def switch_strategy(
@@ -183,11 +189,20 @@ class MergeWorkflow(QObject):
         if slice_index < 0:
             raise ValueError("slice_index 不能为负数")
         self._validate_strategy(strategy)
+        old_strategy_id = self.strategy_id
         with session.lock:
             # 同一策略ID或同一实例未来都可能修改参数；显式应用策略时一律
             # 清除旧派生状态，聚类和识别结果继续保留供下次点击合并重新判别。
             self._strategy = strategy
             session.clear_slice_merge_results(slice_index)
+        LOGGER.info(
+            "切换Session合并策略并清除旧派生状态: slice_index=%d, "
+            "old_strategy_id=%s, new_strategy_id=%s",
+            slice_index,
+            old_strategy_id,
+            strategy.strategy_id,
+            extra={"session_id": session.session_id},
+        )
         return True
 
     def prepare_merge_plan(
@@ -212,10 +227,33 @@ class MergeWorkflow(QObject):
         """
         if slice_index < 0:
             raise ValueError("slice_index 不能为负数")
+        session_id = session.session_id
+        merge_config = session.config_snapshot.merge
+        LOGGER.info(
+            "请求生成合并判别计划: slice_index=%d, strategy_id=%s, force=%s, "
+            "session合并参数快照={placeholder_value=%s, "
+            "当前字段为占位且不参与判别=True}",
+            slice_index,
+            self.strategy_id,
+            force,
+            merge_config.placeholder_value,
+            extra={"session_id": session_id},
+        )
         if not session.is_slice_recognized(slice_index):
+            LOGGER.info(
+                "跳过合并判别计划生成: slice_index=%d, 原因=切片尚未识别完成",
+                slice_index,
+                extra={"session_id": session_id},
+            )
             return None
         slice_state = session.get_slice_processing_state(slice_index)
         if slice_state.merge_judgment_suppressed and not force:
+            LOGGER.info(
+                "跳过合并判别计划生成: slice_index=%d, "
+                "原因=重置后判别被抑制且force=False",
+                slice_index,
+                extra={"session_id": session_id},
+            )
             return None
 
         # 同一准则的已有计划可直接复用，避免界面刷新时反复执行合并判别。
@@ -229,10 +267,25 @@ class MergeWorkflow(QObject):
             and existing is not None
             and existing.strategy_id == self.strategy_id
         ):
+            LOGGER.info(
+                "复用已有合并判别计划: slice_index=%d, strategy_id=%s, "
+                "group_count=%d, groups=%s",
+                slice_index,
+                existing.strategy_id,
+                existing.group_count,
+                tuple(group.cluster_indices for group in existing.groups),
+                extra={"session_id": session_id},
+            )
             return existing
 
         source_results = self._find_source_results(session, slice_index)
         if source_results is None:
+            LOGGER.info(
+                "跳过合并判别计划生成: slice_index=%d, "
+                "原因=聚类结果或识别结果缺失",
+                slice_index,
+                extra={"session_id": session_id},
+            )
             return None
 
         # 未来合并准则存在真实可配置参数时，应在本runtime边界显式接收
@@ -241,7 +294,32 @@ class MergeWorkflow(QObject):
         # MergeController 传入当前面板激活周期持有的临时副本。两种来源都
         # 只作为本次策略输入，不允许工作流读取全局qconfig或回写Session快照。
         # 准则只读取当前切片的聚类与识别结果，并返回独立的派生计划。
-        plan = self._build_plan(*source_results)
+        LOGGER.info(
+            "调用核心合并策略: slice_index=%d, strategy_id=%s, "
+            "cluster_count=%d, valid_recognition_count=%d",
+            slice_index,
+            self.strategy_id,
+            len(source_results[0].clusters),
+            len(source_results[1].valid_clusters),
+            extra={"session_id": session_id},
+        )
+        log_token = bind_session_log_context(session_id)
+        try:
+            try:
+                plan = self._build_plan(*source_results)
+            except Exception as error:
+                LOGGER.error(
+                    "核心合并策略判别失败: slice_index=%d, strategy_id=%s, "
+                    "error=%s",
+                    slice_index,
+                    self.strategy_id,
+                    error,
+                    exc_info=True,
+                    extra={"session_id": session_id},
+                )
+                raise
+        finally:
+            unbind_session_log_context(log_token)
         if plan.slice_index != slice_index:
             raise ValueError("合并准则返回了错误的切片索引")
         with session.lock:
@@ -252,6 +330,16 @@ class MergeWorkflow(QObject):
             session.get_slice_processing_state(
                 slice_index
             ).merge_judgment_suppressed = False
+        LOGGER.info(
+            "合并判别计划已保存: slice_index=%d, strategy_id=%s, "
+            "group_count=%d, groups=%s, force=%s",
+            slice_index,
+            plan.strategy_id,
+            plan.group_count,
+            tuple(group.cluster_indices for group in plan.groups),
+            force,
+            extra={"session_id": session_id},
+        )
         return plan
 
     def get_merge_groups(
@@ -386,20 +474,51 @@ class MergeWorkflow(QObject):
             MergeBatchWorkflowResult: 整批执行结果。
         """
         # 一个切片的完整计划只允许批量执行一次，已有结果时拒绝覆盖。
+        session_id = session.session_id
+        LOGGER.info(
+            "请求执行切片完整合并计划: slice_index=%d, strategy_id=%s",
+            slice_index,
+            self.strategy_id,
+            extra={"session_id": session_id},
+        )
         existing_count = self.get_result_count(session, slice_index)
         if existing_count:
+            LOGGER.info(
+                "拒绝执行合并计划: slice_index=%d, 原因=已有合并结果, "
+                "existing_result_count=%d",
+                slice_index,
+                existing_count,
+                extra={"session_id": session_id},
+            )
             return MergeBatchWorkflowResult(
                 success=False,
                 error_message="当前切片的合并计划已经执行",
             )
         plan = self.prepare_merge_plan(session, slice_index)
         if plan is None or not plan.groups:
+            LOGGER.info(
+                "拒绝执行合并计划: slice_index=%d, "
+                "原因=%s",
+                slice_index,
+                "没有已判别计划" if plan is None else "计划不含可合并分组",
+                extra={"session_id": session_id},
+            )
             return MergeBatchWorkflowResult(
                 success=False,
                 error_message="当前切片没有可执行的合并计划",
             )
 
-        session_id = session.session_id
+        extract_params = self._build_extract_params(session)
+        LOGGER.info(
+            "开始批量合并执行: slice_index=%d, strategy_id=%s, "
+            "group_count=%d, groups=%s, 参数提取配置=%s",
+            slice_index,
+            plan.strategy_id,
+            plan.group_count,
+            tuple(group.cluster_indices for group in plan.groups),
+            extract_params,
+            extra={"session_id": session_id},
+        )
         signal_bus.stage_started.emit(session_id, "merging", slice_index)
         with session.lock:
             session.mark_slice_merge_running(slice_index)
@@ -410,18 +529,34 @@ class MergeWorkflow(QObject):
                 session,
                 slice_index,
             )
-            pipeline = MergePipeline(self._build_extract_params(session))
-            merged_results = pipeline.run_plan(
-                plan,
-                slice_clusters,
-                slice_recognitions,
-            )
+            log_token = bind_session_log_context(session_id)
+            try:
+                pipeline = MergePipeline(extract_params)
+                merged_results = pipeline.run_plan(
+                    plan,
+                    slice_clusters,
+                    slice_recognitions,
+                )
+            finally:
+                unbind_session_log_context(log_token)
             if not merged_results:
                 raise ValueError("合并计划没有生成任何结果")
 
             # 先验证整批每个结果都可绘制；任一失败时一个结果也不写入session。
             for merged in merged_results:
                 palette = build_merge_palette(len(merged.source_point_clouds))
+                LOGGER.info(
+                    "验证合并结果绘图: slice_index=%d, merge_index=%d, "
+                    "source_cluster_indices=%s, source_count=%d, "
+                    "time_range=%s, band=%s",
+                    slice_index,
+                    merged.merge_index,
+                    merged.source_cluster_indices,
+                    len(merged.source_point_clouds),
+                    merged.time_range,
+                    session.band,
+                    extra={"session_id": session_id},
+                )
                 render_merge_images(
                     list(merged.source_point_clouds),
                     band=session.band,
@@ -457,6 +592,18 @@ class MergeWorkflow(QObject):
                 )
                 session.mark_slice_merge_succeeded(slice_index)
                 session.stage = ProcessingStage.MERGED
+            LOGGER.info(
+                "批量合并结果已原子写回: slice_index=%d, strategy_id=%s, "
+                "result_count=%d, 结果来源=%s, session_stage=%s",
+                slice_index,
+                plan.strategy_id,
+                len(merged_results),
+                tuple(
+                    merged.source_cluster_indices for merged in merged_results
+                ),
+                session.stage,
+                extra={"session_id": session_id},
+            )
             signal_bus.stage_finished.emit(session_id, "merging", slice_index)
             return MergeBatchWorkflowResult(
                 success=True,
@@ -522,6 +669,27 @@ class MergeWorkflow(QObject):
         """
         if slice_index < 0:
             raise ValueError("slice_index 不能为负数")
+        previous_plan = (
+            session.merge_plan.slice_plans.get(slice_index)
+            if session.merge_plan is not None
+            else None
+        )
+        previous_result_count = self.get_result_count(session, slice_index)
+        LOGGER.info(
+            "开始重置合并状态: slice_index=%d, previous_strategy_id=%s, "
+            "previous_groups=%s, previous_result_count=%d",
+            slice_index,
+            None if previous_plan is None else previous_plan.strategy_id,
+            (
+                ()
+                if previous_plan is None
+                else tuple(
+                    group.cluster_indices for group in previous_plan.groups
+                )
+            ),
+            previous_result_count,
+            extra={"session_id": session.session_id},
+        )
         with session.lock:
             session.reset_slice_merge_state(slice_index)
             # 当前会话不再包含任何合并结果时，全局阶段同步回退到识别完成。
@@ -530,6 +698,16 @@ class MergeWorkflow(QObject):
                 and session.stage is ProcessingStage.MERGED
             ):
                 session.stage = ProcessingStage.RECOGNIZED
+        LOGGER.info(
+            "合并状态重置完成: slice_index=%d, "
+            "merge_judgment_suppressed=%s, session_stage=%s",
+            slice_index,
+            session.get_slice_processing_state(
+                slice_index
+            ).merge_judgment_suppressed,
+            session.stage,
+            extra={"session_id": session.session_id},
+        )
 
     def render_result(
         self,
@@ -724,16 +902,31 @@ class MergeWorkflow(QObject):
         Returns:
             MergeWorkflowResult: 单组合并和绘图结果。
         """
+        session_id = session.session_id
+        LOGGER.info(
+            "请求执行人工单组合并: slice_index=%d, strategy_id=%s, "
+            "source_cluster_indices=%s",
+            target.slice_index,
+            strategy_id,
+            target.cluster_indices,
+            extra={"session_id": session_id},
+        )
         # 来源集合按无序集合判重，人工以不同排列提交也不能重复生成相同结果。
         if frozenset(target.cluster_indices) in self._completed_source_sets(
             session,
             target.slice_index,
         ):
+            LOGGER.info(
+                "拒绝人工单组合并: slice_index=%d, source_cluster_indices=%s, "
+                "原因=同一来源簇集合已经完成合并",
+                target.slice_index,
+                target.cluster_indices,
+                extra={"session_id": session_id},
+            )
             return MergeWorkflowResult(
                 success=False,
                 error_message="同一来源簇集合已经完成合并，不能重复执行",
             )
-        session_id = session.session_id
         signal_bus.stage_started.emit(
             session_id,
             "merging",
@@ -747,13 +940,29 @@ class MergeWorkflow(QObject):
                 session,
                 target.slice_index,
             )
-            pipeline = MergePipeline(self._build_extract_params(session))
-            merged = pipeline.run(
-                target,
-                slice_clusters,
-                slice_recognitions,
-                self._next_merge_index(session, target.slice_index),
-                strategy_id,
+            extract_params = self._build_extract_params(session)
+            log_token = bind_session_log_context(session_id)
+            try:
+                pipeline = MergePipeline(extract_params)
+                merged = pipeline.run(
+                    target,
+                    slice_clusters,
+                    slice_recognitions,
+                    self._next_merge_index(session, target.slice_index),
+                    strategy_id,
+                )
+            finally:
+                unbind_session_log_context(log_token)
+            LOGGER.info(
+                "人工单组合并计算完成，开始绘图: slice_index=%d, "
+                "merge_index=%d, source_cluster_indices=%s, band=%s, "
+                "time_range=%s",
+                target.slice_index,
+                merged.merge_index,
+                merged.source_cluster_indices,
+                session.band,
+                merged.time_range,
+                extra={"session_id": session_id},
             )
             bundle = render_merge_images(
                 list(merged.source_point_clouds),
@@ -765,6 +974,15 @@ class MergeWorkflow(QObject):
                 self._append_result(session, merged)
                 session.mark_slice_merge_succeeded(target.slice_index)
                 session.stage = ProcessingStage.MERGED
+            LOGGER.info(
+                "人工单组合并结果已写回: slice_index=%d, merge_index=%d, "
+                "source_cluster_indices=%s, session_stage=%s",
+                target.slice_index,
+                merged.merge_index,
+                merged.source_cluster_indices,
+                session.stage,
+                extra={"session_id": session_id},
+            )
             signal_bus.stage_finished.emit(
                 session_id,
                 "merging",
@@ -776,6 +994,16 @@ class MergeWorkflow(QObject):
                 rendered_bundle=bundle,
             )
         except Exception as error:
+            LOGGER.error(
+                "人工单组合并失败: slice_index=%d, strategy_id=%s, "
+                "source_cluster_indices=%s, error=%s",
+                target.slice_index,
+                strategy_id,
+                target.cluster_indices,
+                error,
+                exc_info=True,
+                extra={"session_id": session_id},
+            )
             with session.lock:
                 session.mark_slice_merge_failed(target.slice_index, str(error))
             signal_bus.stage_failed.emit(

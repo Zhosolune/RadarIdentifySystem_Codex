@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import logging
 from types import SimpleNamespace
 
 import numpy as np
 from PyQt6 import sip
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtWidgets import QApplication
-from pytest import MonkeyPatch, raises
+from pytest import LogCaptureFixture, MonkeyPatch, raises
 from qfluentwidgets import CheckBox
 
 from core.merge import MergePipeline, MergeTarget
@@ -334,6 +335,38 @@ def test_merge_workflow_writes_session_and_renders_source_clusters_in_colors() -
     non_black_colors = np.unique(cf_image.reshape(-1, 3), axis=0)
     non_black_colors = non_black_colors[np.any(non_black_colors != 0, axis=1)]
     assert len(non_black_colors) >= 2
+
+
+def test_merge_workflow_logs_session_config_plan_and_atomic_writeback(
+    caplog: LogCaptureFixture,
+) -> None:
+    """工作流日志应记录Session配置、完整计划、执行参数及原子写回结果。"""
+    session = _session_with_four_source_results()
+    workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
+    caplog.set_level(logging.INFO, logger="runtime.workflows.merge_workflow")
+
+    plan = workflow.prepare_merge_plan(session, 0)
+    execution = workflow.execute_merge_plan(session, 0)
+
+    assert plan is not None
+    assert execution.success
+    workflow_records = [
+        record
+        for record in caplog.records
+        if record.name == "runtime.workflows.merge_workflow"
+    ]
+    messages = "\n".join(record.getMessage() for record in workflow_records)
+    assert "session合并参数快照={placeholder_value=0.0" in messages
+    assert "当前字段为占位且不参与判别=True" in messages
+    assert "strategy_id=fixed_batch_v1" in messages
+    assert "groups=((1, 2), (3, 4))" in messages
+    assert "参数提取配置=ExtractParams(" in messages
+    assert "批量合并结果已原子写回" in messages
+    assert "结果来源=((1, 2), (3, 4))" in messages
+    assert all(
+        getattr(record, "session_id", None) == session.session_id
+        for record in workflow_records
+    )
 
 
 def test_merge_workflow_records_failure_without_overwriting_results() -> None:

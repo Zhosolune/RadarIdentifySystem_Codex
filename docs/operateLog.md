@@ -1,5 +1,30 @@
 # 变更记录
 
+- 时间：2026-07-24 09:29
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge_strategy.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_core_merge_strategy.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为合并判别、完整计划执行和结果写回增加可按Session追踪的详细流程日志。
+- 原因：原合并算法只有异常日志，无法从运行日志还原具体类别、策略分支、阈值参数及接受或拒绝原因。
+- 完成内容：
+  - [x] 记录默认策略全部硬编码阈值、分箱参数、PDOA无效值和TOA严格交叠约束。
+  - [x] 记录每个输入类别的筛选结果、点数、CF/PRI/DOA/PA、TOA区间及DOA/PDOA方向统计。
+  - [x] 记录每轮种子类别、候选类别、当前合并组、重复扫描轮次及最终互斥分组。
+  - [x] 对每一对类别记录TOA、共同PRI、种子CF、PA、DOA、PDOA均值与主格距离的分支、门限、比较值及判定结果。
+  - [x] 记录Session占位配置、计划复用或跳过原因、参数提取配置、来源点数、点云拼接、参数重提取、绘图校验和原子写回。
+  - [x] 在runtime调用core期间绑定并复位Session日志上下文，保证核心策略及执行日志归属正确Session。
+  - [x] 补充策略分支日志和工作流Session日志断言。
+- 验证结果：
+  - 合并策略及合并流程回归：`32 passed, 3 deselected, 1 warning`；3项排除项为既有“组/类”和结果计数空格文案断言。
+  - 配置、Session快照、持久化、runtime及参数界面回归：`78 passed, 1 warning`。
+  - `py_compile`及`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-24 08:53
 - 操作类型：[重构]
 - 影响文件：

@@ -176,7 +176,7 @@ class SliceIdentifyPipeline:
         # 输出切片级最终统计，便于快速对齐 UI 显示的最终簇总数。
         LOGGER.info(
             "切片 %s 识别流程结束：最终簇=%d（有效=%d，无效=%d），回收点=%d",
-            slice_data.index,
+            slice_data.index + 1,
             len(builder.clusters) + 1,
             len(builder.valid_recognitions),
             len(builder.invalid_recognitions),
