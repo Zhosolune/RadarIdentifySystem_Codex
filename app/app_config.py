@@ -177,30 +177,13 @@ class AppConfig(QConfig):
     )
 
     # 合并参数 ─────────────────────────────────────────────────────────────────
-    mergeTimeDecay = ConfigItem(
+    # 当前合并准则仍使用硬编码规则；这里只保留一个配置链路占位，
+    # 待出现真实业务参数时删除该字段并按实际参数重新建模。
+    mergePlaceholderValue = ConfigItem(
         group="algorithm.merge",
-        name="timeDecay",
-        default=0.9,
+        name="placeholderValue",
+        default=0.0,
         validator=RangeValidator(0.0, 1.0),
-    )
-    mergeSimThreshold = ConfigItem(
-        group="algorithm.merge",
-        name="simThreshold",
-        default=0.8,
-        validator=RangeValidator(0.0, 1.0),
-    )
-    mergeMaxExtrapolate = ConfigItem(
-        group="algorithm.merge",
-        name="maxExtrapolate",
-        default=3,
-        validator=RangeValidator(0, 100),
-    )
-
-    mergePriEqualDoaTolerance = ConfigItem(
-        group="merge.priEqual",
-        name="doaTolerance",
-        default=20.0,
-        validator=RangeValidator(0.0, 360.0),
     )
 
     plotScaleMode = OptionsConfigItem(

@@ -16,6 +16,7 @@ def test_session_config_snapshot_round_trips_dict() -> None:
     snapshot = SessionConfigSnapshot.default()
     snapshot.clustering.eps_cf = 3.5
     snapshot.recognition.min_confidence = 0.72
+    snapshot.merge.placeholder_value = 0.36
     snapshot.plot.only_show_identified = "ALL"
     snapshot.plot.scale_mode = "STRETCH_BILINEAR"
 
@@ -23,6 +24,7 @@ def test_session_config_snapshot_round_trips_dict() -> None:
 
     assert restored.clustering.eps_cf == 3.5
     assert restored.recognition.min_confidence == 0.72
+    assert restored.merge.placeholder_value == 0.36
     assert restored.plot.only_show_identified == "ALL"
     assert restored.plot.scale_mode == "STRETCH_BILINEAR"
     assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
@@ -45,8 +47,29 @@ def test_session_config_snapshot_fills_missing_fields() -> None:
     assert restored.clustering.eps_cf == 4.0
     assert restored.clustering.min_pts_cf == ClusteringConfigSnapshot.default().min_pts_cf
     assert restored.recognition.max_candidates == RecognitionConfigSnapshot.default().max_candidates
+    assert restored.merge.placeholder_value == 0.0
     assert restored.plot.only_show_identified == "IDENTIFIED_ONLY"
     assert restored.plot.scale_mode == "STRETCH"
+    assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
+
+
+def test_session_config_snapshot_discards_legacy_merge_placeholders() -> None:
+    """旧版四个无意义合并字段应迁移为当前单一占位字段。"""
+    restored = SessionConfigSnapshot.from_dict(
+        {
+            "schema_version": 1,
+            "merge": {
+                "time_decay": 0.7,
+                "sim_threshold": 0.6,
+                "max_extrapolate": 8,
+                "pri_equal_doa_tolerance": 15.0,
+            },
+        }
+    )
+
+    assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
+    assert restored.merge.placeholder_value == 0.0
+    assert not hasattr(restored.merge, "time_decay")
 
 
 def test_session_config_snapshot_falls_back_invalid_schema_version() -> None:

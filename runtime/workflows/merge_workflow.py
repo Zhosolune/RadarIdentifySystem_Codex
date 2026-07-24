@@ -174,7 +174,7 @@ class MergeWorkflow(QObject):
             strategy [MergeStrategy]: 新准则实例。
 
         Returns:
-            bool: 准则标识发生变化并完成失效处理时返回True。
+            bool: 完成准则替换和旧派生状态失效处理时返回True。
 
         Raises:
             TypeError: 新准则不满足可插拔接口时抛出。
@@ -183,12 +183,9 @@ class MergeWorkflow(QObject):
         if slice_index < 0:
             raise ValueError("slice_index 不能为负数")
         self._validate_strategy(strategy)
-        previous_strategy_id = self.strategy_id
-        if strategy.strategy_id == previous_strategy_id:
-            return False
         with session.lock:
-            # 计划和结果都是旧准则的派生产物；切换时只清理当前切片，
-            # 聚类与识别结果继续保留，随后可直接基于新准则重新判别。
+            # 同一策略ID或同一实例未来都可能修改参数；显式应用策略时一律
+            # 清除旧派生状态，聚类和识别结果继续保留供下次点击合并重新判别。
             self._strategy = strategy
             session.clear_slice_merge_results(slice_index)
         return True
@@ -238,6 +235,11 @@ class MergeWorkflow(QObject):
         if source_results is None:
             return None
 
+        # 未来合并准则存在真实可配置参数时，应在本runtime边界显式接收
+        # ``MergeParams`` 值对象：识别完成后的基准判别由调用方从
+        # ``session.config_snapshot.merge`` 构造；重置后的重新判别则由
+        # MergeController 传入当前面板激活周期持有的临时副本。两种来源都
+        # 只作为本次策略输入，不允许工作流读取全局qconfig或回写Session快照。
         # 准则只读取当前切片的聚类与识别结果，并返回独立的派生计划。
         plan = self._build_plan(*source_results)
         if plan.slice_index != slice_index:
@@ -277,6 +279,60 @@ class MergeWorkflow(QObject):
             return ()
         return tuple(group.cluster_indices for group in plan.groups)
 
+    def get_prepared_merge_groups(
+        self,
+        session: ProcessingSession,
+        slice_index: int,
+    ) -> tuple[tuple[int, ...], ...]:
+        """只读取当前策略已经保存的合并分组，不触发新的合并判别。
+
+        Args:
+            session [ProcessingSession]: 目标会话。
+            slice_index [int]: 目标切片的0-based索引。
+
+        Returns:
+            tuple[tuple[int, ...], ...]: 已保存计划中的全部分组；计划不存在或
+            不属于当前策略时返回空元组。
+
+        Raises:
+            ValueError: 切片索引为负数时抛出。
+
+        Example:
+            >>> session = ProcessingSession()
+            >>> session.reset_slice_processing_states(1)
+            >>> MergeWorkflow().get_prepared_merge_groups(session, 0)
+            ()
+        """
+        plan = self._get_prepared_plan(session, slice_index)
+        if plan is None:
+            return ()
+        return tuple(group.cluster_indices for group in plan.groups)
+
+    def has_prepared_merge_plan(
+        self,
+        session: ProcessingSession,
+        slice_index: int,
+    ) -> bool:
+        """判断当前切片是否已经按当前策略完成合并判别。
+
+        Args:
+            session [ProcessingSession]: 目标会话。
+            slice_index [int]: 目标切片的0-based索引。
+
+        Returns:
+            bool: 存在当前策略计划时返回True，空分组计划也视为已判别。
+
+        Raises:
+            ValueError: 切片索引为负数时抛出。
+
+        Example:
+            >>> session = ProcessingSession()
+            >>> session.reset_slice_processing_states(1)
+            >>> MergeWorkflow().has_prepared_merge_plan(session, 0)
+            False
+        """
+        return self._get_prepared_plan(session, slice_index) is not None
+
     def find_merge_candidates(
         self,
         session: ProcessingSession,
@@ -295,6 +351,25 @@ class MergeWorkflow(QObject):
             ValueError: 切片索引为负数或准则返回跨切片计划时抛出。
         """
         return self.get_merge_groups(session, slice_index)
+
+    def _get_prepared_plan(
+        self,
+        session: ProcessingSession,
+        slice_index: int,
+    ) -> SliceMergePlan | None:
+        """返回当前策略已有计划，且不执行合并判别。"""
+        if slice_index < 0:
+            raise ValueError("slice_index 不能为负数")
+        if not session.is_slice_recognized(slice_index):
+            return None
+        plan = (
+            session.merge_plan.slice_plans.get(slice_index)
+            if session.merge_plan is not None
+            else None
+        )
+        if plan is None or plan.strategy_id != self.strategy_id:
+            return None
+        return plan
 
     def execute_merge_plan(
         self,

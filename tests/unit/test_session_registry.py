@@ -456,11 +456,8 @@ def test_create_session_config_from_global_returns_independent_snapshot() -> Non
         assert snapshot.extract.harmonic_tolerance_pri == qconfig.get(
             appConfig.extractHarmonicTolerancePRI
         )
-        assert snapshot.merge.time_decay == qconfig.get(appConfig.mergeTimeDecay)
-        assert snapshot.merge.sim_threshold == qconfig.get(appConfig.mergeSimThreshold)
-        assert snapshot.merge.max_extrapolate == qconfig.get(appConfig.mergeMaxExtrapolate)
-        assert snapshot.merge.pri_equal_doa_tolerance == qconfig.get(
-            appConfig.mergePriEqualDoaTolerance
+        assert snapshot.merge.placeholder_value == qconfig.get(
+            appConfig.mergePlaceholderValue
         )
         assert snapshot.business.auto_recognize_next_slice == qconfig.get(
             appConfig.autoRecognizeNextSlice

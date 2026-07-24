@@ -85,3 +85,19 @@ def test_extract_parameter_defaults_are_registered() -> None:
     assert qconfig.get(appConfig.extractThresholdRatioPRI) == 10.0
     assert qconfig.get(appConfig.extractFilterThresholdPRI) == 2.0
     assert qconfig.get(appConfig.extractHarmonicTolerancePRI) == 0.1
+
+
+def test_merge_parameter_group_contains_only_one_placeholder() -> None:
+    """合并参数组应只保留一个明确无业务含义的占位配置项。"""
+    _app()
+    interface = ParamsInterface()
+    merge_cards = interface._mergeGroup.findChildren(SettingCard)
+
+    assert [card.titleLabel.text() for card in merge_cards] == [
+        "合并参数占位值"
+    ]
+    assert qconfig.get(appConfig.mergePlaceholderValue) == 0.0
+    assert not hasattr(appConfig, "mergeTimeDecay")
+    assert not hasattr(appConfig, "mergeSimThreshold")
+    assert not hasattr(appConfig, "mergeMaxExtrapolate")
+    assert not hasattr(appConfig, "mergePriEqualDoaTolerance")

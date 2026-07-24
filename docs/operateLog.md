@@ -1,5 +1,60 @@
 # 变更记录
 
+- 时间：2026-07-24 08:53
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\app_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\session_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：把无实际业务意义的四个合并参数占位收敛为单一占位字段，并记录未来三层参数作用域的接入方式。
+- 原因：现有合并配置字段与真实判别准则无对应关系，继续保留会误导使用者并扩大未来配置迁移成本。
+- 计划：
+  - [x] 全局配置和参数配置界面只保留一个明确标识为占位的合并参数。
+  - [x] Session配置快照及右侧参数抽屉同步使用同一占位字段。
+  - [x] runtime参数值对象和全局快照工厂同步收敛。
+  - [x] 在识别后基准判别及重置后临时覆盖的接入位置补充参考注释。
+  - [x] 将Session配置结构升级为版本2，旧版四字段合并配置恢复时丢弃并补默认占位值。
+  - [x] 补充全局、Session、持久化、runtime和界面配置链路回归测试。
+- 验证结果：
+  - 全局配置、Session快照、右侧参数抽屉、配置持久化和runtime值对象回归：`78 passed, 1 warning`。
+  - 排除3项既有文案断言后的合并相关回归：`29 passed, 3 deselected, 1 warning`。
+  - `py_compile`、核心配置及runtime参数doctest、`git diff --check`：通过，仅有LF/CRLF转换提示。
+  - `runtime.session_config_factory`单模块doctest受qfluentwidgets导入时促销提示输出影响；对应工厂行为已由pytest覆盖并通过。
+- 测试状态：[已测试]
+
+- 时间：2026-07-23 20:20
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将合并流程改为点击“合并”时按当前策略重新判别并执行，重置后回到可再次判别的状态。
+- 原因：现有重置会同时清除计划和结果，却又以既有计划作为合并入口及按钮启用条件，无法支持“重置—调整策略参数—重新合并”。
+- 计划：
+  - [x] 识别完成后只开放合并能力，不再自动生成可合并类计划。
+  - [x] 点击“合并”时强制按当前策略重新判别并执行完整计划。
+  - [x] 重置后保留合并工作区入口并重新启用“合并”按钮。
+  - [x] 区分尚未判别与已判别但无候选结果的界面状态。
+  - [x] 同一策略ID重新应用时也失效旧计划，支持未来调整参数后重新判别。
+  - [x] 补充重置后重新判别、空计划及识别生命周期回归测试。
+- 验证结果：
+  - 重置后同ID新参数重判、空计划、识别完成不预判及显隐参数回归：`4 passed, 14 deselected, 1 warning`。
+  - 排除3项既有文案断言后的合并相关回归：`29 passed, 3 deselected, 1 warning`。
+  - 合并相关全量回归：`29 passed, 3 failed, 1 warning`；失败仍为既有“组/类”标题及结果计数空格文案断言。
+  - 合并界面PRI行高和菜单切换回归：`2 passed, 8 deselected, 1 warning`。
+  - ProcessingSession回归：`5 passed, 1 failed`；失败仍为既有`reset_to_imported`方法缺失。
+  - `py_compile`、runtime工作流doctest与`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-23 17:37
 - 操作类型：[修改]
 - 影响文件：

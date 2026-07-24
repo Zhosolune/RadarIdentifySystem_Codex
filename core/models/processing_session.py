@@ -134,7 +134,7 @@ class ProcessingSession:
         cluster_result (Any | None): CF/PW 聚类结果（P04 落地后替换为具体类型）。
         slice_processing_states (dict[int, SliceProcessingState]): 切片级局部状态映射。
         recognition_result (Any | None): 识别与参数提取结果（P05 落地后替换）。
-        merge_plan (MergePlan | None): 识别完成后生成的切片合并计划。
+        merge_plan (MergePlan | None): 用户点击合并后按当前策略生成的切片计划。
         merge_result (MergeResult | None): 与识别结果独立保存的合并结果。
 
     参数说明：

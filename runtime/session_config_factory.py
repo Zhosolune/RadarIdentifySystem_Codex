@@ -69,11 +69,8 @@ def create_session_config_from_global() -> SessionConfigSnapshot:
             ),
         ),
         merge=MergeConfigSnapshot(
-            time_decay=float(qconfig.get(appConfig.mergeTimeDecay)),
-            sim_threshold=float(qconfig.get(appConfig.mergeSimThreshold)),
-            max_extrapolate=int(qconfig.get(appConfig.mergeMaxExtrapolate)),
-            pri_equal_doa_tolerance=float(
-                qconfig.get(appConfig.mergePriEqualDoaTolerance)
+            placeholder_value=float(
+                qconfig.get(appConfig.mergePlaceholderValue)
             ),
         ),
         business=BusinessConfigSnapshot(

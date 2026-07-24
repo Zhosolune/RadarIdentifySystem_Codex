@@ -313,33 +313,13 @@ class ParamsInterface(ScrollArea):
         self._mergeGroup = SettingCardGroup("合并参数配置", self.settingScrollWidget)
         self._mergeGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                configItem=appConfig.mergeTimeDecay,
+                configItem=appConfig.mergePlaceholderValue,
                 icon=FluentIcon.LINK,
-                title="时间衰减权重",
-                content="跨切片航迹合并时时间间隔对关联概率的衰减系数",
+                title="合并参数占位值",
+                content="仅保留全局配置链路，当前合并判别不会读取该值",
                 parent=self._mergeGroup,
                 decimals=2,
-                singleStep=0.05,
-            )
-        )
-        self._mergeGroup.addSettingCard(
-            DoubleSpinBoxSettingCard(
-                configItem=appConfig.mergeSimThreshold,
-                icon=FluentIcon.LINK,
-                title="特征相似度阈值",
-                content="判定相邻切片中两个信号目标属于同一实体的最低相似度",
-                parent=self._mergeGroup,
-                decimals=2,
-                singleStep=0.05,
-            )
-        )
-        self._mergeGroup.addSettingCard(
-            SpinBoxSettingCard(
-                configItem=appConfig.mergeMaxExtrapolate,
-                icon=FluentIcon.LINK,
-                title="最大外推帧数",
-                content="航迹断点后允许外推保留的最大连续切片数量",
-                parent=self._mergeGroup,
+                singleStep=0.01,
             )
         )
 

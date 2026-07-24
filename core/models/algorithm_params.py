@@ -88,19 +88,15 @@ class ExtractParams:
 
 @dataclass(frozen=True, slots=True)
 class MergeParams:
-    """合并算法参数。
+    """合并算法参数占位值对象。
 
     功能描述：
-        封装聚类结果合并阶段的业务参数，供后续合并规则与工作流共享。
+        当前合并判别规则没有可配置参数，仅保留一个无业务含义的字段贯通
+        ``全局配置 -> Session快照 -> runtime值对象``。未来接入真实参数时，
+        应删除该占位字段，并在同一值对象中定义实际业务参数。
 
     Attributes:
-        time_decay (float): 时间衰减系数。
-        sim_threshold (float): 相似度阈值。
-        max_extrapolate (int): 最大外推步数。
-        pri_equal_doa_tolerance (float): 等 PRI 合并时的 DOA 容差。
+        placeholder_value [float]: 配置链路占位值，当前合并算法不得读取。
     """
 
-    time_decay: float = 0.9
-    sim_threshold: float = 0.8
-    max_extrapolate: int = 3
-    pri_equal_doa_tolerance: float = 20.0
+    placeholder_value: float = 0.0

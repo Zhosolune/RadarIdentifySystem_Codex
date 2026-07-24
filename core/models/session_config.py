@@ -43,11 +43,12 @@ def _coerce_dataclass(cls: type[Any], payload: dict[str, Any]) -> Any:
 
 
 def _coerce_schema_version(value: object) -> int:
-    """安全恢复配置结构版本号。"""
+    """恢复旧配置后统一升级为当前配置结构版本号。"""
     try:
-        return int(value)
+        int(value)
     except (TypeError, ValueError):
-        return SessionConfigSnapshot.SCHEMA_VERSION
+        pass
+    return SessionConfigSnapshot.SCHEMA_VERSION
 
 
 @dataclass
@@ -169,19 +170,17 @@ class ExtractConfigSnapshot:
 
 @dataclass
 class MergeConfigSnapshot:
-    """合并配置快照。
+    """当前Session的合并配置占位快照。
+
+    当前合并准则仍使用硬编码规则，本模型只验证全局配置和Session独立配置
+    的完整链路。未来出现真实合并参数时，应删除占位字段并在此定义实际字段；
+    识别后的基准判别只读取本快照，合并面板临时参数不得写回本对象。
 
     Attributes:
-        time_decay: 时间衰减系数。
-        sim_threshold: 相似度阈值。
-        max_extrapolate: 最大外推次数。
-        pri_equal_doa_tolerance: PRI 相同时的方位容差。
+        placeholder_value [float]: 配置链路占位值，当前合并算法不得读取。
     """
 
-    time_decay: float = 0.9
-    sim_threshold: float = 0.8
-    max_extrapolate: int = 3
-    pri_equal_doa_tolerance: float = 20.0
+    placeholder_value: float = 0.0
 
     @classmethod
     def default(cls) -> "MergeConfigSnapshot":
@@ -194,8 +193,8 @@ class MergeConfigSnapshot:
             无显式抛出异常。
 
         Example:
-            >>> MergeConfigSnapshot.default().max_extrapolate
-            3
+            >>> MergeConfigSnapshot.default().placeholder_value
+            0.0
         """
         return cls()
 
@@ -275,7 +274,7 @@ class SessionConfigSnapshot:
         plot: 绘图配置快照。
     """
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     schema_version: int = SCHEMA_VERSION
     clustering: ClusteringConfigSnapshot = field(default_factory=ClusteringConfigSnapshot.default)
@@ -297,7 +296,7 @@ class SessionConfigSnapshot:
 
         Example:
             >>> SessionConfigSnapshot.default().schema_version
-            1
+            2
         """
         return cls()
 
@@ -341,6 +340,6 @@ class SessionConfigSnapshot:
 
         Example:
             >>> SessionConfigSnapshot.default().to_dict()["schema_version"]
-            1
+            2
         """
         return asdict(self)

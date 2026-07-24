@@ -61,6 +61,8 @@ def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
     assert isinstance(panel.clustering_min_pts_cf_card, SpinBoxSettingCard)
     assert isinstance(panel.clustering_eps_doa_card, DoubleSpinBoxSettingCard)
     assert isinstance(panel.clustering_min_pts_doa_card, SpinBoxSettingCard)
+    assert panel.merge_group.parent() is panel.drawer_scroll_widget
+    assert isinstance(panel.merge_placeholder_card, DoubleSpinBoxSettingCard)
     assert isinstance(panel.model_selection_card, ModelSelectionCard)
     assert panel.model_selection_card.parent() is panel.cards_group
     assert isinstance(panel.export_path_card, ExportOptionCard)
@@ -144,6 +146,31 @@ def test_slice_param_panel_updates_session_clustering_params_only(
     assert changed == ["saved", "saved"]
     assert qconfig.get(appConfig.algorithmEpsilonDOA) == global_eps_doa
     assert qconfig.get(appConfig.algorithmMinPtsDOA) == global_min_pts_doa
+
+
+def test_slice_param_panel_updates_session_merge_placeholder_only(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """合并占位卡片应只修改当前Session快照而不修改全局配置。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    changed: list[str] = []
+    session = ProcessingSession()
+    global_value = qconfig.get(appConfig.mergePlaceholderValue)
+    panel = SliceParamPanel(
+        session=session,
+        on_config_changed=lambda: changed.append("saved"),
+    )
+
+    panel.merge_placeholder_card.spinBox.setValue(0.42)
+
+    assert session.config_snapshot.merge.placeholder_value == 0.42
+    assert panel.merge_placeholder_item.value == 0.42
+    assert changed == ["saved"]
+    assert qconfig.get(appConfig.mergePlaceholderValue) == global_value
 
 
 def test_slice_param_panel_binds_model_selection_to_session(

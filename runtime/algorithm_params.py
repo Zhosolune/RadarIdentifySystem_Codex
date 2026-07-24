@@ -106,11 +106,12 @@ def get_extract_params() -> ExtractParams:
 
 
 def get_merge_params() -> MergeParams:
-    """从全局配置获取合并参数对象。
+    """从全局配置获取合并参数占位值对象。
 
     功能描述：
-        读取合并阶段配置项，并转换为 `MergeParams` 数据对象，
-        供后续合并工作流与核心算法统一消费。
+        当前仅贯通全局配置到runtime值对象的占位链路，不得把该字段用于
+        合并判别。未来存在真实业务参数时，应改为从调用方指定作用域读取：
+        首次判别读取Session快照，重置后的当次判别读取面板临时副本。
 
     Args:
         无。
@@ -124,10 +125,7 @@ def get_merge_params() -> MergeParams:
     # 延迟导入配置模块。
     from app.app_config import appConfig, qconfig
 
-    # 组装合并参数对象。
+    # 该入口只服务全局配置预览；合并工作流不得绕过Session快照调用它。
     return MergeParams(
-        time_decay=float(qconfig.get(appConfig.mergeTimeDecay)),
-        sim_threshold=float(qconfig.get(appConfig.mergeSimThreshold)),
-        max_extrapolate=int(qconfig.get(appConfig.mergeMaxExtrapolate)),
-        pri_equal_doa_tolerance=float(qconfig.get(appConfig.mergePriEqualDoaTolerance)),
+        placeholder_value=float(qconfig.get(appConfig.mergePlaceholderValue)),
     )

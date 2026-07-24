@@ -41,6 +41,8 @@ class SliceParamPanel(QWidget):
         drawer_scroll_area: 支持内容溢出的滚动区域。
         drawer_scroll_widget: 滚动区域承载的内容控件。
         drawer_scroll_layout: 提供抽屉内容边距的布局。
+        merge_group: 当前Session合并参数占位设置组。
+        merge_placeholder_card: 绑定Session快照占位字段的设置卡。
         cards_group: 管理可展开卡片高度的无抖动卡片组。
     """
 
@@ -103,6 +105,7 @@ class SliceParamPanel(QWidget):
         self.model_selection_card.modelChanged.connect(self._on_model_changed)
         self.export_path_card: ExportOptionCard = ExportOptionCard(self)
         self.clustering_group: SettingCardGroup = self._create_clustering_group()
+        self.merge_group: SettingCardGroup = self._create_merge_group()
 
         self._init_layout()
 
@@ -262,6 +265,55 @@ class SliceParamPanel(QWidget):
 
         return group
 
+    def _create_merge_group(self) -> SettingCardGroup:
+        """创建绑定当前Session快照的合并参数占位组。
+
+        当前字段没有业务含义，仅用于验证参数作用域链路。未来出现真实合并
+        参数时，应在这里使用 ``SessionConfigItem`` 绑定
+        ``session.config_snapshot.merge`` 的实际字段；这些修改只写入当前
+        Session，不得修改全局 ``qconfig``。
+
+        Returns:
+            SettingCardGroup: 包含单一合并参数占位卡片的设置组。
+
+        Raises:
+            ValueError: Session配置字段路径不存在时抛出。
+
+        Example:
+            >>> from PyQt6.QtWidgets import QApplication
+            >>> app = QApplication.instance() or QApplication([])
+            >>> panel = SliceParamPanel(ProcessingSession())
+            >>> panel.merge_group.titleLabel.text()
+            '合并参数配置'
+        """
+        group = SettingCardGroup(
+            "合并参数配置",
+            self.drawer_scroll_widget
+            if hasattr(self, "drawer_scroll_widget")
+            else self,
+        )
+        self.merge_placeholder_item: SessionConfigItem = SessionConfigItem(
+            self.session.config_snapshot,
+            "merge.placeholder_value",
+            0.0,
+            validator=RangeValidator(0.0, 1.0),
+            on_changed=self._on_config_changed,
+        )
+        self.merge_placeholder_card: DoubleSpinBoxSettingCard = (
+            DoubleSpinBoxSettingCard(
+                icon=FluentIcon.LINK,
+                configItem=self.merge_placeholder_item,
+                title="合并参数占位值",
+                content="仅保留Session配置链路，当前合并判别不会读取该值",
+                decimals=2,
+                singleStep=0.01,
+                parent=group,
+                config_writer=self._session_config_writer,
+            )
+        )
+        group.addSettingCard(self.merge_placeholder_card)
+        return group
+
     def _sync_initial_model_selection(self) -> None:
         """将模型卡片的初始选择复制到当前 session。"""
         self.session.model_selection.pa_model_path = (
@@ -319,7 +371,9 @@ class SliceParamPanel(QWidget):
         self.cards_group.addSettingCard(self.export_path_card)
 
         self.clustering_group.setParent(self.drawer_scroll_widget)
+        self.merge_group.setParent(self.drawer_scroll_widget)
         self.drawer_scroll_layout.addWidget(self.clustering_group)
+        self.drawer_scroll_layout.addWidget(self.merge_group)
         self.drawer_scroll_layout.addWidget(self.cards_group)
         self.drawer_scroll_layout.addStretch(1)
         self.drawer_scroll_area.setWidget(self.drawer_scroll_widget)

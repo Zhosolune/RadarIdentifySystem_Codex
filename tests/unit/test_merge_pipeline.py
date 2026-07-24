@@ -212,6 +212,34 @@ class _FixedSingleStrategy:
         )
 
 
+class _ConfigurableStrategy:
+    """使用同一策略ID和可变分组模拟未来的参数化合并策略。"""
+
+    strategy_id = "configurable_v1"
+
+    def __init__(self, groups: tuple[tuple[int, ...], ...]) -> None:
+        """保存本次策略参数对应的固定分组。"""
+        self.groups: tuple[tuple[int, ...], ...] = groups
+        self.build_count: int = 0
+
+    def build_plan(
+        self,
+        slice_cluster_result: SliceClusterResult,
+        _slice_recognition_result: SliceRecognitionResult,
+    ) -> SliceMergePlan:
+        """按当前实例参数生成计划并记录判别次数。"""
+        self.build_count += 1
+        slice_index = slice_cluster_result.slice_idx
+        return SliceMergePlan(
+            slice_index=slice_index,
+            strategy_id=self.strategy_id,
+            groups=tuple(
+                MergeGroup(slice_index, cluster_indices)
+                for cluster_indices in self.groups
+            ),
+        )
+
+
 def test_merge_pipeline_concatenates_points_and_only_reextracts_parameters(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -516,7 +544,7 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
     controller = MergeController(view)
 
     try:
-        assert not view.right_panel.navigation_control_card.merge_menu_button.enabled
+        assert view.right_panel.navigation_control_card.merge_menu_button.enabled
         controller.set_strategy(_FixedBatchStrategy())
         assert view.right_panel.navigation_control_card.merge_menu_button.enabled
 
@@ -556,7 +584,8 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
             is True
         )
         assert view.merge_operation_panel.operation_card.result_count is None
-        assert not view.right_panel.navigation_control_card.merge_menu_button.enabled
+        assert view.right_panel.navigation_control_card.merge_menu_button.enabled
+        assert button_bar.merge_button.enabled
     finally:
         sip.delete(view)
 
@@ -801,6 +830,106 @@ def test_visibility_controls_update_merge_parameter_table(
         sip.delete(interface)
 
 
+def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """重置后应保留合并入口，并按同ID的新策略参数重新判别和执行。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda _model_type: [],
+    )
+    session = _session_with_four_source_results()
+    interface = SliceInterface(session=session)
+
+    try:
+        controller = interface._merge_controller
+        operation_card = interface.merge_operation_panel.operation_card
+        menu_button = interface.right_panel.navigation_control_card.merge_menu_button
+        first_strategy = _ConfigurableStrategy(((1, 2),))
+        controller.set_strategy(first_strategy)
+
+        # 识别完成和策略设置只开放入口；真正的可合并类在点击合并时才判别。
+        assert session.merge_plan is None
+        assert menu_button.isEnabled()
+        assert operation_card.button_bar.merge_button.isEnabled()
+        controller._execute_merge_plan()
+        assert first_strategy.build_count == 1
+        assert session.merge_result is not None
+        assert (
+            session.merge_result.slice_results[0]
+            .merged_clusters[0]
+            .source_cluster_indices
+            == (1, 2)
+        )
+
+        menu_button.click()
+        QApplication.processEvents()
+        controller._reset_merge_state()
+        assert session.merge_plan is None
+        assert session.merge_result is None
+        assert menu_button.isEnabled()
+        assert menu_button.isChecked()
+        assert interface.image_workspace.is_merge_active()
+        assert operation_card.button_bar.merge_button.isEnabled()
+        assert not operation_card.button_bar.reset_button.isEnabled()
+        assert "？" in operation_card.result_count_label.text()
+
+        # 新实例保持相同strategy_id但模拟参数变化，旧ID不得导致计划被错误复用。
+        second_strategy = _ConfigurableStrategy(((3, 4),))
+        controller.set_strategy(second_strategy)
+        controller._execute_merge_plan()
+        assert second_strategy.build_count == 1
+        assert session.merge_result is not None
+        assert (
+            session.merge_result.slice_results[0]
+            .merged_clusters[0]
+            .source_cluster_indices
+            == (3, 4)
+        )
+    finally:
+        sip.delete(interface)
+
+
+def test_empty_rejudgment_displays_zero_and_can_reset_to_unknown(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """无候选计划应显示0，重置后恢复尚未判别的问号状态。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda _model_type: [],
+    )
+    session = _session_with_source_results()
+    interface = SliceInterface(session=session)
+
+    try:
+        controller = interface._merge_controller
+        operation_card = interface.merge_operation_panel.operation_card
+        menu_button = interface.right_panel.navigation_control_card.merge_menu_button
+        strategy = _ConfigurableStrategy(())
+        controller.set_strategy(strategy)
+        controller._execute_merge_plan()
+
+        assert strategy.build_count == 1
+        assert session.merge_plan is not None
+        assert session.merge_plan.slice_plans[0].groups == ()
+        assert session.merge_result is None
+        assert "0" in operation_card.result_count_label.text()
+        assert menu_button.isEnabled()
+        assert operation_card.button_bar.merge_button.isEnabled()
+        assert operation_card.button_bar.reset_button.isEnabled()
+
+        controller._reset_merge_state()
+        assert session.merge_plan is None
+        assert "？" in operation_card.result_count_label.text()
+        assert menu_button.isEnabled()
+        assert operation_card.button_bar.merge_button.isEnabled()
+        assert not operation_card.button_bar.reset_button.isEnabled()
+    finally:
+        sip.delete(interface)
+
+
 def test_single_result_uses_global_visibility_and_resets_merge_state(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -894,11 +1023,11 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
             ).merge_judgment_suppressed
             is True
         )
-        assert not menu_button.isEnabled()
-        assert not menu_button.isChecked()
-        assert not interface.image_workspace.is_merge_active()
-        assert interface.image_workspace.current_pair_index() == 0
-        assert not button_bar.merge_button.isEnabled()
+        assert menu_button.isEnabled()
+        assert menu_button.isChecked()
+        assert interface.image_workspace.is_merge_active()
+        assert interface.image_workspace.current_pair_index() == 2
+        assert button_bar.merge_button.isEnabled()
         assert not button_bar.reset_button.isEnabled()
         assert operation_card.result_count_label.text() == "共获得？个合并结果"
         assert not operation_card.global_visibility_checkbox.isEnabled()
@@ -908,10 +1037,10 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
         sip.delete(interface)
 
 
-def test_identify_finished_prepares_plan_for_non_current_slice(
+def test_identify_finished_does_not_prepare_plan_for_non_current_slice(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """识别完成事件应为非当前切片立即保存合并计划。"""
+    """识别完成事件不应提前判定非当前切片的可合并类。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -931,11 +1060,6 @@ def test_identify_finished_prepares_plan_for_non_current_slice(
             0,
         )
 
-        assert session.merge_plan is not None
-        assert session.merge_plan.slice_plans[0].strategy_id == "fixed_single_v1"
-        assert [
-            group.cluster_indices
-            for group in session.merge_plan.slice_plans[0].groups
-        ] == [(1, 2)]
+        assert session.merge_plan is None
     finally:
         sip.delete(interface)

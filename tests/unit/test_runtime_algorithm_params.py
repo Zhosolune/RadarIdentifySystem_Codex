@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from runtime.algorithm_params import get_clustering_params
+from runtime.algorithm_params import get_clustering_params, get_merge_params
 
 
 def test_get_clustering_params_reads_split_cf_pw_and_doa_config() -> None:
@@ -21,3 +21,14 @@ def test_get_clustering_params_reads_split_cf_pw_and_doa_config() -> None:
     assert params.eps_doa == 16.8
     assert params.min_pts_doa == 2
     assert params.clip_threshold_doa == 95.0
+
+
+def test_get_merge_params_returns_single_placeholder() -> None:
+    """合并参数组装器应只暴露当前无业务含义的单一占位值。"""
+    params = get_merge_params()
+
+    assert params.placeholder_value == 0.0
+    assert not hasattr(params, "time_decay")
+    assert not hasattr(params, "sim_threshold")
+    assert not hasattr(params, "max_extrapolate")
+    assert not hasattr(params, "pri_equal_doa_tolerance")
