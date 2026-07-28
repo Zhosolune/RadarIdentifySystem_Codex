@@ -15,7 +15,9 @@ def test_session_config_snapshot_round_trips_dict() -> None:
     """配置快照应能稳定序列化和反序列化。"""
     snapshot = SessionConfigSnapshot.default()
     snapshot.clustering.eps_cf = 3.5
-    snapshot.recognition.min_confidence = 0.72
+    snapshot.recognition.greedy_strategy = False
+    snapshot.recognition.pa_confidence_threshold = 0.72
+    snapshot.recognition.dtoa_confidence_weight = 0.35
     snapshot.merge.placeholder_value = 0.36
     snapshot.plot.only_show_identified = "ALL"
     snapshot.plot.scale_mode = "STRETCH_BILINEAR"
@@ -23,7 +25,9 @@ def test_session_config_snapshot_round_trips_dict() -> None:
     restored = SessionConfigSnapshot.from_dict(snapshot.to_dict())
 
     assert restored.clustering.eps_cf == 3.5
-    assert restored.recognition.min_confidence == 0.72
+    assert restored.recognition.greedy_strategy is False
+    assert restored.recognition.pa_confidence_threshold == 0.72
+    assert restored.recognition.dtoa_confidence_weight == 0.35
     assert restored.merge.placeholder_value == 0.36
     assert restored.plot.only_show_identified == "ALL"
     assert restored.plot.scale_mode == "STRETCH_BILINEAR"
@@ -46,7 +50,10 @@ def test_session_config_snapshot_fills_missing_fields() -> None:
 
     assert restored.clustering.eps_cf == 4.0
     assert restored.clustering.min_pts_cf == ClusteringConfigSnapshot.default().min_pts_cf
-    assert restored.recognition.max_candidates == RecognitionConfigSnapshot.default().max_candidates
+    assert (
+        restored.recognition.joint_confidence_threshold
+        == RecognitionConfigSnapshot.default().joint_confidence_threshold
+    )
     assert restored.merge.placeholder_value == 0.0
     assert restored.plot.only_show_identified == "IDENTIFIED_ONLY"
     assert restored.plot.scale_mode == "STRETCH"
@@ -77,7 +84,27 @@ def test_session_config_snapshot_falls_back_invalid_schema_version() -> None:
     for raw_version in (None, "invalid"):
         restored = SessionConfigSnapshot.from_dict({"schema_version": raw_version})
 
-        assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
+    assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
+
+
+def test_session_config_snapshot_discards_legacy_recognition_placeholders() -> None:
+    """旧识别占位字段应丢弃并迁移为当前识别参数默认值。"""
+    restored = SessionConfigSnapshot.from_dict(
+        {
+            "schema_version": 2,
+            "recognition": {
+                "tolerance": 0.25,
+                "min_confidence": 0.7,
+                "max_candidates": 8,
+            },
+        }
+    )
+
+    assert restored.schema_version == SessionConfigSnapshot.SCHEMA_VERSION
+    assert restored.recognition == RecognitionConfigSnapshot.default()
+    assert not hasattr(restored.recognition, "tolerance")
+    assert not hasattr(restored.recognition, "min_confidence")
+    assert not hasattr(restored.recognition, "max_candidates")
 
 
 def test_session_config_snapshot_instances_are_independent() -> None:

@@ -73,14 +73,14 @@ def test_session_config_item_applies_validator() -> None:
     snapshot = SessionConfigSnapshot.default()
     item = SessionConfigItem(
         snapshot,
-        "recognition.min_confidence",
+        "recognition.pa_confidence_threshold",
         0.8,
         validator=RangeValidator(0.0, 1.0),
     )
 
     item.set(2.5)
 
-    assert snapshot.recognition.min_confidence == 1.0
+    assert snapshot.recognition.pa_confidence_threshold == 1.0
     assert item.value == 1.0
 
 
@@ -89,14 +89,14 @@ def test_session_config_item_accepts_custom_validator() -> None:
     snapshot = SessionConfigSnapshot.default()
     item = SessionConfigItem(
         snapshot,
-        "recognition.min_confidence",
+        "recognition.pa_confidence_threshold",
         0.8,
         validator=CustomConfidenceValidator(),
     )
 
     item.set("raw")
 
-    assert snapshot.recognition.min_confidence == 0.33
+    assert snapshot.recognition.pa_confidence_threshold == 0.33
 
 
 def test_session_config_item_does_not_import_specific_validator_classes() -> None:
@@ -133,8 +133,8 @@ def test_spin_box_setting_card_writes_session_item() -> None:
     snapshot = SessionConfigSnapshot.default()
     item = SessionConfigItem(
         snapshot,
-        "recognition.max_candidates",
-        5,
+        "clustering.min_pts_cf",
+        2,
         validator=RangeValidator(1, 10),
     )
     card = SpinBoxSettingCard(
@@ -146,7 +146,7 @@ def test_spin_box_setting_card_writes_session_item() -> None:
 
     card.spinBox.setValue(8)
 
-    assert snapshot.recognition.max_candidates == 8
+    assert snapshot.clustering.min_pts_cf == 8
     sip.delete(card)
     QApplication.processEvents()
 

@@ -122,8 +122,8 @@ class SessionConfigItem(QObject):
 
         Example:
             >>> snapshot = SessionConfigSnapshot.default()
-            >>> SessionConfigItem(snapshot, "recognition.max_candidates", 5).value
-            5
+            >>> SessionConfigItem(snapshot, "recognition.pa_confidence_threshold", 0.5).value
+            0.5
         """
         return self._read()
 

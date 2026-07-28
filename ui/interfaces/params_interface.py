@@ -141,34 +141,67 @@ class ParamsInterface(ScrollArea):
             "识别参数配置", self.settingScrollWidget
         )
         self._recognizeGroup.addSettingCard(
-            DoubleSpinBoxSettingCard(
-                configItem=appConfig.recognizeTolerance,
+            SwitchSettingCard(
+                configItem=appConfig.recognizeGreedyStrategy,
                 icon=FluentIcon.SEARCH,
-                title="识别容差阈值",
-                content="配置识别模型中的基本容差判定阈值",
+                title="识别策略",
+                content="开启为贪婪策略；关闭后仅对PA、DTOA均为雷达标签的结果执行严格门限判定",
                 parent=self._recognizeGroup,
-                decimals=2,
-                singleStep=0.01,
             )
         )
         self._recognizeGroup.addSettingCard(
             DoubleSpinBoxSettingCard(
-                configItem=appConfig.recognizeMinConfidence,
+                configItem=appConfig.recognizePaConfidenceThreshold,
                 icon=FluentIcon.SEARCH,
-                title="置信度底线",
-                content="信号类型判定的最低置信度得分要求",
+                title="PA置信度门限",
+                content="严格门限策略中 PA 预测结果必须达到的最低置信度",
                 parent=self._recognizeGroup,
                 decimals=2,
                 singleStep=0.05,
             )
         )
         self._recognizeGroup.addSettingCard(
-            SpinBoxSettingCard(
-                configItem=appConfig.recognizeMaxCandidates,
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.recognizePaConfidenceWeight,
                 icon=FluentIcon.SEARCH,
-                title="最大匹配候选数",
-                content="特征比对时保留的最大候选类型数量",
+                title="PA置信度权重",
+                content="严格门限策略中 PA 置信度参与联合判别的相对权重",
                 parent=self._recognizeGroup,
+                decimals=2,
+                singleStep=0.05,
+            )
+        )
+        self._recognizeGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.recognizeDtoaConfidenceThreshold,
+                icon=FluentIcon.SEARCH,
+                title="DTOA置信度门限",
+                content="严格门限策略中 DTOA 预测结果必须达到的最低置信度",
+                parent=self._recognizeGroup,
+                decimals=2,
+                singleStep=0.05,
+            )
+        )
+        self._recognizeGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.recognizeDtoaConfidenceWeight,
+                icon=FluentIcon.SEARCH,
+                title="DTOA置信度权重",
+                content="严格门限策略中 DTOA 置信度参与联合判别的相对权重",
+                parent=self._recognizeGroup,
+                decimals=2,
+                singleStep=0.05,
+            )
+        )
+        self._recognizeGroup.addSettingCard(
+            DoubleSpinBoxSettingCard(
+                configItem=appConfig.recognizeJointConfidenceThreshold,
+                icon=FluentIcon.SEARCH,
+                title="联合判别门限",
+                content="严格门限策略中按 PA、DTOA 权重比例归一化后的联合概率门限",
+                parent=self._recognizeGroup,
+                decimals=2,
+                singleStep=0.05,
             )
         )
 

@@ -138,9 +138,12 @@ class IdentifyWorkflow(QObject):
             )
             # 按当前 session 快照构造识别参数对象，保证线程只接收值对象。
             recognize_params = RecognitionParams(
-                tolerance=recognition_config.tolerance,
-                min_confidence=recognition_config.min_confidence,
-                max_candidates=recognition_config.max_candidates,
+                greedy_strategy=recognition_config.greedy_strategy,
+                pa_confidence_threshold=recognition_config.pa_confidence_threshold,
+                pa_confidence_weight=recognition_config.pa_confidence_weight,
+                dtoa_confidence_threshold=recognition_config.dtoa_confidence_threshold,
+                dtoa_confidence_weight=recognition_config.dtoa_confidence_weight,
+                joint_confidence_threshold=recognition_config.joint_confidence_threshold,
             )
             # 按当前 session 快照构造提取参数对象，供识别通过类提取典型参数。
             extract_params = ExtractParams(

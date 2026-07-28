@@ -95,14 +95,20 @@ class RecognitionConfigSnapshot:
     """识别参数快照。
 
     Attributes:
-        tolerance: 识别容差。
-        min_confidence: 最小置信度。
-        max_candidates: 最大候选数量。
+        greedy_strategy: 是否采用贪婪策略。
+        pa_confidence_threshold: PA 预测置信度门限。
+        pa_confidence_weight: PA 置信度相对权重。
+        dtoa_confidence_threshold: DTOA 预测置信度门限。
+        dtoa_confidence_weight: DTOA 置信度相对权重。
+        joint_confidence_threshold: 严格策略联合概率门限。
     """
 
-    tolerance: float = 0.5
-    min_confidence: float = 0.8
-    max_candidates: int = 5
+    greedy_strategy: bool = True
+    pa_confidence_threshold: float = 0.5
+    pa_confidence_weight: float = 0.6
+    dtoa_confidence_threshold: float = 0.5
+    dtoa_confidence_weight: float = 0.4
+    joint_confidence_threshold: float = 0.8
 
     @classmethod
     def default(cls) -> "RecognitionConfigSnapshot":
@@ -115,8 +121,8 @@ class RecognitionConfigSnapshot:
             无显式抛出异常。
 
         Example:
-            >>> RecognitionConfigSnapshot.default().max_candidates
-            5
+            >>> RecognitionConfigSnapshot.default().greedy_strategy
+            True
         """
         return cls()
 
@@ -274,7 +280,7 @@ class SessionConfigSnapshot:
         plot: 绘图配置快照。
     """
 
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     schema_version: int = SCHEMA_VERSION
     clustering: ClusteringConfigSnapshot = field(default_factory=ClusteringConfigSnapshot.default)
@@ -296,7 +302,7 @@ class SessionConfigSnapshot:
 
         Example:
             >>> SessionConfigSnapshot.default().schema_version
-            2
+            3
         """
         return cls()
 
@@ -340,6 +346,6 @@ class SessionConfigSnapshot:
 
         Example:
             >>> SessionConfigSnapshot.default().to_dict()["schema_version"]
-            2
+            3
         """
         return asdict(self)

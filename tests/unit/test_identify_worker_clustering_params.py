@@ -34,6 +34,7 @@ from core.models.cluster_result import (
 from core.models.processing_session import ProcessingSession, ProcessingStage, SliceProcessStatus
 from core.models.pulse_batch import COL_DOA
 from core.models.recognition_result import (
+    NON_RADAR_LABEL,
     ClusterRecognition,
     RecognitionResult,
     SliceRecognitionResult,
@@ -50,7 +51,10 @@ def test_identify_worker_requires_injected_session_params() -> None:
     assert "recognize_params" in IdentifyWorker.__init__.__code__.co_varnames
     assert "extract_params" in IdentifyWorker.__init__.__code__.co_varnames
     assert isinstance(ClusteringParams(eps_cf=7.0), ClusteringParams)
-    assert isinstance(RecognitionParams(tolerance=0.25), RecognitionParams)
+    assert isinstance(
+        RecognitionParams(pa_confidence_threshold=0.25),
+        RecognitionParams,
+    )
     assert isinstance(ExtractParams(eps_cf=1.5), ExtractParams)
 
 
@@ -94,9 +98,10 @@ def test_slice_identify_pipeline_attaches_extracted_params_to_valid_recognition(
         recognize_params: RecognitionParams,
         start_index: int,
         max_workers: int | None = None,
+        write_summary_log: bool = True,
     ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
         """把输入簇全部判定为识别通过。"""
-        del inference_service, recognize_params, max_workers
+        del inference_service, recognize_params, max_workers, write_summary_log
         recognitions = [
             ClusterRecognition(
                 slice_index=cluster.slice_idx,
@@ -241,9 +246,10 @@ def test_slice_identify_pipeline_passes_split_min_pts_to_cf_and_pw(
         recognize_params,
         start_index,
         max_workers=None,
+        write_summary_log=True,
     ):
         """跳过识别逻辑，保持测试聚焦于聚类参数传递。"""
-        del clusters, inference_service, recognize_params, max_workers
+        del clusters, inference_service, recognize_params, max_workers, write_summary_log
         return [], [], [], start_index
 
     # 打桩 core 层聚类与识别函数，聚焦聚类参数传递路径。
@@ -315,9 +321,9 @@ def test_slice_identify_pipeline_saves_all_clusters_by_cluster_index(
             dim_name=cluster.dim_name,
             cluster_index=cluster.cluster_idx,
             valid_cluster_index=valid_cluster_index,
-            pa_label=1 if is_valid else 5,
+            pa_label=1 if is_valid else NON_RADAR_LABEL,
             pa_confidence=0.9,
-            dtoa_label=1 if is_valid else 5,
+            dtoa_label=1 if is_valid else NON_RADAR_LABEL,
             dtoa_confidence=0.8,
             is_valid=is_valid,
         )
@@ -338,9 +344,10 @@ def test_slice_identify_pipeline_saves_all_clusters_by_cluster_index(
         recognize_params: RecognitionParams,
         start_index: int,
         max_workers: int | None = None,
+        write_summary_log: bool = True,
     ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
         """返回固定识别结果，模拟有效簇与无效簇交错的场景。"""
-        del inference_service, recognize_params, max_workers
+        del inference_service, recognize_params, max_workers, write_summary_log
         if clusters and clusters[0].dim_name == "CF":
             cf_valid.state = ClusterState.VALID
             cf_invalid.state = ClusterState.INVALID
@@ -459,9 +466,9 @@ def test_slice_identify_pipeline_clusters_valid_results_by_doa(
             dim_name=cluster.dim_name,
             cluster_index=cluster.cluster_idx,
             valid_cluster_index=valid_cluster_index,
-            pa_label=1 if is_valid else 5,
+            pa_label=1 if is_valid else NON_RADAR_LABEL,
             pa_confidence=0.9,
-            dtoa_label=1 if is_valid else 5,
+            dtoa_label=1 if is_valid else NON_RADAR_LABEL,
             dtoa_confidence=0.8,
             is_valid=is_valid,
         )
@@ -508,9 +515,10 @@ def test_slice_identify_pipeline_clusters_valid_results_by_doa(
         recognize_params: RecognitionParams,
         start_index: int,
         max_workers: int | None = None,
+        write_summary_log: bool = True,
     ) -> tuple[list[ClusterItem], list[ClusterItem], list[ClusterRecognition], int]:
         """按维度模拟识别结果。"""
-        del inference_service, recognize_params, max_workers
+        del inference_service, recognize_params, max_workers, write_summary_log
         if clusters and clusters[0].dim_name == "CF":
             clusters[0].state = ClusterState.VALID
             clusters[1].state = ClusterState.INVALID
@@ -567,7 +575,7 @@ def test_slice_identify_pipeline_clusters_valid_results_by_doa(
     )
     cluster_result, recognition_result = pipeline.run(slice_data)
 
-    assert doa_calls == [(2, 16.8, 2), (2, 16.8, 2)]
+    assert doa_calls == [(COL_DOA, 16.8, 2), (COL_DOA, 16.8, 2)]
     assert sorted(pw_input_doa_values) == [35.0, 40.0, 50.0]
     assert [cluster.cluster_idx for cluster in cluster_result.clusters] == [1, 2, 3]
     assert [cluster.dim_name for cluster in cluster_result.clusters] == [
@@ -765,7 +773,12 @@ def test_identify_workflow_injects_session_params_and_models(
     session.config_snapshot.clustering.min_pts_cf = 4
     session.config_snapshot.clustering.eps_doa = 12.5
     session.config_snapshot.clustering.min_pts_doa = 6
-    session.config_snapshot.recognition.tolerance = 0.25
+    session.config_snapshot.recognition.greedy_strategy = False
+    session.config_snapshot.recognition.pa_confidence_threshold = 0.25
+    session.config_snapshot.recognition.pa_confidence_weight = 0.7
+    session.config_snapshot.recognition.dtoa_confidence_threshold = 0.35
+    session.config_snapshot.recognition.dtoa_confidence_weight = 0.3
+    session.config_snapshot.recognition.joint_confidence_threshold = 0.65
     workflow = IdentifyWorkflow()
 
     workflow.start_identify(session, slice_index=2)
@@ -780,7 +793,12 @@ def test_identify_workflow_injects_session_params_and_models(
     assert cluster_params.min_pts_cf == 4
     assert cluster_params.eps_doa == 12.5
     assert cluster_params.min_pts_doa == 6
-    assert recognize_params.tolerance == 0.25
+    assert recognize_params.greedy_strategy is False
+    assert recognize_params.pa_confidence_threshold == 0.25
+    assert recognize_params.pa_confidence_weight == 0.7
+    assert recognize_params.dtoa_confidence_threshold == 0.35
+    assert recognize_params.dtoa_confidence_weight == 0.3
+    assert recognize_params.joint_confidence_threshold == 0.65
     assert captured["started"] is True
     service_args = captured["inference_service"]["service_args"]
     assert service_args["pa_path"] == "E:/models/pa.onnx"

@@ -219,7 +219,9 @@ class IdentifyWorker(QThread):
         LOGGER.info(
             "参数: eps_cf=%.4f, min_pts_cf=%d, eps_pw=%.4f, min_pts_pw=%d, "
             "eps_doa=%.4f, min_pts_doa=%d, clip_doa=%.2f, min_cluster_size=%d, "
-            "tol=%.2f, min_conf=%.2f, slice_index=%d",
+            "recognition_strategy=%s, pa_threshold=%.2f, pa_weight=%.2f, "
+            "dtoa_threshold=%.2f, dtoa_weight=%.2f, joint_threshold=%.2f, "
+            "slice_index=%d",
             clustering_params.eps_cf,
             clustering_params.min_pts_cf,
             clustering_params.eps_pw,
@@ -228,8 +230,12 @@ class IdentifyWorker(QThread):
             clustering_params.min_pts_doa,
             clustering_params.clip_threshold_doa,
             clustering_params.min_cluster_size,
-            recognition_params.tolerance,
-            recognition_params.min_confidence,
+            "greedy" if recognition_params.greedy_strategy else "strict",
+            recognition_params.pa_confidence_threshold,
+            recognition_params.pa_confidence_weight,
+            recognition_params.dtoa_confidence_threshold,
+            recognition_params.dtoa_confidence_weight,
+            recognition_params.joint_confidence_threshold,
             self._slice_index,
             extra={"session_id": self._session_id},
         )

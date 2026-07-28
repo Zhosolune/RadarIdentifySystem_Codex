@@ -49,9 +49,22 @@ def create_session_config_from_global() -> SessionConfigSnapshot:
             clip_threshold_doa=float(qconfig.get(appConfig.algorithmClipThresholdDOA)),
         ),
         recognition=RecognitionConfigSnapshot(
-            tolerance=float(qconfig.get(appConfig.recognizeTolerance)),
-            min_confidence=float(qconfig.get(appConfig.recognizeMinConfidence)),
-            max_candidates=int(qconfig.get(appConfig.recognizeMaxCandidates)),
+            greedy_strategy=bool(qconfig.get(appConfig.recognizeGreedyStrategy)),
+            pa_confidence_threshold=float(
+                qconfig.get(appConfig.recognizePaConfidenceThreshold)
+            ),
+            pa_confidence_weight=float(
+                qconfig.get(appConfig.recognizePaConfidenceWeight)
+            ),
+            dtoa_confidence_threshold=float(
+                qconfig.get(appConfig.recognizeDtoaConfidenceThreshold)
+            ),
+            dtoa_confidence_weight=float(
+                qconfig.get(appConfig.recognizeDtoaConfidenceWeight)
+            ),
+            joint_confidence_threshold=float(
+                qconfig.get(appConfig.recognizeJointConfidenceThreshold)
+            ),
         ),
         extract=ExtractConfigSnapshot(
             eps_cf=float(qconfig.get(appConfig.extractEpsilonCF)),

@@ -428,12 +428,23 @@ def test_create_session_config_from_global_returns_independent_snapshot() -> Non
         assert snapshot.clustering.clip_threshold_doa == qconfig.get(
             appConfig.algorithmClipThresholdDOA
         )
-        assert snapshot.recognition.tolerance == qconfig.get(appConfig.recognizeTolerance)
-        assert snapshot.recognition.min_confidence == qconfig.get(
-            appConfig.recognizeMinConfidence
+        assert snapshot.recognition.greedy_strategy == qconfig.get(
+            appConfig.recognizeGreedyStrategy
         )
-        assert snapshot.recognition.max_candidates == qconfig.get(
-            appConfig.recognizeMaxCandidates
+        assert snapshot.recognition.pa_confidence_threshold == qconfig.get(
+            appConfig.recognizePaConfidenceThreshold
+        )
+        assert snapshot.recognition.pa_confidence_weight == qconfig.get(
+            appConfig.recognizePaConfidenceWeight
+        )
+        assert snapshot.recognition.dtoa_confidence_threshold == qconfig.get(
+            appConfig.recognizeDtoaConfidenceThreshold
+        )
+        assert snapshot.recognition.dtoa_confidence_weight == qconfig.get(
+            appConfig.recognizeDtoaConfidenceWeight
+        )
+        assert snapshot.recognition.joint_confidence_threshold == qconfig.get(
+            appConfig.recognizeJointConfidenceThreshold
         )
         assert snapshot.extract.eps_cf == qconfig.get(appConfig.extractEpsilonCF)
         assert snapshot.extract.min_pts_cf == qconfig.get(appConfig.extractMinPtsCF)

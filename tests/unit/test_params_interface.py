@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import SettingCard, SettingCardGroup, qconfig
+from qfluentwidgets import SettingCard, SettingCardGroup, SwitchSettingCard, qconfig
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -85,6 +85,37 @@ def test_extract_parameter_defaults_are_registered() -> None:
     assert qconfig.get(appConfig.extractThresholdRatioPRI) == 10.0
     assert qconfig.get(appConfig.extractFilterThresholdPRI) == 2.0
     assert qconfig.get(appConfig.extractHarmonicTolerancePRI) == 0.1
+
+
+def test_recognition_parameter_group_uses_strategy_and_threshold_cards() -> None:
+    """识别参数组应使用策略开关及五个门限、权重配置项。"""
+    _app()
+    interface = ParamsInterface()
+    recognize_cards = interface._recognizeGroup.findChildren(SettingCard)
+
+    assert [card.titleLabel.text() for card in recognize_cards] == [
+        "识别策略",
+        "PA置信度门限",
+        "PA置信度权重",
+        "DTOA置信度门限",
+        "DTOA置信度权重",
+        "联合判别门限",
+    ]
+    assert isinstance(recognize_cards[0], SwitchSettingCard)
+    assert recognize_cards[0].isChecked() is True
+
+
+def test_recognition_parameter_defaults_are_registered() -> None:
+    """识别参数默认值应注册到全局配置，并删除旧占位配置。"""
+    assert qconfig.get(appConfig.recognizeGreedyStrategy) is True
+    assert qconfig.get(appConfig.recognizePaConfidenceThreshold) == 0.5
+    assert qconfig.get(appConfig.recognizePaConfidenceWeight) == 0.6
+    assert qconfig.get(appConfig.recognizeDtoaConfidenceThreshold) == 0.5
+    assert qconfig.get(appConfig.recognizeDtoaConfidenceWeight) == 0.4
+    assert qconfig.get(appConfig.recognizeJointConfidenceThreshold) == 0.8
+    assert not hasattr(appConfig, "recognizeTolerance")
+    assert not hasattr(appConfig, "recognizeMinConfidence")
+    assert not hasattr(appConfig, "recognizeMaxCandidates")
 
 
 def test_merge_parameter_group_contains_only_one_placeholder() -> None:

@@ -62,9 +62,22 @@ def get_recognition_params() -> RecognitionParams:
 
     # 组装识别参数对象。
     return RecognitionParams(
-        tolerance=float(qconfig.get(appConfig.recognizeTolerance)),
-        min_confidence=float(qconfig.get(appConfig.recognizeMinConfidence)),
-        max_candidates=int(qconfig.get(appConfig.recognizeMaxCandidates)),
+        greedy_strategy=bool(qconfig.get(appConfig.recognizeGreedyStrategy)),
+        pa_confidence_threshold=float(
+            qconfig.get(appConfig.recognizePaConfidenceThreshold)
+        ),
+        pa_confidence_weight=float(
+            qconfig.get(appConfig.recognizePaConfidenceWeight)
+        ),
+        dtoa_confidence_threshold=float(
+            qconfig.get(appConfig.recognizeDtoaConfidenceThreshold)
+        ),
+        dtoa_confidence_weight=float(
+            qconfig.get(appConfig.recognizeDtoaConfidenceWeight)
+        ),
+        joint_confidence_threshold=float(
+            qconfig.get(appConfig.recognizeJointConfidenceThreshold)
+        ),
     )
 
 

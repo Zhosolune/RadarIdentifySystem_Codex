@@ -29,7 +29,13 @@ from .merge_result import (
     SliceMergePlan,
     SliceMergeResult,
 )
-from .recognition_result import ClusterRecognition, SliceRecognitionResult, RecognitionResult
+from .recognition_result import (
+    NON_RADAR_LABEL,
+    RECOGNITION_CLASS_COUNT,
+    ClusterRecognition,
+    SliceRecognitionResult,
+    RecognitionResult,
+)
 from .session_config import (
     BusinessConfigSnapshot,
     ClusteringConfigSnapshot,
@@ -58,6 +64,8 @@ __all__ = [
     "MergeResult",
     "MergedClusterResult",
     "SliceMergeResult",
+    "NON_RADAR_LABEL",
+    "RECOGNITION_CLASS_COUNT",
     "ClusterRecognition",
     "SliceRecognitionResult",
     "RecognitionResult",

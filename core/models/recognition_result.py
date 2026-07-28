@@ -8,6 +8,12 @@ from typing import Dict
 from core.models.extraction_result import ExtractedClusterParams
 
 
+# PA 与 DTOA 模型统一使用该标签表示非雷达信号，判定与展示均引用此常量。
+NON_RADAR_LABEL = 5
+# 归一化后的模型类别总数由最大类别标签推导，避免重复硬编码切片上界。
+RECOGNITION_CLASS_COUNT = NON_RADAR_LABEL + 1
+
+
 @dataclass(frozen=True, slots=True)
 class ClusterRecognition:
     """单个簇的识别结果。

@@ -21,6 +21,7 @@ from core.recognition import InferenceService
 from core.recognition import TraceLogEntry
 from core.models.cluster_result import ClusterItem
 from core.models.pulse_batch import COL_TOA, COL_PA
+from core.models.recognition_result import NON_RADAR_LABEL, RECOGNITION_CLASS_COUNT
 from infra.plotting.engine import rasterize_dimension
 from infra.plotting.utils import _BASE_SPECS, build_dtoa_series, resolve_dtoa_spec
 
@@ -170,16 +171,18 @@ class OnnxInferenceService(InferenceService):
                 trace_messages=trace_messages,
             )
 
-            # 合并负样本 (5, 6, 7, 8 -> 5)
-            if pred.shape[1] > 6:
-                pred[0, 5] = np.sum(pred[0, 5:])
-                pred[0, 6:] = 0
+            # 将扩展负样本类别统一合并到非雷达标签。
+            if pred.shape[1] > RECOGNITION_CLASS_COUNT:
+                pred[0, NON_RADAR_LABEL] = np.sum(
+                    pred[0, NON_RADAR_LABEL:]
+                )
+                pred[0, RECOGNITION_CLASS_COUNT:] = 0
 
-            label = int(np.argmax(pred[0, :6]))
+            label = int(np.argmax(pred[0, :RECOGNITION_CLASS_COUNT]))
             conf = float(pred[0, label])
 
             # 特殊组合概率处理 (复用旧版逻辑)
-            if label >= 5:
+            if label >= NON_RADAR_LABEL:
                 prob_comb_0_1 = pred[0, 0] + pred[0, 1]
                 prob_comb_0_4 = pred[0, 0] + pred[0, 4]
 
@@ -277,16 +280,16 @@ class OnnxInferenceService(InferenceService):
                 trace_messages=trace_messages,
             )
 
-            if pred.shape[1] > 6:
+            if pred.shape[1] > RECOGNITION_CLASS_COUNT:
                 pred[0, 0] = pred[0, 0] + pred[0, 1]
                 pred[0, 1] = pred[0, 2]
                 pred[0, 2] = pred[0, 3] + pred[0, 4]
                 pred[0, 3] = pred[0, 5]
                 pred[0, 4] = pred[0, 6]
-                pred[0, 5] = np.sum(pred[0, 7:])
-                pred[0, 6:] = 0
+                pred[0, NON_RADAR_LABEL] = np.sum(pred[0, 7:])
+                pred[0, RECOGNITION_CLASS_COUNT:] = 0
 
-            label = int(np.argmax(pred[0, :6]))
+            label = int(np.argmax(pred[0, :RECOGNITION_CLASS_COUNT]))
             conf = float(pred[0, label])
 
             conf_dict = {i: float(c) for i, c in enumerate(pred[0, :6]) if np.round(c, 4) > 0}

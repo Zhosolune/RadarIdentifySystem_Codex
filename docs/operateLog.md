@@ -1,5 +1,74 @@
 # 变更记录
 
+- 时间：2026-07-25 05:19
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\recognition.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_recognition_parallel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：严格门限策略增加非雷达标签前置排除，并在命中后跳过联合概率计算。
+- 原因：PA和DTOA置信度只对雷达预测结果有判别意义，非雷达标签不应进入门限及联合概率计算。
+- 计划清单：
+  - [x] 严格策略在任一模型输出非雷达标签时直接判为无效。
+  - [x] 非雷达短路分支不计算联合概率并将结果保持为0。
+  - [x] 补充单侧及双侧非雷达高置信度回归测试。
+  - [x] 更新界面说明并完成聚焦验证。
+- 验证结果：
+  - 严格策略非雷达短路与参数界面测试：`16 passed, 1 warning`。
+  - 识别参数、运行时传播、Session快照及持久化回归：`119 passed, 1 deselected, 2 warnings`；排除项仍为既有QSS文案断言。
+  - `py_compile`及`git diff --check`：通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-24 17:07
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\app_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\config\config.json`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\recognition_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\session_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\recognition.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\onnx_service.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_config_factory.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\identify_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\scripts\profile_identify_logging.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_recognition_parallel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_runtime_algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_identify_worker_clustering_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_config_snapshot.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将占位识别参数重构为贪婪/严格门限策略及PA、DTOA、联合概率判定参数。
+- 原因：原识别参数虽已贯穿配置链路，但核心判定直接丢弃参数，界面调整不会影响识别结果。
+- 计划清单：
+  - [x] 删除原识别容差、最低置信度和最大候选数配置。
+  - [x] 增加默认启用的贪婪识别策略开关及PA/DTOA门限、权重、联合判别门限。
+  - [x] 使用统一非雷达标签常量替代识别判定、ONNX后处理及结果展示中的硬编码标签5。
+  - [x] 实现贪婪策略和严格门限策略，并补齐配置传播与核心判定测试。
+  - [x] 运行聚焦回归、`py_compile`和`git diff --check`。
+- 完成内容：
+  - [x] 已补充识别参数UI、配置快照迁移、Workflow传播和两种策略判定测试。
+  - [x] RED验证按预期在缺少`NON_RADAR_LABEL`新契约时失败，尚未进入旧实现断言。
+  - [x] 贪婪策略仅检查PA/DTOA是否至少一个不是非雷达标签，并将联合概率保持为0。
+  - [x] 严格策略同时检查PA门限、DTOA门限及按权重比例归一化后的联合概率门限。
+  - [x] Session配置结构升级为版本3，旧识别占位字段加载后丢弃并使用新默认值。
+- 验证结果：
+  - 识别参数UI、运行时传播、核心策略、Session快照与持久化回归：`116 passed, 1 deselected, 2 warnings`；排除项为既有QSS文案断言，未修改用户QSS。
+  - 核心识别模型doctest：`11 passed`。
+  - `py_compile`：通过；首次因默认`__pycache__`写入权限失败，改用工作区临时缓存后通过。
+  - `git diff --check`：通过，仅有LF/CRLF转换提示。
+  - 全量单元测试收集仍受既有`cluster_single_slice`和`AppSignalBus`缺失接口阻塞，与本次变更无关。
+- 测试状态：[已测试]
+
 - 时间：2026-07-24 09:52
 - 操作类型：[修改]
 - 影响文件：

@@ -211,9 +211,12 @@ def _build_params_from_session(session: ProcessingSession) -> tuple[
         clip_threshold_doa=clustering_config.clip_threshold_doa,
     )
     recognize_params = RecognitionParams(
-        tolerance=recognition_config.tolerance,
-        min_confidence=recognition_config.min_confidence,
-        max_candidates=recognition_config.max_candidates,
+        greedy_strategy=recognition_config.greedy_strategy,
+        pa_confidence_threshold=recognition_config.pa_confidence_threshold,
+        pa_confidence_weight=recognition_config.pa_confidence_weight,
+        dtoa_confidence_threshold=recognition_config.dtoa_confidence_threshold,
+        dtoa_confidence_weight=recognition_config.dtoa_confidence_weight,
+        joint_confidence_threshold=recognition_config.joint_confidence_threshold,
     )
     extract_params = ExtractParams(
         eps_cf=extract_config.eps_cf,

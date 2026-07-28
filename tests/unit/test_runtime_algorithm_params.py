@@ -7,7 +7,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from runtime.algorithm_params import get_clustering_params, get_merge_params
+from runtime.algorithm_params import (
+    get_clustering_params,
+    get_merge_params,
+    get_recognition_params,
+)
 
 
 def test_get_clustering_params_reads_split_cf_pw_and_doa_config() -> None:
@@ -32,3 +36,18 @@ def test_get_merge_params_returns_single_placeholder() -> None:
     assert not hasattr(params, "sim_threshold")
     assert not hasattr(params, "max_extrapolate")
     assert not hasattr(params, "pri_equal_doa_tolerance")
+
+
+def test_get_recognition_params_reads_strategy_thresholds_and_weights() -> None:
+    """识别参数组装器应读取策略、单项门限、权重和联合门限。"""
+    params = get_recognition_params()
+
+    assert params.greedy_strategy is True
+    assert params.pa_confidence_threshold == 0.5
+    assert params.pa_confidence_weight == 0.6
+    assert params.dtoa_confidence_threshold == 0.5
+    assert params.dtoa_confidence_weight == 0.4
+    assert params.joint_confidence_threshold == 0.8
+    assert not hasattr(params, "tolerance")
+    assert not hasattr(params, "min_confidence")
+    assert not hasattr(params, "max_candidates")

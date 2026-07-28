@@ -89,23 +89,41 @@ class AppConfig(QConfig):
     )
 
     # 识别参数 ─────────────────────────────────────────────────────────────────
-    recognizeTolerance = ConfigItem(
+    recognizeGreedyStrategy = ConfigItem(
         group="algorithm.recognize",
-        name="tolerance",
-        default=0.5,
-        validator=RangeValidator(0.01, 100.0),
+        name="greedyStrategy",
+        default=True,
+        validator=BoolValidator(),
     )
-    recognizeMinConfidence = ConfigItem(
+    recognizePaConfidenceThreshold = ConfigItem(
         group="algorithm.recognize",
-        name="minConfidence",
-        default=0.8,
+        name="paConfidenceThreshold",
+        default=0.5,
         validator=RangeValidator(0.0, 1.0),
     )
-    recognizeMaxCandidates = ConfigItem(
+    recognizePaConfidenceWeight = ConfigItem(
         group="algorithm.recognize",
-        name="maxCandidates",
-        default=5,
-        validator=RangeValidator(1, 100),
+        name="paConfidenceWeight",
+        default=0.6,
+        validator=RangeValidator(0.0, 100.0),
+    )
+    recognizeDtoaConfidenceThreshold = ConfigItem(
+        group="algorithm.recognize",
+        name="dtoaConfidenceThreshold",
+        default=0.5,
+        validator=RangeValidator(0.0, 1.0),
+    )
+    recognizeDtoaConfidenceWeight = ConfigItem(
+        group="algorithm.recognize",
+        name="dtoaConfidenceWeight",
+        default=0.4,
+        validator=RangeValidator(0.0, 100.0),
+    )
+    recognizeJointConfidenceThreshold = ConfigItem(
+        group="algorithm.recognize",
+        name="jointConfidenceThreshold",
+        default=0.8,
+        validator=RangeValidator(0.0, 1.0),
     )
 
     # 提取参数 ─────────────────────────────────────────────────────────────────

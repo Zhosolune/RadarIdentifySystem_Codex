@@ -1,17 +1,19 @@
 """识别与特征预测算法。
 
 功能描述：
-    对聚类结果进行 PA 与 DTOA 维度的特征预测，计算联合概率，
-    并判定簇的有效性。本模块为纯业务逻辑，不直接依赖 ONNX 或绘图库，
-    通过依赖注入（回调或接口）调用外部推理能力。
+    对聚类结果进行 PA 与 DTOA 维度的特征预测，并按贪婪策略或严格门限
+    策略判定簇的有效性。严格策略先排除任一非雷达标签，再计算归一化加权
+    联合概率；贪婪策略只检查非雷达标签。本模块为纯业务逻辑，不直接依赖
+    ONNX 或绘图库，通过依赖注入（回调或接口）调用外部推理能力。
 
 标签体系（严格遵循旧版定义）：
-    PA  (6 类): 0=完整包络, 1=残缺包络, 2=部分包络, 3=相扫, 4=旁瓣, 5=非雷达信号
-    DTOA(6 类): 0=常规, 1=脉间参差, 2=脉组参差, 3=脉间脉组参差, 4=组变脉间, 5=非雷达信号
+    PA: 0=完整包络, 1=残缺包络, 2=部分包络, 3=相扫, 4=旁瓣。
+    DTOA: 0=常规, 1=脉间参差, 2=脉组参差, 3=脉间脉组参差, 4=组变脉间。
+    两个模型的非雷达类别统一由 ``NON_RADAR_LABEL`` 定义。
 
-DTOA 长短类别合并规则（模型输出 7+ 类 → 6 类）：
-    原始: 0=常规_短, 1=常规_长, 2=脉间参差, 3=脉组参差_短, 4=脉组参差_长, 5=脉间脉组参差, 6=组变脉间, 7+=非雷达信号
-    合并: 0←0+1, 1←2, 2←3+4, 3←5, 4←6, 5←sum(7:)
+DTOA 长短类别合并规则：
+    原始长短类别合并为前五个雷达类别，其余负样本概率累加到
+    ``NON_RADAR_LABEL``。
 """
 
 from __future__ import annotations
@@ -20,11 +22,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import inspect
 import logging
+import math
 import os
 from typing import Protocol
 from core.models.algorithm_params import RecognitionParams
 from core.models.cluster_result import ClusterItem, ClusterState
-from core.models.recognition_result import ClusterRecognition
+from core.models.recognition_result import ClusterRecognition, NON_RADAR_LABEL
 
 LOGGER = logging.getLogger(__name__)
 
@@ -109,6 +112,32 @@ def _predict_with_optional_log_control(
     return method(cluster)
 
 
+def _calculate_joint_probability(
+    pa_confidence: float,
+    dtoa_confidence: float,
+    params: RecognitionParams,
+) -> float:
+    """按PA与DTOA相对权重计算归一化联合概率。"""
+    weight_sum = params.pa_confidence_weight + params.dtoa_confidence_weight
+    # 两项权重均为零时无法形成有效联合概率，安全回退为零。
+    if weight_sum <= 0.0:
+        return 0.0
+    return (
+        pa_confidence * params.pa_confidence_weight
+        + dtoa_confidence * params.dtoa_confidence_weight
+    ) / weight_sum
+
+
+def _meets_threshold(value: float, threshold: float) -> bool:
+    """判断概率是否达到门限，并容忍浮点加权产生的微小舍入误差。"""
+    return value >= threshold or math.isclose(
+        value,
+        threshold,
+        rel_tol=1e-9,
+        abs_tol=1e-12,
+    )
+
+
 def _evaluate_cluster(
     cluster: ClusterItem,
     inference_service: InferenceService,
@@ -116,9 +145,6 @@ def _evaluate_cluster(
     write_log: bool,
 ) -> _ClusterRecognitionOutcome:
     """执行单个簇的识别预测与有效性判定。"""
-    del params
-    pa_weight = 0.6
-    dtoa_weight = 0.4
     pa_trace_messages: list[TraceLogEntry] = []
     dtoa_trace_messages: list[TraceLogEntry] = []
     pa_label, pa_conf, pa_conf_dict = _predict_with_optional_log_control(
@@ -133,8 +159,28 @@ def _evaluate_cluster(
         write_log=write_log,
         trace_messages=dtoa_trace_messages,
     )
-    joint_prob = pa_conf * pa_weight + dtoa_conf * dtoa_weight
-    is_valid = pa_label != 5 or dtoa_label != 5
+    if params.greedy_strategy:
+        # 贪婪策略只要任一模型未判为非雷达即接受，不执行联合概率计算。
+        joint_prob = 0.0
+        is_valid = (
+            pa_label != NON_RADAR_LABEL
+            or dtoa_label != NON_RADAR_LABEL
+        )
+    elif (
+        pa_label == NON_RADAR_LABEL
+        or dtoa_label == NON_RADAR_LABEL
+    ):
+        # 严格策略要求两个维度都预测为雷达；非雷达标签直接拒绝并跳过概率计算。
+        joint_prob = 0.0
+        is_valid = False
+    else:
+        # 严格策略要求两个单项置信度和归一化联合概率同时达到门限。
+        joint_prob = _calculate_joint_probability(pa_conf, dtoa_conf, params)
+        is_valid = (
+            _meets_threshold(pa_conf, params.pa_confidence_threshold)
+            and _meets_threshold(dtoa_conf, params.dtoa_confidence_threshold)
+            and _meets_threshold(joint_prob, params.joint_confidence_threshold)
+        )
     return _ClusterRecognitionOutcome(
         cluster=cluster,
         pa_label=pa_label,

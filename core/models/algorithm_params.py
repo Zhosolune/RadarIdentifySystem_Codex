@@ -38,18 +38,24 @@ class RecognitionParams:
     """识别算法参数。
 
     功能描述：
-        封装识别阶段使用的业务参数，供后续识别工作流与核心算法共享统一
-        的参数契约。
+        封装贪婪与严格门限两种识别策略使用的业务参数，供识别工作流与
+        核心算法共享统一参数契约。
 
     Attributes:
-        tolerance (float): 识别匹配容差。
-        min_confidence (float): 最低置信度阈值。
-        max_candidates (int): 最大候选结果数量。
+        greedy_strategy: 是否使用贪婪策略；False 表示使用严格门限策略。
+        pa_confidence_threshold: PA 预测置信度门限。
+        pa_confidence_weight: PA 置信度在联合概率中的相对权重。
+        dtoa_confidence_threshold: DTOA 预测置信度门限。
+        dtoa_confidence_weight: DTOA 置信度在联合概率中的相对权重。
+        joint_confidence_threshold: 严格策略的加权联合概率门限。
     """
 
-    tolerance: float = 0.5
-    min_confidence: float = 0.8
-    max_candidates: int = 5
+    greedy_strategy: bool = True
+    pa_confidence_threshold: float = 0.5
+    pa_confidence_weight: float = 0.6
+    dtoa_confidence_threshold: float = 0.5
+    dtoa_confidence_weight: float = 0.4
+    joint_confidence_threshold: float = 0.8
 
 
 @dataclass(frozen=True, slots=True)
