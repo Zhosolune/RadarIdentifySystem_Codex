@@ -1,5 +1,31 @@
 # 变更记录
 
+- 时间：2026-07-28 11:12
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\merge_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将合并候选判别与整批合并计算拆分到后台线程，并把合并菜单激活条件收紧为“当前切片存在策略候选或已有合并结果”。
+- 原因：识别完成仅表示具备策略判别前提，不代表当前切片必然存在可合并类；原激活公式会错误地为所有已识别切片开放合并菜单。
+- 计划清单：
+  - [x] 新增候选计划Worker，在非GUI线程中按当前策略生成完整`SliceMergePlan`。
+  - [x] 合并执行Worker仅消费已经判定并冻结的计划，避免点击执行时再次判别出不同候选。
+  - [x] 判别期间保持菜单和合并按钮禁用，空计划完成后仍保持禁用。
+  - [x] 将菜单激活公式由`is_recognized OR has_results`改为`has_candidates OR has_results`。
+  - [x] 切片切换后读取目标切片自己的计划；若尚未判别则后台续接判别并按结果刷新。
+  - [x] 重置后后台重新判别，只有策略仍返回候选时才重新激活菜单。
+  - [x] 补充有候选切片与空候选切片之间切换的回归测试。
+  - [x] 搜索并确认运行时代码不再残留旧菜单激活公式。
+- 验证结果：
+  - 合并菜单候选判别、空计划禁用及跨切片激活聚焦测试通过（3 passed，19 deselected，1 warning）。
+  - 合并策略与合并管线完整运行共35 passed、3 failed；3项失败均为既有UI文案断言漂移（“组/类”、标题来源后缀、计数空格），本次未修改界面文案迁就旧断言。
+  - 排除上述3项既有文案断言后，合并策略与合并管线为35 passed、3 deselected、2 warnings；相关文件`py_compile`通过。
+  - `git diff --check`通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-28 10:53
 - 操作类型：[修改]
 - 影响文件：

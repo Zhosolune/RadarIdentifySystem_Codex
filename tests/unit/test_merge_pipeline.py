@@ -68,6 +68,17 @@ def _wait_for_merge_workflow(workflow: MergeWorkflow) -> None:
     assert not workflow.is_running()
 
 
+def _wait_for_merge_plan(workflow: MergeWorkflow) -> None:
+    """等待当前及事件回调续接的合并候选判别线程。"""
+    for _task_index in range(10):
+        worker = workflow._plan_worker
+        if worker is None:
+            break
+        assert worker.wait(10_000)
+        QApplication.processEvents()
+    assert not workflow.is_judging()
+
+
 def _execute_merge_and_wait(
     workflow: MergeWorkflow,
     session: ProcessingSession,
@@ -75,6 +86,10 @@ def _execute_merge_and_wait(
 ) -> bool:
     """启动合并线程并等待主线程完成结果写回。"""
     _app()
+    if not workflow.has_prepared_merge_plan(session, slice_index):
+        judging_started = workflow.request_merge_plan(session, slice_index)
+        if judging_started:
+            _wait_for_merge_plan(workflow)
     started = workflow.execute_merge_plan(session, slice_index)
     if started:
         _wait_for_merge_workflow(workflow)
@@ -268,6 +283,30 @@ class _ConfigurableStrategy:
         )
 
 
+class _SliceAwareStrategy:
+    """仅为第一个切片返回可合并分组。"""
+
+    strategy_id = "slice_aware_v1"
+
+    def build_plan(
+        self,
+        slice_cluster_result: SliceClusterResult,
+        _slice_recognition_result: SliceRecognitionResult,
+    ) -> SliceMergePlan:
+        """按切片索引返回不同的完整合并计划。"""
+        slice_index = slice_cluster_result.slice_idx
+        groups = (
+            (MergeGroup(slice_index, (1, 2)),)
+            if slice_index == 0
+            else ()
+        )
+        return SliceMergePlan(
+            slice_index=slice_index,
+            strategy_id=self.strategy_id,
+            groups=groups,
+        )
+
+
 def test_merge_chain_does_not_expose_manual_source_selection_entrypoints() -> None:
     """合并链路不得再暴露任何人工提交来源簇的兼容入口。"""
     assert not hasattr(merge_module, "MergeTarget")
@@ -323,6 +362,13 @@ def test_merge_workflow_runs_strategy_pipeline_and_rendering_off_gui_thread(
         "runtime.threading.merge_worker.render_merge_images",
         record_render,
     )
+
+    judging_started = workflow.request_merge_plan(session, 0)
+
+    assert judging_started
+    assert workflow.is_judging()
+    assert session.merge_plan is None
+    _wait_for_merge_plan(workflow)
 
     started = workflow.execute_merge_plan(session, 0)
 
@@ -652,8 +698,11 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
 
     try:
         _app()
-        assert view.right_panel.navigation_control_card.merge_menu_button.enabled
+        assert not view.right_panel.navigation_control_card.merge_menu_button.enabled
+        _wait_for_merge_plan(controller._workflow)
         controller.set_strategy(_FixedBatchStrategy())
+        assert not view.right_panel.navigation_control_card.merge_menu_button.enabled
+        _wait_for_merge_plan(controller._workflow)
         assert view.right_panel.navigation_control_card.merge_menu_button.enabled
 
         controller._execute_merge_plan()
@@ -910,6 +959,7 @@ def test_visibility_controls_update_merge_parameter_table(
         QApplication.processEvents()
         controller = interface._merge_controller
         controller.set_strategy(_FixedSingleStrategy())
+        _wait_for_merge_plan(controller._workflow)
         controller._execute_merge_plan()
         _wait_for_merge_workflow(controller._workflow)
 
@@ -943,7 +993,7 @@ def test_visibility_controls_update_merge_parameter_table(
 def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """重置后应保留合并入口，并按同ID的新策略参数重新判别和执行。"""
+    """重置后应后台重判，并按同ID的新策略参数执行新计划。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -959,8 +1009,10 @@ def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
         first_strategy = _ConfigurableStrategy(((1, 2),))
         controller.set_strategy(first_strategy)
 
-        # 识别完成和策略设置只开放入口；真正的可合并类在点击合并时才判别。
+        # 策略在后台完成候选判别前，菜单和执行按钮必须保持禁用。
         assert session.merge_plan is None
+        assert not menu_button.isEnabled()
+        _wait_for_merge_plan(controller._workflow)
         assert menu_button.isEnabled()
         assert operation_card.button_bar.merge_button.isEnabled()
         controller._execute_merge_plan()
@@ -977,18 +1029,18 @@ def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
         menu_button.click()
         QApplication.processEvents()
         controller._reset_merge_state()
-        assert session.merge_plan is None
+        _wait_for_merge_plan(controller._workflow)
+        assert session.merge_plan is not None
         assert session.merge_result is None
         assert menu_button.isEnabled()
-        assert menu_button.isChecked()
-        assert interface.image_workspace.is_merge_active()
         assert operation_card.button_bar.merge_button.isEnabled()
-        assert not operation_card.button_bar.reset_button.isEnabled()
+        assert operation_card.button_bar.reset_button.isEnabled()
         assert "？" in operation_card.result_count_label.text()
 
         # 新实例保持相同strategy_id但模拟参数变化，旧ID不得导致计划被错误复用。
         second_strategy = _ConfigurableStrategy(((3, 4),))
         controller.set_strategy(second_strategy)
+        _wait_for_merge_plan(controller._workflow)
         controller._execute_merge_plan()
         _wait_for_merge_workflow(controller._workflow)
         assert second_strategy.build_count == 1
@@ -1003,10 +1055,10 @@ def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
         sip.delete(interface)
 
 
-def test_empty_rejudgment_displays_zero_and_can_reset_to_unknown(
+def test_empty_rejudgment_keeps_merge_menu_disabled_after_reset(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """无候选计划应显示0，重置后恢复尚未判别的问号状态。"""
+    """无候选计划应显示0，重置重判后仍不得激活合并菜单。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -1021,24 +1073,24 @@ def test_empty_rejudgment_displays_zero_and_can_reset_to_unknown(
         menu_button = interface.right_panel.navigation_control_card.merge_menu_button
         strategy = _ConfigurableStrategy(())
         controller.set_strategy(strategy)
-        controller._execute_merge_plan()
-        _wait_for_merge_workflow(controller._workflow)
+        _wait_for_merge_plan(controller._workflow)
 
         assert strategy.build_count == 1
         assert session.merge_plan is not None
         assert session.merge_plan.slice_plans[0].groups == ()
         assert session.merge_result is None
         assert "0" in operation_card.result_count_label.text()
-        assert menu_button.isEnabled()
-        assert operation_card.button_bar.merge_button.isEnabled()
+        assert not menu_button.isEnabled()
+        assert not operation_card.button_bar.merge_button.isEnabled()
         assert operation_card.button_bar.reset_button.isEnabled()
 
         controller._reset_merge_state()
-        assert session.merge_plan is None
-        assert "？" in operation_card.result_count_label.text()
-        assert menu_button.isEnabled()
-        assert operation_card.button_bar.merge_button.isEnabled()
-        assert not operation_card.button_bar.reset_button.isEnabled()
+        _wait_for_merge_plan(controller._workflow)
+        assert session.merge_plan is not None
+        assert "0" in operation_card.result_count_label.text()
+        assert not menu_button.isEnabled()
+        assert not operation_card.button_bar.merge_button.isEnabled()
+        assert operation_card.button_bar.reset_button.isEnabled()
     finally:
         sip.delete(interface)
 
@@ -1046,7 +1098,7 @@ def test_empty_rejudgment_displays_zero_and_can_reset_to_unknown(
 def test_single_result_uses_global_visibility_and_resets_merge_state(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """单结果合并后应支持全局显隐，并可重置回未判别状态。"""
+    """单结果合并后应支持全局显隐，并可重置后后台重判。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -1060,6 +1112,7 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
         QApplication.processEvents()
         interface.image_workspace.setScrollAnimation(Qt.Orientation.Horizontal, 0)
         interface._merge_controller.set_strategy(_FixedSingleStrategy())
+        _wait_for_merge_plan(interface._merge_controller._workflow)
         menu_button = (
             interface.right_panel.navigation_control_card.merge_menu_button
         )
@@ -1125,27 +1178,91 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
 
         recognition_result = interface._session.recognition_result
         button_bar.reset_button.click()
-        QApplication.processEvents()
+        _wait_for_merge_plan(interface._merge_controller._workflow)
 
         assert interface._session.recognition_result is recognition_result
-        assert interface._session.merge_plan is None
+        assert interface._session.merge_plan is not None
         assert interface._session.merge_result is None
         assert (
             interface._session.get_slice_processing_state(
                 0
             ).merge_judgment_suppressed
-            is True
+            is False
         )
         assert menu_button.isEnabled()
         assert menu_button.isChecked()
         assert interface.image_workspace.is_merge_active()
         assert interface.image_workspace.current_pair_index() == 2
         assert button_bar.merge_button.isEnabled()
-        assert not button_bar.reset_button.isEnabled()
+        assert button_bar.reset_button.isEnabled()
         assert operation_card.result_count_label.text() == "共获得？个合并结果"
         assert not operation_card.global_visibility_checkbox.isEnabled()
         assert not category_card.category_checkboxes
         assert category_card.skeleton.isVisible()
+    finally:
+        sip.delete(interface)
+
+
+def test_merge_menu_activation_follows_current_slice_candidates(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """切换切片后，菜单应只按当前切片的策略候选状态激活。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda _model_type: [],
+    )
+    first_clusters, first_recognitions = _source_results()
+    second_clusters = SliceClusterResult(
+        slice_idx=1,
+        clusters=[
+            replace(cluster, slice_idx=1)
+            for cluster in first_clusters.clusters
+        ],
+    )
+    second_recognitions = SliceRecognitionResult(
+        slice_index=1,
+        valid_clusters=[
+            replace(recognition, slice_index=1)
+            for recognition in first_recognitions.valid_clusters
+        ],
+    )
+    session = ProcessingSession()
+    session.reset_slice_processing_states(2)
+    session.cluster_result = ClusteringResult(
+        slice_results={0: first_clusters, 1: second_clusters}
+    )
+    session.recognition_result = RecognitionResult(
+        slice_results={0: first_recognitions, 1: second_recognitions}
+    )
+    for slice_index in range(2):
+        session.mark_slice_cluster_succeeded(slice_index)
+        session.mark_slice_recognition_succeeded(slice_index)
+    interface = SliceInterface(session=session)
+
+    try:
+        controller = interface._merge_controller
+        menu_button = (
+            interface.right_panel.navigation_control_card.merge_menu_button
+        )
+        _wait_for_merge_plan(controller._workflow)
+        controller.set_strategy(_SliceAwareStrategy())
+        _wait_for_merge_plan(controller._workflow)
+
+        assert controller._workflow.get_prepared_merge_groups(session, 0) == (
+            (1, 2),
+        )
+        assert menu_button.isEnabled()
+
+        interface._slice_controller._current_slice_index = 1
+        controller.refresh_current_slice_state(reset_index=True)
+        assert not menu_button.isEnabled()
+        _wait_for_merge_plan(controller._workflow)
+
+        assert controller._workflow.has_prepared_merge_plan(session, 1)
+        assert controller._workflow.get_prepared_merge_groups(session, 1) == ()
+        assert not menu_button.isEnabled()
+        assert not menu_button.isChecked()
     finally:
         sip.delete(interface)
 
@@ -1163,6 +1280,7 @@ def test_identify_finished_does_not_prepare_plan_for_non_current_slice(
     interface = SliceInterface(session=session)
 
     try:
+        _wait_for_merge_plan(interface._merge_controller._workflow)
         interface._merge_controller._workflow.set_strategy(_FixedSingleStrategy())
         session.merge_plan = None
         interface._slice_controller._current_slice_index = 1
@@ -1192,6 +1310,9 @@ def test_identify_finished_logs_merge_menu_activation_judgment(
     interface = SliceInterface(session=session)
 
     try:
+        _wait_for_merge_plan(interface._merge_controller._workflow)
+        interface._merge_controller.set_strategy(_FixedSingleStrategy())
+        _wait_for_merge_plan(interface._merge_controller._workflow)
         caplog.set_level(logging.INFO, logger="ui.controllers.merge_controller")
         caplog.clear()
 
@@ -1210,9 +1331,10 @@ def test_identify_finished_logs_merge_menu_activation_judgment(
         assert "收到阶段完成事件并开始合并菜单激活判别" in messages
         assert "识别完成事件通过合并菜单激活前置校验" in messages
         assert "开始合并菜单可用性判别" in messages
-        assert "规则=is_recognized OR has_results" in messages
+        assert "规则=has_candidates OR has_results" in messages
         assert "is_recognized=True" in messages
-        assert "activation_reason=当前切片识别完成" in messages
+        assert "has_candidates=True" in messages
+        assert "activation_reason=当前切片存在策略判定的可合并类" in messages
         assert "enabled=True" in messages
         assert "识别完成后的合并菜单激活流程结束" in messages
         assert all(

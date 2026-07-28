@@ -39,7 +39,12 @@ from infra.plotting.facades import (
     resolve_merge_source_colors,
 )
 from infra.plotting.types import RenderedImageBundle
-from runtime.threading.merge_worker import MergeWorker, MergeWorkerResult
+from runtime.threading.merge_worker import (
+    MergePlanWorker,
+    MergePlanWorkerResult,
+    MergeWorker,
+    MergeWorkerResult,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -108,11 +113,18 @@ class MergeWorkflow(QObject):
         # 在工作流边界校验最小插件契约，避免错误准则延迟到识别完成后才暴露。
         self._validate_strategy(self._strategy)
         self._worker: MergeWorker | None = None
+        self._plan_worker: MergePlanWorker | None = None
         self._active_session: ProcessingSession | None = None
         self._active_slice_index: int | None = None
         self._active_strategy: MergeStrategy | None = None
+        self._active_plan: SliceMergePlan | None = None
         self._active_slice_clusters: SliceClusterResult | None = None
         self._active_slice_recognitions: SliceRecognitionResult | None = None
+        self._plan_session: ProcessingSession | None = None
+        self._plan_slice_index: int | None = None
+        self._plan_strategy: MergeStrategy | None = None
+        self._plan_slice_clusters: SliceClusterResult | None = None
+        self._plan_slice_recognitions: SliceRecognitionResult | None = None
         self._rendered_bundles: dict[
             tuple[str, int],
             tuple[RenderedImageBundle, ...],
@@ -128,6 +140,17 @@ class MergeWorkflow(QObject):
             无显式抛出异常。
         """
         return self._worker is not None
+
+    def is_judging(self) -> bool:
+        """判断当前工作流是否正在后台判别可合并类。
+
+        Returns:
+            bool: 候选计划线程尚未完成主线程回调时返回 True。
+
+        Raises:
+            无显式抛出异常。
+        """
+        return self._plan_worker is not None
 
     @property
     def strategy_id(self) -> str:
@@ -197,6 +220,210 @@ class MergeWorkflow(QObject):
             extra={"session_id": session.session_id},
         )
         return True
+
+    def request_merge_plan(
+        self,
+        session: ProcessingSession,
+        slice_index: int,
+        *,
+        force: bool = False,
+    ) -> bool:
+        """启动当前切片的后台合并候选判别。
+
+        Args:
+            session [ProcessingSession]: 包含聚类和识别结果的目标会话。
+            slice_index [int]: 目标切片的 0-based 索引。
+            force [bool]: 是否忽略重置抑制状态并重新判别。
+
+        Returns:
+            bool: 候选判别线程成功启动时返回 True，否则返回 False。
+
+        Raises:
+            ValueError: 切片索引为负数时抛出。
+        """
+        if slice_index < 0:
+            raise ValueError("slice_index 不能为负数")
+        session_id = session.session_id
+        LOGGER.info(
+            "请求后台判别合并候选: slice_index=%d, strategy_id=%s, "
+            "force=%s, judging=%s, result_count=%d",
+            slice_index,
+            self.strategy_id,
+            force,
+            self.is_judging(),
+            self.get_result_count(session, slice_index),
+            extra={"session_id": session_id},
+        )
+        if self.is_judging() or self.is_running():
+            LOGGER.info(
+                "跳过后台合并候选判别: slice_index=%d, 原因=已有合并任务运行",
+                slice_index,
+                extra={"session_id": session_id},
+            )
+            return False
+        if self.get_result_count(session, slice_index):
+            LOGGER.info(
+                "跳过后台合并候选判别: slice_index=%d, 原因=已有合并结果",
+                slice_index,
+                extra={"session_id": session_id},
+            )
+            return False
+        if not session.is_slice_recognized(slice_index):
+            LOGGER.info(
+                "跳过后台合并候选判别: slice_index=%d, 原因=切片尚未识别完成",
+                slice_index,
+                extra={"session_id": session_id},
+            )
+            return False
+        slice_state = session.get_slice_processing_state(slice_index)
+        if slice_state.merge_judgment_suppressed and not force:
+            LOGGER.info(
+                "跳过后台合并候选判别: slice_index=%d, "
+                "原因=重置后判别被抑制且force=False",
+                slice_index,
+                extra={"session_id": session_id},
+            )
+            return False
+        existing = self._get_prepared_plan(session, slice_index)
+        if existing is not None and not force:
+            LOGGER.info(
+                "跳过后台合并候选判别: slice_index=%d, "
+                "原因=当前策略计划已经存在, group_count=%d",
+                slice_index,
+                existing.group_count,
+                extra={"session_id": session_id},
+            )
+            return False
+        source_results = self._find_source_results(session, slice_index)
+        if source_results is None:
+            LOGGER.info(
+                "跳过后台合并候选判别: slice_index=%d, 原因=来源结果缺失",
+                slice_index,
+                extra={"session_id": session_id},
+            )
+            return False
+
+        strategy = self._strategy
+        slice_clusters, slice_recognitions = source_results
+        if force:
+            with session.lock:
+                session.clear_slice_merge_results(slice_index)
+        self._plan_worker = MergePlanWorker(
+            session_id=session_id,
+            slice_index=slice_index,
+            strategy=strategy,
+            slice_cluster_result=slice_clusters,
+            slice_recognition_result=slice_recognitions,
+            parent=self,
+        )
+        self._plan_session = session
+        self._plan_slice_index = slice_index
+        self._plan_strategy = strategy
+        self._plan_slice_clusters = slice_clusters
+        self._plan_slice_recognitions = slice_recognitions
+        self._plan_worker.finished_signal.connect(self._on_plan_worker_finished)
+        signal_bus.stage_started.emit(session_id, "merge_judging", slice_index)
+        self._plan_worker.start()
+        return True
+
+    @pyqtSlot(str, object)
+    def _on_plan_worker_finished(
+        self,
+        session_id: str,
+        result: MergePlanWorkerResult,
+    ) -> None:
+        """校验并保存后台候选判别结果。"""
+        session = self._plan_session
+        slice_index = self._plan_slice_index
+        error_message = result.error_message
+        if session is None or slice_index is None:
+            error_message = error_message or "合并候选判别缺少活动Session上下文"
+        elif session.session_id != session_id:
+            error_message = "合并候选判别Session与活动任务不一致"
+        elif result.success:
+            plan = result.plan
+            if plan is None:
+                error_message = "合并候选判别线程未返回计划"
+            else:
+                try:
+                    with session.lock:
+                        if not self._plan_context_is_current(session, slice_index):
+                            raise ValueError("合并候选判别期间来源或策略已变化")
+                        if plan.slice_index != slice_index:
+                            raise ValueError("合并候选判别返回了错误的切片索引")
+                        if self._plan_strategy is None or (
+                            plan.strategy_id != self._plan_strategy.strategy_id
+                        ):
+                            raise ValueError("合并候选判别返回的策略标识已失效")
+                        if session.merge_plan is None:
+                            session.merge_plan = MergePlan()
+                        session.merge_plan.slice_plans[slice_index] = plan
+                        session.get_slice_processing_state(
+                            slice_index
+                        ).merge_judgment_suppressed = False
+                    LOGGER.info(
+                        "后台合并候选判别完成: slice_index=%d, "
+                        "strategy_id=%s, group_count=%d, groups=%s",
+                        slice_index,
+                        plan.strategy_id,
+                        plan.group_count,
+                        tuple(group.cluster_indices for group in plan.groups),
+                        extra={"session_id": session_id},
+                    )
+                except Exception as error:
+                    error_message = str(error)
+
+        if error_message and session is not None and slice_index is not None:
+            with session.lock:
+                if self._plan_context_is_current(session, slice_index):
+                    session.mark_slice_merge_failed(slice_index, error_message)
+
+        self._cleanup_plan_worker_context()
+        if error_message:
+            LOGGER.error(
+                "后台合并候选判别失败: slice_index=%s, error=%s",
+                slice_index,
+                error_message,
+                extra={"session_id": session_id},
+            )
+            signal_bus.stage_failed.emit(
+                session_id,
+                "merge_judging",
+                slice_index,
+                error_message,
+            )
+            return
+        signal_bus.stage_finished.emit(
+            session_id,
+            "merge_judging",
+            slice_index,
+        )
+
+    def _plan_context_is_current(
+        self,
+        session: ProcessingSession,
+        slice_index: int,
+    ) -> bool:
+        """判断候选判别来源和策略仍属于当前Session代次。"""
+        current_sources = self._find_source_results(session, slice_index)
+        return (
+            session.is_slice_recognized(slice_index)
+            and current_sources is not None
+            and current_sources[0] is self._plan_slice_clusters
+            and current_sources[1] is self._plan_slice_recognitions
+            and self._strategy is self._plan_strategy
+        )
+
+    def _cleanup_plan_worker_context(self) -> None:
+        """释放候选判别线程及其活动输入引用。"""
+        if self._plan_worker is not None:
+            self._plan_worker.deleteLater()
+        self._plan_worker = None
+        self._plan_session = None
+        self._plan_slice_index = None
+        self._plan_strategy = None
+        self._plan_slice_clusters = None
+        self._plan_slice_recognitions = None
 
     def prepare_merge_plan(
         self,
@@ -457,9 +684,9 @@ class MergeWorkflow(QObject):
             self.strategy_id,
             extra={"session_id": session_id},
         )
-        if self.is_running():
+        if self.is_running() or self.is_judging():
             LOGGER.warning(
-                "拒绝执行合并计划: slice_index=%d, 原因=合并线程正在运行",
+                "拒绝执行合并计划: slice_index=%d, 原因=合并任务正在运行",
                 slice_index,
                 extra={"session_id": session_id},
             )
@@ -483,30 +710,41 @@ class MergeWorkflow(QObject):
                 extra={"session_id": session_id},
             )
             return False
+        plan = self._get_prepared_plan(session, slice_index)
+        if plan is None or not plan.groups:
+            LOGGER.info(
+                "拒绝执行合并计划: slice_index=%d, "
+                "原因=%s",
+                slice_index,
+                "尚未完成候选判别" if plan is None else "当前切片没有可合并类",
+                extra={"session_id": session_id},
+            )
+            return False
 
         extract_params = self._build_extract_params(session)
         strategy = self._strategy
         slice_clusters, slice_recognitions = source_results
         LOGGER.info(
             "准备启动合并线程: slice_index=%d, strategy_id=%s, "
-            "cluster_count=%d, valid_recognition_count=%d, 参数提取配置=%s",
+            "groups=%s, cluster_count=%d, valid_recognition_count=%d, "
+            "参数提取配置=%s",
             slice_index,
             strategy.strategy_id,
+            tuple(group.cluster_indices for group in plan.groups),
             len(slice_clusters.clusters),
             len(slice_recognitions.valid_clusters),
             extract_params,
             extra={"session_id": session_id},
         )
         with session.lock:
-            # 新任务以当前识别代次重新判别，先清除旧计划，结果只由线程回调原子写回。
-            session.clear_slice_merge_results(slice_index)
+            # 执行必须消费菜单激活时已经判定的同一计划，避免判别与执行来源漂移。
             session.mark_slice_merge_running(slice_index)
             self._rendered_bundles.pop((session_id, slice_index), None)
 
         self._worker = MergeWorker(
             session_id=session_id,
             slice_index=slice_index,
-            strategy=strategy,
+            plan=plan,
             slice_cluster_result=slice_clusters,
             slice_recognition_result=slice_recognitions,
             extract_params=extract_params,
@@ -516,6 +754,7 @@ class MergeWorkflow(QObject):
         self._active_session = session
         self._active_slice_index = slice_index
         self._active_strategy = strategy
+        self._active_plan = plan
         self._active_slice_clusters = slice_clusters
         self._active_slice_recognitions = slice_recognitions
         self._worker.finished_signal.connect(self._on_worker_finished)
@@ -616,18 +855,6 @@ class MergeWorkflow(QObject):
                 plan.strategy_id != self._active_strategy.strategy_id
             ):
                 raise ValueError("合并线程返回的策略标识已失效")
-
-            if session.merge_plan is None:
-                session.merge_plan = MergePlan()
-            session.merge_plan.slice_plans[slice_index] = plan
-            slice_state = session.get_slice_processing_state(slice_index)
-            slice_state.merge_judgment_suppressed = False
-
-            if not plan.groups:
-                # 已完成判别但没有可合并分组，不创建伪结果或推进全局阶段。
-                slice_state.merge_status = SliceProcessStatus.NOT_STARTED
-                slice_state.last_merge_error = None
-                return 0
             if len(result.merged_results) != plan.group_count:
                 raise ValueError("合并线程结果数量与策略计划不一致")
             if len(result.rendered_bundles) != plan.group_count:
@@ -659,6 +886,8 @@ class MergeWorkflow(QObject):
             and current_sources[0] is self._active_slice_clusters
             and current_sources[1] is self._active_slice_recognitions
             and self._strategy is self._active_strategy
+            and session.merge_plan is not None
+            and session.merge_plan.slice_plans.get(slice_index) is self._active_plan
         )
 
     def _cleanup_worker_context(self) -> None:
@@ -669,6 +898,7 @@ class MergeWorkflow(QObject):
         self._active_session = None
         self._active_slice_index = None
         self._active_strategy = None
+        self._active_plan = None
         self._active_slice_clusters = None
         self._active_slice_recognitions = None
 
