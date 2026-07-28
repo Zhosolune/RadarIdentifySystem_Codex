@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PyQt6 import sip
-from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtCore import QObject, QThread, Qt
 from PyQt6.QtWidgets import QApplication
 from pytest import LogCaptureFixture, MonkeyPatch, raises
 from qfluentwidgets import CheckBox
@@ -36,7 +36,7 @@ from core.models.recognition_result import (
     RecognitionResult,
     SliceRecognitionResult,
 )
-from infra.plotting.facades import resolve_merge_source_colors
+from infra.plotting.facades import render_merge_images, resolve_merge_source_colors
 from runtime.workflows.merge_workflow import MergeWorkflow
 from ui.components.merge_image_column import MergeImageColumn
 from ui.controllers.merge_controller import MergeController
@@ -54,6 +54,31 @@ def _app() -> QApplication:
         _APP = QApplication([])
         return _APP
     return app
+
+
+def _wait_for_merge_workflow(workflow: MergeWorkflow) -> None:
+    """等待合并线程结束并处理主线程完成回调。"""
+    worker = workflow._worker
+    assert worker is not None
+    assert worker.wait(10_000)
+    for _index in range(100):
+        QApplication.processEvents()
+        if not workflow.is_running():
+            break
+    assert not workflow.is_running()
+
+
+def _execute_merge_and_wait(
+    workflow: MergeWorkflow,
+    session: ProcessingSession,
+    slice_index: int = 0,
+) -> bool:
+    """启动合并线程并等待主线程完成结果写回。"""
+    _app()
+    started = workflow.execute_merge_plan(session, slice_index)
+    if started:
+        _wait_for_merge_workflow(workflow)
+    return started
 
 
 def _cluster(cluster_index: int, points: np.ndarray) -> ClusterItem:
@@ -255,6 +280,69 @@ def test_merge_chain_does_not_expose_manual_source_selection_entrypoints() -> No
     assert not hasattr(MergeController, "merge_clusters")
 
 
+def test_merge_workflow_runs_strategy_pipeline_and_rendering_off_gui_thread(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """策略判别、批量计算和绘图验证都应在合并子线程执行。"""
+    _app()
+    session = _session_with_source_results()
+    strategy = _FixedSingleStrategy()
+    workflow = MergeWorkflow(strategy=strategy)
+    main_thread_id = int(QThread.currentThreadId())
+    execution_thread_ids: list[int] = []
+
+    original_build_plan = strategy.build_plan
+    original_run_plan = MergePipeline.run_plan
+    original_render = render_merge_images
+
+    def record_build_plan(
+        slice_cluster_result: SliceClusterResult,
+        slice_recognition_result: SliceRecognitionResult,
+    ) -> SliceMergePlan:
+        """记录策略判别所在线程并执行原逻辑。"""
+        execution_thread_ids.append(int(QThread.currentThreadId()))
+        return original_build_plan(slice_cluster_result, slice_recognition_result)
+
+    def record_run_plan(
+        pipeline: MergePipeline,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        """记录批量合并所在线程并执行原逻辑。"""
+        execution_thread_ids.append(int(QThread.currentThreadId()))
+        return original_run_plan(pipeline, *args, **kwargs)
+
+    def record_render(*args: object, **kwargs: object) -> object:
+        """记录绘图验证所在线程并执行原逻辑。"""
+        execution_thread_ids.append(int(QThread.currentThreadId()))
+        return original_render(*args, **kwargs)
+
+    monkeypatch.setattr(strategy, "build_plan", record_build_plan)
+    monkeypatch.setattr(MergePipeline, "run_plan", record_run_plan)
+    monkeypatch.setattr(
+        "runtime.threading.merge_worker.render_merge_images",
+        record_render,
+    )
+
+    started = workflow.execute_merge_plan(session, 0)
+
+    assert started
+    assert workflow.is_running()
+    assert session.merge_result is None
+    assert (
+        session.get_slice_processing_state(0).merge_status
+        is SliceProcessStatus.RUNNING
+    )
+    _wait_for_merge_workflow(workflow)
+
+    assert len(execution_thread_ids) == 3
+    assert all(thread_id != main_thread_id for thread_id in execution_thread_ids)
+    assert session.merge_result is not None
+    presentation = workflow.render_result(session, 0, 0)
+    assert presentation.images
+    assert len(execution_thread_ids) == 3
+
+
 def test_merge_pipeline_concatenates_points_and_only_reextracts_parameters(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -331,10 +419,10 @@ def test_merge_workflow_logs_session_config_plan_and_atomic_writeback(
     caplog.set_level(logging.INFO, logger="runtime.workflows.merge_workflow")
 
     plan = workflow.prepare_merge_plan(session, 0)
-    execution = workflow.execute_merge_plan(session, 0)
+    started = _execute_merge_and_wait(workflow, session)
 
     assert plan is not None
-    assert execution.success
+    assert started
     workflow_records = [
         record
         for record in caplog.records
@@ -346,7 +434,7 @@ def test_merge_workflow_logs_session_config_plan_and_atomic_writeback(
     assert "strategy_id=fixed_batch_v1" in messages
     assert "groups=((1, 2), (3, 4))" in messages
     assert "参数提取配置=ExtractParams(" in messages
-    assert "批量合并结果已原子写回" in messages
+    assert "合并线程完成并已原子写回" in messages
     assert "结果来源=((1, 2), (3, 4))" in messages
     assert all(
         getattr(record, "session_id", None) == session.session_id
@@ -359,14 +447,14 @@ def test_merge_workflow_records_failure_without_overwriting_results() -> None:
     session = _session_with_source_results()
     workflow = MergeWorkflow(strategy=_ConfigurableStrategy(((1, 99),)))
 
-    execution = workflow.execute_merge_plan(session, 0)
+    started = _execute_merge_and_wait(workflow, session)
 
     state = session.get_slice_processing_state(0)
-    assert not execution.success
-    assert "未找到来源簇 99" in execution.error_message
+    assert started
     assert session.merge_result is None
     assert state.merge_status is SliceProcessStatus.FAILED
-    assert state.last_merge_error == execution.error_message
+    assert state.last_merge_error is not None
+    assert "未找到来源簇 99" in state.last_merge_error
 
 
 def test_reidentify_invalidation_clears_only_target_slice_merge_results() -> None:
@@ -374,10 +462,10 @@ def test_reidentify_invalidation_clears_only_target_slice_merge_results() -> Non
     session = _session_with_four_source_results()
     workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
     plan = workflow.prepare_merge_plan(session, 0)
-    execution = workflow.execute_merge_plan(session, 0)
+    started = _execute_merge_and_wait(workflow, session)
 
     assert plan is not None
-    assert execution.success
+    assert started
     assert session.merge_plan is not None
     assert session.merge_result is not None
 
@@ -563,11 +651,19 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
     controller = MergeController(view)
 
     try:
+        _app()
         assert view.right_panel.navigation_control_card.merge_menu_button.enabled
         controller.set_strategy(_FixedBatchStrategy())
         assert view.right_panel.navigation_control_card.merge_menu_button.enabled
 
         controller._execute_merge_plan()
+        assert controller._workflow.is_running()
+        button_bar = view.merge_operation_panel.operation_card.button_bar
+        assert not button_bar.merge_button.enabled
+        assert not button_bar.prev_cluster_button.enabled
+        assert not button_bar.next_cluster_button.enabled
+        assert not button_bar.reset_button.enabled
+        _wait_for_merge_workflow(controller._workflow)
 
         assert session.merge_result is not None
         results = session.merge_result.slice_results[0].merged_clusters
@@ -576,7 +672,6 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
             (3, 4),
         ]
         assert all(result.strategy_id == "fixed_batch_v1" for result in results)
-        button_bar = view.merge_operation_panel.operation_card.button_bar
         assert view.right_panel.navigation_control_card.merge_menu_button.enabled
         assert not button_bar.merge_button.enabled
         assert not button_bar.prev_cluster_button.enabled
@@ -626,17 +721,15 @@ def test_merge_workflow_executes_full_plan_without_mutating_recognition() -> Non
     assert workflow.get_merge_groups(session, 0) == ()
     session.mark_slice_recognition_succeeded(0)
 
-    execution = workflow.execute_merge_plan(session, 0)
+    started = _execute_merge_and_wait(workflow, session)
 
-    assert execution.success
-    assert execution.result_count == 2
+    assert started
     assert session.recognition_result is recognition_result
     assert tuple(recognition_slice.valid_clusters) == recognition_items
     assert workflow.get_merge_groups(session, 0) == ((1, 2), (3, 4))
 
-    duplicate = workflow.execute_merge_plan(session, 0)
-    assert not duplicate.success
-    assert "已经执行" in duplicate.error_message
+    duplicate_started = workflow.execute_merge_plan(session, 0)
+    assert not duplicate_started
     assert session.merge_result is not None
     assert len(session.merge_result.slice_results[0].merged_clusters) == 2
 
@@ -670,15 +763,14 @@ def test_batch_merge_failure_does_not_write_partial_results(
 
     monkeypatch.setattr(MergePipeline, "run_plan", fail_run_plan)
 
-    execution = workflow.execute_merge_plan(session, 0)
+    started = _execute_merge_and_wait(workflow, session)
 
-    assert not execution.success
-    assert "模拟第二组合并失败" in execution.error_message
+    assert started
     assert session.merge_result is None
-    assert (
-        session.get_slice_processing_state(0).merge_status
-        is SliceProcessStatus.FAILED
-    )
+    state = session.get_slice_processing_state(0)
+    assert state.merge_status is SliceProcessStatus.FAILED
+    assert state.last_merge_error is not None
+    assert "模拟第二组合并失败" in state.last_merge_error
 
 
 def test_batch_merge_discards_results_when_recognition_changes(
@@ -703,10 +795,9 @@ def test_batch_merge_discards_results_when_recognition_changes(
 
     monkeypatch.setattr(MergePipeline, "run_plan", invalidate_after_run)
 
-    execution = workflow.execute_merge_plan(session, 0)
+    started = _execute_merge_and_wait(workflow, session)
 
-    assert not execution.success
-    assert "来源或计划已变化" in execution.error_message
+    assert started
     assert session.merge_result is None
     assert (
         session.get_slice_processing_state(0).merge_status
@@ -720,12 +811,12 @@ def test_merge_image_column_displays_rgb_bundle_from_workflow() -> None:
     session = _session_with_four_source_results()
     workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
     workflow.prepare_merge_plan(session, 0)
-    execution = workflow.execute_merge_plan(session, 0)
+    started = _execute_merge_and_wait(workflow, session)
     presentation = workflow.render_result(session, 0, 0)
     column = MergeImageColumn()
 
     try:
-        assert execution.success
+        assert started
         column.update_images(presentation.images, presentation.title)
 
         assert column.title_label.text() == "合并结果 第1/2组（原第1+2类）"
@@ -745,8 +836,8 @@ def test_merge_presentation_formats_pri_like_right_panel() -> None:
     session = _session_with_source_results()
     workflow = MergeWorkflow(strategy=_FixedSingleStrategy())
     workflow.prepare_merge_plan(session, 0)
-    execution = workflow.execute_merge_plan(session, 0)
-    assert execution.success
+    started = _execute_merge_and_wait(workflow, session)
+    assert started
     assert session.merge_result is not None
 
     slice_result = session.merge_result.slice_results[0]
@@ -772,8 +863,8 @@ def test_hiding_merge_source_updates_parameters_and_preserves_color() -> None:
     session = _session_with_source_results()
     workflow = MergeWorkflow(strategy=_FixedSingleStrategy())
     workflow.prepare_merge_plan(session, 0)
-    execution = workflow.execute_merge_plan(session, 0)
-    assert execution.success
+    started = _execute_merge_and_wait(workflow, session)
+    assert started
 
     full = workflow.render_result(session, 0, 0)
     hidden = workflow.render_result(session, 0, 0, visible_cluster_indices=(2,))
@@ -820,7 +911,7 @@ def test_visibility_controls_update_merge_parameter_table(
         controller = interface._merge_controller
         controller.set_strategy(_FixedSingleStrategy())
         controller._execute_merge_plan()
-        QApplication.processEvents()
+        _wait_for_merge_workflow(controller._workflow)
 
         operation_card = interface.merge_operation_panel.operation_card
         category_card = operation_card.category_display_card
@@ -873,6 +964,7 @@ def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
         assert menu_button.isEnabled()
         assert operation_card.button_bar.merge_button.isEnabled()
         controller._execute_merge_plan()
+        _wait_for_merge_workflow(controller._workflow)
         assert first_strategy.build_count == 1
         assert session.merge_result is not None
         assert (
@@ -898,6 +990,7 @@ def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
         second_strategy = _ConfigurableStrategy(((3, 4),))
         controller.set_strategy(second_strategy)
         controller._execute_merge_plan()
+        _wait_for_merge_workflow(controller._workflow)
         assert second_strategy.build_count == 1
         assert session.merge_result is not None
         assert (
@@ -929,6 +1022,7 @@ def test_empty_rejudgment_displays_zero_and_can_reset_to_unknown(
         strategy = _ConfigurableStrategy(())
         controller.set_strategy(strategy)
         controller._execute_merge_plan()
+        _wait_for_merge_workflow(controller._workflow)
 
         assert strategy.build_count == 1
         assert session.merge_plan is not None
@@ -978,7 +1072,7 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
         assert interface.image_workspace.is_merge_active()
 
         button_bar.merge_button.click()
-        QApplication.processEvents()
+        _wait_for_merge_workflow(interface._merge_controller._workflow)
 
         assert menu_button.isEnabled()
         assert menu_button.isChecked()

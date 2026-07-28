@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-07-28 10:22
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\merge_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：新增合并后台线程，将策略判别、整批点云合并、参数重提取及五维图像生成移出 GUI 线程，并在主线程完成代次校验、原子写回和界面刷新。
+- 原因：原合并按钮同步执行完整策略、计算和绘图链路，随脉冲数及合并组数量增长会阻塞 Qt 事件循环；合并与导入、切片、识别一样属于潜在耗时任务。
+- 计划清单：
+  - [x] 新增 `MergeWorker` 和不可变 `MergeWorkerResult`，在线程入口绑定 Session 日志上下文。
+  - [x] Worker 冻结 Session 来源结果、策略实例、参数提取快照和频段，执行完整 `SliceMergePlan` 并返回全部派生结果。
+  - [x] Worker 生成并返回各合并结果的五维图像，首次呈现和结果浏览复用缓存，避免主线程重复栅格化。
+  - [x] `MergeWorkflow` 负责线程生命周期、重复启动拦截、来源对象与策略实例代次校验、空计划语义和 Session 原子写回。
+  - [x] 重新识别或策略切换导致来源失效时丢弃旧线程结果，不覆盖新代次状态。
+  - [x] 合并运行期间禁用合并、上一类、下一类和重置按钮；完成或失败后通过 `stage_finished/stage_failed` 刷新当前切片。
+  - [x] 测试验证策略判别、批量管线和绘图均运行在非 GUI 线程，且初次呈现不在主线程重复绘图。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest -q tests\unit\test_core_merge_strategy.py tests\unit\test_merge_pipeline.py -k "not test_merge_controller_executes_full_plan_and_browses_results and not test_merge_image_column_displays_rgb_bundle_from_workflow and not test_single_result_uses_global_visibility_and_resets_merge_state" --basetemp=.pytest_tmp_merge_worker_final -p no:cacheprovider` 通过（34 passed，3 deselected，2 warnings）；未排除运行为 34 passed、3 failed，失败仍是本次未修改的既有 UI 文案断言漂移；`tests\unit\test_slice_interface.py -k "merge"` 为 2 passed、1 failed、7 deselected，失败同样是既有计数文案空格断言；相关文件 `py_compile` 通过；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
 - 时间：2026-07-28 09:57
 - 操作类型：[删除]
 - 影响文件：

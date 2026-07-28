@@ -9,7 +9,6 @@ from PyQt6.QtCore import QObject
 
 from app.signal_bus import signal_bus
 from runtime.workflows.merge_workflow import (
-    MergeBatchWorkflowResult,
     MergeStrategy,
     MergeWorkflow,
 )
@@ -152,6 +151,7 @@ class MergeController(QObject):
         session = self.view._session
         is_recognized = session.is_slice_recognized(slice_index)
         has_results = self._result_count > 0
+        merge_running = self._workflow.is_running()
         menu_button = self.view.right_panel.navigation_control_card.merge_menu_button
         previous_enabled = menu_button.isEnabled()
         previous_checked = menu_button.isChecked()
@@ -168,8 +168,8 @@ class MergeController(QObject):
             "开始合并菜单可用性判别: slice_index=%d, "
             "规则=is_recognized OR has_results, is_recognized=%s, "
             "has_results=%s, merge_judged=%s, prepared_group_count=%d, "
-            "prepared_groups=%s, result_count=%d, previous_enabled=%s, "
-            "previous_checked=%s",
+            "prepared_groups=%s, result_count=%d, merge_running=%s, "
+            "previous_enabled=%s, previous_checked=%s",
             slice_index,
             is_recognized,
             has_results,
@@ -177,6 +177,7 @@ class MergeController(QObject):
             len(self._merge_groups),
             self._merge_groups,
             self._result_count,
+            merge_running,
             previous_enabled,
             previous_checked,
             extra={"session_id": session.session_id},
@@ -209,15 +210,20 @@ class MergeController(QObject):
         button_bar = operation_card.button_bar
 
         # 无结果时点击合并会先按当前策略强制重判，再执行新计划。
-        button_bar.merge_button.setEnabled(is_recognized and not has_results)
+        button_bar.merge_button.setEnabled(
+            is_recognized and not has_results and not merge_running
+        )
         button_bar.prev_cluster_button.setEnabled(
-            has_results and self._current_result_index > 0
+            has_results and not merge_running and self._current_result_index > 0
         )
         button_bar.next_cluster_button.setEnabled(
             has_results
+            and not merge_running
             and self._current_result_index < self._result_count - 1
         )
-        button_bar.reset_button.setEnabled(has_results or self._merge_judged)
+        button_bar.reset_button.setEnabled(
+            not merge_running and (has_results or self._merge_judged)
+        )
         LOGGER.info(
             "合并操作按钮状态同步完成: slice_index=%d, merge_enabled=%s, "
             "previous_enabled=%s, next_enabled=%s, reset_enabled=%s, "
@@ -232,45 +238,22 @@ class MergeController(QObject):
         )
 
     def _execute_merge_plan(self) -> None:
-        """按当前策略重新判别，并一次执行新计划中的全部分组。"""
+        """启动当前策略的后台判别与整批合并任务。"""
         slice_index = self.view._slice_controller.current_slice_index
         if (
             self._result_count
+            or self._workflow.is_running()
             or not self.view._session.is_slice_recognized(slice_index)
         ):
             return
-        # 每次点击都冻结当前策略实例并强制替换旧计划，支持重置后调整参数再合并。
-        self._merge_groups = self._workflow.get_merge_groups(
-            self.view._session,
-            slice_index,
-            force=True,
-        )
-        self._merge_judged = True
-        if not self._merge_groups:
-            self._clear_presentation()
-            self._update_controls()
-            return
-        execution = self._workflow.execute_merge_plan(
+        # 策略判别也属于合并任务，由Worker与点云、参数、绘图计算一并执行。
+        started = self._workflow.execute_merge_plan(
             self.view._session,
             slice_index,
         )
-        self._present_batch_execution(execution)
-
-    def _present_batch_execution(
-        self,
-        execution: MergeBatchWorkflowResult,
-    ) -> None:
-        """在整批成功后默认显示第一项结果并保持C+D。"""
-        if not execution.success:
-            # 失败可能伴随识别代次或计划失效，重新读取session避免保留旧控制器状态。
-            self.refresh_current_slice_state()
-            return
-
-        # 批量工作流已一次生成全部结果，界面默认呈现第一组且不退出C+D。
-        self._result_count = execution.result_count
-        self._merge_judged = True
-        self._current_result_index = 0
-        self._present_current_result(reset_visibility=True)
+        if started:
+            self._merge_groups = ()
+            self._merge_judged = False
         self._update_controls()
 
     def _show_previous_result(self) -> None:
@@ -408,7 +391,7 @@ class MergeController(QObject):
         stage: str,
         slice_index: int | None,
     ) -> None:
-        """重新识别开始时失效当前切片旧计划和旧展示。"""
+        """响应识别失效或合并线程启动事件。"""
         LOGGER.info(
             "收到阶段开始事件并检查合并菜单状态: event_session_id=%s, "
             "event_stage=%s, event_slice_index=%s, current_slice_index=%d",
@@ -418,6 +401,10 @@ class MergeController(QObject):
             self.view._slice_controller.current_slice_index,
             extra={"session_id": self.view._session.session_id},
         )
+        if self._is_current_merge_event(session_id, stage, slice_index):
+            # 工作流已持有线程引用，立即禁用合并、导航和重置按钮。
+            self._update_controls()
+            return
         if not self._is_current_identify_event(session_id, stage, slice_index):
             LOGGER.info(
                 "忽略阶段开始事件的合并菜单更新: event_session_id=%s, "
@@ -444,7 +431,7 @@ class MergeController(QObject):
         stage: str,
         slice_index: int | None,
     ) -> None:
-        """识别完成后开放合并入口，但不提前执行合并判别。"""
+        """响应识别完成或合并线程成功事件。"""
         current_session_id = self.view._session.session_id
         current_slice_index = self.view._slice_controller.current_slice_index
         LOGGER.info(
@@ -463,6 +450,19 @@ class MergeController(QObject):
                 session_id,
                 extra={"session_id": current_session_id},
             )
+            return
+        if stage == "merging":
+            if slice_index != current_slice_index:
+                LOGGER.info(
+                    "忽略合并完成事件: event_slice_index=%s, "
+                    "current_slice_index=%d, 原因=不是当前展示切片",
+                    slice_index,
+                    current_slice_index,
+                    extra={"session_id": current_session_id},
+                )
+                return
+            # 工作流已经完成原子写回并清理线程，主线程只重读派生状态和呈现数据。
+            self.refresh_current_slice_state(reset_index=True)
             return
         if stage != "identifying":
             LOGGER.info(
@@ -519,7 +519,7 @@ class MergeController(QObject):
         slice_index: int | None,
         _error_message: str,
     ) -> None:
-        """识别失败时保持当前切片合并入口禁用。"""
+        """响应识别失败或合并线程失败事件。"""
         LOGGER.info(
             "收到阶段失败事件并检查合并菜单状态: event_session_id=%s, "
             "event_stage=%s, event_slice_index=%s, error=%s",
@@ -529,6 +529,10 @@ class MergeController(QObject):
             _error_message,
             extra={"session_id": self.view._session.session_id},
         )
+        if self._is_current_merge_event(session_id, stage, slice_index):
+            # 失败结果已由工作流记录；刷新后允许用户调整策略或重试。
+            self.refresh_current_slice_state()
+            return
         if not self._is_current_identify_event(session_id, stage, slice_index):
             LOGGER.info(
                 "忽略阶段失败事件的合并菜单更新: 原因=不是当前Session当前切片的识别事件",
@@ -552,5 +556,18 @@ class MergeController(QObject):
         return (
             session_id == self.view._session.session_id
             and stage == "identifying"
+            and slice_index == self.view._slice_controller.current_slice_index
+        )
+
+    def _is_current_merge_event(
+        self,
+        session_id: str,
+        stage: str,
+        slice_index: int | None,
+    ) -> bool:
+        """判断生命周期事件是否属于当前会话和切片的合并任务。"""
+        return (
+            session_id == self.view._session.session_id
+            and stage == "merging"
             and slice_index == self.view._slice_controller.current_slice_index
         )
