@@ -24,7 +24,11 @@ from core.models.recognition_result import (
     RecognitionResult,
     SliceRecognitionResult,
 )
-from core.models.processing_session import ProcessingSession
+from core.models.processing_session import (
+    ProcessingSession,
+    ProcessingStage,
+    SliceProcessStatus,
+)
 from core.models.slice_result import SingleSlice, SliceResult
 from app.signal_bus import signal_bus
 from ui.controllers.identify_controller import IdentifyController
@@ -239,8 +243,134 @@ def test_navigation_buttons_are_disabled_in_initial_state(
     assert not interface.cluster_column.next_button.isEnabled()
     assert not navigation_card.prev_cluster_button.isEnabled()
     assert not navigation_card.next_cluster_button.isEnabled()
+    assert not navigation_card.reset_cur_slice_button.isEnabled()
 
     sip.delete(interface)
+
+
+def test_reset_current_slice_clears_identification_and_allows_recognition_again(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """重置按钮应只清除当前切片结果、恢复空态并允许再次识别。"""
+    _app()
+    auto_recognize_indices: list[int | None] = []
+
+    def fake_handle_identify(
+        controller: IdentifyController,
+        target_slice_index: int | None = None,
+    ) -> None:
+        """记录重置后自动识别入口收到的目标切片索引。"""
+        del controller
+        auto_recognize_indices.append(target_slice_index)
+
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    monkeypatch.setattr(
+        "ui.controllers.identify_controller.render_cluster_images",
+        lambda **kwargs: _fake_cluster_bundle(),
+    )
+    monkeypatch.setattr(IdentifyController, "handle_identify", fake_handle_identify)
+
+    interface = SliceInterface()
+    try:
+        session = interface._session
+        first_cluster_result = SliceClusterResult(
+            slice_idx=0,
+            clusters=[_build_cluster(1, "CF", ClusterState.VALID)],
+        )
+        second_cluster_result = SliceClusterResult(
+            slice_idx=1,
+            clusters=[_build_cluster(2, "PW", ClusterState.VALID)],
+        )
+        first_recognition_result = SliceRecognitionResult(
+            slice_index=0,
+            valid_clusters=[
+                ClusterRecognition(0, "CF", 1, 0, 1, 0.9, 1, 0.8, True),
+            ],
+        )
+        second_recognition_result = SliceRecognitionResult(
+            slice_index=1,
+            valid_clusters=[
+                ClusterRecognition(1, "PW", 2, 0, 2, 0.85, 2, 0.75, True),
+            ],
+        )
+        session.slice_result = SliceResult(
+            slices=[
+                SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0)),
+                SingleSlice(1, np.ones((2, 6), dtype=float), (1.0, 2.0)),
+            ]
+        )
+        session.cluster_result = ClusteringResult(
+            slice_results={
+                0: first_cluster_result,
+                1: second_cluster_result,
+            }
+        )
+        session.recognition_result = RecognitionResult(
+            slice_results={
+                0: first_recognition_result,
+                1: second_recognition_result,
+            }
+        )
+        session.stage = ProcessingStage.RECOGNIZED
+        session.config_snapshot.business.auto_recognize_next_slice = True
+        for slice_index in (0, 1):
+            session.mark_slice_cluster_succeeded(slice_index)
+            session.mark_slice_recognition_succeeded(slice_index)
+        session.mark_slice_merge_succeeded(0)
+
+        interface._identify_controller.load_cluster_image(0, reset_index=True)
+        navigation_card = interface.right_panel.navigation_control_card
+        assert any(
+            card._source_image is not None
+            for card in interface.cluster_column.dimension_cards
+        )
+        assert any(
+            interface.right_panel.analysis_result_card.table.item(row, 1).text()
+            for row in range(
+                interface.right_panel.analysis_result_card.table.rowCount()
+            )
+        )
+
+        navigation_card.reset_cur_slice_button.click()
+
+        assert session.stage is ProcessingStage.SLICED
+        assert session.cluster_result is not None
+        assert session.cluster_result.slice_results == {1: second_cluster_result}
+        assert session.recognition_result is not None
+        assert session.recognition_result.slice_results == {
+            1: second_recognition_result
+        }
+        reset_state = session.get_slice_processing_state(0)
+        assert reset_state.cluster_status is SliceProcessStatus.NOT_STARTED
+        assert reset_state.recognition_status is SliceProcessStatus.NOT_STARTED
+        assert reset_state.merge_status is SliceProcessStatus.NOT_STARTED
+        assert session.is_slice_recognized(1)
+        assert interface.cluster_column.title_label.text() == "暂无聚类结果"
+        assert all(
+            card._source_image is None
+            for card in interface.cluster_column.dimension_cards
+        )
+        assert all(
+            not interface.right_panel.analysis_result_card.table.item(row, 1).text()
+            for row in range(
+                interface.right_panel.analysis_result_card.table.rowCount()
+            )
+        )
+        assert not interface.cluster_column.prev_button.isEnabled()
+        assert not interface.cluster_column.next_button.isEnabled()
+        assert not navigation_card.prev_cluster_button.isEnabled()
+        assert not navigation_card.next_cluster_button.isEnabled()
+        assert not navigation_card.reset_cur_slice_button.isEnabled()
+        assert navigation_card.start_recognition_button.isEnabled()
+        assert not navigation_card.merge_menu_button.isEnabled()
+
+        interface._slice_controller._maybe_auto_recognize(0)
+        assert auto_recognize_indices == [0]
+    finally:
+        sip.delete(interface)
 
 
 def test_navigation_buttons_follow_slice_and_cluster_boundaries(

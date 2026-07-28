@@ -1,5 +1,31 @@
 # 变更记录
 
+- 时间：2026-07-28 11:43
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\identify_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：实装右侧面板“重置当前切片”按钮，清除当前切片识别产物并恢复可重新识别状态。
+- 原因：用户修改聚类、识别参数或其它 Session 配置后，需要丢弃当前切片旧结果并重新执行识别。
+- 计划清单：
+  - [x] 在 Session 层原子移除当前切片聚类、识别及其派生合并结果，并重置局部状态。
+  - [x] 通过识别 workflow 暴露重置边界，避免 UI 直接修改 core 数据。
+  - [x] 连接右侧重置按钮，清空中间列图像、结果表格和类别导航状态。
+  - [x] 同步清空失效的合并展示并禁用无效合并入口。
+  - [x] 补充当前切片清理、其它切片保留及可重新识别回归测试。
+  - [x] 运行聚焦测试、相关回归、语法检查和差异检查。
+- 验证结果：
+  - RED：端到端重置测试按预期失败（1 failed），确认按钮原先没有修改 Session 阶段或结果。
+  - GREEN：重置功能及导航、自动识别边界聚焦测试通过（7 passed，1 warning）；验证仅删除当前切片、保留其它切片、清空中间图像和结果表、重置状态并允许再次自动识别。
+  - 识别 workflow 与 worker 相关回归通过（16 passed，2 warnings）。
+  - 导航完整测试为 11 passed、1 failed；唯一失败为既有快照窗口标题文案断言漂移。
+  - Session 现有测试为 5 passed、1 failed；失败项调用仓库当前不存在的旧接口 `reset_to_imported()`，与本次新增切片级重置无关。
+  - 相关文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-28 11:24
 - 操作类型：[修改]
 - 影响文件：

@@ -472,6 +472,59 @@ class ProcessingSession:
         slice_state.recognition_status = SliceProcessStatus.FAILED
         slice_state.last_recognition_error = error_msg
 
+    def reset_slice_identification_results(self, slice_index: int) -> None:
+        """重置指定切片的聚类、识别及其派生合并结果。
+
+        该操作只移除目标切片的数据，保留其它切片结果，并将目标切片恢复为
+        尚未识别状态，以便使用更新后的参数或配置重新执行完整识别流程。
+
+        Args:
+            slice_index [int]: 需要重置的 0-based 切片索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            ValueError: 当切片索引为负数时抛出。
+            IndexError: 当切片结果不存在或索引超出当前切片范围时抛出。
+
+        Example:
+            >>> import numpy as np
+            >>> from core.models.processing_session import ProcessingSession
+            >>> from core.models.slice_result import SingleSlice, SliceResult
+            >>> session = ProcessingSession()
+            >>> empty_slice = SingleSlice(0, np.empty((0, 6)), (0.0, 1.0))
+            >>> session.slice_result = SliceResult([empty_slice])
+            >>> session.mark_slice_recognition_succeeded(0)
+            >>> session.reset_slice_identification_results(0)
+            >>> session.is_slice_recognized(0)
+            False
+        """
+        if slice_index < 0:
+            raise ValueError("slice_index 不能为负数")
+        if self.slice_result is None or slice_index >= self.slice_result.slice_count:
+            raise IndexError("slice_index 超出当前切片范围")
+
+        slice_state = self.get_slice_processing_state(slice_index)
+        slice_state.cluster_status = SliceProcessStatus.NOT_STARTED
+        slice_state.recognition_status = SliceProcessStatus.NOT_STARTED
+        slice_state.last_cluster_error = None
+        slice_state.last_recognition_error = None
+
+        # 聚类和识别结果按切片独立存储，只移除当前目标，保留其它切片缓存。
+        if self.cluster_result is not None:
+            self.cluster_result.slice_results.pop(slice_index, None)
+            if not self.cluster_result.slice_results:
+                self.cluster_result = None
+        if self.recognition_result is not None:
+            self.recognition_result.slice_results.pop(slice_index, None)
+            if not self.recognition_result.slice_results:
+                self.recognition_result = None
+
+        # 合并计划和结果依赖本轮识别来源，重置识别时必须同步失效。
+        self.clear_slice_merge_results(slice_index)
+        self.stage = ProcessingStage.SLICED
+
     def mark_slice_merge_running(self, slice_index: int) -> None:
         """标记指定切片正在执行合并。
 

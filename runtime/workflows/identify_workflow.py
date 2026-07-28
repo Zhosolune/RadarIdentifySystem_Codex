@@ -67,6 +67,49 @@ class IdentifyWorkflow(QObject):
         """
         return self._worker is not None and self._worker.isRunning()
 
+    def reset_slice_results(
+        self,
+        session: ProcessingSession,
+        slice_index: int,
+    ) -> None:
+        """重置指定切片识别产物并恢复可重新识别状态。
+
+        Args:
+            session [ProcessingSession]: 持有目标切片及识别结果的当前会话。
+            slice_index [int]: 需要重置的 0-based 切片索引。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            RuntimeError: 当前识别工作流仍在运行时抛出。
+            ValueError: 切片索引为负数时由 Session 层抛出。
+            IndexError: 切片不存在或索引越界时由 Session 层抛出。
+
+        Example:
+            >>> import numpy as np
+            >>> from core.models.processing_session import ProcessingSession
+            >>> from core.models.slice_result import SingleSlice, SliceResult
+            >>> workflow = IdentifyWorkflow()
+            >>> session = ProcessingSession()
+            >>> empty_slice = SingleSlice(0, np.empty((0, 6)), (0.0, 1.0))
+            >>> session.slice_result = SliceResult([empty_slice])
+            >>> workflow.reset_slice_results(session, 0)
+            >>> session.stage.name
+            'SLICED'
+        """
+        if self.is_running():
+            raise RuntimeError("识别工作流运行期间不能重置切片结果")
+
+        with session.lock:
+            session.reset_slice_identification_results(slice_index)
+
+        LOGGER.info(
+            "已重置当前切片聚类、识别及派生合并结果，切片: %d",
+            slice_index + 1,
+            extra={"session_id": session.session_id},
+        )
+
     @pyqtSlot(ProcessingSession, int)
     def start_identify(
         self, 

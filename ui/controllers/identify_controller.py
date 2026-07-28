@@ -12,7 +12,10 @@ from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox
 from app.signal_bus import signal_bus
 from core.models.cluster_result import ClusterItem, SliceClusterResult
-from core.models.processing_session import ProcessingSession
+from core.models.processing_session import (
+    ProcessingSession,
+    SliceProcessStatus,
+)
 from infra.plotting.types import RenderedImageBundle
 from infra.plotting.facades import render_cluster_images
 from runtime.workflows.identify_workflow import IdentifyWorkflow
@@ -66,6 +69,9 @@ class IdentifyController(QObject):
         navigation_card = self.view.right_panel.navigation_control_card
         navigation_card.start_recognition_button.clicked.connect(
             lambda: self.handle_identify()
+        )
+        navigation_card.reset_cur_slice_button.clicked.connect(
+            self._reset_current_slice
         )
         
         # 绑定聚类结果类别导航按钮
@@ -137,6 +143,7 @@ class IdentifyController(QObject):
 
         # 更新按钮状态
         self.view.right_panel.navigation_control_card.start_recognition_button.setEnabled(False)
+        self.view.right_panel.navigation_control_card.reset_cur_slice_button.setEnabled(False)
         # 清空旧聚类空态并禁用导航按钮。
         self.clear_cluster_ui()
         # 当前切片重新识别后旧合并图已失效，立即清空避免继续展示陈旧结果。
@@ -289,6 +296,7 @@ class IdentifyController(QObject):
         self.clear_cluster_ui()
         current_slice_index = self.view._slice_controller.current_slice_index
         self.update_cluster_navigation_buttons(current_slice_index)
+        self._update_reset_button_state(current_slice_index)
         
         # 弹出错误提示
         slice_suffix = ""
@@ -432,6 +440,69 @@ class IdentifyController(QObject):
         current_slice_index = self.view._slice_controller.current_slice_index
         self.load_cluster_image(current_slice_index, reset_index=reset_index)
 
+    def _reset_current_slice(self) -> None:
+        """重置当前切片识别结果并清空所有依赖展示。"""
+        session = self.view._session
+        slice_index = self.view._slice_controller.current_slice_index
+        if (
+            session.slice_result is None
+            or not 0 <= slice_index < session.slice_result.slice_count
+        ):
+            LOGGER.info(
+                "忽略当前切片重置请求：没有有效切片",
+                extra={"session_id": session.session_id},
+            )
+            return
+        if self._workflow.is_running():
+            LOGGER.info(
+                "忽略当前切片重置请求：识别工作流正在运行",
+                extra={"session_id": session.session_id},
+            )
+            return
+
+        self._workflow.reset_slice_results(session, slice_index)
+        self._current_cluster_index = 0
+        self.clear_cluster_ui()
+        self.update_cluster_navigation_buttons(slice_index)
+        self._update_reset_button_state(slice_index)
+        self.view.right_panel.navigation_control_card.start_recognition_button.setEnabled(
+            True
+        )
+
+        # 识别来源失效后，同步清除派生合并展示和菜单状态。
+        if hasattr(self.view, "_merge_controller"):
+            self.view._merge_controller.refresh_current_slice_state(
+                reset_index=True
+            )
+
+    def _update_reset_button_state(self, current_slice_index: int) -> None:
+        """按当前切片处理状态和识别工作流状态同步重置按钮。"""
+        session = self.view._session
+        has_valid_slice = (
+            session.slice_result is not None
+            and 0 <= current_slice_index < session.slice_result.slice_count
+        )
+        can_reset = False
+        if has_valid_slice:
+            slice_state = session.get_slice_processing_state(current_slice_index)
+            has_cluster_result = (
+                session.cluster_result is not None
+                and current_slice_index in session.cluster_result.slice_results
+            )
+            has_recognition_result = (
+                session.recognition_result is not None
+                and current_slice_index in session.recognition_result.slice_results
+            )
+            can_reset = (
+                slice_state.cluster_status is not SliceProcessStatus.NOT_STARTED
+                or slice_state.recognition_status is not SliceProcessStatus.NOT_STARTED
+                or has_cluster_result
+                or has_recognition_result
+            )
+        self.view.right_panel.navigation_control_card.reset_cur_slice_button.setEnabled(
+            can_reset and not self._workflow.is_running()
+        )
+
     def _set_cluster_navigation_enabled(
         self,
         prev_enabled: bool,
@@ -462,6 +533,7 @@ class IdentifyController(QObject):
             self._current_cluster_index = 0
             
         session = self.view._session
+        self._update_reset_button_state(current_slice_index)
         if not session:
             self.clear_cluster_ui()
             self.update_cluster_navigation_buttons(current_slice_index)
