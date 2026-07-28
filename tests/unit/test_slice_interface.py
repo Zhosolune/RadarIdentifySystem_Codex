@@ -243,10 +243,10 @@ def test_slice_interface_uses_session_scale_mode_for_image_updates(
         sip.delete(interface)
 
 
-def test_right_panel_keeps_controls_fixed_and_scrolls_table_when_height_is_limited(
+def test_right_panel_keeps_controls_fixed_and_hides_table_scrollbar_when_height_is_limited(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """右栏高度不足时应只压缩结果表，操作区保持固定并由表格内部滚动。"""
+    """右栏高度不足时应压缩结果表并保持表格滚动条隐藏。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
@@ -271,7 +271,8 @@ def test_right_panel_keeps_controls_fixed_and_scrolls_table_when_height_is_limit
         assert panel.operate_panel_card.geometry() == tall_operate_geometry
         assert table.height() < tall_table_height
         assert table.verticalScrollBar().maximum() > 0
-        assert table.scrollDelagate.vScrollBar.isVisible()
+        assert table.scrollDelagate.vScrollBar._isForceHidden
+        assert not table.scrollDelagate.vScrollBar.isVisible()
     finally:
         sip.delete(interface)
 

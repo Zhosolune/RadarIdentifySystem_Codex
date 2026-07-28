@@ -112,6 +112,6 @@ class SliceRightPanel(QWidget):
         layout.addLayout(header_layout)
         # 操作区域始终固定在结果表上方，不参与右栏滚动。
         layout.addWidget(self.operate_panel_card)
-        # 结果卡优先使用完整内容高度，空间不足时收缩并由表格内部滚动。
+        # 结果卡优先使用完整内容高度，空间不足时收缩并保留无滚动条的滚轮浏览。
         layout.addWidget(self.analysis_result_card)
         layout.addStretch(1)

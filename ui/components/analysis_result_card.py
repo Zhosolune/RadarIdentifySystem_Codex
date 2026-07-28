@@ -399,7 +399,7 @@ class AnalysisResultCard(SimpleCardWidget):
         self.table.setSelectionMode(TableWidget.SelectionMode.NoSelection)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -420,7 +420,7 @@ class AnalysisResultCard(SimpleCardWidget):
             self.table.setItem(row, 1, result_item)
 
         self._adjust_table_height_to_contents()
-        # 表格填充结果卡剩余空间，内容溢出时使用自身滚动条。
+        # 表格填充结果卡剩余空间；内容溢出时保留滚轮浏览，但不显示滚动条。
         self.table.setMinimumHeight(0)
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table._sync_vertical_scrollbar_geometry()

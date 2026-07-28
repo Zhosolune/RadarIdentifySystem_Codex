@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-07-28 11:24
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_right_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：取消切片页面右侧分析结果表格的纵向滚动条显示。
+- 原因：右侧面板不再需要显示表格内容滚动条，但保留表格溢出范围和滚轮浏览能力。
+- 计划清单：
+  - [x] 将右侧分析结果表格的纵向 Fluent 滚动条设为始终隐藏。
+  - [x] 更新表格组件与右侧面板高度受限场景的回归测试。
+  - [x] 运行聚焦测试、语法检查和差异检查。
+- 验证结果：
+  - RED：内容溢出和右栏高度受限测试按预期失败（2 failed），确认 Fluent 纵向滚动条仍处于可见策略。
+  - GREEN：上述两项真实溢出场景通过（2 passed，1 warning），滚动范围仍大于 0 且滚动条保持强制隐藏。
+  - 相关测试为 6 passed、2 failed；两项失败均为既有 QSS 选择器文本断言，与本次滚动条行为无关，未修改用户已调整的 QSS。
+  - 相关文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-28 11:12
 - 操作类型：[修改]
 - 影响文件：

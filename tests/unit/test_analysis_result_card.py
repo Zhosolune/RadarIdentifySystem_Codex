@@ -116,8 +116,8 @@ def test_analysis_result_header_uses_theme_color_for_border() -> None:
         sip.delete(card)
 
 
-def test_analysis_result_vertical_scrollbar_starts_below_header() -> None:
-    """Fluent 纵向滚动条及滑块应按表头下方内容视口计算几何。"""
+def test_analysis_result_vertical_scrollbar_stays_hidden_when_content_overflows() -> None:
+    """分析结果内容溢出时也不应显示 Fluent 纵向滚动条。"""
     _app()
     card = AnalysisResultCard()
 
@@ -127,24 +127,11 @@ def test_analysis_result_vertical_scrollbar_starts_below_header() -> None:
         QApplication.processEvents()
 
         table = card.table
-        header = table.horizontalHeader()
-        viewport_rect = table.viewport().geometry()
         scroll_bar = table.scrollDelagate.vScrollBar
 
         assert scroll_bar.maximum() > 0
-        assert scroll_bar.isVisible()
-        assert scroll_bar.geometry().top() == header.geometry().bottom() + 1
-        assert scroll_bar.geometry().top() == viewport_rect.top()
-        assert scroll_bar.geometry().bottom() == viewport_rect.bottom()
-
-        groove_length = scroll_bar.height() - 2 * scroll_bar._padding
-        content_height = scroll_bar.maximum() - scroll_bar.minimum() + viewport_rect.height()
-        expected_handle_height = max(
-            30,
-            int(groove_length * viewport_rect.height() / content_height),
-        )
-        assert scroll_bar.handle.height() == expected_handle_height
-        assert scroll_bar.handle.geometry().bottom() <= scroll_bar.height() - scroll_bar._padding
+        assert scroll_bar._isForceHidden
+        assert not scroll_bar.isVisible()
     finally:
         sip.delete(card)
 
