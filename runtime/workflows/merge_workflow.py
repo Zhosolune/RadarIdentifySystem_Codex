@@ -16,7 +16,6 @@ from core.merge import (
     DefaultMergeStrategy,
     MergePipeline,
     MergeStrategy,
-    MergeTarget,
 )
 from core.models.algorithm_params import ExtractParams
 from core.models.cluster_result import SliceClusterResult
@@ -36,7 +35,6 @@ from infra.plotting.facades import (
     render_merge_images,
     resolve_merge_source_colors,
 )
-from infra.plotting.types import RenderedImageBundle
 
 
 LOGGER = logging.getLogger(__name__)
@@ -90,23 +88,6 @@ class MergeBatchWorkflowResult:
 
     success: bool
     result_count: int = 0
-    error_message: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class MergeWorkflowResult:
-    """兼容人工单组合并入口的执行结果。
-
-    Attributes:
-        success [bool]: 合并与绘图是否全部成功。
-        merge_result [MergedClusterResult | None]: 成功时的领域结果。
-        rendered_bundle [RenderedImageBundle | None]: 成功时的五维图像。
-        error_message [str]: 失败消息，成功时为空字符串。
-    """
-
-    success: bool
-    merge_result: MergedClusterResult | None = None
-    rendered_bundle: RenderedImageBundle | None = None
     error_message: str = ""
 
 
@@ -420,25 +401,6 @@ class MergeWorkflow(QObject):
             False
         """
         return self._get_prepared_plan(session, slice_index) is not None
-
-    def find_merge_candidates(
-        self,
-        session: ProcessingSession,
-        slice_index: int,
-    ) -> tuple[tuple[int, ...], ...]:
-        """兼容旧调用方并返回完整合并计划。
-
-        Args:
-            session [ProcessingSession]: 目标会话。
-            slice_index [int]: 目标切片的0-based索引。
-
-        Returns:
-            tuple[tuple[int, ...], ...]: 全部互斥合并分组。
-
-        Raises:
-            ValueError: 切片索引为负数或准则返回跨切片计划时抛出。
-        """
-        return self.get_merge_groups(session, slice_index)
 
     def _get_prepared_plan(
         self,
@@ -830,190 +792,6 @@ class MergeWorkflow(QObject):
             self._build_extract_params(session),
         )
 
-    def start_merge_by_indices(
-        self,
-        session: ProcessingSession,
-        slice_index: int,
-        cluster_indices: Iterable[int],
-    ) -> MergeWorkflowResult:
-        """执行一个人工明确指定的来源分组。
-
-        Args:
-            session [ProcessingSession]: 目标会话。
-            slice_index [int]: 目标切片索引。
-            cluster_indices [Iterable[int]]: 来源簇编号。
-
-        Returns:
-            MergeWorkflowResult: 单组合并结果。
-
-        Raises:
-            ValueError: 来源簇数量、编号或切片索引不合法时抛出。
-        """
-        return self.start_merge(
-            session,
-            MergeTarget(
-                slice_index=slice_index,
-                cluster_indices=tuple(int(index) for index in cluster_indices),
-            ),
-            strategy_id="explicit",
-        )
-
-    def start_strategy_merge_by_indices(
-        self,
-        session: ProcessingSession,
-        slice_index: int,
-        cluster_indices: Iterable[int],
-    ) -> MergeWorkflowResult:
-        """兼容旧调用方并执行一个策略来源分组。
-
-        Args:
-            session [ProcessingSession]: 目标会话。
-            slice_index [int]: 目标切片索引。
-            cluster_indices [Iterable[int]]: 来源簇编号。
-
-        Returns:
-            MergeWorkflowResult: 单组合并结果。
-
-        Raises:
-            ValueError: 来源簇数量、编号或切片索引不合法时抛出。
-        """
-        return self.start_merge(
-            session,
-            MergeTarget(
-                slice_index=slice_index,
-                cluster_indices=tuple(int(index) for index in cluster_indices),
-            ),
-            strategy_id=self.strategy_id,
-        )
-
-    def start_merge(
-        self,
-        session: ProcessingSession,
-        target: MergeTarget,
-        strategy_id: str = "explicit",
-    ) -> MergeWorkflowResult:
-        """兼容人工入口并追加一个独立合并结果。
-
-        Args:
-            session [ProcessingSession]: 目标会话。
-            target [MergeTarget]: 人工明确来源分组。
-            strategy_id [str]: 来源标识。
-
-        Returns:
-            MergeWorkflowResult: 单组合并和绘图结果。
-        """
-        session_id = session.session_id
-        LOGGER.info(
-            "请求执行人工单组合并: slice_index=%d, strategy_id=%s, "
-            "source_cluster_indices=%s",
-            target.slice_index,
-            strategy_id,
-            target.cluster_indices,
-            extra={"session_id": session_id},
-        )
-        # 来源集合按无序集合判重，人工以不同排列提交也不能重复生成相同结果。
-        if frozenset(target.cluster_indices) in self._completed_source_sets(
-            session,
-            target.slice_index,
-        ):
-            LOGGER.info(
-                "拒绝人工单组合并: slice_index=%d, source_cluster_indices=%s, "
-                "原因=同一来源簇集合已经完成合并",
-                target.slice_index,
-                target.cluster_indices,
-                extra={"session_id": session_id},
-            )
-            return MergeWorkflowResult(
-                success=False,
-                error_message="同一来源簇集合已经完成合并，不能重复执行",
-            )
-        signal_bus.stage_started.emit(
-            session_id,
-            "merging",
-            target.slice_index,
-        )
-        with session.lock:
-            session.mark_slice_merge_running(target.slice_index)
-        try:
-            # 兼容入口仍生成独立合并结果，不会从识别结果中删除任何来源簇。
-            slice_clusters, slice_recognitions = self._get_source_results(
-                session,
-                target.slice_index,
-            )
-            extract_params = self._build_extract_params(session)
-            log_token = bind_session_log_context(session_id)
-            try:
-                pipeline = MergePipeline(extract_params)
-                merged = pipeline.run(
-                    target,
-                    slice_clusters,
-                    slice_recognitions,
-                    self._next_merge_index(session, target.slice_index),
-                    strategy_id,
-                )
-            finally:
-                unbind_session_log_context(log_token)
-            LOGGER.info(
-                "人工单组合并计算完成，开始绘图: slice_index=%d, "
-                "merge_index=%d, source_cluster_indices=%s, band=%s, "
-                "time_range=%s",
-                target.slice_index,
-                merged.merge_index,
-                merged.source_cluster_indices,
-                session.band,
-                merged.time_range,
-                extra={"session_id": session_id},
-            )
-            bundle = render_merge_images(
-                list(merged.source_point_clouds),
-                band=session.band,
-                time_range=merged.time_range,
-                palette=build_merge_palette(len(merged.source_point_clouds)),
-            )
-            with session.lock:
-                self._append_result(session, merged)
-                session.mark_slice_merge_succeeded(target.slice_index)
-                session.stage = ProcessingStage.MERGED
-            LOGGER.info(
-                "人工单组合并结果已写回: slice_index=%d, merge_index=%d, "
-                "source_cluster_indices=%s, session_stage=%s",
-                target.slice_index,
-                merged.merge_index,
-                merged.source_cluster_indices,
-                session.stage,
-                extra={"session_id": session_id},
-            )
-            signal_bus.stage_finished.emit(
-                session_id,
-                "merging",
-                target.slice_index,
-            )
-            return MergeWorkflowResult(
-                success=True,
-                merge_result=merged,
-                rendered_bundle=bundle,
-            )
-        except Exception as error:
-            LOGGER.error(
-                "人工单组合并失败: slice_index=%d, strategy_id=%s, "
-                "source_cluster_indices=%s, error=%s",
-                target.slice_index,
-                strategy_id,
-                target.cluster_indices,
-                error,
-                exc_info=True,
-                extra={"session_id": session_id},
-            )
-            with session.lock:
-                session.mark_slice_merge_failed(target.slice_index, str(error))
-            signal_bus.stage_failed.emit(
-                session_id,
-                "merging",
-                target.slice_index,
-                str(error),
-            )
-            return MergeWorkflowResult(success=False, error_message=str(error))
-
     @staticmethod
     def _validate_strategy(strategy: MergeStrategy) -> None:
         """校验可插拔准则的最小运行时接口。"""
@@ -1062,30 +840,6 @@ class MergeWorkflow(QObject):
         return slice_clusters, slice_recognitions
 
     @staticmethod
-    def _completed_source_sets(
-        session: ProcessingSession,
-        slice_index: int,
-    ) -> set[frozenset[int]]:
-        """返回人工入口已写回的来源簇集合。"""
-        if session.merge_result is None:
-            return set()
-        slice_result = session.merge_result.slice_results.get(slice_index)
-        if slice_result is None:
-            return set()
-        return {
-            frozenset(result.source_cluster_indices)
-            for result in slice_result.merged_clusters
-        }
-
-    @staticmethod
-    def _next_merge_index(session: ProcessingSession, slice_index: int) -> int:
-        """返回人工入口的下一个1-based结果序号。"""
-        if session.merge_result is None:
-            return 1
-        slice_result = session.merge_result.slice_results.get(slice_index)
-        return 1 if slice_result is None else len(slice_result.merged_clusters) + 1
-
-    @staticmethod
     def _build_extract_params(session: ProcessingSession) -> ExtractParams:
         """根据session快照构造参数提取值对象。"""
         config = session.config_snapshot.extract
@@ -1102,20 +856,6 @@ class MergeWorkflow(QObject):
             filter_threshold_pri=config.filter_threshold_pri,
             harmonic_tolerance_pri=config.harmonic_tolerance_pri,
         )
-
-    @staticmethod
-    def _append_result(
-        session: ProcessingSession,
-        merged: MergedClusterResult,
-    ) -> None:
-        """把人工单组合并结果追加到目标切片。"""
-        if session.merge_result is None:
-            session.merge_result = MergeResult()
-        slice_result = session.merge_result.slice_results.setdefault(
-            merged.slice_index,
-            SliceMergeResult(slice_index=merged.slice_index),
-        )
-        slice_result.merged_clusters.append(merged)
 
     @staticmethod
     def _format_values(

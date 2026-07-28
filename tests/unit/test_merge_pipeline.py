@@ -13,7 +13,9 @@ from PyQt6.QtWidgets import QApplication
 from pytest import LogCaptureFixture, MonkeyPatch, raises
 from qfluentwidgets import CheckBox
 
-from core.merge import MergePipeline, MergeTarget
+import core.merge as merge_module
+from core.merge import MergePipeline
+from core.merge_strategy import DefaultMergeStrategy
 from core.models.algorithm_params import ExtractParams
 from core.models.cluster_result import (
     ClusterItem,
@@ -241,6 +243,18 @@ class _ConfigurableStrategy:
         )
 
 
+def test_merge_chain_does_not_expose_manual_source_selection_entrypoints() -> None:
+    """合并链路不得再暴露任何人工提交来源簇的兼容入口。"""
+    assert not hasattr(merge_module, "MergeTarget")
+    assert not hasattr(DefaultMergeStrategy, "build_targets")
+    assert not hasattr(MergePipeline, "run")
+    assert not hasattr(MergeWorkflow, "find_merge_candidates")
+    assert not hasattr(MergeWorkflow, "start_merge_by_indices")
+    assert not hasattr(MergeWorkflow, "start_strategy_merge_by_indices")
+    assert not hasattr(MergeWorkflow, "start_merge")
+    assert not hasattr(MergeController, "merge_clusters")
+
+
 def test_merge_pipeline_concatenates_points_and_only_reextracts_parameters(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -260,12 +274,16 @@ def test_merge_pipeline_concatenates_points_and_only_reextracts_parameters(
     monkeypatch.setattr("core.merge.extract_cluster_params", fake_extract)
     pipeline = MergePipeline(extract_params=ExtractParams())
 
-    result = pipeline.run(
-        target=MergeTarget(slice_index=0, cluster_indices=(1, 2)),
+    plan = SliceMergePlan(
+        slice_index=0,
+        strategy_id="test_strategy_v1",
+        groups=(MergeGroup(slice_index=0, cluster_indices=(1, 2)),),
+    )
+    result = pipeline.run_plan(
+        plan=plan,
         slice_cluster_result=slice_clusters,
         slice_recognition_result=slice_recognitions,
-        merge_index=1,
-    )
+    )[0]
 
     expected_points = np.concatenate(
         [cluster.points for cluster in slice_clusters.clusters],
@@ -282,59 +300,26 @@ def test_merge_pipeline_concatenates_points_and_only_reextracts_parameters(
     assert result.source_point_clouds[1] is slice_clusters.clusters[1].points
 
 
-def test_merge_target_rejects_ambiguous_or_invalid_sources() -> None:
-    """显式目标应拒绝来源不足、重复或未识别通过的簇。"""
+def test_merge_plan_rejects_ambiguous_or_invalid_strategy_sources() -> None:
+    """策略计划应拒绝来源不足、重复或未识别通过的簇。"""
     slice_clusters, slice_recognitions = _source_results()
 
     with raises(ValueError, match="至少需要两个"):
-        MergeTarget(slice_index=0, cluster_indices=(1,))
+        MergeGroup(slice_index=0, cluster_indices=(1,))
     with raises(ValueError, match="重复"):
-        MergeTarget(slice_index=0, cluster_indices=(1, 1))
+        MergeGroup(slice_index=0, cluster_indices=(1, 1))
     with raises(ValueError, match="大于等于 1"):
-        MergeTarget(slice_index=0, cluster_indices=(0, 1))
+        MergeGroup(slice_index=0, cluster_indices=(0, 1))
     with raises(ValueError, match="未找到来源簇"):
-        MergePipeline().run(
-            target=MergeTarget(slice_index=0, cluster_indices=(1, 99)),
+        MergePipeline().run_plan(
+            plan=SliceMergePlan(
+                slice_index=0,
+                strategy_id="invalid_test_strategy_v1",
+                groups=(MergeGroup(slice_index=0, cluster_indices=(1, 99)),),
+            ),
             slice_cluster_result=slice_clusters,
             slice_recognition_result=slice_recognitions,
-            merge_index=1,
         )
-
-
-def test_merge_workflow_writes_session_and_renders_source_clusters_in_colors() -> None:
-    """工作流应写回合并结果并生成包含多种来源颜色的五维图像。"""
-    session = _session_with_source_results()
-    workflow = MergeWorkflow()
-
-    execution = workflow.start_merge(
-        session,
-        MergeTarget(slice_index=0, cluster_indices=(1, 2)),
-    )
-
-    assert execution.success
-    assert execution.merge_result is not None
-    assert execution.merge_result.strategy_id == "explicit"
-    assert execution.rendered_bundle is not None
-    assert session.merge_result is not None
-    assert session.merge_result.slice_results[0].merged_clusters == [
-        execution.merge_result
-    ]
-    assert session.stage is ProcessingStage.MERGED
-    assert (
-        session.get_slice_processing_state(0).merge_status
-        is SliceProcessStatus.SUCCEEDED
-    )
-    assert set(execution.rendered_bundle.images) == {
-        "CF",
-        "PW",
-        "PA",
-        "DTOA",
-        "DOA",
-    }
-    cf_image = execution.rendered_bundle.images["CF"]
-    non_black_colors = np.unique(cf_image.reshape(-1, 3), axis=0)
-    non_black_colors = non_black_colors[np.any(non_black_colors != 0, axis=1)]
-    assert len(non_black_colors) >= 2
 
 
 def test_merge_workflow_logs_session_config_plan_and_atomic_writeback(
@@ -370,14 +355,11 @@ def test_merge_workflow_logs_session_config_plan_and_atomic_writeback(
 
 
 def test_merge_workflow_records_failure_without_overwriting_results() -> None:
-    """来源解析失败时工作流应记录失败状态且不写入合并结果。"""
+    """自动策略返回不可用来源时工作流应失败且不写入合并结果。"""
     session = _session_with_source_results()
-    workflow = MergeWorkflow()
+    workflow = MergeWorkflow(strategy=_ConfigurableStrategy(((1, 99),)))
 
-    execution = workflow.start_merge(
-        session,
-        MergeTarget(slice_index=0, cluster_indices=(1, 99)),
-    )
+    execution = workflow.execute_merge_plan(session, 0)
 
     state = session.get_slice_processing_state(0)
     assert not execution.success

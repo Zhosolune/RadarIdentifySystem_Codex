@@ -295,25 +295,6 @@ class HybridParameterMergeStrategy:
             groups=tuple(groups),
         )
 
-    def build_targets(
-        self,
-        slice_cluster_result: SliceClusterResult,
-        slice_recognition_result: SliceRecognitionResult,
-    ) -> tuple[MergeGroup, ...]:
-        """兼容旧调用方并返回完整计划中的互斥分组。
-
-        Args:
-            slice_cluster_result [SliceClusterResult]: 单切片聚类点云结果。
-            slice_recognition_result [SliceRecognitionResult]: 同切片识别结果。
-
-        Returns:
-            tuple[MergeGroup, ...]: 完整计划中的互斥合并分组。
-
-        Raises:
-            ValueError: 两类结果不属于同一切片时抛出。
-        """
-        return self.build_plan(slice_cluster_result, slice_recognition_result).groups
-
     def _build_features(
         self,
         cluster: ClusterItem,

@@ -37,7 +37,7 @@ class SliceInterface(QFrame):
         image_workspace [HorizontalImageWorkspace]: A/B/C/D 横向滑动工作区。
         slice_param_drawer [SlidingDrawer]: 覆盖页面的参数抽屉。
         slice_param_panel [SliceParamPanel]: 参数抽屉内容组件。
-        _merge_controller [MergeController]: 显式合并目标的流程控制器。
+        _merge_controller [MergeController]: 自动策略合并的流程控制器。
     """
 
     RIGHT_COLUMN_MAX_WIDTH = 580

@@ -1,5 +1,29 @@
 # 变更记录
 
+- 时间：2026-07-28 09:57
+- 操作类型：[删除]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\merge_strategy.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\merge_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_core_merge_strategy.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：彻底删除人工指定来源簇的合并入口、兼容模型和单组追加写回链路，合并执行现在只能消费合并策略生成的完整 `SliceMergePlan`。
+- 原因：合并来源必须由合并策略自动判定，不允许 UI、runtime 或兼容 API 接收人工提交的类簇编号。
+- 计划清单：
+  - [x] 删除 UI 控制器 `merge_clusters(cluster_indices)` 人工入口及相关类型依赖。
+  - [x] 删除 runtime 的按编号单组合并、策略单组合并、通用单组合并、重复来源判重、结果序号分配和追加写回逻辑。
+  - [x] 删除 core 的 `MergeTarget` 兼容别名、公开单组执行入口及 `explicit` 人工来源语义，单组执行降为完整计划内部私有步骤。
+  - [x] 删除无调用方的 `build_targets()`、`find_merge_candidates()` 旧兼容接口，测试统一使用策略 `build_plan()` 和批量 `execute_merge_plan()`。
+  - [x] 保留自动计划及派生结果中的来源簇编号，用于执行校验、结果追溯、类别显隐和稳定配色；不提供人工写入入口。
+  - [x] 新增人工来源入口不存在性回归，并扫描 Python 代码残余引用。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest -q tests\unit\test_core_merge_strategy.py tests\unit\test_merge_pipeline.py -k "not test_merge_controller_executes_full_plan_and_browses_results and not test_merge_image_column_displays_rgb_bundle_from_workflow and not test_single_result_uses_global_visibility_and_resets_merge_state" --basetemp=.pytest_tmp_manual_merge_removal_focused -p no:cacheprovider` 通过（33 passed，3 deselected，2 warnings）；未排除运行结果为 33 passed、3 failed，3 项均为本次未修改的既有 UI 文案断言漂移（“组/类”、标题来源后缀、计数空格）；设置 `PYTHONPYCACHEPREFIX=.pycache_manual_merge_removal` 后相关文件 `py_compile` 通过；残余扫描只命中新回归中的否定断言和“人工重置”这一非来源选择语义；`git diff --check` 无真实空白错误，仅有 LF/CRLF 提示。
+
 - 时间：2026-07-25 05:19
 - 操作类型：[修改]
 - 影响文件：

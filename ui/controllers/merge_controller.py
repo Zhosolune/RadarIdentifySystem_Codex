@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 import logging
 from typing import TYPE_CHECKING
 
@@ -13,7 +12,6 @@ from runtime.workflows.merge_workflow import (
     MergeBatchWorkflowResult,
     MergeStrategy,
     MergeWorkflow,
-    MergeWorkflowResult,
 )
 
 if TYPE_CHECKING:
@@ -556,30 +554,3 @@ class MergeController(QObject):
             and stage == "identifying"
             and slice_index == self.view._slice_controller.current_slice_index
         )
-
-    def merge_clusters(
-        self,
-        cluster_indices: Iterable[int],
-    ) -> MergeWorkflowResult:
-        """兼容上层人工指定来源簇的单组合并入口。
-
-        Args:
-            cluster_indices [Iterable[int]]: 原识别类簇编号。
-
-        Returns:
-            MergeWorkflowResult: 单组合并结果。
-        """
-        execution = self._workflow.start_merge_by_indices(
-            self.view._session,
-            self.view._slice_controller.current_slice_index,
-            cluster_indices,
-        )
-        if execution.success:
-            self._result_count = self._workflow.get_result_count(
-                self.view._session,
-                self.view._slice_controller.current_slice_index,
-            )
-            self._current_result_index = max(0, self._result_count - 1)
-            self._present_current_result(reset_visibility=True)
-            self._update_controls()
-        return execution

@@ -15,7 +15,7 @@ ProcessingSession 是随行数据背包（Data Carrier），而非管理者：
   │ slice_result │ slice_workflow → slice_by_toa()                  │
   │ cluster_..   │ identify_workflow → run_clustering()（P04）       │
   │ recognition..│ identify_workflow → evaluate_cluster()（P05）    │
-  │ merge_result │ merge_workflow → merge_clusters()（P06）          │
+  │ merge_result │ merge_workflow → execute_merge_plan()（P06）      │
   └──────────────┴──────────────────────────────────────────────────┘
 """
 

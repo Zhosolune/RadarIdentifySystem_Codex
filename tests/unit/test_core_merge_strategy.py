@@ -121,11 +121,11 @@ def _default_points(
 
 
 def test_strategy_protocol_supports_replaceable_implementation() -> None:
-    """默认实现应满足只依赖build_targets的可替换策略协议。"""
+    """默认实现应满足只依赖完整计划构建方法的可替换策略协议。"""
     strategy: MergeStrategy = DefaultMergeStrategy()
 
     assert strategy.strategy_id == "hybrid_parameter_v1"
-    assert callable(strategy.build_targets)
+    assert callable(strategy.build_plan)
 
 
 def test_common_pri_branch_includes_all_threshold_boundaries() -> None:
@@ -137,10 +137,10 @@ def test_common_pri_branch_includes_all_threshold_boundaries() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert [target.cluster_indices for target in targets] == [(1, 2)]
 
@@ -170,10 +170,10 @@ def test_common_pri_branch_rejects_values_beyond_limits(
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert targets == ()
 
@@ -187,10 +187,10 @@ def test_toa_endpoint_contact_is_not_an_intersection() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert targets == ()
 
@@ -205,10 +205,10 @@ def test_pa_mismatch_uses_any_merged_member_for_two_degree_rule() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert [target.cluster_indices for target in targets] == [(1, 2, 3)]
 
@@ -223,10 +223,10 @@ def test_greedy_expansion_rescans_candidates_after_group_growth() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert [target.cluster_indices for target in targets] == [(1, 2, 3)]
 
@@ -263,9 +263,9 @@ def test_pdoa_validity_requires_strictly_more_than_forty_percent() -> None:
     )
 
     strategy = DefaultMergeStrategy()
-    assert strategy.build_targets(*forty_inputs) == ()
+    assert strategy.build_plan(*forty_inputs).groups == ()
     assert [
-        target.cluster_indices for target in strategy.build_targets(*sixty_inputs)
+        group.cluster_indices for group in strategy.build_plan(*sixty_inputs).groups
     ] == [(1, 2)]
 
 
@@ -288,10 +288,10 @@ def test_pdoa_branch_accepts_circular_grid_distance() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert [target.cluster_indices for target in targets] == [(1, 2)]
 
@@ -305,10 +305,10 @@ def test_pdoa_branch_rejects_when_angle_and_grid_both_exceed_limits() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert targets == ()
 
@@ -332,10 +332,10 @@ def test_invalid_pdoa_branch_accepts_circular_doa_grid_distance() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert [target.cluster_indices for target in targets] == [(1, 2)]
 
@@ -350,10 +350,10 @@ def test_seed_cf_remains_fixed_during_group_expansion() -> None:
         ]
     )
 
-    targets = DefaultMergeStrategy().build_targets(
+    targets = DefaultMergeStrategy().build_plan(
         cluster_result,
         recognition_result,
-    )
+    ).groups
 
     assert [target.cluster_indices for target in targets] == [(1, 2)]
 
@@ -369,7 +369,7 @@ def test_strategy_rejects_mismatched_slice_results() -> None:
     )
 
     with pytest.raises(ValueError, match="切片索引不一致"):
-        DefaultMergeStrategy().build_targets(
+        DefaultMergeStrategy().build_plan(
             cluster_result,
             wrong_recognition_result,
         )

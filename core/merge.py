@@ -1,4 +1,4 @@
-"""显式合并与切片级批量计划执行。
+"""切片级自动合并计划执行。
 
 可插拔判别准则位于 ``core.merge_strategy``；本模块只负责执行已经确定的来源
 分组、拼接点云并重新提取参数，不修改原聚类结果或识别结果。
@@ -24,10 +24,6 @@ from core.params_extract import extract_cluster_params
 
 
 LOGGER = logging.getLogger(__name__)
-
-
-# 兼容既有runtime和测试；计划模型中的正式名称为MergeGroup。
-MergeTarget = MergeGroup
 
 
 class MergePipeline:
@@ -58,50 +54,36 @@ class MergePipeline:
             asdict(self.extract_params),
         )
 
-    def run(
+    def _run_group(
         self,
-        target: MergeGroup,
+        group: MergeGroup,
         slice_cluster_result: SliceClusterResult,
         slice_recognition_result: SliceRecognitionResult,
         merge_index: int,
-        strategy_id: str = "explicit",
+        strategy_id: str,
     ) -> MergedClusterResult:
-        """执行一个明确来源分组的合并流程。
-
-        Args:
-            target [MergeGroup]: 已由上层确定的来源簇集合。
-            slice_cluster_result [SliceClusterResult]: 目标切片的聚类点云结果。
-            slice_recognition_result [SliceRecognitionResult]: 目标切片的原识别结果。
-            merge_index [int]: 当前切片内从1开始的合并结果序号。
-            strategy_id [str]: 生成分组的准则标识，默认表示人工显式目标。
-
-        Returns:
-            MergedClusterResult: 点云拼接、来源识别保留和参数重提取后的结果。
-
-        Raises:
-            ValueError: 切片不匹配、序号非法、来源不存在或来源未识别通过时抛出。
-        """
+        """执行自动策略计划中的一个来源分组。"""
         if merge_index < 1:
             raise ValueError("merge_index 必须大于等于1")
         if not strategy_id.strip():
             raise ValueError("strategy_id 不能为空")
-        if slice_cluster_result.slice_idx != target.slice_index:
+        if slice_cluster_result.slice_idx != group.slice_index:
             raise ValueError("聚类结果与合并目标的切片索引不一致")
-        if slice_recognition_result.slice_index != target.slice_index:
+        if slice_recognition_result.slice_index != group.slice_index:
             raise ValueError("识别结果与合并目标的切片索引不一致")
 
         LOGGER.info(
             "开始执行单个合并组: slice_index=%d, merge_index=%d, "
             "strategy_id=%s, source_cluster_indices=%s, 参数提取配置=%s",
-            target.slice_index,
+            group.slice_index,
             merge_index,
             strategy_id,
-            target.cluster_indices,
+            group.cluster_indices,
             asdict(self.extract_params),
         )
-        # 先按target顺序解析两类来源，确保点云、原索引和识别记录位置严格对应。
+        # 先按策略分组顺序解析两类来源，确保点云、原索引和识别记录位置严格对应。
         source_clusters, source_recognitions = self._resolve_sources(
-            target,
+            group,
             slice_cluster_result,
             slice_recognition_result,
         )
@@ -118,9 +100,9 @@ class MergePipeline:
             "来源数据拼接完成: slice_index=%d, merge_index=%d, "
             "source_cluster_indices=%s, 各来源点数=%s, 合并点云shape=%s, "
             "合并点索引shape=%s",
-            target.slice_index,
+            group.slice_index,
             merge_index,
-            target.cluster_indices,
+            group.cluster_indices,
             tuple(len(cluster.points) for cluster in source_clusters),
             merged_points.shape,
             merged_point_indices.shape,
@@ -129,9 +111,9 @@ class MergePipeline:
         extracted_params = extract_cluster_params(merged_points, self.extract_params)
         result = MergedClusterResult(
             merge_index=merge_index,
-            slice_index=target.slice_index,
+            slice_index=group.slice_index,
             strategy_id=strategy_id,
-            source_cluster_indices=target.cluster_indices,
+            source_cluster_indices=group.cluster_indices,
             source_dim_names=tuple(cluster.dim_name for cluster in source_clusters),
             source_point_clouds=tuple(cluster.points for cluster in source_clusters),
             merged_points=merged_points,
@@ -201,8 +183,8 @@ class MergePipeline:
         )
         # 计划已保证组间互斥；执行层只保持计划顺序并连续分配结果序号。
         results = tuple(
-            self.run(
-                target=group,
+            self._run_group(
+                group=group,
                 slice_cluster_result=slice_cluster_result,
                 slice_recognition_result=slice_recognition_result,
                 merge_index=start_merge_index + offset,
@@ -222,12 +204,12 @@ class MergePipeline:
 
     def _resolve_sources(
         self,
-        target: MergeGroup,
+        group: MergeGroup,
         slice_cluster_result: SliceClusterResult,
         slice_recognition_result: SliceRecognitionResult,
     ) -> tuple[list[ClusterItem], list[ClusterRecognition]]:
         """按分组顺序解析已识别通过的来源簇和识别记录。"""
-        # 映射仅用于查找，最终返回顺序仍以target.cluster_indices为准。
+        # 映射仅用于查找，最终返回顺序仍以策略分组中的编号顺序为准。
         cluster_map = {
             cluster.cluster_idx: cluster for cluster in slice_cluster_result.clusters
         }
@@ -238,8 +220,8 @@ class MergePipeline:
         }
         source_clusters: list[ClusterItem] = []
         source_recognitions: list[ClusterRecognition] = []
-        for cluster_index in target.cluster_indices:
-            # 合并只接受最终有效且识别通过的簇，防止人工入口绕过领域约束。
+        for cluster_index in group.cluster_indices:
+            # 即使策略实现异常，执行层仍只接受最终有效且识别通过的簇。
             cluster = cluster_map.get(cluster_index)
             if cluster is None:
                 raise ValueError(f"未找到来源簇 {cluster_index}")
@@ -252,7 +234,7 @@ class MergePipeline:
                 "解析合并来源类别: slice_index=%d, cluster_index=%d, "
                 "cluster_state=%s, dim_name=%s, point_count=%d, "
                 "point_shape=%s, time_range=%s, pa_label=%d, dtoa_label=%d",
-                target.slice_index,
+                group.slice_index,
                 cluster_index,
                 cluster.state,
                 cluster.dim_name,
