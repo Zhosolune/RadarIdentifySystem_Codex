@@ -210,7 +210,7 @@ class BusinessConfigSnapshot:
     """Session 级业务配置快照。
 
     Attributes:
-        auto_recognize_next_slice: 是否自动识别下一切片。
+        auto_recognize_next_slice: 是否在切换切片时自动识别；字段名为兼容既有配置保留。
         export_dir_path: 导出目录路径。
         auto_export: 是否自动导出。
     """

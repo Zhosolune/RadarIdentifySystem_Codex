@@ -34,7 +34,7 @@ class SliceParamPanel(QWidget):
     Attributes:
         session: 当前切片页面所属的处理 session。
         auto_recognize_item: 绑定到当前 session 子配置的自动识别设置项。
-        auto_recognize_card: 切换下一片时自动识别的设置卡。
+        auto_recognize_card: 切换切片时自动识别的设置卡。
         clustering_group: 当前 session 聚类参数设置组。
         model_selection_card: 当前页面使用的 PA 与 DTOA 模型选择卡。
         export_path_card: 导出路径与自动保存设置卡。
@@ -88,7 +88,7 @@ class SliceParamPanel(QWidget):
         self.auto_recognize_card: SwitchSettingCard = SwitchSettingCard(
             icon=FluentIcon.PLAY,
             title="自动识别",
-            content="切换下一片时自动执行识别工作流",
+            content="切换切片时自动执行识别工作流",
             configItem=None,
             parent=self,
         )

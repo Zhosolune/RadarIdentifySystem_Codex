@@ -1,5 +1,28 @@
 # 变更记录
 
+- 时间：2026-07-28 10:53
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\session_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将自动识别从仅下一片扩展为上一片、下一片切换均生效，并同步设置卡说明文本。
+- 原因：自动识别应以切换后的目标切片是否已识别为触发条件，不应受切换方向限制。
+- 计划清单：
+  - [x] 为上一片未识别时自动识别补充回归测试。
+  - [x] 上一片切换完成后显式传递目标 0-based 切片索引触发自动识别。
+  - [x] 将设置卡说明调整为切换切片时自动识别，并补充文本断言。
+  - [x] 运行导航与设置面板聚焦测试、语法检查和差异检查。
+- 验证结果：
+  - RED：上一片自动识别与设置卡新文本测试按预期失败（2 failed），分别确认上一片未触发识别及旧文案仍限定“下一片”。
+  - GREEN：上一片、下一片自动识别及设置卡文本聚焦测试通过（3 passed，1 warning）。
+  - 相关测试共 16 passed、1 failed；唯一失败为既有快照窗口标题文案断言漂移，与本次自动识别改动无关。
+  - 相关文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-28 10:22
 - 操作类型：[新增]
 - 影响文件：

@@ -56,6 +56,10 @@ def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
     )
     assert panel.auto_recognize_card.parent() is panel.cards_group
     assert panel.auto_recognize_item.value is True
+    assert (
+        panel.auto_recognize_card.contentLabel.text()
+        == "切换切片时自动执行识别工作流"
+    )
     assert panel.clustering_group.parent() is panel.drawer_scroll_widget
     assert isinstance(panel.clustering_eps_cf_card, DoubleSpinBoxSettingCard)
     assert isinstance(panel.clustering_min_pts_cf_card, SpinBoxSettingCard)

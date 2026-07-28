@@ -357,6 +357,51 @@ def test_next_slice_auto_recognize_passes_target_slice_index(
         sip.delete(interface)
 
 
+def test_prev_slice_auto_recognize_passes_target_slice_index(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """上一片自动识别应显式使用切换后的目标切片索引。"""
+    _app()
+    captured_indices: list[int | None] = []
+
+    def fake_handle_identify(
+        controller: IdentifyController,
+        target_slice_index: int | None = None,
+    ) -> None:
+        """记录自动识别入口收到的目标切片索引。"""
+        del controller
+        captured_indices.append(target_slice_index)
+
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.collect_available_model_files",
+        lambda model_type: [],
+    )
+    monkeypatch.setattr(
+        "ui.controllers.slice_controller.render_slice_images",
+        lambda *args, **kwargs: _fake_slice_bundle(),
+    )
+    monkeypatch.setattr(IdentifyController, "handle_identify", fake_handle_identify)
+
+    interface = SliceInterface()
+    try:
+        interface._session.config_snapshot.business.auto_recognize_next_slice = True
+        interface._session.slice_result = SliceResult(
+            slices=[
+                SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0)),
+                SingleSlice(1, np.ones((2, 6), dtype=float), (1.0, 2.0)),
+                SingleSlice(2, np.full((2, 6), 2.0, dtype=float), (2.0, 3.0)),
+            ]
+        )
+        interface._slice_controller._load_slice_image(2)
+
+        interface._slice_controller._on_prev_slice()
+
+        assert interface._slice_controller.current_slice_index == 1
+        assert captured_indices == [1]
+    finally:
+        sip.delete(interface)
+
+
 def test_redraw_auto_recognize_passes_target_slice_index(
     monkeypatch: MonkeyPatch,
 ) -> None:

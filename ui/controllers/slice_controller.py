@@ -361,6 +361,7 @@ class SliceController(QObject):
 
         功能描述：
             将切片索引递减并触发该切片的图像加载和聚类结果更新。
+            若自动识别开关已启用，则在切片切换后自动启动识别工作流。
 
         Args:
             无。
@@ -374,6 +375,7 @@ class SliceController(QObject):
         self._load_slice_image(self._current_slice_index - 1)
         if hasattr(self.view, '_identify_controller'):
             self.view._identify_controller.load_cluster_image(self._current_slice_index, reset_index=True)
+            self._maybe_auto_recognize(self._current_slice_index)
 
     def _maybe_auto_recognize(self, target_slice_index: int | None = None) -> None:
         """根据自动识别开关判断是否需要触发识别工作流。
