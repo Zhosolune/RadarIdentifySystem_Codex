@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from core.models.processing_session import ProcessingSession
+from core.models.data_package import DataPackage
 
 
 class _SignalBus(QObject):
@@ -29,10 +29,10 @@ class _SignalBus(QObject):
     # -------------------------------------------------------------------
     # 结果数据事件
     # -------------------------------------------------------------------
-    # 解析完成后发出，携带 session 供首页渲染解析结果。
-    parse_completed = pyqtSignal(ProcessingSession)
-    # 用户确认导入或注册入口发出，保留给后续 session 注册和下游流程。
-    import_completed = pyqtSignal(ProcessingSession)
+    # 解析完成后携带只读数据包，由主页注册到数据池。
+    data_package_parsed = pyqtSignal(DataPackage)
+    # 全速任务配置、进度或终态变化后发出，主页据此刷新对应卡片。
+    full_speed_session_changed = pyqtSignal(str)
 
 
 signal_bus = _SignalBus()

@@ -1,5 +1,50 @@
 # 变更记录
 
+- 时间：2026-07-29 09:54
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\data_package.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\full_speed_identify_pipeline.py`（删除）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\data_pool_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\excel_result_exporter.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\data_pool_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\full_speed_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\full_speed_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\import_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\dialogs\create_session_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\requirements.txt`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：完成“数据池→交互式/全速同级Session”重构，并落地全速任务参数冻结、独立线程、逐片识别与合并、进度/取消及本地Excel结果保存闭环。
+- 原因：同一包归一化数据需要作为只读输入被多个不同参数的Session复用，同时避免把全速任务与全速结果拆成两个概念重叠的Session。
+- 计划清单：
+  - [x] 新增数据包纯数据模型、唯一ID与只读输入契约。
+  - [x] 新增数据池注册器及独立持久化目录，支持原子文件写入、损坏索引目录发现和安全删除。
+  - [x] 将解析链路由“写临时Session”迁移为“生成DataPackage并注册数据池”。
+  - [x] 在主页左下落地数据池列表，并从选中数据包创建两类同级Session。
+  - [x] 在创建Session窗口增加“切片处理（交互式）/全速处理（自动）”单选项。
+  - [x] 全速Session首次开始时冻结当前全局算法参数、模型选择和独立保存目录。
+  - [x] 每个全速Session使用独立QThread和独立ONNX推理服务，连续执行现有250ms切片、逐片识别/参数提取、自动合并和Excel保存。
+  - [x] 主页全速卡片支持多任务并存、进度、当前切片、取消、固定参数重试、删除及打开结果。
+  - [x] Excel工作簿独立保存任务信息、原识别结果和合并结果，合并表保留来源簇引用且通过同目录临时文件原子替换。
+  - [x] 删除与新设计冲突的整包识别骨架，统一复用现有SliceResult和SliceIdentifyPipeline。
+  - [x] 补充数据池、Excel导出、全速运行、UI模式、双体系路由及持久化回归测试。
+- 验证结果：
+  - 数据池、Session持久化、导入事件迁移、Excel导出、全速运行、UI与导航聚焦回归共100 passed、1 warning。
+  - 主窗口动态Session恢复与管理回归16 passed、1 warning；数据池双体系路由单测另行通过。
+  - 识别、合并、切片及相关全速回归77 passed、3 failed；3项失败均为既有合并UI文案断言漂移（“组/类”、标题来源后缀和计数空格），与本次全速链路无关。
+  - 完整`tests/unit`仍有2项既有收集错误：旧测试引用已不存在的`cluster_single_slice`与`AppSignalBus`；排除后首个既有失败为用户已调整QSS对应的旧文本断言，本次未修改QSS。
+  - 全仓Python源码静态编译通过；`git diff --check`通过，仅有LF/CRLF转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-28 11:43
 - 操作类型：[新增]
 - 影响文件：

@@ -32,6 +32,8 @@ from .slice_right_panel import SliceRightPanel
 from .slice_param_panel import SliceParamPanel
 from .session_manager_panel import SessionManagerPanel
 from .card_navigation_list import CardNavigationItem, CardNavigationList
+from .data_pool_panel import DataPoolPanel
+from .full_speed_session_panel import FullSpeedSessionPanel
 
 __all__ = [
     "ActionButtonCard",
@@ -69,4 +71,6 @@ __all__ = [
     "SessionManagerPanel",
     "CardNavigationItem",
     "CardNavigationList",
+    "DataPoolPanel",
+    "FullSpeedSessionPanel",
 ]

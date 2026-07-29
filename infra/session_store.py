@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 
 from core.models.dashboard_info import ExcelDashboardInfo
-from core.models.processing_session import ProcessingSession
+from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.processing_session import ProcessingStage
 from core.models.pulse_batch import (
     COL_CF,
@@ -436,6 +436,13 @@ class SessionStore:
 
             session = ProcessingSession(
                 session_id=requested_session_id,
+                data_package_id=metadata.get("data_package_id"),
+                processing_mode=ProcessingMode(
+                    metadata.get(
+                        "processing_mode",
+                        ProcessingMode.SLICE_INTERACTIVE.value,
+                    )
+                ),
                 source_path=str(metadata["source_path"]),
                 source_type=str(metadata["source_type"]),
                 created_at=datetime.fromisoformat(str(metadata["created_at"])),
@@ -445,9 +452,13 @@ class SessionStore:
                 restored_from_store=True,
                 config_snapshot=SessionConfigSnapshot.from_dict(config_payload),
                 model_selection=SessionModelSelection.from_dict(model_payload),
+                stage=self._restore_stage(metadata.get("stage")),
+                full_speed_locked=bool(metadata.get("full_speed_locked", False)),
+                exported_file_path=str(metadata.get("exported_file_path", "")),
             )
 
-            # 明确保持计算产物为空，避免把持久化层扩展为结果保存系统。
+            # 中间计算产物不进入 SessionStore；全速任务只恢复阶段审计信息和
+            # Excel 路径，真实结果由本地工作簿承载。
             session.raw_batch = None
             session.slice_result = None
             session.cluster_result = None
@@ -746,6 +757,8 @@ class SessionStore:
         """从 session 构造元数据 JSON 字典。"""
         return {
             "session_id": session.session_id,
+            "data_package_id": session.data_package_id,
+            "processing_mode": session.processing_mode.value,
             "source_path": session.source_path,
             "source_type": session.source_type,
             "created_at": session.created_at.isoformat(),
@@ -753,7 +766,20 @@ class SessionStore:
             "remark": session.remark,
             "last_opened_at": session.last_opened_at.isoformat(),
             "model_selection": session.model_selection.to_dict(),
+            "stage": session.stage.name,
+            "full_speed_locked": session.full_speed_locked,
+            "exported_file_path": session.exported_file_path,
         }
+
+    @staticmethod
+    def _restore_stage(value: object) -> ProcessingStage:
+        """从持久化名称恢复处理阶段，未知值回退为初始阶段。"""
+        if isinstance(value, str):
+            try:
+                return ProcessingStage[value]
+            except KeyError:
+                pass
+        return ProcessingStage.CREATED
 
     def _read_json(self, file_path: Path) -> dict[str, Any]:
         """读取 JSON 字典文件。"""

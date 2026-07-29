@@ -37,6 +37,7 @@ from core.models.recognition_result import RecognitionResult
 from core.models.merge_result import MergePlan, MergeResult
 from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
+from core.models.data_package import DataPackage
 
 
 # -------------------------------------------------------------------
@@ -59,6 +60,18 @@ class ProcessingStage(Enum):
     RECOGNIZED = auto()    # 已完成识别与参数提取（recognition_result 有效）
     MERGED = auto()        # 已完成合并（merge_result 有效）
     EXPORTED = auto()      # 已导出结果文件
+
+
+class ProcessingMode(Enum):
+    """Session 处理模式。
+
+    Attributes:
+        SLICE_INTERACTIVE: 由用户逐切片操作的交互式处理模式。
+        FULL_SPEED: 自动连续完成切片、识别、合并和保存的全速模式。
+    """
+
+    SLICE_INTERACTIVE = "slice_interactive"
+    FULL_SPEED = "full_speed"
 
 
 class SliceProcessStatus(Enum):
@@ -117,6 +130,8 @@ class ProcessingSession:
 
     属性：
         session_id (str): 会话唯一标识（8位 UUID 前缀），用于日志与事件 payload 区分。
+        data_package_id (str | None): 来源数据池数据包 ID。
+        processing_mode (ProcessingMode): Session 处理模式。
         source_path (str): 数据文件路径。
         source_type (str): 数据来源类型，"excel" / "bin" / "mat"。
         created_at (datetime): 会话创建时间戳。
@@ -136,6 +151,8 @@ class ProcessingSession:
         recognition_result (Any | None): 识别与参数提取结果（P05 落地后替换）。
         merge_plan (MergePlan | None): 用户点击合并后按当前策略生成的切片计划。
         merge_result (MergeResult | None): 与识别结果独立保存的合并结果。
+        full_speed_locked (bool): 全速任务是否已经启动并冻结配置。
+        exported_file_path (str): 全速任务成功写出的 Excel 文件路径。
 
     参数说明：
         source_path (str): 文件路径，默认空串。
@@ -150,6 +167,8 @@ class ProcessingSession:
     session_id: str = field(
         default_factory=lambda: uuid.uuid4().hex[:8]
     )
+    data_package_id: str | None = None
+    processing_mode: ProcessingMode = ProcessingMode.SLICE_INTERACTIVE
     source_path: str = ""
     source_type: str = "unknown"
     created_at: datetime = field(default_factory=datetime.now)
@@ -180,6 +199,11 @@ class ProcessingSession:
     merge_plan: Optional[MergePlan] = field(default=None)
     merge_result: Optional[MergeResult] = field(default=None)
 
+    # ── 全速处理持久化状态 ─────────────────────────────────────────────
+    # 一旦开始执行就保持锁定；失败、取消和重启后的重试仍使用同一份参数快照。
+    full_speed_locked: bool = False
+    exported_file_path: str = ""
+
     # ── 线程安全锁 ───────────────────────────────────────────────────
     lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
@@ -189,6 +213,54 @@ class ProcessingSession:
             self.display_name = Path(self.source_path).name
         elif not self.display_name:
             self.display_name = f"Session {self.session_id}"
+
+    @classmethod
+    def from_data_package(
+        cls,
+        package: DataPackage,
+        *,
+        processing_mode: ProcessingMode = ProcessingMode.SLICE_INTERACTIVE,
+        display_name: str = "",
+        remark: str = "无",
+    ) -> "ProcessingSession":
+        """从数据池数据包创建共享只读输入的独立 Session。
+
+        Args:
+            package [DataPackage]: 已注册并冻结输入数组的数据包。
+            processing_mode [ProcessingMode]: 新 Session 的处理模式。
+            display_name [str]: Session 展示名称，留空时沿用数据包名称。
+            remark [str]: Session 备注，默认使用“无”。
+
+        Returns:
+            ProcessingSession: 拥有独立配置和结果槽位、共享数据包输入的 Session。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> import numpy as np
+            >>> from core.models.data_package import DataPackage
+            >>> from core.models.pulse_batch import PulseBatch
+            >>> from core.models.slice_result import PreprocessResult
+            >>> package = DataPackage(
+            ...     PulseBatch(np.empty((0, 6))),
+            ...     PreprocessResult(np.empty((0, 6))),
+            ... )
+            >>> ProcessingSession.from_data_package(package).data_package_id == package.package_id
+            True
+        """
+        return cls(
+            data_package_id=package.package_id,
+            processing_mode=processing_mode,
+            source_path=package.source_path,
+            source_type=package.source_type,
+            display_name=display_name.strip() or package.display_name,
+            remark=remark.strip() or "无",
+            stage=ProcessingStage.PREPROCESSED,
+            raw_batch=package.raw_batch,
+            preprocess_result=package.preprocess_result,
+            dashboard_info=package.dashboard_info,
+        )
 
     # -------------------------------------------------------------------
     # 只读属性（便捷查询，不允许外部赋值）
@@ -292,7 +364,8 @@ class ProcessingSession:
         """重置到预处理完成状态，清空所有下游产物。
 
         功能描述：
-            保留 raw_batch 和 dashboard_info，清空预处理及之后的所有阶段产物，
+            保留 raw_batch、preprocess_result 和 dashboard_info，清空切片及
+            之后的所有阶段产物，
             将 stage 回退到 PREPROCESSED。用于 session 关闭再启用时避免旧产物残留。
 
         Returns:
@@ -304,12 +377,11 @@ class ProcessingSession:
         Example:
             >>> session = ProcessingSession()
             >>> session.stage = ProcessingStage.CLUSTERED
-            >>> session.reset_to_preprocessed_status()
+            >>> session.reset_to_preprocessed_state()
             >>> session.stage.name
-            'PREPROCESSE    D'
+            'PREPROCESSED'
         """
-        # 清空预处理及下游所有产物。
-        # self.preprocess_result = None
+        # 数据池输入保持不变，只清空每个 Session 独占的计算产物。
         self.slice_result = None
         self.cluster_result = None
         self.slice_processing_states = {}

@@ -796,7 +796,8 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
         assert window.session_registry.get("session_second") is not None
         assert window.session_registry.get("session_first").display_name == "first.xlsx"
         assert window.session_registry.get("session_second").display_name == "second.xlsx"
-        assert window.session_registry.active_session_id == "session_first"
+        # 主窗口启动恢复不再继承历史 active 状态；失败回滚不得凭空激活页面。
+        assert window.session_registry.active_session_id is None
         assert not (tmp_path / "session_failed_page").exists()
         assert (tmp_path / "session_first").exists()
         assert (tmp_path / "session_second").exists()

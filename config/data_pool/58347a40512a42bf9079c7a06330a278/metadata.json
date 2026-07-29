@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "package_id": "58347a40512a42bf9079c7a06330a278",
+  "display_name": "20220524090002.xlsx",
+  "source_path": "E:\\competition\\测试数据\\20220524090002.xlsx",
+  "source_type": "excel",
+  "created_at": "2026-07-29T10:05:54.617680",
+  "data_format": "old",
+  "raw_batch": {
+    "source_path": "E:\\competition\\测试数据\\20220524090002.xlsx",
+    "source_type": "excel",
+    "total_pulses": 61980
+  },
+  "preprocess_result": {
+    "total_pulses": 61980,
+    "filtered_pulses": 6165,
+    "toa_flip_count": 0,
+    "time_range": 103365336.0,
+    "estimated_slice_count": 42,
+    "band": "C波段"
+  },
+  "dashboard_info": {
+    "total_pulses": 61980,
+    "removed_pulses": 6165,
+    "amplitude_dropped_pulses": 6165,
+    "duration": 103365336.0,
+    "band": "C波段",
+    "estimated_slice_count": 42
+  }
+}

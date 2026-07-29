@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+import uuid
 
 from PyQt6.QtCore import QObject
 
 from app.signal_bus import signal_bus
-from core.models.processing_session import ProcessingSession, ProcessingStage
 from infra.parsers import ExcelDataFormat
-from runtime.threading.import_worker import ImportWorker
+from runtime.threading.import_worker import ImportWorker, ImportWorkerResult
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,10 +37,9 @@ class ImportWorkflow(QObject):
 
     def start_import(
         self,
-        session: ProcessingSession,
         file_path: str,
         data_format: ExcelDataFormat = "old",
-    ) -> None:
+    ) -> str:
         """启动导入工作流。
 
         功能描述：
@@ -48,12 +47,11 @@ class ImportWorkflow(QObject):
             触发 stage_started 信号。
 
         参数说明：
-            session (ProcessingSession): 处理会话实例。
             file_path (str): 要导入的 Excel 文件路径。
             data_format (ExcelDataFormat): Excel 原始列格式，默认使用旧格式。
 
         返回值说明：
-            None: 无返回值。
+            str: 本次解析预分配的数据包 ID。
 
         异常说明：
             RuntimeError: 当已有任务在运行时抛出。
@@ -61,37 +59,50 @@ class ImportWorkflow(QObject):
         if self._worker is not None and self._worker.isRunning():
             raise RuntimeError("正在导入中，无法启动新任务")
 
-        LOGGER.info("启动导入工作流", extra={"session_id": session.session_id})
-        signal_bus.stage_started.emit(session.session_id, "importing", None)
+        package_id = uuid.uuid4().hex
+        LOGGER.info("启动导入工作流", extra={"session_id": package_id})
+        signal_bus.stage_started.emit(package_id, "importing", None)
 
         self._worker = ImportWorker(
-            session,
             file_path,
             data_format=data_format,
+            package_id=package_id,
             parent=self,
         )
         self._worker.finished_signal.connect(self._on_worker_finished)
         self._worker.start()
+        return package_id
 
-    def _on_worker_finished(self, session_id: str, success: bool, message: str) -> None:
+    def _on_worker_finished(
+        self,
+        package_id: str,
+        result: ImportWorkerResult,
+    ) -> None:
         """接收线程完成信号并分发全局事件。
 
         功能描述：
             工作线程完成后，释放引用并发出 stage_finished 信号，同时记录日志。
 
         参数说明：
-            session_id (str): 会话 ID。
-            success (bool): 是否成功。
-            message (str): 结果信息。
+            package_id (str): 数据包 ID。
+            result (ImportWorkerResult): 线程执行结果。
         """
-        LOGGER.info("导入工作流完成: %s", message, extra={"session_id": session_id})
+        LOGGER.info(
+            "导入工作流完成: %s",
+            result.message,
+            extra={"session_id": package_id},
+        )
 
-        if success:
-            signal_bus.stage_finished.emit(session_id, "importing", None)
-            if self._worker is not None:
-                signal_bus.parse_completed.emit(self._worker.session)
+        if result.success and result.package is not None:
+            signal_bus.stage_finished.emit(package_id, "importing", None)
+            signal_bus.data_package_parsed.emit(result.package)
         else:
-            signal_bus.stage_failed.emit(session_id, "importing", None, message)
+            signal_bus.stage_failed.emit(
+                package_id,
+                "importing",
+                None,
+                result.message,
+            )
             
         if self._worker is not None:
             self._worker.deleteLater()

@@ -21,23 +21,26 @@ def _app() -> QApplication:
     return app
 
 
-def test_home_interface_uses_fixed_columns_without_root_scroll_area() -> None:
-    """主页应使用左右非滚动根布局，并将右侧拆为上下双卡片。"""
+def test_home_interface_hosts_data_pool_and_two_peer_session_panels() -> None:
+    """主页左侧应落地数据池，右侧应展示两类同级 Session 面板。"""
     _app()
     interface = HomeInterface()
 
     left_layout = interface.left_column.layout()
     right_layout = interface.right_column.layout()
 
-    assert interface.findChild(QWidget, "homeLeftScrollArea") is None
-    assert left_layout.count() == 3
-    assert interface.dashboard_panel.minimumHeight() == 300
-    assert interface.dashboard_panel.maximumHeight() == 300
+    assert interface.findChild(QWidget, "homeLeftScrollArea") is not None
+    assert left_layout.count() == 1
+    assert interface.data_pool_panel.minimumHeight() == 300
+    assert interface.data_pool_panel.maximumHeight() == 300
     assert interface.import_panel.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Expanding
     assert right_layout.count() == 2
     assert right_layout.stretch(0) == 1
     assert right_layout.stretch(1) == 1
-    assert interface.session_placeholder_card.objectName() == "homeRightPlaceholderCard"
+    assert (
+        interface.full_speed_session_panel.objectName()
+        == "homeFullSpeedSessionPanel"
+    )
 
 
 def test_import_data_panel_reports_selected_excel_format() -> None:

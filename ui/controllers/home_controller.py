@@ -6,16 +6,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, Qt, QTimer
-from qfluentwidgets import InfoBar, InfoBarPosition, qconfig
+from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox, qconfig
 
 from app.signal_bus import signal_bus
 from app.app_config import appConfig
-from core.models.dashboard_info import ExcelDashboardInfo
-from core.models.processing_session import ProcessingSession
+from core.models.data_package import DataPackage
 from infra.import_file_list_manager import ImportFileListManager
+from runtime.data_pool_registry import DataPoolRegistry
 from runtime.workflows.import_workflow import import_workflow
-from ui.components import DashboardMetric, DashboardPage
-from ui.components.import_dashboard_panel import format_dashboard_duration
 from ui.dialogs.create_session_dialog import CreateSessionDialog
 from ui.dialogs.processing_dialog import ProcessingDialog
 
@@ -34,11 +32,16 @@ class HomeController(QObject):
         file_manager: 导入文件列表管理器。
     """
 
-    def __init__(self, view: HomeInterface) -> None:
+    def __init__(
+        self,
+        view: HomeInterface,
+        data_pool_registry: DataPoolRegistry,
+    ) -> None:
         """初始化主页控制器。
 
         Args:
-            view: 主页视图实例，必须包含 ``import_dir_card`` 与 ``import_panel``。
+            view: 主页视图实例，必须包含导入面板和数据池面板。
+            data_pool_registry: 主窗口共享的数据池注册器。
 
         Returns:
             None: 无返回值。
@@ -48,14 +51,15 @@ class HomeController(QObject):
         """
         super().__init__(view)
         self.view = view
+        self.data_pool_registry = data_pool_registry
         self.file_manager = ImportFileListManager()
-        self._active_parse_session_id: str | None = None
-        self._last_import_session: ProcessingSession | None = None
+        self._active_parse_package_id: str | None = None
         self._processing_dialog: ProcessingDialog | None = None
         self._connect_signals()
 
         # 延迟到事件循环空闲后渲染已持久化列表，启动时不自动扫描目录。
         QTimer.singleShot(0, self.render_saved_import_files)
+        QTimer.singleShot(0, self.refresh_data_pool_panel)
 
     def render_saved_import_files(self) -> None:
         """渲染已持久化的导入文件列表。
@@ -142,10 +146,13 @@ class HomeController(QObject):
             self.view.import_panel.descendAction,
         ):
             action.triggered.connect(lambda _checked=False: self.apply_sort())
-        signal_bus.parse_completed.connect(self.render_import_dashboard)
+        signal_bus.data_package_parsed.connect(self.register_parsed_package)
         signal_bus.stage_failed.connect(self._on_parse_stage_failed)
-        self.view.dashboard_panel.importSessionRequested.connect(
-            self.import_current_session
+        self.view.data_pool_panel.createSessionRequested.connect(
+            self.create_session_from_package
+        )
+        self.view.data_pool_panel.deletePackageRequested.connect(
+            self.delete_data_package
         )
 
     def parse_selected_file(self) -> None:
@@ -178,30 +185,29 @@ class HomeController(QObject):
             self._show_top_warning("正在解析", "已有文件正在解析，请等待完成后再试。")
             return
 
-        session = ProcessingSession(source_path=str(entry.path), source_type="excel")
-        self._active_parse_session_id = session.session_id
-        self._last_import_session = None
         self.view.import_panel.parseButton.setEnabled(False)
         self.view.import_panel.parseButton.setText("解析中")
-        self.view.dashboard_panel.clear_dashboard_pages()
         self._show_processing_dialog()
 
         try:
             # 点击解析时冻结格式选择，后台线程不再读取可变 UI 状态。
             data_format = self.view.import_panel.current_excel_data_format()
-            import_workflow.start_import(session, str(entry.path), data_format)
+            self._active_parse_package_id = import_workflow.start_import(
+                str(entry.path),
+                data_format,
+            )
         except Exception as exc:
-            self._active_parse_session_id = None
+            self._active_parse_package_id = None
             self.view.import_panel.parseButton.setEnabled(True)
             self.view.import_panel.parseButton.setText("解析")
             self._close_processing_dialog()
             self._show_top_warning("解析失败", str(exc))
 
-    def render_import_dashboard(self, session: ProcessingSession) -> None:
-        """根据导入会话刷新仪表盘摘要。
+    def register_parsed_package(self, package: DataPackage) -> None:
+        """将解析完成的数据包持久化注册到数据池。
 
         Args:
-            session: 已完成导入和预处理的处理会话。
+            package: 已完成解析、预处理和输入冻结的数据包。
 
         Returns:
             None: 无返回值。
@@ -210,46 +216,54 @@ class HomeController(QObject):
             无显式抛出异常。
 
         Example:
-            >>> from core.models.processing_session import ProcessingSession
-            >>> isinstance(ProcessingSession(), ProcessingSession)
-            True
+            无。
         """
-        if session.session_id != self._active_parse_session_id:
+        if package.package_id != self._active_parse_package_id:
             return
 
-        self._active_parse_session_id = None
+        self._active_parse_package_id = None
         self.view.import_panel.parseButton.setEnabled(True)
         self.view.import_panel.parseButton.setText("解析")
         self._close_processing_dialog()
 
-        dashboard_info = session.dashboard_info
-        if not isinstance(dashboard_info, ExcelDashboardInfo):
+        try:
+            self.data_pool_registry.register(package)
+        except Exception as exc:
+            self._show_top_warning("数据池注册失败", str(exc))
             return
-        self._last_import_session = session
-
-        metrics = [
-            DashboardMetric("总脉冲", str(dashboard_info.total_pulses)),
-            DashboardMetric("剔除脉冲", str(dashboard_info.removed_pulses)),
-            DashboardMetric("幅度丢弃", str(dashboard_info.amplitude_dropped_pulses)),
-            DashboardMetric("持续时间", format_dashboard_duration(dashboard_info.duration)),
-            DashboardMetric("波段", dashboard_info.band or "--"),
-            DashboardMetric("预计切片数", str(dashboard_info.estimated_slice_count)),
-        ]
-        self.view.dashboard_panel.set_dashboard_pages(
-            [
-                DashboardPage(
-                    route_key="excel_info",
-                    title=dashboard_info.band or "未知波段",
-                    metrics=metrics,
-                )
-            ]
+        self.refresh_data_pool_panel(package.package_id)
+        InfoBar.success(
+            title="已加入数据池",
+            content=f"{package.display_name} 已完成解析，可创建处理 Session。",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=2000,
+            parent=self.view.window() or self.view,
         )
 
-    def import_current_session(self) -> None:
-        """将最近解析完成的会话注册为独立 session。
+    def refresh_data_pool_panel(
+        self,
+        selected_package_id: str | None = None,
+    ) -> None:
+        """刷新主页数据池列表。
 
         Args:
-            无。
+            selected_package_id [str | None]: 刷新后优先选中的数据包 ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        self.view.data_pool_panel.set_packages(
+            self.data_pool_registry.all_packages(),
+            selected_package_id=selected_package_id,
+        )
+
+    def create_session_from_package(self, package_id: str) -> None:
+        """从选中数据包创建交互式或全速 Session。
+
+        Args:
+            package_id: 数据池数据包 ID。
 
         Returns:
             None: 无返回值。
@@ -258,44 +272,94 @@ class HomeController(QObject):
             无显式抛出异常。
 
         Example:
-            >>> callable(HomeController.import_current_session)
+            >>> callable(HomeController.create_session_from_package)
             True
         """
-        if self._last_import_session is None:
-            self._show_top_warning("暂无可导入数据", "请先解析文件后再导入 Session。")
+        package = self.data_pool_registry.get(package_id)
+        if package is None:
+            self._show_top_warning("数据包不存在", "请刷新数据池后重试。")
             return
 
         window = self.view.window()
-        if window is None or not hasattr(window, "add_session_from_import"):
-            self._show_top_warning("导入失败", "当前窗口不支持创建 Session。")
+        if window is None or not hasattr(window, "create_session_from_data_package"):
+            self._show_top_warning("创建失败", "当前窗口不支持数据池 Session。")
             return
 
-        default_display_name = (
-            Path(self._last_import_session.source_path).name
-            if self._last_import_session.source_path
-            else self._last_import_session.display_name
-        )
+        default_display_name = package.display_name
         dialog = CreateSessionDialog(default_display_name, window)
         if not dialog.exec():
             return
 
-        # 应用自定义名称，留空时回退到源文件名。
         session_name = dialog.get_session_name().strip() or default_display_name
-        # 归一化备注文本，保持与详情面板默认值一致。
         session_remark = dialog.get_session_remark().strip() or "无"
-        self._last_import_session.display_name = session_name
-        self._last_import_session.remark = session_remark
-
-        window.add_session_from_import(self._last_import_session)
+        processing_mode = dialog.get_processing_mode()
+        try:
+            session = window.create_session_from_data_package(
+                package_id,
+                processing_mode,
+                session_name,
+                session_remark,
+            )
+        except Exception as error:
+            self._show_top_warning("创建失败", str(error))
+            return
+        mode_name = (
+            "全速处理"
+            if processing_mode.value == "full_speed"
+            else "切片处理"
+        )
         InfoBar.success(
-            title="已导入",
-            content=f"Session {self._last_import_session.display_name} 已创建并选中。",
+            title="Session 已创建",
+            content=f"{mode_name} Session {session.display_name} 已创建。",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,
             duration=1800,
             parent=self.view.window() or self.view,
         )
+
+    def delete_data_package(self, package_id: str) -> None:
+        """确认后删除未被任何 Session 引用的数据包。
+
+        Args:
+            package_id [str]: 目标数据包 ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        package = self.data_pool_registry.get(package_id)
+        if package is None:
+            return
+        dialog = MessageBox(
+            "删除数据包",
+            (
+                f"确认删除“{package.display_name}”的解析缓存吗？"
+                "原始文件不会删除，之后可重新解析。"
+            ),
+            self.view.window() or self.view,
+        )
+        if not dialog.exec():
+            return
+        window = self.view.window()
+        referenced_ids = (
+            window.referenced_data_package_ids()
+            if window is not None
+            and hasattr(window, "referenced_data_package_ids")
+            else set()
+        )
+        try:
+            deleted = self.data_pool_registry.delete(
+                package_id,
+                referenced_package_ids=referenced_ids,
+            )
+        except RuntimeError as exc:
+            self._show_top_warning("无法删除数据包", str(exc))
+            return
+        except Exception as exc:
+            self._show_top_warning("删除失败", str(exc))
+            return
+        if deleted:
+            self.refresh_data_pool_panel()
 
     def _get_import_directories(self) -> list[str]:
         """读取当前持久化的导入目录列表。"""
@@ -312,10 +376,10 @@ class HomeController(QObject):
         error_msg: str,
     ) -> None:
         """处理首页解析工作流失败事件。"""
-        if session_id != self._active_parse_session_id or stage != "importing":
+        if session_id != self._active_parse_package_id or stage != "importing":
             return
 
-        self._active_parse_session_id = None
+        self._active_parse_package_id = None
         self.view.import_panel.parseButton.setEnabled(True)
         self.view.import_panel.parseButton.setText("解析")
         self._close_processing_dialog()

@@ -13,7 +13,8 @@ from .pulse_batch import (
 )
 from .slice_result import PreprocessResult, SliceResult
 from .dashboard_info import ExcelDashboardInfo, FileDashboardInfo
-from .processing_session import ProcessingSession, ProcessingStage
+from .data_package import DataPackage
+from .processing_session import ProcessingMode, ProcessingSession, ProcessingStage
 from .algorithm_params import (
     ClusteringParams,
     RecognitionParams,
@@ -54,6 +55,8 @@ __all__ = [
     "SliceResult",
     "ExcelDashboardInfo",
     "FileDashboardInfo",
+    "DataPackage",
+    "ProcessingMode",
     "ProcessingSession",
     "ProcessingStage",
     "ClusteringParams",

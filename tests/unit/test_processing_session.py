@@ -7,7 +7,7 @@ from core.models.processing_session import (
     ProcessingStage,
     SliceProcessStatus,
 )
-from core.models.slice_result import SingleSlice, SliceResult
+from core.models.slice_result import PreprocessResult, SingleSlice, SliceResult
 
 
 def test_processing_session_owns_metadata_and_snapshots() -> None:
@@ -150,8 +150,8 @@ def test_slice_processing_state_records_failure() -> None:
     assert slice_state.last_cluster_error == "mock error"
 
 
-def test_reset_to_imported_clears_downstream_products() -> None:
-    """关闭再启用时应清空导入后所有产物并回退到 IMPORTED。
+def test_reset_to_preprocessed_clears_session_owned_products() -> None:
+    """重置时应保留数据池输入并清空 Session 独占产物。
 
     Args:
         无。
@@ -173,11 +173,13 @@ def test_reset_to_imported_clears_downstream_products() -> None:
     session.reset_slice_processing_states(1)
 
     # 执行重置。
-    session.reset_to_imported()
+    preprocess_result = PreprocessResult(np.empty((0, 6)))
+    session.preprocess_result = preprocess_result
+    session.reset_to_preprocessed_state()
 
-    # 保留导入产物，清空下游。
-    assert session.stage == ProcessingStage.IMPORTED
-    assert session.preprocess_result is None
+    # 保留数据池预处理输入，清空下游。
+    assert session.stage == ProcessingStage.PREPROCESSED
+    assert session.preprocess_result is preprocess_result
     assert session.slice_result is None
     assert session.cluster_result is None
     assert session.slice_processing_states == {}

@@ -19,6 +19,8 @@ from core.models.cluster_result import (
     ClusteringResult,
     SliceClusterResult,
 )
+from core.models.data_package import DataPackage
+from core.models.pulse_batch import PulseBatch
 from core.models.recognition_result import (
     ClusterRecognition,
     RecognitionResult,
@@ -29,7 +31,7 @@ from core.models.processing_session import (
     ProcessingStage,
     SliceProcessStatus,
 )
-from core.models.slice_result import SingleSlice, SliceResult
+from core.models.slice_result import PreprocessResult, SingleSlice, SliceResult
 from app.signal_bus import signal_bus
 from ui.controllers.identify_controller import IdentifyController
 from ui.controllers.slice_controller import SliceController
@@ -655,21 +657,25 @@ def test_slice_controller_uses_constructor_session(
     sip.delete(interface)
 
 
-def test_import_completed_does_not_replace_constructor_session(
+def test_data_package_parsed_does_not_replace_constructor_session(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """全局导入完成事件不应替换构造时绑定的 session。"""
+    """全局数据包解析事件不应替换构造时绑定的 Session。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
     constructor_session = ProcessingSession(session_id="constructor_session")
-    emitted_session = ProcessingSession(session_id="emitted_session")
+    data = np.empty((0, 6))
+    package = DataPackage(
+        raw_batch=PulseBatch(data.copy()),
+        preprocess_result=PreprocessResult(data.copy()),
+    )
 
     interface = SliceInterface(session=constructor_session)
 
-    signal_bus.import_completed.emit(emitted_session)
+    signal_bus.data_package_parsed.emit(package)
 
     assert interface._session is constructor_session
     assert interface.cluster_column.title_label.text() == "暂无聚类结果"
@@ -722,11 +728,11 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
         assert interface.cluster_column.title_label.text() == "CF维聚类结果  第1/1类  总第1/2类"
         assert (
             interface.cluster_column.cf_card._snapshot_window_title
-            == "第 1 个切片 - CF维聚类结果  第1/1类  总第1/2类 - 载频"
+            == "切片 1  - CF维聚类结果  第1/1类  总第1/2类 - 载频"
         )
         assert (
             interface.cluster_column.doa_card._snapshot_window_title
-            == "第 1 个切片 - CF维聚类结果  第1/1类  总第1/2类 - 方位角"
+            == "切片 1  - CF维聚类结果  第1/1类  总第1/2类 - 方位角"
         )
         assert not interface.cluster_column.next_button.isEnabled()
 
@@ -739,7 +745,7 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
         assert interface.cluster_column.title_label.text() == "PW维聚类结果  第2/2类  总第2/2类"
         assert (
             interface.cluster_column.pw_card._snapshot_window_title
-            == "第 1 个切片 - PW维聚类结果  第2/2类  总第2/2类 - 脉宽"
+            == "切片 1  - PW维聚类结果  第2/2类  总第2/2类 - 脉宽"
         )
         assert interface.cluster_column.prev_button.isEnabled()
         assert not interface.cluster_column.next_button.isEnabled()

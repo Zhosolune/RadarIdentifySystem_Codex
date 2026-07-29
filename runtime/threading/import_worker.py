@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
+import uuid
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from app.logger import bind_session_log_context, unbind_session_log_context
-from core.models.processing_session import ProcessingSession, ProcessingStage
+from core.models.data_package import DataPackage
 from core.preprocess import preprocess
 from infra.parsers import ExcelDataFormat, ExcelPulseParser
 
@@ -15,65 +17,39 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ImportWorker(QThread):
-    """Excel数据导入与预处理后台线程。
+    """Excel 数据解析与预处理后台线程。
 
-    功能描述：
-        在子线程中调用 infra 解析器读取 Excel 文件，随后调用
-        core/preprocess.py 中的纯函数进行数据清洗与修正，并将结果装配到
-        指定的 Session 对象中。
+    线程完成后生成 ``DataPackage``，不再创建或修改临时 Session。
 
-    参数说明：
-        session (ProcessingSession): 需要写入数据的会话对象。
-        file_path (str): Excel 文件路径。
-        data_format (ExcelDataFormat): Excel 原始列格式。
-        parent (QObject | None): 挂载的 Qt 父节点。
-
-    属性说明：
-        finished_signal (pyqtSignal): 导入完成信号，携带 session_id、成功标志和消息。
+    Attributes:
+        finished_signal: 导入终态信号，携带数据包 ID 和
+            :class:`ImportWorkerResult`。
     """
 
-    finished_signal = pyqtSignal(str, bool, str)
+    finished_signal = pyqtSignal(str, object)
 
     def __init__(
         self,
-        session: ProcessingSession,
         file_path: str,
         data_format: ExcelDataFormat = "old",
+        package_id: str | None = None,
         parent: QObject | None = None
     ) -> None:
         """初始化导入工作线程。
 
-        参数说明：
-            session (ProcessingSession): 会话实例。
-            file_path (str): 文件路径。
-            data_format (ExcelDataFormat): Excel 原始列格式，默认使用旧格式。
-            parent (QObject | None): 挂载的 Qt 父节点。
-        """
-        super().__init__(parent)
-        self._session = session
-        self._file_path = file_path
-        self._data_format = data_format
-
-    @property
-    def session(self) -> ProcessingSession:
-        """返回当前线程写入的处理会话。
-
         Args:
-            无。
+            file_path [str]: 文件路径。
+            data_format [ExcelDataFormat]: Excel 原始列格式，默认使用旧格式。
+            package_id [str | None]: 预分配的数据包 ID。
+            parent [QObject | None]: 挂载的 Qt 父节点。
 
         Returns:
-            当前导入线程持有的处理会话对象。
-
-        Raises:
-            无显式抛出异常。
-
-        Example:
-            >>> from core.models.processing_session import ProcessingSession
-            >>> worker = ImportWorker(ProcessingSession(), "demo.xlsx")
-            >>> worker.session is not None
-            True
+            None: 无返回值。
         """
-        return self._session
+        super().__init__(parent)
+        self._file_path = file_path
+        self._data_format = data_format
+        self._package_id = package_id or uuid.uuid4().hex
 
     def run(self) -> None:
         """执行导入与预处理任务。
@@ -81,12 +57,18 @@ class ImportWorker(QThread):
         功能描述：
             调用 ExcelPulseParser 读取并归一化 Excel 数据。
             调用 preprocess() 获取清洗后的 PreprocessResult。
-            将结果赋给 Session，并发送完成信号。
+            将结果封装为数据池数据包，并发送完成信号。
+
+        Returns:
+            None: 结果通过 ``finished_signal`` 发出。
+
+        Raises:
+            无。内部异常统一转换为失败结果。
         """
         # 绑定会话日志上下文，使本线程内下层模块日志自动带上 session_id
-        log_token = bind_session_log_context(self._session.session_id)
+        log_token = bind_session_log_context(self._package_id)
         try:
-            LOGGER.info("开始导入并预处理数据", extra={"session_id": self._session.session_id})
+            LOGGER.info("开始导入并预处理数据", extra={"session_id": self._package_id})
             batch = ExcelPulseParser().parse(
                 self._file_path,
                 data_format=self._data_format,
@@ -98,23 +80,51 @@ class ImportWorker(QThread):
                 source_path=self._file_path,
                 source_type="excel",
                 slice_length=2_500_000,  # 250ms = 2,500,000 × 0.1us
-                session_id=self._session.session_id
+                session_id=self._package_id
             )
 
-            # 将预处理结果写入 Session
-            with self._session.lock:
-                self._session.raw_batch = batch
-                self._session.preprocess_result = preprocess_res
-                self._session.dashboard_info = preprocess_res.dashboard_info
-                # 推进全局阶段
-                self._session.stage = ProcessingStage.PREPROCESSED
+            package = DataPackage(
+                package_id=self._package_id,
+                raw_batch=batch,
+                preprocess_result=preprocess_res,
+                dashboard_info=preprocess_res.dashboard_info,
+                data_format=self._data_format,
+            )
 
-            LOGGER.info("数据导入与预处理完成", extra={"session_id": self._session.session_id})
-            self.finished_signal.emit(self._session.session_id, True, f"导入成功，共 {preprocess_res.total_pulses} 条脉冲")
+            LOGGER.info("数据导入与预处理完成", extra={"session_id": self._package_id})
+            self.finished_signal.emit(
+                self._package_id,
+                ImportWorkerResult(
+                    success=True,
+                    package=package,
+                    message=f"导入成功，共 {preprocess_res.total_pulses} 条脉冲",
+                ),
+            )
 
         except Exception as e:
-            LOGGER.error("数据导入失败: %s", str(e), extra={"session_id": self._session.session_id})
-            self.finished_signal.emit(self._session.session_id, False, f"导入失败: {str(e)}")
+            LOGGER.error("数据导入失败: %s", str(e), extra={"session_id": self._package_id})
+            self.finished_signal.emit(
+                self._package_id,
+                ImportWorkerResult(
+                    success=False,
+                    message=f"导入失败: {str(e)}",
+                ),
+            )
         finally:
             # 复位会话日志上下文，防止线程复用导致 session_id 泄漏
             unbind_session_log_context(log_token)
+
+
+@dataclass(frozen=True, slots=True)
+class ImportWorkerResult:
+    """导入线程结果。
+
+    Attributes:
+        success: 是否成功完成解析和预处理。
+        package: 成功时生成的只读数据包。
+        message: 成功摘要或失败原因。
+    """
+
+    success: bool
+    package: DataPackage | None = None
+    message: str = ""

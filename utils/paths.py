@@ -114,6 +114,28 @@ def get_session_config_dir() -> Path:
     return session_dir
 
 
+def get_data_pool_dir(*, create: bool = True) -> Path:
+    """获取数据池持久化目录。
+
+    Args:
+        create [bool]: 是否立即创建目录，默认 True。
+
+    Returns:
+        Path: 数据池持久化目录路径。
+
+    Raises:
+        OSError: ``create`` 为 True 且目录创建失败时抛出。
+
+    Example:
+        >>> get_data_pool_dir().name
+        'data_pool'
+    """
+    data_pool_dir = get_config_dir() / "data_pool"
+    if create:
+        data_pool_dir.mkdir(parents=True, exist_ok=True)
+    return data_pool_dir
+
+
 def get_import_file_list_path() -> Path:
     """获取导入文件列表状态文件路径。
 

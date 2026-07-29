@@ -6,19 +6,30 @@ ui/main_window.py
   - 每个仓库对应一个侧边栏导航项（运行时动态添加/移除）
   - 设置页（固定末项）
 """
-from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject
-from PyQt6.QtWidgets import QWidget, QApplication, QAbstractButton
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject, QUrl
+from PyQt6.QtWidgets import (
+    QWidget,
+    QApplication,
+    QAbstractButton,
+    QFileDialog,
+)
+from PyQt6.QtGui import QDesktopServices, QIcon
 from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
-    SystemThemeListener, SplashScreen
+    SystemThemeListener, SplashScreen, InfoBar, InfoBarPosition, MessageBox,
 )
 from qfluentwidgets.common.router import qrouter
 
 from app.signal_bus import signal_bus
-from core.models.processing_session import ProcessingSession
-from runtime.session_config_factory import create_session_config_from_global
+from core.models.processing_session import ProcessingMode, ProcessingSession, ProcessingStage
+from runtime.data_pool_registry import DataPoolRegistry
+from runtime.full_speed_session_registry import FullSpeedSessionRegistry
+from runtime.session_config_factory import (
+    create_session_config_from_global,
+    create_session_model_selection_from_global,
+)
 from runtime.session_registry import SessionRegistry
+from runtime.workflows.full_speed_workflow import FullSpeedWorkflow
 from ui.controllers.session_manager_controller import SessionManagerController
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
@@ -29,11 +40,18 @@ from ui.interfaces.params_interface import ParamsInterface
 class MainWindow(FluentWindow):
     """RadarIdentifySystem 主窗口。"""
 
-    def __init__(self, session_registry: SessionRegistry | None = None) -> None:
+    def __init__(
+        self,
+        session_registry: SessionRegistry | None = None,
+        data_pool_registry: DataPoolRegistry | None = None,
+        full_speed_session_registry: FullSpeedSessionRegistry | None = None,
+    ) -> None:
         """初始化主窗口。
 
         Args:
             session_registry [SessionRegistry | None]: session 注册表；为 None 时使用默认持久化注册表。
+            data_pool_registry [DataPoolRegistry | None]: 数据池注册器。
+            full_speed_session_registry [FullSpeedSessionRegistry | None]: 全速 Session 注册器。
 
         Returns:
             None: 无返回值。
@@ -44,8 +62,31 @@ class MainWindow(FluentWindow):
         super().__init__()
         self.initWindow()
 
+        # 两类 Session 默认与交互式 Session 使用同一配置根目录，测试或嵌入场景
+        # 注入自定义 SessionStore 时不会意外写入项目级配置目录。
+        self.session_registry = session_registry or SessionRegistry()
+        session_root = self.session_registry.store.root_dir
+        data_pool_root = (
+            session_root.parent / "data_pool"
+            if session_root.name == "sessions"
+            else session_root / "data_pool"
+        )
+        self.data_pool_registry = data_pool_registry or (
+            DataPoolRegistry.from_root_dir(data_pool_root)
+        )
+        if not self.data_pool_registry.all_packages():
+            self.data_pool_registry.restore()
+        self.full_speed_session_registry = (
+            full_speed_session_registry
+            or FullSpeedSessionRegistry(session_root / "full_speed")
+        )
+        self.full_speed_workflow = FullSpeedWorkflow(
+            self.full_speed_session_registry,
+            self,
+        )
+
         # 创建子页面
-        self.homeInterface = HomeInterface(self)
+        self.homeInterface = HomeInterface(self, self.data_pool_registry)
         self.sliceInterface = SliceInterface(self)
         self.modelManagerInterface = ModelManagerInterface(self)
         self.iconInterface = SettingInterface(self)
@@ -55,13 +96,14 @@ class MainWindow(FluentWindow):
         self.themeListener = SystemThemeListener(self)
 
         self._session_interfaces: dict[str, SliceInterface] = {}
-        self.session_registry = session_registry or SessionRegistry()
         self._session_manager_controller = SessionManagerController(
             self.homeInterface.session_manager_panel,
             self,
         )
+        self._connect_full_speed_controls()
         self.initNavigation()
         self.restore_session_interfaces()
+        self.restore_full_speed_sessions()
         self._enable_pointing_hand_cursor()
 
         timer = QTimer()
@@ -230,6 +272,280 @@ class MainWindow(FluentWindow):
         signal_bus.session_registered.emit(session.session_id)
         return interface
 
+    def create_session_from_data_package(
+        self,
+        package_id: str,
+        processing_mode: ProcessingMode,
+        display_name: str,
+        remark: str,
+    ) -> ProcessingSession:
+        """从数据池创建指定处理模式的独立 Session。
+
+        Args:
+            package_id [str]: 来源数据包 ID。
+            processing_mode [ProcessingMode]: 交互式或全速处理模式。
+            display_name [str]: Session 展示名称。
+            remark [str]: Session 备注。
+
+        Returns:
+            ProcessingSession: 已注册到对应同级体系的 Session。
+
+        Raises:
+            KeyError: 数据包不存在时抛出。
+            OSError: Session 持久化失败时抛出。
+        """
+        package = self.data_pool_registry.get(package_id)
+        if package is None:
+            raise KeyError(f"数据包不存在: {package_id}")
+        session = ProcessingSession.from_data_package(
+            package,
+            processing_mode=processing_mode,
+            display_name=display_name,
+            remark=remark,
+        )
+        session.config_snapshot = create_session_config_from_global()
+        session.model_selection = create_session_model_selection_from_global()
+
+        if processing_mode is ProcessingMode.FULL_SPEED:
+            self.full_speed_session_registry.register(session)
+            self.switchTo(self.homeInterface)
+            self.refresh_full_speed_session_panel(session.session_id)
+            signal_bus.session_registered.emit(session.session_id)
+        else:
+            self.add_session_from_import(session)
+        return session
+
+    def restore_full_speed_sessions(self) -> list[str]:
+        """恢复全速 Session 卡片并重新挂接数据池输入。
+
+        Returns:
+            list[str]: 成功恢复的全速 Session ID。
+        """
+        restored_ids: list[str] = []
+        sessions = self.full_speed_session_registry.all_sessions()
+        if not sessions:
+            sessions = self.full_speed_session_registry.restore()
+        for session in sessions:
+            if not self._attach_data_package_input(session):
+                continue
+            restored_ids.append(session.session_id)
+        self.refresh_full_speed_session_panel()
+        return restored_ids
+
+    def refresh_full_speed_session_panel(
+        self,
+        selected_session_id: str | None = None,
+    ) -> None:
+        """刷新主页全速 Session 卡片列表。"""
+        sessions = self.full_speed_session_registry.all_sessions()
+        states = {
+            session.session_id: state
+            for session in sessions
+            if (
+                state := self.full_speed_session_registry.state(
+                    session.session_id
+                )
+            )
+            is not None
+        }
+        if not hasattr(self.homeInterface, "full_speed_session_panel"):
+            return
+        self.homeInterface.full_speed_session_panel.set_sessions(
+            sessions,
+            states,
+            selected_session_id=selected_session_id,
+        )
+
+    def _connect_full_speed_controls(self) -> None:
+        """连接主页全速 Session 卡片与运行期工作流。"""
+        panel = self.homeInterface.full_speed_session_panel
+        panel.outputDirectoryRequested.connect(
+            self.select_full_speed_output_dir
+        )
+        panel.startRequested.connect(self.start_full_speed_session)
+        panel.cancelRequested.connect(self.cancel_full_speed_session)
+        panel.deleteRequested.connect(self.delete_full_speed_session)
+        panel.openOutputRequested.connect(self.open_full_speed_output)
+        signal_bus.full_speed_session_changed.connect(
+            self.refresh_full_speed_session_panel
+        )
+
+    def select_full_speed_output_dir(self, session_id: str) -> None:
+        """为尚未启动的全速 Session 选择独立保存目录。
+
+        Args:
+            session_id [str]: 目标全速 Session ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        session = self.full_speed_session_registry.get(session_id)
+        if session is None:
+            self._show_full_speed_warning("设置失败", "全速 Session 不存在")
+            return
+        current_dir = session.config_snapshot.business.export_dir_path
+        output_dir = QFileDialog.getExistingDirectory(
+            self,
+            "选择全速处理 Excel 保存目录",
+            current_dir,
+        )
+        if not output_dir:
+            return
+        try:
+            self.full_speed_session_registry.set_output_dir(
+                session_id,
+                output_dir,
+            )
+        except Exception as error:
+            self._show_full_speed_warning("设置失败", str(error))
+            return
+        self.refresh_full_speed_session_panel(session_id)
+
+    def start_full_speed_session(self, session_id: str) -> None:
+        """冻结当前全局参数与模型并启动独立全速线程。
+
+        Args:
+            session_id [str]: 目标全速 Session ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        session = self.full_speed_session_registry.get(session_id)
+        if session is None:
+            self._show_full_speed_warning("启动失败", "全速 Session 不存在")
+            return
+        try:
+            if not session.full_speed_locked:
+                # 首次点击开始才冻结参数；保存目录属于 Session 独立配置，
+                # 不因重新读取全局算法参数而被覆盖。
+                output_dir = (
+                    session.config_snapshot.business.export_dir_path
+                )
+                snapshot = create_session_config_from_global()
+                snapshot.business.export_dir_path = output_dir
+                snapshot.business.auto_export = True
+                session.config_snapshot = snapshot
+                session.model_selection = (
+                    create_session_model_selection_from_global()
+                )
+                self.full_speed_session_registry.session_registry.persist_session(
+                    session_id
+                )
+
+            if not session.config_snapshot.business.export_dir_path.strip():
+                self.select_full_speed_output_dir(session_id)
+                if not session.config_snapshot.business.export_dir_path.strip():
+                    return
+            self.full_speed_workflow.start(session_id)
+        except Exception as error:
+            self._show_full_speed_warning("启动失败", str(error))
+            self.refresh_full_speed_session_panel(session_id)
+
+    def cancel_full_speed_session(self, session_id: str) -> None:
+        """请求正在运行的全速 Session 安全取消。
+
+        Args:
+            session_id [str]: 目标全速 Session ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        if not self.full_speed_workflow.cancel(session_id):
+            self._show_full_speed_warning(
+                "无法取消",
+                "当前任务不在可取消的执行阶段",
+            )
+
+    def delete_full_speed_session(self, session_id: str) -> None:
+        """确认后删除非运行中的全速 Session。
+
+        Args:
+            session_id [str]: 目标全速 Session ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        session = self.full_speed_session_registry.get(session_id)
+        if session is None:
+            return
+        dialog = MessageBox(
+            "删除全速 Session",
+            f"确认删除“{session.display_name}”吗？已生成的 Excel 文件不会删除。",
+            self,
+        )
+        if not dialog.exec():
+            return
+        try:
+            self.full_speed_session_registry.delete(session_id)
+        except Exception as error:
+            self._show_full_speed_warning("删除失败", str(error))
+            return
+        self.refresh_full_speed_session_panel()
+
+    def open_full_speed_output(self, session_id: str) -> None:
+        """使用系统默认程序打开全速任务 Excel 结果。
+
+        Args:
+            session_id [str]: 目标全速 Session ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        state = self.full_speed_session_registry.state(session_id)
+        if state is None or not state.output_file:
+            self._show_full_speed_warning("无法打开", "当前任务还没有结果文件")
+            return
+        if not QDesktopServices.openUrl(
+            QUrl.fromLocalFile(state.output_file)
+        ):
+            self._show_full_speed_warning(
+                "无法打开",
+                f"请手动访问：{state.output_file}",
+            )
+
+    def _show_full_speed_warning(self, title: str, content: str) -> None:
+        """在主窗口顶部显示全速任务提示。"""
+        InfoBar.warning(
+            title=title,
+            content=content,
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self,
+        )
+
+    def referenced_data_package_ids(self) -> set[str]:
+        """返回两类 Session 当前引用的全部数据包 ID。"""
+        interactive_ids = {
+            session.data_package_id
+            for session in self.session_registry.all_sessions()
+            if session.data_package_id is not None
+        }
+        return (
+            interactive_ids
+            | self.full_speed_session_registry.referenced_package_ids()
+        )
+
+    def _attach_data_package_input(self, session: ProcessingSession) -> bool:
+        """把恢复 Session 重新挂接到数据池中的只读输入。"""
+        if session.data_package_id is None:
+            return False
+        package = self.data_pool_registry.get(session.data_package_id)
+        if package is None:
+            return False
+        session.raw_batch = package.raw_batch
+        session.preprocess_result = package.preprocess_result
+        session.dashboard_info = package.dashboard_info
+        # 全速成功记录只恢复审计状态和 Excel 路径，不恢复大体量中间结果；
+        # 交互式 Session 则从可重新切片的预处理阶段继续。
+        if (
+            session.processing_mode is not ProcessingMode.FULL_SPEED
+            or session.stage is not ProcessingStage.EXPORTED
+        ):
+            session.stage = ProcessingStage.PREPROCESSED
+        return True
+
     def session_interface(self, session_id: str) -> SliceInterface | None:
         """按 session_id 查找动态切片页面。
 
@@ -264,6 +580,9 @@ class MainWindow(FluentWindow):
         restored_sessions = self.session_registry.restore()
         restored_ids: list[str] = []
         for session in restored_sessions:
+            if session.data_package_id is not None:
+                if not self._attach_data_package_input(session):
+                    continue
             self.create_session_interface(session, activate=False)
             restored_ids.append(session.session_id)
 
@@ -402,10 +721,20 @@ class MainWindow(FluentWindow):
         Raises:
             无显式抛出异常。
         """
+        if self.full_speed_workflow.is_running():
+            if not self.full_speed_workflow.shutdown():
+                event.ignore()
+                self._show_full_speed_warning(
+                    "正在停止任务",
+                    "仍有全速任务处于单片计算中，请稍后再次关闭。",
+                )
+                return
+
         # 解除事件过滤器
         app = QApplication.instance()
         if app:
             app.removeEventFilter(self)
         self.themeListener.terminate()
+        self.themeListener.wait(3000)
         self.themeListener.deleteLater()
         super().closeEvent(event)

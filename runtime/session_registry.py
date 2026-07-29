@@ -528,7 +528,9 @@ class SessionRegistry:
     def _has_import_cache_payload(self, session: ProcessingSession) -> bool:
         """判断 session 是否具备写入导入缓存的最小数据。"""
         return (
-            session.raw_batch is not None
+            # 数据池 Session 只持久化 package_id，输入数组由 DataPoolStore 保存一次。
+            session.data_package_id is None
+            and session.raw_batch is not None
             and session.preprocess_result is not None
             and session.dashboard_info is not None
         )

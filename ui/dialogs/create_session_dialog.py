@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QTextEdit, QWidget
-from qfluentwidgets import BodyLabel, LineEdit, MessageBoxBase, SubtitleLabel
+from PyQt6.QtWidgets import QButtonGroup, QHBoxLayout, QTextEdit, QWidget
+from qfluentwidgets import (
+    BodyLabel,
+    LineEdit,
+    MessageBoxBase,
+    RadioButton,
+    SubtitleLabel,
+)
+
+from core.models.processing_session import ProcessingMode
 
 
 class CreateSessionDialog(MessageBoxBase):
@@ -15,6 +23,8 @@ class CreateSessionDialog(MessageBoxBase):
     Attributes:
         name_line_edit: Session 名称输入框。
         remark_text_edit: Session 备注输入框。
+        interactive_radio: 交互式切片处理选项。
+        full_speed_radio: 自动全速处理选项。
     """
 
     def __init__(
@@ -55,6 +65,19 @@ class CreateSessionDialog(MessageBoxBase):
         self.remark_text_edit.setPlaceholderText("留空则默认使用“无”")
         self.remark_text_edit.setFixedHeight(100)
 
+        # 创建处理模式单选项；两类 Session 在主页中进入不同的同级体系。
+        mode_hint_label = BodyLabel("请选择 Session 处理方式", self)
+        mode_layout = QHBoxLayout()
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        self.interactive_radio = RadioButton("切片处理（交互式）", self)
+        self.full_speed_radio = RadioButton("全速处理（自动）", self)
+        self.interactive_radio.setChecked(True)
+        self.mode_button_group = QButtonGroup(self)
+        self.mode_button_group.addButton(self.interactive_radio)
+        self.mode_button_group.addButton(self.full_speed_radio)
+        mode_layout.addWidget(self.interactive_radio)
+        mode_layout.addWidget(self.full_speed_radio)
+
         # 组装视图布局。
         self.viewLayout.addWidget(title_label)
         self.viewLayout.addSpacing(12)
@@ -65,6 +88,10 @@ class CreateSessionDialog(MessageBoxBase):
         self.viewLayout.addWidget(remark_hint_label)
         self.viewLayout.addSpacing(6)
         self.viewLayout.addWidget(self.remark_text_edit)
+        self.viewLayout.addSpacing(12)
+        self.viewLayout.addWidget(mode_hint_label)
+        self.viewLayout.addSpacing(6)
+        self.viewLayout.addLayout(mode_layout)
 
         # 设置按钮文案。
         self.yesButton.setText("创建")
@@ -104,3 +131,13 @@ class CreateSessionDialog(MessageBoxBase):
             无显式抛出异常。
         """
         return self.remark_text_edit.toPlainText()
+
+    def get_processing_mode(self) -> ProcessingMode:
+        """获取用户选择的 Session 处理模式。
+
+        Returns:
+            ProcessingMode: 交互式切片处理或全速处理模式。
+        """
+        if self.full_speed_radio.isChecked():
+            return ProcessingMode.FULL_SPEED
+        return ProcessingMode.SLICE_INTERACTIVE

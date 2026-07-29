@@ -11,6 +11,7 @@ from core.models.session_config import (
     RecognitionConfigSnapshot,
     SessionConfigSnapshot,
 )
+from core.models.session_model import SessionModelSelection
 
 
 def create_session_config_from_global() -> SessionConfigSnapshot:
@@ -95,4 +96,29 @@ def create_session_config_from_global() -> SessionConfigSnapshot:
             only_show_identified=str(qconfig.get(appConfig.plotOnlyShowIdentified)),
             scale_mode=str(qconfig.get(appConfig.plotScaleMode)),
         ),
+    )
+
+
+def create_session_model_selection_from_global() -> SessionModelSelection:
+    """从当前启用模型创建独立 Session 模型快照。
+
+    Args:
+        无。
+
+    Returns:
+        SessionModelSelection: 当前 PA、DTOA 启用模型路径的独立值对象。
+
+    Raises:
+        ValueError: 模型类型配置不受支持时由模型注册逻辑抛出。
+
+    Example:
+        >>> selection = create_session_model_selection_from_global()
+        >>> isinstance(selection, SessionModelSelection)
+        True
+    """
+    from app.model_bootstrap import get_enabled_model_path
+
+    return SessionModelSelection(
+        pa_model_path=get_enabled_model_path("PA"),
+        dtoa_model_path=get_enabled_model_path("DTOA"),
     )

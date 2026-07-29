@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from core.models.dashboard_info import ExcelDashboardInfo
-from core.models.processing_session import ProcessingSession
+from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.processing_session import ProcessingStage
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult
@@ -590,3 +590,27 @@ def test_session_store_updates_remark_metadata(tmp_path: Path) -> None:
     restored = store.load_session(session.session_id)
     assert restored.remark == "新的备注"
     assert [entry.session_id for entry in store.load_index().sessions] == [session.session_id]
+
+
+def test_session_store_round_trips_full_speed_reference_and_lock(
+    tmp_path: Path,
+) -> None:
+    """全速 Session 应持久化数据包引用、冻结状态和结果文件路径。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(
+        session_id="full_speed_store",
+        data_package_id="package1",
+        processing_mode=ProcessingMode.FULL_SPEED,
+        full_speed_locked=True,
+        exported_file_path="E:/output/result.xlsx",
+        stage=ProcessingStage.EXPORTED,
+    )
+    store.upsert_session(session)
+
+    restored = store.load_session(session.session_id)
+
+    assert restored.data_package_id == "package1"
+    assert restored.processing_mode is ProcessingMode.FULL_SPEED
+    assert restored.full_speed_locked
+    assert restored.exported_file_path == "E:/output/result.xlsx"
+    assert restored.stage is ProcessingStage.EXPORTED

@@ -6,7 +6,7 @@
     模块只依赖 ``core`` 内部能力，不感知 Qt/UI/线程，可在无 Qt 环境独立运行。
     可复用的识别阶段算子集中在 ``core.identify_stages``；本模块只承载
     CF→PW→DOA 顺序特有的调度和阶段汇总日志，通过 ``SliceIdentifyPipeline``
-    类聚合编排逻辑，方便与其他编排（如 ``FullSpeedIdentifyPipeline``）并列复用。
+    类聚合编排逻辑，供交互式工作流与全速逐片工作流共同复用。
 
 Example:
     典型的使用场景：
@@ -63,8 +63,8 @@ class SliceIdentifyPipeline:
         CF-DOA 复检、PW 主聚类、PW 一次识别、PW-DOA 复检，并把最终有效/
         无效簇通过 ``IdentifyResultBuilder`` 汇总为切片级结果。
 
-        与 ``FullSpeedIdentifyPipeline`` 并列，二者共享 ``IdentifyStageOps``
-        提供的阶段算子，仅在编排顺序与阶段间数据流转上有差别。
+        交互式工作流和全速逐片工作流共享本编排器及
+        ``IdentifyStageOps`` 提供的阶段算子。
 
     Attributes:
         inference_service [InferenceService]: 推理服务实现，用于 PA/DTOA 识别。
