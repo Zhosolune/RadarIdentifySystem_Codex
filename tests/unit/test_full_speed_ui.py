@@ -7,10 +7,12 @@ from pathlib import Path
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from core.models.processing_session import ProcessingMode, ProcessingSession
+from core.models.session_config import SessionConfigSnapshot
 from runtime.full_speed_session_registry import (
     FullSpeedExecutionState,
     FullSpeedStatus,
 )
+from ui.components.full_speed_params_window import FullSpeedParamsWindow
 from ui.components.full_speed_session_panel import FullSpeedSessionPanel
 from ui.components.scrolling_name_label import ScrollingNameLabel
 from ui.dialogs.create_session_dialog import CreateSessionDialog
@@ -67,6 +69,7 @@ def test_full_speed_card_locks_configuration_and_shows_progress() -> None:
     assert card.progress_bar.value() == 37
     assert "切片 2/5" in card.stage_label.text()
     assert not card.output_button.isEnabled()
+    assert not card.params_button.isEnabled()
     assert card.cancel_button.isEnabled()
     assert not card.open_button.isEnabled()
 
@@ -113,6 +116,74 @@ def test_full_speed_card_scrolls_long_output_path_without_truncation() -> None:
     assert card.output_label.secondary_label.isHidden()
 
 
+def test_full_speed_card_places_parameter_button_between_path_and_start() -> None:
+    """全速任务卡片应在保存路径与开始之间提供参数入口并转发 Session ID。"""
+    app = _app()
+    panel = FullSpeedSessionPanel()
+    panel.resize(520, 500)
+    session = ProcessingSession(
+        session_id="fullspeed-params-entry",
+        processing_mode=ProcessingMode.FULL_SPEED,
+        display_name="参数入口任务",
+        data_package_id="package-params-entry",
+    )
+    requested: list[str] = []
+    panel.parametersRequested.connect(requested.append)
+
+    panel.set_sessions(
+        [session],
+        {session.session_id: FullSpeedExecutionState()},
+    )
+    panel.show()
+    app.processEvents()
+    card = panel._cards[session.session_id]
+
+    assert card.output_button.x() < card.params_button.x() < card.start_button.x()
+    assert card.params_button.isEnabled()
+    assert card.layout().minimumSize().width() <= panel._MIN_CARD_WIDTH
+
+    card.params_button.click()
+    assert requested == [session.session_id]
+
+
+def test_full_speed_params_window_edits_isolated_two_column_draft() -> None:
+    """全速参数窗口应照搬全部参数组，并只在保存时提交独立草稿。"""
+    app = _app()
+    source_snapshot = SessionConfigSnapshot.default()
+    source_snapshot.clustering.eps_cf = 3.25
+    window = FullSpeedParamsWindow(
+        "fullspeed-params-window",
+        "两栏参数任务",
+        source_snapshot,
+    )
+    submitted: list[SessionConfigSnapshot] = []
+    window.configSaved.connect(submitted.append)
+
+    window.show()
+    app.processEvents()
+
+    assert len(window.parameter_items) == 25
+    assert window.cluster_group.parent() is window.left_column_widget
+    assert window.extract_pri_group.parent() is window.left_column_widget
+    assert window.recognition_group.parent() is window.right_column_widget
+    assert window.extract_cf_group.parent() is window.right_column_widget
+    assert window.extract_pw_group.parent() is window.right_column_widget
+    assert window.merge_group.parent() is window.right_column_widget
+    assert window.left_column_widget.width() == window.right_column_widget.width()
+
+    eps_cf_card = window.parameter_cards["clustering.eps_cf"]
+    eps_cf_card.spinBox.setValue(4.75)
+    app.processEvents()
+
+    assert source_snapshot.clustering.eps_cf == 3.25
+    assert window.snapshot().clustering.eps_cf == 4.75
+
+    window.save_button.click()
+    assert len(submitted) == 1
+    assert submitted[0].clustering.eps_cf == 4.75
+    window.close()
+
+
 def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:
     """全速面板应为滚动层、卡片和次要按钮提供独立 QSS 作用域。"""
     _app()
@@ -136,6 +207,7 @@ def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:
     assert panel.content_widget.objectName() == "homeFullSpeedContent"
     assert card.objectName() == "fullSpeedSessionCard"
     assert card.output_button.property("fullSpeedSecondaryAction") is True
+    assert card.params_button.property("fullSpeedSecondaryAction") is True
     assert card.delete_button.property("fullSpeedSecondaryAction") is True
 
     project_root = Path(__file__).resolve().parents[2]

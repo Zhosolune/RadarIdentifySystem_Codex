@@ -22,6 +22,7 @@ from qfluentwidgets.common.router import qrouter
 
 from app.signal_bus import signal_bus
 from core.models.processing_session import ProcessingMode, ProcessingSession, ProcessingStage
+from core.models.session_config import SessionConfigSnapshot
 from runtime.data_pool_registry import DataPoolRegistry
 from runtime.full_speed_session_registry import FullSpeedSessionRegistry
 from runtime.session_config_factory import (
@@ -31,6 +32,7 @@ from runtime.session_config_factory import (
 from runtime.session_registry import SessionRegistry
 from runtime.workflows.full_speed_workflow import FullSpeedWorkflow
 from ui.controllers.session_manager_controller import SessionManagerController
+from ui.components.full_speed_params_window import FullSpeedParamsWindow
 from ui.interfaces.home_interface import HomeInterface
 from ui.interfaces.slice_interface import SliceInterface
 from ui.interfaces.model_manager_interface import ModelManagerInterface
@@ -96,6 +98,10 @@ class MainWindow(FluentWindow):
         self.themeListener = SystemThemeListener(self)
 
         self._session_interfaces: dict[str, SliceInterface] = {}
+        self._full_speed_param_windows: dict[
+            str,
+            FullSpeedParamsWindow,
+        ] = {}
         self._session_manager_controller = SessionManagerController(
             self.homeInterface.session_manager_panel,
             self,
@@ -307,6 +313,8 @@ class MainWindow(FluentWindow):
         session.model_selection = create_session_model_selection_from_global()
 
         if processing_mode is ProcessingMode.FULL_SPEED:
+            # 全速任务必然在流水线末尾导出 Excel，快照应如实记录该行为。
+            session.config_snapshot.business.auto_export = True
             self.full_speed_session_registry.register(session)
             self.switchTo(self.homeInterface)
             self.refresh_full_speed_session_panel(session.session_id)
@@ -362,6 +370,9 @@ class MainWindow(FluentWindow):
         panel.outputDirectoryRequested.connect(
             self.select_full_speed_output_dir
         )
+        panel.parametersRequested.connect(
+            self.open_full_speed_params
+        )
         panel.startRequested.connect(self.start_full_speed_session)
         panel.cancelRequested.connect(self.cancel_full_speed_session)
         panel.deleteRequested.connect(self.delete_full_speed_session)
@@ -401,8 +412,101 @@ class MainWindow(FluentWindow):
             return
         self.refresh_full_speed_session_panel(session_id)
 
+    def open_full_speed_params(self, session_id: str) -> None:
+        """打开未冻结全速 Session 的两栏参数编辑窗口。
+
+        Args:
+            session_id [str]: 目标全速 Session ID。
+
+        Returns:
+            None: 无返回值。
+        """
+        session = self.full_speed_session_registry.get(session_id)
+        if session is None:
+            self._show_full_speed_warning("设置失败", "全速 Session 不存在")
+            return
+        if session.full_speed_locked:
+            self._show_full_speed_warning(
+                "参数已冻结",
+                "全速任务首次开始后不能再修改参数",
+            )
+            return
+
+        existing = self._full_speed_param_windows.get(session_id)
+        if existing is not None:
+            existing.show()
+            existing.raise_()
+            existing.activateWindow()
+            return
+
+        window = FullSpeedParamsWindow(
+            session_id,
+            session.display_name,
+            session.config_snapshot,
+        )
+        window.configSaved.connect(
+            lambda snapshot, target_id=session_id: (
+                self.save_full_speed_params(target_id, snapshot)
+            )
+        )
+        window.destroyed.connect(
+            lambda _object=None, target_id=session_id, target=window: (
+                self._release_full_speed_params_window(target_id, target)
+            )
+        )
+        self._full_speed_param_windows[session_id] = window
+        window.show()
+        window.raise_()
+        window.activateWindow()
+
+    def save_full_speed_params(
+        self,
+        session_id: str,
+        snapshot: SessionConfigSnapshot,
+    ) -> None:
+        """保存参数窗口提交的 Session 快照并关闭对应窗口。
+
+        Args:
+            session_id [str]: 目标全速 Session ID。
+            snapshot [SessionConfigSnapshot]: 参数窗口提交的配置快照。
+
+        Returns:
+            None: 无返回值。
+        """
+        try:
+            self.full_speed_session_registry.set_config_snapshot(
+                session_id,
+                snapshot,
+            )
+        except Exception as error:
+            self._show_full_speed_warning("参数保存失败", str(error))
+            return
+
+        window = self._full_speed_param_windows.get(session_id)
+        if window is not None:
+            window.close()
+        self.refresh_full_speed_session_panel(session_id)
+        InfoBar.success(
+            title="参数已保存",
+            content="当前全速 Session 将使用这组参数执行。",
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=1800,
+            parent=self,
+        )
+
+    def _release_full_speed_params_window(
+        self,
+        session_id: str,
+        window: FullSpeedParamsWindow,
+    ) -> None:
+        """释放已关闭的全速参数窗口引用。"""
+        if self._full_speed_param_windows.get(session_id) is window:
+            self._full_speed_param_windows.pop(session_id, None)
+
     def start_full_speed_session(self, session_id: str) -> None:
-        """冻结当前全局参数与模型并启动独立全速线程。
+        """冻结当前 Session 参数与模型并启动独立全速线程。
 
         Args:
             session_id [str]: 目标全速 Session ID。
@@ -415,28 +519,15 @@ class MainWindow(FluentWindow):
             self._show_full_speed_warning("启动失败", "全速 Session 不存在")
             return
         try:
-            if not session.full_speed_locked:
-                # 首次点击开始才冻结参数；保存目录属于 Session 独立配置，
-                # 不因重新读取全局算法参数而被覆盖。
-                output_dir = (
-                    session.config_snapshot.business.export_dir_path
-                )
-                snapshot = create_session_config_from_global()
-                snapshot.business.export_dir_path = output_dir
-                snapshot.business.auto_export = True
-                session.config_snapshot = snapshot
-                session.model_selection = (
-                    create_session_model_selection_from_global()
-                )
-                self.full_speed_session_registry.session_registry.persist_session(
-                    session_id
-                )
-
             if not session.config_snapshot.business.export_dir_path.strip():
                 self.select_full_speed_output_dir(session_id)
                 if not session.config_snapshot.business.export_dir_path.strip():
                     return
             self.full_speed_workflow.start(session_id)
+            # 工作流成功进入运行态后关闭可能残留的参数窗口。
+            params_window = self._full_speed_param_windows.get(session_id)
+            if params_window is not None:
+                params_window.close()
         except Exception as error:
             self._show_full_speed_warning("启动失败", str(error))
             self.refresh_full_speed_session_panel(session_id)
@@ -480,6 +571,9 @@ class MainWindow(FluentWindow):
         except Exception as error:
             self._show_full_speed_warning("删除失败", str(error))
             return
+        params_window = self._full_speed_param_windows.get(session_id)
+        if params_window is not None:
+            params_window.close()
         self.refresh_full_speed_session_panel()
 
     def open_full_speed_output(self, session_id: str) -> None:
@@ -729,6 +823,9 @@ class MainWindow(FluentWindow):
                     "仍有全速任务处于单片计算中，请稍后再次关闭。",
                 )
                 return
+
+        for window in list(self._full_speed_param_windows.values()):
+            window.close()
 
         # 解除事件过滤器
         app = QApplication.instance()

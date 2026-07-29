@@ -16,6 +16,7 @@ from core.models.processing_session import (
     ProcessingSession,
     ProcessingStage,
 )
+from core.models.session_config import SessionConfigSnapshot
 from infra.session_store import SessionStore
 from runtime.session_registry import SessionRegistry
 from utils.paths import get_session_config_dir
@@ -53,7 +54,7 @@ class FullSpeedExecutionState:
     current_slice: int = 0
     total_slices: int = 0
     progress: int = 0
-    message: str = "启动时将冻结当前全局参数和模型选择"
+    message: str = "启动时将冻结当前 Session 参数和模型选择"
     output_dir: str = ""
     output_file: str = ""
 
@@ -181,6 +182,47 @@ class FullSpeedSessionRegistry:
             session.config_snapshot.business.export_dir_path = normalized
             self.session_registry.persist_session(session_id)
             self._require_state(session_id).output_dir = normalized
+
+    def set_config_snapshot(
+        self,
+        session_id: str,
+        snapshot: SessionConfigSnapshot,
+    ) -> None:
+        """在首次启动前更新全速 Session 的算法参数快照。
+
+        参数窗口只负责聚类、识别、提取和合并参数。保存目录等业务配置及
+        绘图配置继续沿用 Session 当前值，避免编辑窗口打开期间修改保存目录
+        后又被旧草稿覆盖。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+            snapshot [SessionConfigSnapshot]: 参数窗口提交的完整草稿快照。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 不存在时抛出。
+            RuntimeError: 参数已经冻结时抛出。
+            OSError: Session 配置持久化失败时抛出。
+        """
+        submitted = SessionConfigSnapshot.from_dict(snapshot.to_dict())
+        with self._lock:
+            session = self._require_session(session_id)
+            if session.full_speed_locked:
+                raise RuntimeError("全速任务参数已冻结，不能修改参数")
+
+            current = session.config_snapshot
+            current_copy = SessionConfigSnapshot.from_dict(current.to_dict())
+            submitted.business = current_copy.business
+            submitted.plot = current_copy.plot
+            session.config_snapshot = submitted
+            try:
+                self.session_registry.persist_session(session_id)
+            except Exception:
+                # 持久化失败时恢复原对象，避免内存状态与磁盘记录不一致。
+                session.config_snapshot = current
+                raise
 
     def begin(self, session_id: str) -> ProcessingSession:
         """冻结配置并把任务切换为运行状态。

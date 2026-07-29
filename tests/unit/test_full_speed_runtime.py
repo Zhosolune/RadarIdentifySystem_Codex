@@ -87,6 +87,38 @@ def test_registry_freezes_configuration_on_first_start(tmp_path) -> None:
     assert registry.state(session.session_id).output_dir == str(tmp_path / "out")
 
 
+def test_registry_persists_session_parameter_snapshot_before_freeze(
+    tmp_path,
+) -> None:
+    """注册器应保存独立算法快照、保留业务配置并拒绝冻结后的修改。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    session.config_snapshot.plot.scale_mode = "KEEP_RATIO"
+    draft = SessionConfigSnapshot.default()
+    draft.clustering.eps_cf = 6.75
+    draft.recognition.greedy_strategy = False
+    draft.business.export_dir_path = str(tmp_path / "stale")
+    draft.plot.scale_mode = "STRETCH"
+
+    registry.set_config_snapshot(session.session_id, draft)
+
+    assert session.config_snapshot.clustering.eps_cf == 6.75
+    assert not session.config_snapshot.recognition.greedy_strategy
+    assert (
+        session.config_snapshot.business.export_dir_path
+        == str(tmp_path / "out")
+    )
+    assert session.config_snapshot.plot.scale_mode == "KEEP_RATIO"
+    persisted = registry.session_registry.store.load_session(
+        session.session_id
+    )
+    assert persisted.config_snapshot.clustering.eps_cf == 6.75
+
+    registry.begin(session.session_id)
+    with pytest.raises(RuntimeError, match="已冻结"):
+        registry.set_config_snapshot(session.session_id, draft)
+
+
 def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
     tmp_path,
     monkeypatch,

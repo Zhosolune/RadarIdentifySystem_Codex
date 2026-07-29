@@ -49,6 +49,7 @@ class FullSpeedSessionCard(QFrame):
 
     Attributes:
         outputDirectoryRequested: 请求修改保存目录的信号。
+        parametersRequested: 请求修改 Session 参数快照的信号。
         startRequested: 请求开始或重试的信号。
         cancelRequested: 请求取消的信号。
         deleteRequested: 请求删除 Session 的信号。
@@ -56,6 +57,7 @@ class FullSpeedSessionCard(QFrame):
     """
 
     outputDirectoryRequested = pyqtSignal(str)
+    parametersRequested = pyqtSignal(str)
     startRequested = pyqtSignal(str)
     cancelRequested = pyqtSignal(str)
     deleteRequested = pyqtSignal(str)
@@ -131,14 +133,28 @@ class FullSpeedSessionCard(QFrame):
 
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(0, 0, 0, 0)
-        action_layout.setSpacing(6)
+        action_layout.setSpacing(4)
         self.output_button = PushButton("保存路径", self)
+        self.params_button = PushButton("修改参数", self)
         self.start_button = PrimaryPushButton("开始", self)
         self.cancel_button = PushButton("取消", self)
         self.open_button = PushButton("打开结果", self)
         self.delete_button = PushButton("删除", self)
+        # for button in (
+        #     self.output_button,
+        #     self.params_button,
+        #     self.open_button,
+        # ):
+        #     button.setFixedWidth(72)
+        # for button in (
+        #     self.start_button,
+        #     self.cancel_button,
+        #     self.delete_button,
+        # ):
+        #     button.setFixedWidth(56)
         for button in (
             self.output_button,
+            self.params_button,
             self.cancel_button,
             self.open_button,
             self.delete_button,
@@ -146,6 +162,7 @@ class FullSpeedSessionCard(QFrame):
             # 次要动作通过主页 QSS 清除组件库默认实色背景。
             button.setProperty("fullSpeedSecondaryAction", True)
         action_layout.addWidget(self.output_button)
+        action_layout.addWidget(self.params_button)
         action_layout.addWidget(self.start_button)
         action_layout.addWidget(self.cancel_button)
         action_layout.addWidget(self.open_button)
@@ -155,6 +172,9 @@ class FullSpeedSessionCard(QFrame):
 
         self.output_button.clicked.connect(
             lambda: self.outputDirectoryRequested.emit(self.session_id)
+        )
+        self.params_button.clicked.connect(
+            lambda: self.parametersRequested.emit(self.session_id)
         )
         self.start_button.clicked.connect(
             lambda: self.startRequested.emit(self.session_id)
@@ -208,6 +228,9 @@ class FullSpeedSessionCard(QFrame):
         self.output_button.setEnabled(
             not session.full_speed_locked and not running and not exporting
         )
+        self.params_button.setEnabled(
+            not session.full_speed_locked and not running and not exporting
+        )
         self.start_button.setEnabled(not running and not exporting and not succeeded)
         self.start_button.setText(
             "开始"
@@ -225,6 +248,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
 
     Attributes:
         outputDirectoryRequested: 携带 Session ID 的保存目录请求。
+        parametersRequested: 携带 Session ID 的参数编辑请求。
         startRequested: 携带 Session ID 的开始请求。
         cancelRequested: 携带 Session ID 的取消请求。
         deleteRequested: 携带 Session ID 的删除请求。
@@ -232,12 +256,13 @@ class FullSpeedSessionPanel(SimpleCardWidget):
     """
 
     outputDirectoryRequested = pyqtSignal(str)
+    parametersRequested = pyqtSignal(str)
     startRequested = pyqtSignal(str)
     cancelRequested = pyqtSignal(str)
     deleteRequested = pyqtSignal(str)
     openOutputRequested = pyqtSignal(str)
 
-    _MIN_CARD_WIDTH = 440
+    _MIN_CARD_WIDTH = 500
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化全速 Session 面板。
@@ -361,6 +386,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
                 card.outputDirectoryRequested.connect(
                     self.outputDirectoryRequested
                 )
+                card.parametersRequested.connect(self.parametersRequested)
                 card.startRequested.connect(self.startRequested)
                 card.cancelRequested.connect(self.cancelRequested)
                 card.deleteRequested.connect(self.deleteRequested)

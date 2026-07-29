@@ -1,5 +1,31 @@
 # 变更记录
 
+- 时间：2026-07-29 16:10
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_params_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\full_speed_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为未启动的全速任务增加独立参数编辑入口，并以两栏 Fluent 窗口生成和持久化 Session 参数快照。
+- 原因：每个全速任务需要在首次执行前独立调整参数；首次启动应冻结该任务自己的参数草稿，不能再次被当时的全局参数覆盖。
+- 计划清单：
+  - [x] 在保存路径与开始按钮之间增加“修改参数”入口，并在参数冻结后禁用。
+  - [x] 按现有参数配置页字段、文案、单位和顺序构建两栏 Session 参数窗口。
+  - [x] 使用草稿快照编辑，确认后通过全速注册器原子写入并持久化。
+  - [x] 首次开始只冻结已有参数及模型快照，不再重新读取全局配置。
+  - [x] 补充参数窗口布局、Session 隔离、冻结保护和启动参数来源回归。
+- 验证结果：
+  - 全速参数入口、两栏窗口、注册器冻结及数据池创建到启动链路聚焦测试通过（12 passed，1 warning）。
+  - 全速处理、主页、数据池、Session 配置和全局参数页相关回归通过（71 passed，1 warning）。
+  - 两栏窗口在 1280×840 下完成离屏渲染检查，两列等宽且底部保存操作区固定可见。
+  - 相关 Python 文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-29 15:37
 - 操作类型：[修改]
 - 影响文件：

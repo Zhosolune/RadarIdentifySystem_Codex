@@ -108,6 +108,36 @@ def test_main_window_routes_data_package_to_peer_session_systems(
             full_speed.session_id
             in window.homeInterface.full_speed_session_panel._cards
         )
+        assert full_speed.config_snapshot.business.auto_export
+
+        # 参数窗口保存的是 Session 独立草稿。
+        window.open_full_speed_params(full_speed.session_id)
+        params_window = window._full_speed_param_windows[
+            full_speed.session_id
+        ]
+        params_window.parameter_cards[
+            "clustering.eps_cf"
+        ].spinBox.setValue(7.25)
+        params_window.save_button.click()
+        QApplication.processEvents()
+        assert full_speed.config_snapshot.clustering.eps_cf == 7.25
+
+        full_speed_registry.set_output_dir(
+            full_speed.session_id,
+            str(tmp_path / "results"),
+        )
+        started: list[str] = []
+        monkeypatch.setattr(
+            window.full_speed_workflow,
+            "start",
+            started.append,
+        )
+
+        window.start_full_speed_session(full_speed.session_id)
+
+        assert started == [full_speed.session_id]
+        # 首次开始只冻结该 Session 草稿，不得再用全局参数覆盖。
+        assert full_speed.config_snapshot.clustering.eps_cf == 7.25
     finally:
         qrouter.history = [
             item
