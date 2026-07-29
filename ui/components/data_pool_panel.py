@@ -5,7 +5,8 @@ from __future__ import annotations
 from math import ceil
 from pathlib import Path
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QResizeEvent
 from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -326,16 +327,22 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
 
 
 class _DataPoolTabPage(QWidget):
-    """承载单个数据类型的两列等宽数据卡片。"""
+    """按可用宽度承载两列至四列等宽数据卡片。"""
 
     packageSelected = pyqtSignal(str)
     detailsRequested = pyqtSignal(str)
 
+    _MIN_COLUMNS = 2
+    _MAX_COLUMNS = 4
+    _MIN_CARD_WIDTH = 240
+
     def __init__(self, parent: QWidget | None = None) -> None:
-        """初始化标签页滚动区和两列网格。"""
+        """初始化标签页滚动区和响应式网格。"""
         super().__init__(parent)
         self.setObjectName("dataPoolTabPage")
         self.cards: dict[str, DataPackageCard] = {}
+        self._empty_label: BodyLabel | None = None
+        self._column_count = self._MIN_COLUMNS
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -356,14 +363,13 @@ class _DataPoolTabPage(QWidget):
         self.grid_layout.setHorizontalSpacing(8)
         self.grid_layout.setVerticalSpacing(8)
         self.grid_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        for column in range(2):
-            self.grid_layout.setColumnStretch(column, 1)
 
         self.scroll_area.setWidget(self.content_widget)
+        self.scroll_area.viewport().installEventFilter(self)
         root_layout.addWidget(self.scroll_area)
 
     def set_packages(self, packages: list[DataPackage]) -> None:
-        """刷新当前数据类型的两列卡片。
+        """刷新当前数据类型的响应式卡片。
 
         Args:
             packages [list[DataPackage]]: 当前标签页需要展示的数据包。
@@ -377,25 +383,113 @@ class _DataPoolTabPage(QWidget):
             if widget is not None:
                 widget.deleteLater()
         self.cards.clear()
+        self._empty_label = None
 
         if not packages:
-            empty_label = BodyLabel("暂无该类型数据", self.content_widget)
-            empty_label.setObjectName("dataPoolEmptyLabel")
-            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_label.setMinimumHeight(120)
-            self.grid_layout.addWidget(empty_label, 0, 0, 1, 2)
+            self._empty_label = BodyLabel(
+                "暂无该类型数据",
+                self.content_widget,
+            )
+            self._empty_label.setObjectName("dataPoolEmptyLabel")
+            self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._empty_label.setMinimumHeight(120)
+            self._relayout_cards(force=True)
             return
 
-        for index, package in enumerate(packages):
+        for package in packages:
             card = DataPackageCard(package, self.content_widget)
             card.packageSelected.connect(self.packageSelected)
             card.detailsRequested.connect(self.detailsRequested)
             self.cards[package.package_id] = card
-            self.grid_layout.addWidget(card, index // 2, index % 2)
+        self._relayout_cards(force=True)
+
+    def column_count(self) -> int:
+        """返回当前响应式网格列数。
+
+        Returns:
+            int: 当前列数，取值范围为 2 至 4。
+        """
+        return self._column_count
 
     def first_package_id(self) -> str | None:
         """返回当前标签页首个数据包 ID。"""
         return next(iter(self.cards), None)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """在滚动视口宽度变化时重新计算卡片列数。"""
+        if (
+            watched is self.scroll_area.viewport()
+            and event.type() == QEvent.Type.Resize
+        ):
+            resize_size = getattr(event, "size", None)
+            viewport_width = (
+                resize_size().width()
+                if callable(resize_size)
+                else None
+            )
+            self._relayout_cards(viewport_width=viewport_width)
+        return super().eventFilter(watched, event)
+
+    def _responsive_column_count(
+        self,
+        viewport_width: int | None = None,
+    ) -> int:
+        """根据视口可用宽度返回两列、三列或四列。"""
+        margins = self.grid_layout.contentsMargins()
+        spacing = max(0, self.grid_layout.horizontalSpacing())
+        if viewport_width is None:
+            viewport_width = self.scroll_area.viewport().width()
+        available_width = max(
+            0,
+            viewport_width
+            - margins.left()
+            - margins.right(),
+        )
+        for columns in range(self._MAX_COLUMNS, self._MIN_COLUMNS, -1):
+            required_width = (
+                columns * self._MIN_CARD_WIDTH
+                + (columns - 1) * spacing
+            )
+            if available_width >= required_width:
+                return columns
+        return self._MIN_COLUMNS
+
+    def _relayout_cards(
+        self,
+        *,
+        force: bool = False,
+        viewport_width: int | None = None,
+    ) -> None:
+        """保持卡片顺序并按当前断点重新放入网格。"""
+        column_count = self._responsive_column_count(viewport_width)
+        if not force and column_count == self._column_count:
+            return
+        self._column_count = column_count
+
+        while self.grid_layout.count():
+            self.grid_layout.takeAt(0)
+        for column in range(self._MAX_COLUMNS):
+            self.grid_layout.setColumnStretch(
+                column,
+                1 if column < column_count else 0,
+            )
+
+        if self._empty_label is not None:
+            self.grid_layout.addWidget(
+                self._empty_label,
+                0,
+                0,
+                1,
+                column_count,
+            )
+            return
+
+        for index, card in enumerate(self.cards.values()):
+            self.grid_layout.addWidget(
+                card,
+                index // column_count,
+                index % column_count,
+            )
 
 
 class DataPoolPanel(SimpleCardWidget):
@@ -549,6 +643,16 @@ class DataPoolPanel(SimpleCardWidget):
             str | None: 当前数据包 ID；没有选择时返回 None。
         """
         return self._selected_package_id
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """在数据池宽度变化时同步刷新全部标签页栏数。"""
+        super().resizeEvent(event)
+        if not hasattr(self, "package_pages"):
+            return
+        # 扣除数据池主体左右边距和标签内容边框。
+        viewport_width = max(0, event.size().width() - 18)
+        for page in self.package_pages.values():
+            page._relayout_cards(viewport_width=viewport_width)
 
     def _route_key_for_package(self, package: DataPackage) -> str:
         """将数据包来源类型归一化为稳定标签页路由键。"""

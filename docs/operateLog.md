@@ -1,5 +1,51 @@
 # 变更记录
 
+- 时间：2026-07-29 14:45
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将全速任务网格由固定单栏/双栏断点改为按卡片最小宽度动态计算栏数。
+- 原因：全速任务卡片应与数据池卡片采用一致的最小宽度响应原则，并在超宽窗口中自然扩展到三栏及以上。
+- 计划清单：
+  - [x] 使用全速任务卡片最小宽度和网格间距计算实时栏数。
+  - [x] 保持缩放前后的任务顺序、状态和操作信号不变。
+  - [x] 补充单栏、双栏和三栏边界测试并执行相关回归。
+- 验证结果：
+  - 全速任务以 440px 最小卡片宽度动态计算栏数，800/1100/1550px 面板分别验证为 1/2/3 栏。
+  - 同步修正 ResizeEvent 读取旧尺寸导致数据池栏数和面板高度延迟一个缩放事件的问题。
+  - 主页响应式 UI 聚焦测试通过（9 passed，1 warning）；数据池、双 Session 路由和事件隔离组合回归通过（21 passed，1 warning）。
+  - 相关 Python 文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-29 11:33
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为主页数据池卡片、全速任务卡片和数据池面板高度增加动态响应布局。
+- 原因：主页在更宽或更高的窗口中应利用新增空间展示更多卡片和数据池内容，窄窗口仍需保持当前可用布局。
+- 计划清单：
+  - [x] 数据池按可用宽度在两栏、三栏和四栏之间动态重排。
+  - [x] 全速任务按可用宽度在单栏和双栏之间动态重排。
+  - [x] 主页按可用高度将数据池面板切换为 350、400 或 500px。
+  - [x] 补充断点边界、卡片顺序和现有信号链路回归测试。
+  - [x] 执行离屏视觉检查、聚焦测试、静态编译和差异检查。
+- 验证结果：
+  - 数据池 2/3/4 栏、全速任务 1/2 栏和数据池 350/400/500px 高度断点测试通过（9 passed，1 warning）。
+  - 数据池持久化、双 Session 路由、事件隔离及响应式 UI 组合回归通过（21 passed，1 warning）。
+  - 1800px 宽离屏视觉检查确认数据池显示四栏、全速任务显示两栏，卡片顺序和内部圆角容器保持正确。
+  - 相关 Python 文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-29 10:53
 - 操作类型：[修复]
 - 影响文件：

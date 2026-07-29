@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtGui import QResizeEvent
+from PyQt6.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
     PrimaryPushButton,
     ProgressBar,
+    PushButton,
     ScrollArea,
     SimpleCardWidget,
     StrongBodyLabel,
@@ -117,11 +126,11 @@ class FullSpeedSessionCard(QFrame):
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(6)
-        self.output_button = TransparentPushButton("保存路径", self)
+        self.output_button = PushButton("保存路径", self)
         self.start_button = PrimaryPushButton("开始", self)
-        self.cancel_button = TransparentPushButton("取消", self)
-        self.open_button = TransparentPushButton("打开结果", self)
-        self.delete_button = TransparentPushButton("删除", self)
+        self.cancel_button = PushButton("取消", self)
+        self.open_button = PushButton("打开结果", self)
+        self.delete_button = PushButton("删除", self)
         for button in (
             self.output_button,
             self.cancel_button,
@@ -222,6 +231,8 @@ class FullSpeedSessionPanel(SimpleCardWidget):
     deleteRequested = pyqtSignal(str)
     openOutputRequested = pyqtSignal(str)
 
+    _MIN_CARD_WIDTH = 440
+
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化全速 Session 面板。
 
@@ -238,6 +249,8 @@ class FullSpeedSessionPanel(SimpleCardWidget):
             QSizePolicy.Policy.Expanding,
         )
         self._cards: dict[str, FullSpeedSessionCard] = {}
+        self._ordered_session_ids: list[str] = []
+        self._column_count = 1
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -281,17 +294,25 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         self.scroll_area.viewport().setObjectName("homeFullSpeedViewport")
         self.content_widget = QWidget(self.scroll_area)
         self.content_widget.setObjectName("homeFullSpeedContent")
-        self.card_layout = QVBoxLayout(self.content_widget)
-        self.card_layout.setContentsMargins(8, 8, 8, 8)
-        self.card_layout.setSpacing(8)
+        content_layout = QVBoxLayout(self.content_widget)
+        content_layout.setContentsMargins(8, 8, 8, 8)
+        content_layout.setSpacing(0)
         self.empty_label = BodyLabel(
             "从数据池创建“全速处理（自动）”Session",
             self.content_widget,
         )
         self.empty_label.setObjectName("homeFullSpeedEmptyLabel")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.card_layout.addWidget(self.empty_label, 1)
-        self.card_layout.addStretch(1)
+        content_layout.addWidget(self.empty_label, 1)
+
+        self.cards_widget = QWidget(self.content_widget)
+        self.cards_widget.setObjectName("homeFullSpeedCards")
+        self.card_layout = QGridLayout(self.cards_widget)
+        self.card_layout.setContentsMargins(0, 0, 0, 0)
+        self.card_layout.setHorizontalSpacing(8)
+        self.card_layout.setVerticalSpacing(8)
+        self.card_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        content_layout.addWidget(self.cards_widget, 1)
         self.scroll_area.setWidget(self.content_widget)
         pane_layout.addWidget(self.scroll_area)
         body_layout.addWidget(self.session_pane)
@@ -316,18 +337,21 @@ class FullSpeedSessionPanel(SimpleCardWidget):
             None: 无返回值。
         """
         del selected_session_id
+        self._ordered_session_ids = [
+            session.session_id
+            for session in sessions
+        ]
         session_ids = {session.session_id for session in sessions}
         for session_id in list(self._cards):
             if session_id in session_ids:
                 continue
             card = self._cards.pop(session_id)
-            self.card_layout.removeWidget(card)
             card.deleteLater()
 
-        for position, session in enumerate(sessions):
+        for session in sessions:
             card = self._cards.get(session.session_id)
             if card is None:
-                card = FullSpeedSessionCard(session, self.content_widget)
+                card = FullSpeedSessionCard(session, self.cards_widget)
                 card.outputDirectoryRequested.connect(
                     self.outputDirectoryRequested
                 )
@@ -336,8 +360,6 @@ class FullSpeedSessionPanel(SimpleCardWidget):
                 card.deleteRequested.connect(self.deleteRequested)
                 card.openOutputRequested.connect(self.openOutputRequested)
                 self._cards[session.session_id] = card
-            self.card_layout.removeWidget(card)
-            self.card_layout.insertWidget(position, card)
             card.update_state(
                 session,
                 states.get(
@@ -347,3 +369,65 @@ class FullSpeedSessionPanel(SimpleCardWidget):
             )
 
         self.empty_label.setVisible(not sessions)
+        self.cards_widget.setVisible(bool(sessions))
+        self._relayout_cards(force=True)
+
+    def column_count(self) -> int:
+        """返回当前任务网格列数。
+
+        Returns:
+            int: 按当前可用宽度和卡片最小宽度计算出的栏数。
+        """
+        return self._column_count
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """在面板宽度变化时重新计算任务网格栏数。"""
+        super().resizeEvent(event)
+        if hasattr(self, "card_layout"):
+            self._relayout_cards(panel_width=event.size().width())
+
+    def _responsive_column_count(
+        self,
+        panel_width: int | None = None,
+    ) -> int:
+        """根据卡片最小宽度计算当前可容纳的栏数。"""
+        spacing = max(0, self.card_layout.horizontalSpacing())
+        if panel_width is None:
+            panel_width = self.width()
+        # 扣除面板主体、内容区边距和滚动条预留空间。
+        available_width = max(0, panel_width - 48)
+        return max(
+            1,
+            (available_width + spacing)
+            // (self._MIN_CARD_WIDTH + spacing),
+        )
+
+    def _relayout_cards(
+        self,
+        *,
+        force: bool = False,
+        panel_width: int | None = None,
+    ) -> None:
+        """保持任务顺序并按当前断点重新放入网格。"""
+        column_count = self._responsive_column_count(panel_width)
+        if not force and column_count == self._column_count:
+            return
+        previous_column_count = self._column_count
+        self._column_count = column_count
+
+        while self.card_layout.count():
+            self.card_layout.takeAt(0)
+        for column in range(max(previous_column_count, column_count)):
+            self.card_layout.setColumnStretch(
+                column,
+                1 if column < column_count else 0,
+            )
+        for index, session_id in enumerate(self._ordered_session_ids):
+            card = self._cards.get(session_id)
+            if card is None:
+                continue
+            self.card_layout.addWidget(
+                card,
+                index // column_count,
+                index % column_count,
+            )

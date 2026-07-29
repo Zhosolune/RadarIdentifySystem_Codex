@@ -109,3 +109,59 @@ def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:
         assert "QWidget#homeFullSpeedSessionPane" in qss
         assert "QFrame#fullSpeedSessionCard" in qss
         assert 'QPushButton[fullSpeedSecondaryAction="true"]' in qss
+
+
+def test_full_speed_tasks_calculate_columns_from_minimum_card_width() -> None:
+    """全速任务应按最小卡片宽度扩展栏数，并保持 Session 顺序。"""
+    app = _app()
+    panel = FullSpeedSessionPanel()
+    sessions = [
+        ProcessingSession(
+            session_id=f"fullspeed-responsive-{index}",
+            processing_mode=ProcessingMode.FULL_SPEED,
+            display_name=f"响应任务 {index + 1}",
+            data_package_id=f"package-{index}",
+        )
+        for index in range(3)
+    ]
+    states = {
+        session.session_id: FullSpeedExecutionState()
+        for session in sessions
+    }
+
+    panel.resize(800, 500)
+    panel.set_sessions(sessions, states)
+    panel.show()
+    app.processEvents()
+    assert panel.column_count() == 1
+    assert [
+        panel.card_layout.getItemPosition(
+            panel.card_layout.indexOf(panel._cards[session.session_id])
+        )[:2]
+        for session in sessions
+    ] == [(0, 0), (1, 0), (2, 0)]
+
+    panel.resize(1100, 500)
+    app.processEvents()
+    assert panel.column_count() == 2
+    assert [
+        panel.card_layout.getItemPosition(
+            panel.card_layout.indexOf(panel._cards[session.session_id])
+        )[:2]
+        for session in sessions
+    ] == [(0, 0), (0, 1), (1, 0)]
+
+    panel.resize(1550, 500)
+    app.processEvents()
+    assert panel.column_count() == 3
+    assert [
+        panel.card_layout.getItemPosition(
+            panel.card_layout.indexOf(panel._cards[session.session_id])
+        )[:2]
+        for session in sessions
+    ] == [(0, 0), (0, 1), (0, 2)]
+    assert all(
+        panel._cards[session.session_id].width()
+        >= panel._MIN_CARD_WIDTH
+        for session in sessions
+    )

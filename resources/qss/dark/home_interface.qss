@@ -168,7 +168,8 @@ QScrollArea#homeFullSpeedScrollArea,
 QScrollArea#homeFullSpeedScrollArea > QWidget,
 QWidget#homeFullSpeedViewport,
 QWidget#homeFullSpeedBody,
-QWidget#homeFullSpeedContent {
+QWidget#homeFullSpeedContent,
+QWidget#homeFullSpeedCards {
     background: transparent;
     border: none;
 }

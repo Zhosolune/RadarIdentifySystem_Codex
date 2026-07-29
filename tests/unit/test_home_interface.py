@@ -84,8 +84,8 @@ def test_home_interface_hosts_data_pool_and_two_peer_session_panels() -> None:
 
     assert interface.findChild(QWidget, "homeLeftScrollArea") is not None
     assert left_layout.count() == 1
-    assert interface.data_pool_panel.minimumHeight() == 300
-    assert interface.data_pool_panel.maximumHeight() == 300
+    assert interface.data_pool_panel.minimumHeight() == 350
+    assert interface.data_pool_panel.maximumHeight() == 350
     assert interface.import_panel.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Expanding
     assert right_layout.count() == 2
     assert right_layout.stretch(0) == 1
@@ -109,8 +109,8 @@ def test_import_data_panel_reports_selected_excel_format() -> None:
     assert panel.oldFormatAction.isChecked() is False
 
 
-def test_data_pool_uses_type_tabs_and_two_equal_card_columns() -> None:
-    """数据池应按类型分组，并在标签页内容区固定使用两列等宽卡片。"""
+def test_data_pool_responsively_uses_two_to_four_equal_card_columns() -> None:
+    """数据池应按类型分组，并随可用宽度在两至四列之间切换。"""
     app = _app()
     panel = DataPoolPanel()
     packages = [
@@ -133,7 +133,9 @@ def test_data_pool_uses_type_tabs_and_two_equal_card_columns() -> None:
     assert len(panel.package_pages["excel"].cards) == 4
     assert len(panel.package_pages["bin"].cards) == 1
     assert len(panel.package_pages["mat"].cards) == 1
+    excel_page = panel.package_pages["excel"]
     excel_layout = panel.package_pages["excel"].grid_layout
+    assert excel_page.column_count() == 2
     assert [
         excel_layout.getItemPosition(index)[:2]
         for index in range(4)
@@ -157,6 +159,51 @@ def test_data_pool_uses_type_tabs_and_two_equal_card_columns() -> None:
     )
     assert "ID " not in visible_text
     assert "有效脉冲" not in visible_text
+
+    panel.resize(800, 300)
+    app.processEvents()
+    assert excel_page.column_count() == 3
+    assert [
+        excel_layout.getItemPosition(index)[:2]
+        for index in range(4)
+    ] == [(0, 0), (0, 1), (0, 2), (1, 0)]
+
+    panel.resize(1050, 300)
+    app.processEvents()
+    assert excel_page.column_count() == 4
+    assert [
+        excel_layout.getItemPosition(index)[:2]
+        for index in range(4)
+    ] == [(0, 0), (0, 1), (0, 2), (0, 3)]
+    assert panel.current_package_id() == packages[0].package_id
+
+
+def test_home_interface_responsively_expands_data_pool_height() -> None:
+    """主页高度充足时数据池面板应依次扩展到 400 和 500px。"""
+    app = _app()
+    interface = HomeInterface()
+    interface.show()
+
+    interface.resize(
+        1200,
+        interface._MEDIUM_HEIGHT_BREAKPOINT - 50,
+    )
+    app.processEvents()
+    assert interface.data_pool_panel.height() == 350
+
+    interface.resize(
+        1200,
+        interface._MEDIUM_HEIGHT_BREAKPOINT + 50,
+    )
+    app.processEvents()
+    assert interface.data_pool_panel.height() == 400
+
+    interface.resize(
+        1200,
+        interface._LARGE_HEIGHT_BREAKPOINT + 50,
+    )
+    app.processEvents()
+    assert interface.data_pool_panel.height() == 500
 
 
 def test_data_pool_details_uses_upward_panel_width_flyout() -> None:

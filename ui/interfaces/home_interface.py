@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QResizeEvent
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     FluentIcon,
@@ -29,6 +30,12 @@ class HomeInterface(QFrame):
     左侧滚动列依次展示数据目录、导入文件和数据池；右侧上下两个同级面板
     分别管理交互式切片 Session 与全速处理 Session。
     """
+
+    _DATA_POOL_BASE_HEIGHT = 350
+    _DATA_POOL_MEDIUM_HEIGHT = 400
+    _DATA_POOL_LARGE_HEIGHT = 500
+    _MEDIUM_HEIGHT_BREAKPOINT = 1000
+    _LARGE_HEIGHT_BREAKPOINT = 1300
 
     def __init__(
         self,
@@ -139,7 +146,7 @@ class HomeInterface(QFrame):
         # ---------- 数据池面板 ----------
         # 解析完成的数据包在此统一注册，再从数据包创建不同处理模式的 Session。
         self.data_pool_panel = DataPoolPanel(scroll_content)
-        self.data_pool_panel.setFixedHeight(350)
+        self.data_pool_panel.setFixedHeight(self._DATA_POOL_BASE_HEIGHT)
         content_layout.addWidget(self.data_pool_panel, 0)
 
         # 将内容容器注入 ScrollArea
@@ -172,3 +179,31 @@ class HomeInterface(QFrame):
         self.full_speed_session_panel = FullSpeedSessionPanel(column)
         layout.addWidget(self.full_speed_session_panel, 1)
         return column
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """在主页高度变化时调整数据池面板高度。
+
+        Args:
+            event [QResizeEvent]: 主页尺寸变化事件。
+
+        Returns:
+            None: 无返回值。
+        """
+        super().resizeEvent(event)
+        if hasattr(self, "data_pool_panel"):
+            self.data_pool_panel.setFixedHeight(
+                self._responsive_data_pool_height(event.size().height())
+            )
+
+    def _responsive_data_pool_height(
+        self,
+        available_height: int | None = None,
+    ) -> int:
+        """根据主页可用高度返回 350、400 或 500px。"""
+        if available_height is None:
+            available_height = self.height()
+        if available_height >= self._LARGE_HEIGHT_BREAKPOINT:
+            return self._DATA_POOL_LARGE_HEIGHT
+        if available_height >= self._MEDIUM_HEIGHT_BREAKPOINT:
+            return self._DATA_POOL_MEDIUM_HEIGHT
+        return self._DATA_POOL_BASE_HEIGHT
