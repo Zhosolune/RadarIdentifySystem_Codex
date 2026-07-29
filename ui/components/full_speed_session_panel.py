@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QResizeEvent
 from PyQt6.QtWidgets import (
-    QFrame,
     QGridLayout,
     QHBoxLayout,
     QSizePolicy,
@@ -14,6 +13,7 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import (
     BodyLabel,
+    CardWidget,
     CaptionLabel,
     PrimaryPushButton,
     ProgressBar,
@@ -21,7 +21,6 @@ from qfluentwidgets import (
     ScrollArea,
     SimpleCardWidget,
     StrongBodyLabel,
-    TransparentPushButton,
     setFont,
 )
 
@@ -44,7 +43,7 @@ _STATUS_TEXT = {
 }
 
 
-class FullSpeedSessionCard(QFrame):
+class FullSpeedSessionCard(CardWidget):
     """展示单个全速 Session 的参数冻结、进度和操作入口。
 
     Attributes:
@@ -80,7 +79,7 @@ class FullSpeedSessionCard(QFrame):
         super().__init__(parent)
         self.session_id = session.session_id
         self.setObjectName("fullSpeedSessionCard")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setBorderRadius(8)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -263,6 +262,8 @@ class FullSpeedSessionPanel(SimpleCardWidget):
     openOutputRequested = pyqtSignal(str)
 
     _MIN_CARD_WIDTH = 500
+    _SCROLLBAR_CARD_GAP = 8
+    _SCROLLBAR_GUTTER_WIDTH = 10
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化全速 Session 面板。
@@ -306,28 +307,34 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         self.body_widget = QWidget(self)
         self.body_widget.setObjectName("homeFullSpeedBody")
         body_layout = QVBoxLayout(self.body_widget)
-        body_layout.setContentsMargins(8, 8, 8, 8)
+        body_layout.setContentsMargins(10, 10, 0, 10)
         body_layout.setSpacing(0)
 
-        self.session_pane = QWidget(self.body_widget)
-        self.session_pane.setObjectName("homeFullSpeedSessionPane")
-        self.session_pane.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
-        pane_layout = QVBoxLayout(self.session_pane)
-        pane_layout.setContentsMargins(0, 0, 0, 0)
-        pane_layout.setSpacing(0)
-
-        self.scroll_area = ScrollArea(self.session_pane)
+        # 为组件库默认浮动滚动条预留独立沟槽，避免覆盖任务卡片。
+        self.scroll_area = ScrollArea(self.body_widget)
         self.scroll_area.setObjectName("homeFullSpeedScrollArea")
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.scroll_area.setViewportMargins(
+            0,
+            0,
+            self._SCROLLBAR_GUTTER_WIDTH,
+            0,
+        )
         self.scroll_area.viewport().setObjectName("homeFullSpeedViewport")
+        self.scroll_area.viewport().installEventFilter(self)
+
         self.content_widget = QWidget(self.scroll_area)
         self.content_widget.setObjectName("homeFullSpeedContent")
         content_layout = QVBoxLayout(self.content_widget)
-        content_layout.setContentsMargins(8, 8, 8, 8)
+        content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
+
         self.empty_label = BodyLabel(
             "从数据池创建“全速处理（自动）”Session",
             self.content_widget,
@@ -345,8 +352,8 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         self.card_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         content_layout.addWidget(self.cards_widget, 1)
         self.scroll_area.setWidget(self.content_widget)
-        pane_layout.addWidget(self.scroll_area)
-        body_layout.addWidget(self.session_pane)
+        self.scroll_area.enableTransparentBackground()
+        body_layout.addWidget(self.scroll_area)
         root_layout.addWidget(self.body_widget, 1)
 
     def set_sessions(
@@ -418,16 +425,44 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         if hasattr(self, "card_layout"):
             self._relayout_cards(panel_width=event.size().width())
 
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """按滚动视口实际宽度修正任务栏数。
+
+        Args:
+            watched [QObject]: 当前被监听对象。
+            event [QEvent]: Qt 事件。
+
+        Returns:
+            bool: 父类事件过滤结果。
+        """
+        if (
+            hasattr(self, "scroll_area")
+            and watched is self.scroll_area.viewport()
+            and event.type() == QEvent.Type.Resize
+            and hasattr(self, "card_layout")
+        ):
+            self._relayout_cards(viewport_width=event.size().width())
+        return super().eventFilter(watched, event)
+
     def _responsive_column_count(
         self,
         panel_width: int | None = None,
+        viewport_width: int | None = None,
     ) -> int:
         """根据卡片最小宽度计算当前可容纳的栏数。"""
         spacing = max(0, self.card_layout.horizontalSpacing())
-        if panel_width is None:
-            panel_width = self.width()
-        # 扣除面板主体、内容区边距和滚动条预留空间。
-        available_width = max(0, panel_width - 48)
+        if viewport_width is not None:
+            available_width = max(0, viewport_width)
+        else:
+            if panel_width is None:
+                panel_width = self.width()
+            # 视口建立前先预估，建立后由 viewport Resize 精确修正。
+            available_width = max(
+                0,
+                panel_width
+                - 12
+                - self._SCROLLBAR_GUTTER_WIDTH,
+            )
         return max(
             1,
             (available_width + spacing)
@@ -439,9 +474,13 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         *,
         force: bool = False,
         panel_width: int | None = None,
+        viewport_width: int | None = None,
     ) -> None:
         """保持任务顺序并按当前断点重新放入网格。"""
-        column_count = self._responsive_column_count(panel_width)
+        column_count = self._responsive_column_count(
+            panel_width,
+            viewport_width,
+        )
         if not force and column_count == self._column_count:
             return
         previous_column_count = self._column_count

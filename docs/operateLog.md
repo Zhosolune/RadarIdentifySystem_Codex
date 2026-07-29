@@ -1,5 +1,69 @@
 # 变更记录
 
+- 时间：2026-07-29 17:10
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：全速任务滚动区域恢复 qfluentwidgets 默认 `ScrollArea` 纵向滚动条，并在任务卡片外侧为其预留独立沟槽。
+- 原因：任务列表需要保留组件库统一的 Fluent 滚动条视觉，同时避免默认浮动定位覆盖最右侧任务卡片。
+- 计划清单：
+  - [x] 使用组件库 `ScrollArea` 及其默认 `SmoothScrollBar`，不再使用系统原生滚动条。
+  - [x] 纵向滚动条按需显示、横向滚动条关闭，并保留卡片到滚动条的 8px 间距。
+  - [x] 根据实际视口宽度重新计算响应式栏数，避免预留滚动沟槽后压缩卡片。
+  - [x] 验证滚动条几何位于卡片外侧且多任务可正常滚动。
+- 验证结果：
+  - 全速面板与主页聚焦测试通过（13 passed，1 warning）。
+  - 全速处理、数据池、双 Session 路由及事件隔离相关回归通过（17 passed，1 warning）。
+  - 8 个任务在 1100×340 面板中形成两栏并产生 394px 纵向滚动范围；组件库纵向滚动条可见，系统原生滚动条不可见，最右侧卡片与滚动条间距为 8px。
+  - 离屏渲染确认使用组件库默认 Fluent 滚动条，且滚动条位于任务卡片外侧。
+- 测试状态：[已测试]
+
+- 时间：2026-07-29 16:42
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：恢复全速任务透明滚动区域，仅将横纵滚动条强制隐藏，保留任务溢出后的滚轮浏览能力。
+- 原因：上一轮错误地把“取消滚动条”实现成删除滚动区域，会导致任务增多时内容无法浏览；正确边界是隐藏滚动条视觉元素而不删除滚动承载能力。
+- 计划清单：
+  - [x] 恢复直接位于面板内容区的透明 `ScrollArea`，不恢复浅灰圆角容器。
+  - [x] 横纵滚动条策略均设置为 `ScrollBarAlwaysOff`，同步强制隐藏组件库浮动滚动条。
+  - [x] 验证多行任务产生纵向滚动范围，并可在滚动条不可见时改变浏览位置。
+  - [x] 保持 `CardWidget` 原生边框和现有响应式栏数不变。
+- 验证结果：
+  - 全速面板与主页聚焦测试通过（13 passed，1 warning）。
+  - 全速处理、数据池、双 Session 路由及事件隔离相关回归通过（30 passed，1 warning）。
+  - 6 个单栏任务在 620×300 面板中产生 772px 纵向滚动范围，原生滚动条与组件库浮动滚动条均保持不可见，滚动位置可正常改变。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-29 16:33
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：移除全速处理面板的浅灰内层容器与内部滚动区，使任务卡片直接排布在面板内容区并恢复组件库原生卡片边框。
+- 原因：现有 `homeFullSpeedSessionPane` 额外绘制浅灰圆角背景，且任务卡片使用普通 `QFrame` 并被 QSS 显式设置 `border: none`，因此没有组件库卡片应有的主题边框。
+- 计划清单：
+  - [x] 删除全速面板内部 `ScrollArea` 和浅灰 `homeFullSpeedSessionPane` 层级。
+  - [x] 让任务网格直接使用全速面板透明内容区，不再预留滚动条宽度。
+  - [x] 将任务卡片改为组件库 `CardWidget`，移除覆盖原生绘制的背景和无边框 QSS。
+  - [x] 补充无内部滚动区、无浅灰容器及原生卡片基类回归测试。
+- 验证结果：
+  - 全速面板与主页聚焦测试通过（12 passed，1 warning）。
+  - 全速处理、数据池、双 Session 路由及事件隔离相关回归通过（29 passed，1 warning）。
+  - 明暗主题离屏渲染确认浅灰内层已消失、任务卡片原生边框可见且面板内部不存在滚动区。
+  - 相关 Python 文件 `py_compile` 通过；旧层级引用扫描无运行时代码残留；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-29 16:10
 - 操作类型：[新增]
 - 影响文件：

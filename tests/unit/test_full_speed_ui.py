@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QAbstractScrollArea,
+    QApplication,
+    QWidget,
+)
+from qfluentwidgets import CardWidget, ScrollArea
 
 from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.session_config import SessionConfigSnapshot
@@ -184,8 +190,8 @@ def test_full_speed_params_window_edits_isolated_two_column_draft() -> None:
     window.close()
 
 
-def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:
-    """全速面板应为滚动层、卡片和次要按钮提供独立 QSS 作用域。"""
+def test_full_speed_panel_uses_transparent_scroll_content_and_native_card_border() -> None:
+    """全速任务应落在透明滚动内容区并使用组件库原生卡片边框。"""
     _app()
     panel = FullSpeedSessionPanel()
     session = ProcessingSession(
@@ -200,12 +206,24 @@ def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:
     )
     card = panel._cards[session.session_id]
 
-    assert panel.scroll_area.objectName() == "homeFullSpeedScrollArea"
-    assert panel.scroll_area.viewport().objectName() == "homeFullSpeedViewport"
     assert panel.body_widget.objectName() == "homeFullSpeedBody"
-    assert panel.session_pane.objectName() == "homeFullSpeedSessionPane"
-    assert panel.content_widget.objectName() == "homeFullSpeedContent"
+    assert type(panel.scroll_area) is ScrollArea
+    assert panel.scroll_area.parent() is panel.body_widget
+    assert panel.scroll_area.widget() is panel.content_widget
+    assert panel.cards_widget.parent() is panel.content_widget
+    assert panel.findChildren(QAbstractScrollArea) == [panel.scroll_area]
+    assert (
+        panel.scroll_area.horizontalScrollBarPolicy()
+        is Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    assert panel.scroll_area.scrollDelagate.hScrollBar._isForceHidden
+    assert not panel.scroll_area.scrollDelagate.vScrollBar._isForceHidden
+    assert panel.scroll_area.viewportMargins().right() == 20
+    assert panel.findChild(QWidget, "homeFullSpeedSessionPane") is None
     assert card.objectName() == "fullSpeedSessionCard"
+    assert isinstance(card, CardWidget)
+    assert type(card).paintEvent is CardWidget.paintEvent
+    assert card.getBorderRadius() == 8
     assert card.output_button.property("fullSpeedSecondaryAction") is True
     assert card.params_button.property("fullSpeedSecondaryAction") is True
     assert card.delete_button.property("fullSpeedSecondaryAction") is True
@@ -220,10 +238,58 @@ def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:
             / "home_interface.qss"
         ).read_text(encoding="utf-8")
         assert "QScrollArea#homeFullSpeedScrollArea" in qss
+        assert "QWidget#homeFullSpeedBody" in qss
         assert "QWidget#homeFullSpeedContent" in qss
-        assert "QWidget#homeFullSpeedSessionPane" in qss
-        assert "QFrame#fullSpeedSessionCard" in qss
+        assert "QWidget#homeFullSpeedCards" in qss
+        assert "homeFullSpeedSessionPane" not in qss
+        assert "QFrame#fullSpeedSessionCard" not in qss
         assert 'QPushButton[fullSpeedSecondaryAction="true"]' in qss
+
+
+def test_full_speed_panel_places_visible_scrollbar_outside_cards() -> None:
+    """任务溢出时纵向滚动条应位于卡片外侧并保留固定间距。"""
+    app = _app()
+    panel = FullSpeedSessionPanel()
+    panel.resize(620, 260)
+    sessions = [
+        ProcessingSession(
+            session_id=f"fullspeed-overflow-{index}",
+            processing_mode=ProcessingMode.FULL_SPEED,
+            display_name=f"溢出任务 {index + 1}",
+            data_package_id=f"package-overflow-{index}",
+        )
+        for index in range(6)
+    ]
+    panel.set_sessions(
+        sessions,
+        {
+            session.session_id: FullSpeedExecutionState()
+            for session in sessions
+        },
+    )
+    panel.show()
+    app.processEvents()
+
+    vertical_bar = panel.scroll_area.verticalScrollBar()
+    assert vertical_bar.maximum() > 0
+    fluent_vertical_bar = panel.scroll_area.scrollDelagate.vScrollBar
+    assert not vertical_bar.isVisible()
+    assert fluent_vertical_bar.isVisible()
+    first_card = panel._cards[sessions[0].session_id]
+    card_right = first_card.mapTo(
+        panel.scroll_area,
+        first_card.rect().topRight(),
+    ).x()
+    scrollbar_left = fluent_vertical_bar.geometry().left()
+    assert (
+        scrollbar_left - card_right
+        >= panel._SCROLLBAR_CARD_GAP
+    )
+    vertical_bar.setValue(vertical_bar.maximum())
+    app.processEvents()
+
+    assert vertical_bar.value() == vertical_bar.maximum()
+    assert not panel.scroll_area.scrollDelagate.hScrollBar.isVisible()
 
 
 def test_full_speed_tasks_calculate_columns_from_minimum_card_width() -> None:

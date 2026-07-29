@@ -158,7 +158,7 @@ QWidget#dashboardSeparator {
     color: white;
 }
 
-/* 全速处理面板与 Session 管理详情区使用相同的透明滚动层和卡片层次。 */
+/* 全速任务直接排布在面板透明内容区，卡片边框由 CardWidget 原生绘制。 */
 QWidget#fullSpeedPanelSeparator {
     background-color: rgba(255, 255, 255, 0.10);
     border: none;
@@ -172,18 +172,6 @@ QWidget#homeFullSpeedContent,
 QWidget#homeFullSpeedCards {
     background: transparent;
     border: none;
-}
-
-QWidget#homeFullSpeedSessionPane {
-    background-color: rgba(0, 0, 0, 0.1795);
-    border: none;
-    border-radius: 8px;
-}
-
-QFrame#fullSpeedSessionCard {
-    background-color: rgba(255, 255, 255, 0.06);
-    border: none;
-    border-radius: 8px;
 }
 
 QLabel#fullSpeedPanelTitle,
