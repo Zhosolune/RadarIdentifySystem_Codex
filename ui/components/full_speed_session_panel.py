@@ -30,6 +30,7 @@ from runtime.full_speed_session_registry import (
     FullSpeedExecutionState,
     FullSpeedStatus,
 )
+from ui.components.scrolling_name_label import ScrollingNameLabel
 
 
 _STATUS_TEXT = {
@@ -118,9 +119,14 @@ class FullSpeedSessionCard(QFrame):
         self.message_label.setWordWrap(True)
         root_layout.addWidget(self.message_label)
 
-        self.output_label = CaptionLabel("保存目录：未设置", self)
-        self.output_label.setObjectName("fullSpeedSessionCaption")
-        self.output_label.setWordWrap(True)
+        # 保存路径保持单行显示，超出任务卡片可用宽度后循环滚动。
+        self.output_label = ScrollingNameLabel(
+            "保存目录：未设置",
+            max_width=None,
+            parent=self,
+            label_class=CaptionLabel,
+            label_object_name="fullSpeedSessionCaption",
+        )
         root_layout.addWidget(self.output_label)
 
         action_layout = QHBoxLayout()

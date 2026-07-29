@@ -6,7 +6,15 @@ from __future__ import annotations
 from PyQt6.QtCore import QSize, QTimer
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
-from qfluentwidgets import BodyLabel, ToolTipFilter, ToolTipPosition
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    ToolTipFilter,
+    ToolTipPosition,
+)
+
+
+ScrollingLabelClass = type[BodyLabel] | type[CaptionLabel]
 
 
 class ScrollingNameLabel(QWidget):
@@ -17,31 +25,44 @@ class ScrollingNameLabel(QWidget):
         未超出时保持静态显示。
 
     Attributes:
-        full_text (str): 当前完整文本。
-        max_width (int): 标签最大宽度。
-        scroll_gap (int): 主副标签之间的间隔宽度。
-        scroll_step (int): 每次滚动的像素步长。
-        scroll_timer (QTimer): 文本滚动定时器。
-        primary_label (BodyLabel): 主显示标签。
-        secondary_label (BodyLabel): 补位显示标签。
+        full_text: 当前完整文本。
+        max_width: 标签最大宽度；None 表示交给父布局决定。
+        scroll_gap: 主副标签之间的间隔宽度。
+        scroll_step: 每次滚动的像素步长。
+        scroll_timer: 文本滚动定时器。
+        primary_label: 主显示标签。
+        secondary_label: 补位显示标签。
     """
 
-    def __init__(self, text: str, max_width: int = 240, parent=None) -> None:
+    def __init__(
+        self,
+        text: str,
+        max_width: int | None = 240,
+        parent: QWidget | None = None,
+        *,
+        label_class: ScrollingLabelClass = BodyLabel,
+        label_object_name: str = "modelNameLabel",
+    ) -> None:
         """初始化滚动名称标签。
 
         Args:
-            text (str): 初始显示文本。
-            max_width (int): 标签最大宽度，默认值为 240。
-            parent (QWidget | None): 父组件。
+            text [str]: 初始显示文本。
+            max_width [int | None]: 标签最大宽度；None 表示由父布局决定。
+            parent [QWidget | None]: 父组件。
+            label_class [ScrollingLabelClass]: 内部文本标签类，默认使用
+                ``BodyLabel``，紧凑信息可传入 ``CaptionLabel``。
+            label_object_name [str]: 主副标签共用的 QSS 对象名。
 
         Returns:
             None: 无返回值。
 
         Raises:
-            无。
+            ValueError: max_width 不为 None 且小于 1 时抛出。
         """
         super().__init__(parent)
-        self.full_text = text
+        if max_width is not None and max_width < 1:
+            raise ValueError("max_width 必须大于 0 或为 None")
+        self.full_text = ""
         self.max_width = max_width
         self.scroll_gap = 24
         self.scroll_step = 1
@@ -50,17 +71,21 @@ class ScrollingNameLabel(QWidget):
         self.scroll_timer.timeout.connect(self._on_scroll_timeout)
 
         # 创建主文本标签
-        self.primary_label = BodyLabel(self)
-        self.primary_label.setObjectName("modelNameLabel")
+        self.primary_label = label_class(self)
+        self.primary_label.setObjectName(label_object_name)
         # 创建补位文本标签
-        self.secondary_label = BodyLabel(self)
-        self.secondary_label.setObjectName("modelNameLabel")
+        self.secondary_label = label_class(self)
+        self.secondary_label.setObjectName(label_object_name)
         self.secondary_label.hide()
 
-        # 设置名称区域最大宽度
-        self.setMaximumWidth(max_width)
+        # 可选最大宽度；None 时让父布局分配全部可用宽度。
+        if max_width is not None:
+            self.setMaximumWidth(max_width)
         self.setMinimumWidth(96)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.installEventFilter(
+            ToolTipFilter(self, 500, ToolTipPosition.BOTTOM)
+        )
         self.setText(text)
 
     def setText(self, text: str) -> None:
@@ -75,15 +100,23 @@ class ScrollingNameLabel(QWidget):
         Raises:
             无。
         """
+        if text == self.full_text:
+            return
         self.full_text = text
+        self._scroll_offset = 0
         # 同步主副标签文本
         self.primary_label.setText(text)
         self.secondary_label.setText(text)
         self.setToolTip(text)
-        self.installEventFilter(
-            ToolTipFilter(self, 500, ToolTipPosition.BOTTOM)
-        )
         self._update_scroll_state()
+
+    def text(self) -> str:
+        """返回当前完整文本。
+
+        Returns:
+            str: 未裁剪的完整标签文本。
+        """
+        return self.full_text
 
     def resizeEvent(self, event) -> None:
         """处理尺寸变化事件。
@@ -132,7 +165,8 @@ class ScrollingNameLabel(QWidget):
         text_width = self.primary_label.fontMetrics().horizontalAdvance(self.full_text)
         label_height = self.primary_label.sizeHint().height()
         # 提供稳定建议宽度
-        return QSize(min(self.max_width, max(96, text_width)), label_height)
+        width_limit = self.max_width if self.max_width is not None else text_width
+        return QSize(min(width_limit, max(96, text_width)), label_height)
 
     def minimumSizeHint(self) -> QSize:
         """返回最小建议尺寸。
@@ -161,7 +195,7 @@ class ScrollingNameLabel(QWidget):
         Raises:
             无。
         """
-        available_width = max(1, self.width() or self.maximumWidth())
+        available_width = max(1, self.width())
         text_width = self.primary_label.fontMetrics().horizontalAdvance(self.full_text)
         label_height = self.primary_label.sizeHint().height()
         # 固定标签高度

@@ -12,6 +12,7 @@ from runtime.full_speed_session_registry import (
     FullSpeedStatus,
 )
 from ui.components.full_speed_session_panel import FullSpeedSessionPanel
+from ui.components.scrolling_name_label import ScrollingNameLabel
 from ui.dialogs.create_session_dialog import CreateSessionDialog
 
 
@@ -68,6 +69,48 @@ def test_full_speed_card_locks_configuration_and_shows_progress() -> None:
     assert not card.output_button.isEnabled()
     assert card.cancel_button.isEnabled()
     assert not card.open_button.isEnabled()
+
+
+def test_full_speed_card_scrolls_long_output_path_without_truncation() -> None:
+    """全速任务结果路径超宽时应滚动，变为短路径后应恢复静态显示。"""
+    app = _app()
+    panel = FullSpeedSessionPanel()
+    panel.resize(520, 500)
+    session = ProcessingSession(
+        session_id="fullspeed-output-path",
+        processing_mode=ProcessingMode.FULL_SPEED,
+        display_name="长路径任务",
+        data_package_id="package-output-path",
+    )
+    long_output_file = (
+        "E:/radar-results/2026-07-29/"
+        "full-speed-session-with-a-very-long-result-file-name/"
+        "识别与参数提取结果_完整数据包_最终结果.xlsx"
+    )
+    long_state = FullSpeedExecutionState(
+        status=FullSpeedStatus.SUCCEEDED,
+        current_stage="处理完成",
+        progress=100,
+        output_file=long_output_file,
+    )
+
+    panel.set_sessions([session], {session.session_id: long_state})
+    panel.show()
+    app.processEvents()
+    card = panel._cards[session.session_id]
+
+    assert isinstance(card.output_label, ScrollingNameLabel)
+    assert card.output_label.text() == f"结果文件：{long_output_file}"
+    assert card.output_label.scroll_timer.isActive()
+    assert card.output_label.secondary_label.isVisible()
+
+    short_state = FullSpeedExecutionState(output_dir="E:/out")
+    card.update_state(session, short_state)
+    app.processEvents()
+
+    assert card.output_label.text() == "保存目录：E:/out"
+    assert not card.output_label.scroll_timer.isActive()
+    assert card.output_label.secondary_label.isHidden()
 
 
 def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:

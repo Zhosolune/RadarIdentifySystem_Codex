@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-07-29 15:37
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\scrolling_name_label.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：复用项目滚动标签显示全速任务结果路径，超出卡片可用宽度时水平循环滚动。
+- 原因：结果文件路径需要保持单行完整语义，不能因任务卡片响应式缩窄而换行或截断。
+- 计划清单：
+  - [x] 为现有滚动标签增加 Caption 样式和不限制最大宽度的复用能力。
+  - [x] 避免任务状态频繁刷新时重复安装 Tooltip 过滤器。
+  - [x] 将全速任务保存目录/结果文件标签替换为滚动标签。
+  - [x] 补充长路径滚动、短路径静态及现有任务状态回归测试。
+- 验证结果：
+  - 全速任务与主页响应式 UI 聚焦测试通过（10 passed，1 warning）。
+  - 数据池、双 Session 路由和事件隔离组合回归通过（12 passed，1 warning）。
+  - 相关 Python 文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-29 14:45
 - 操作类型：[修改]
 - 影响文件：
