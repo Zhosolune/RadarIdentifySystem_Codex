@@ -73,7 +73,7 @@ class HomeInterface(QFrame):
         self.right_column = self._create_right_column()
 
         root_layout.addWidget(self.left_column, 4)
-        root_layout.addWidget(self.right_column, 6)
+        root_layout.addWidget(self.right_column, 5)
 
     def _create_left_column(self) -> QWidget:
         """创建左侧数据导入与数据池面板。
@@ -139,7 +139,7 @@ class HomeInterface(QFrame):
         # ---------- 数据池面板 ----------
         # 解析完成的数据包在此统一注册，再从数据包创建不同处理模式的 Session。
         self.data_pool_panel = DataPoolPanel(scroll_content)
-        self.data_pool_panel.setFixedHeight(300)
+        self.data_pool_panel.setFixedHeight(350)
         content_layout.addWidget(self.data_pool_panel, 0)
 
         # 将内容容器注入 ScrollArea

@@ -1,5 +1,55 @@
 # 变更记录
 
+- 时间：2026-07-29 10:53
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：继续修复数据池卡片、详情弹层关闭入口及全速处理内容区的视觉层次。
+- 原因：数据池卡片需要严格复用 Session 导航项样式，全速处理的浅灰背景应收敛到内部圆角详情容器而非覆盖整个内容区。
+- 计划清单：
+  - [x] 数据卡片复用 Session 管理的 `CardNavigationItem` 绘制与选中反馈，并按容器宽度二等分。
+  - [x] 数据卡片仅保留文件名、波段和透明详情按钮。
+  - [x] 为数据详情 Flyout 增加右上角关闭按钮。
+  - [x] 将全速处理改为同色内容区内嵌浅灰圆角任务容器。
+  - [x] 更新回归测试并执行聚焦验证。
+- 验证结果：
+  - 数据池卡片样式、两列等宽布局、精简内容、详情关闭按钮和全速内容层次聚焦测试通过（7 passed，1 warning）。
+  - 数据池持久化、双 Session 路由、事件隔离及相关 UI 组合回归通过（19 passed，1 warning）。
+  - 以 500px 数据池宽度完成离屏视觉检查，两张卡片等宽完整落在内容区内；全速处理显示为同色外层内容区内嵌浅灰圆角容器。
+  - 相关 Python 文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-29 10:21
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\light\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\qss\dark\home_interface.qss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复主页数据池标签页、三列数据卡片及详情弹层，并恢复全速处理模块的主页主题样式。
+- 原因：数据池视觉结构偏离已有 Excel/Bin/MAT 标签页约定，全速处理新增组件仍带有组件库默认背景，造成主页模块风格不一致。
+- 计划清单：
+  - [x] 恢复数据池 Excel/Bin/MAT/其他标签页并按数据类型分组。
+  - [x] 将标签页内容区固定为每行三张等宽数据卡片。
+  - [x] 为数据卡片增加透明详情按钮和向上弹出的等宽 FlyoutViewBase 详情。
+  - [x] 通过主页深浅主题 QSS 修复全速处理滚动区、内容区、任务卡片和次要动作样式。
+  - [x] 补充 UI 回归测试并执行聚焦验证。
+- 验证结果：
+  - 数据池标签页、三列卡片、等宽向上详情弹层及全速 QSS 聚焦测试通过（7 passed，1 warning）。
+  - 数据池持久化、双 Session 路由、事件隔离及本轮 UI 组合回归通过（19 passed，1 warning）。
+  - 主窗口 Session 回归完成全部断言（16 passed，1 warning）；Qt 测试进程在结果输出后的清理阶段未自动退出，外层命令达到超时，但没有测试失败。
+  - 相关 Python 文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-29 09:54
 - 操作类型：[重构]
 - 影响文件：

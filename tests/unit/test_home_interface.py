@@ -2,8 +2,18 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QApplication, QSizePolicy, QWidget
+from unittest.mock import MagicMock, patch
 
+import numpy as np
+from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
+from qfluentwidgets import Flyout, FlyoutAnimationType
+
+from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.data_package import DataPackage
+from core.models.pulse_batch import PulseBatch
+from core.models.slice_result import PreprocessResult
+from ui.components.card_navigation_list import CardNavigationItem
+from ui.components.data_pool_panel import DataPackageDetailFlyoutView, DataPoolPanel
 from ui.interfaces.home_interface import HomeInterface
 from ui.components.import_data_panel import ImportDataPanel
 
@@ -19,6 +29,49 @@ def _app() -> QApplication:
         _APP = QApplication([])
         return _APP
     return app
+
+
+def _build_data_package(
+    package_id: str,
+    source_type: str,
+) -> DataPackage:
+    """构造用于主页数据池布局测试的数据包。"""
+    data = np.array(
+        [
+            [5000.0, 1.0, 90.0, 10.0, 11.0, 0.0],
+            [5001.0, 1.2, 91.0, 12.0, 13.0, 100.0],
+        ]
+    )
+    dashboard = ExcelDashboardInfo(
+        total_pulses=2,
+        removed_pulses=0,
+        amplitude_dropped_pulses=0,
+        duration=100.0,
+        band="C波段",
+        estimated_slice_count=1,
+    )
+    return DataPackage(
+        package_id=package_id,
+        display_name=f"{source_type}-{package_id}",
+        source_path=f"E:/data/{package_id}.{source_type}",
+        source_type=source_type,
+        data_format="new" if source_type == "excel" else None,
+        raw_batch=PulseBatch(
+            data.copy(),
+            source_path=f"E:/data/{package_id}.{source_type}",
+            source_type=source_type,
+            total_pulses=2,
+        ),
+        preprocess_result=PreprocessResult(
+            data.copy(),
+            total_pulses=2,
+            time_range=100.0,
+            estimated_slice_count=1,
+            band="C波段",
+            dashboard_info=dashboard,
+        ),
+        dashboard_info=dashboard,
+    )
 
 
 def test_home_interface_hosts_data_pool_and_two_peer_session_panels() -> None:
@@ -54,3 +107,78 @@ def test_import_data_panel_reports_selected_excel_format() -> None:
 
     assert panel.current_excel_data_format() == "new"
     assert panel.oldFormatAction.isChecked() is False
+
+
+def test_data_pool_uses_type_tabs_and_two_equal_card_columns() -> None:
+    """数据池应按类型分组，并在标签页内容区固定使用两列等宽卡片。"""
+    app = _app()
+    panel = DataPoolPanel()
+    packages = [
+        _build_data_package(f"excel-{index}", "excel")
+        for index in range(4)
+    ]
+    packages.extend(
+        [
+            _build_data_package("bin-1", "bin"),
+            _build_data_package("mat-1", "mat"),
+        ]
+    )
+
+    panel.resize(500, 300)
+    panel.set_packages(packages)
+    panel.show()
+    app.processEvents()
+
+    assert panel.tab_widget.count() == 4
+    assert len(panel.package_pages["excel"].cards) == 4
+    assert len(panel.package_pages["bin"].cards) == 1
+    assert len(panel.package_pages["mat"].cards) == 1
+    excel_layout = panel.package_pages["excel"].grid_layout
+    assert [
+        excel_layout.getItemPosition(index)[:2]
+        for index in range(4)
+    ] == [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+    first_row_cards = list(panel.package_pages["excel"].cards.values())[:2]
+    assert max(card.width() for card in first_row_cards) - min(
+        card.width() for card in first_row_cards
+    ) <= 1
+    assert first_row_cards[1].geometry().right() < (
+        panel.package_pages["excel"].content_widget.width()
+    )
+    first_card = first_row_cards[0]
+    assert isinstance(first_card, CardNavigationItem)
+    assert first_card.title_label.text() == packages[0].display_name
+    assert first_card.subtitle_label is not None
+    assert first_card.subtitle_label.text() == "C波段"
+    visible_text = " ".join(
+        label.text()
+        for label in first_card.findChildren(QLabel)
+    )
+    assert "ID " not in visible_text
+    assert "有效脉冲" not in visible_text
+
+
+def test_data_pool_details_uses_upward_panel_width_flyout() -> None:
+    """详情按钮应使用向上弹出的 FlyoutViewBase，且外层宽度等于数据池。"""
+    _app()
+    panel = DataPoolPanel()
+    package = _build_data_package("excel-detail", "excel")
+    panel.resize(720, 300)
+    panel.set_packages([package])
+    fake_flyout = MagicMock()
+
+    with patch.object(Flyout, "make", return_value=fake_flyout) as make:
+        panel.package_pages["excel"].cards[
+            package.package_id
+        ].details_button.click()
+
+    view, target, _parent = make.call_args.args
+    assert isinstance(view, DataPackageDetailFlyoutView)
+    assert view.width() + 30 == panel.width()
+    assert len(view.metric_cards) == 6
+    assert target.objectName() == "dataPoolDetailsButton"
+    assert make.call_args.kwargs["aniType"] is FlyoutAnimationType.PULL_UP
+    assert view.close_button.objectName() == "dataPoolDetailCloseButton"
+    view.close_button.click()
+    fake_flyout.close.assert_called_once_with()

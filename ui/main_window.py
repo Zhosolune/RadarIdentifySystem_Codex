@@ -692,7 +692,7 @@ class MainWindow(FluentWindow):
     def initWindow(self) -> None:
         self.setWindowIcon(QIcon(':/RadarIdentifySystem/images/icon.png'))
         self.setWindowTitle("RadarIdentifySystem")
-        self.resize(1500, 1000)
+        self.resize(1440, 1000)
         self.setMinimumSize(1200, 800)
         
         # 启动页

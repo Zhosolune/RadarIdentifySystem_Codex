@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
     PrimaryPushButton,
     ProgressBar,
-    PushButton,
     ScrollArea,
     SimpleCardWidget,
     StrongBodyLabel,
+    TransparentPushButton,
     setFont,
 )
 
@@ -34,7 +34,7 @@ _STATUS_TEXT = {
 }
 
 
-class FullSpeedSessionCard(SimpleCardWidget):
+class FullSpeedSessionCard(QFrame):
     """展示单个全速 Session 的参数冻结、进度和操作入口。
 
     Attributes:
@@ -67,7 +67,8 @@ class FullSpeedSessionCard(SimpleCardWidget):
         """
         super().__init__(parent)
         self.session_id = session.session_id
-        self.setObjectName(f"fullSpeedSessionCard_{self.session_id}")
+        self.setObjectName("fullSpeedSessionCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -79,7 +80,9 @@ class FullSpeedSessionCard(SimpleCardWidget):
 
         title_layout = QHBoxLayout()
         self.title_label = StrongBodyLabel(session.display_name, self)
+        self.title_label.setObjectName("fullSpeedSessionTitle")
         self.status_label = CaptionLabel("等待启动", self)
+        self.status_label.setObjectName("fullSpeedSessionStatus")
         title_layout.addWidget(self.title_label)
         title_layout.addStretch(1)
         title_layout.addWidget(self.status_label)
@@ -89,31 +92,44 @@ class FullSpeedSessionCard(SimpleCardWidget):
             f"数据包 {session.data_package_id or '未知'}",
             self,
         )
+        self.source_label.setObjectName("fullSpeedSessionCaption")
         root_layout.addWidget(self.source_label)
 
         self.stage_label = BodyLabel("等待启动", self)
+        self.stage_label.setObjectName("fullSpeedSessionStage")
         root_layout.addWidget(self.stage_label)
         self.progress_bar = ProgressBar(self)
+        self.progress_bar.setObjectName("fullSpeedProgressBar")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         root_layout.addWidget(self.progress_bar)
 
         self.message_label = CaptionLabel("", self)
+        self.message_label.setObjectName("fullSpeedSessionCaption")
         self.message_label.setWordWrap(True)
         root_layout.addWidget(self.message_label)
 
         self.output_label = CaptionLabel("保存目录：未设置", self)
+        self.output_label.setObjectName("fullSpeedSessionCaption")
         self.output_label.setWordWrap(True)
         root_layout.addWidget(self.output_label)
 
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(6)
-        self.output_button = PushButton("保存路径", self)
+        self.output_button = TransparentPushButton("保存路径", self)
         self.start_button = PrimaryPushButton("开始", self)
-        self.cancel_button = PushButton("取消", self)
-        self.open_button = PushButton("打开结果", self)
-        self.delete_button = PushButton("删除", self)
+        self.cancel_button = TransparentPushButton("取消", self)
+        self.open_button = TransparentPushButton("打开结果", self)
+        self.delete_button = TransparentPushButton("删除", self)
+        for button in (
+            self.output_button,
+            self.cancel_button,
+            self.open_button,
+            self.delete_button,
+        ):
+            # 次要动作通过主页 QSS 清除组件库默认实色背景。
+            button.setProperty("fullSpeedSecondaryAction", True)
         action_layout.addWidget(self.output_button)
         action_layout.addWidget(self.start_button)
         action_layout.addWidget(self.cancel_button)
@@ -230,6 +246,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(20, 8, 8, 7)
         title_label = BodyLabel("全速处理 Session", self)
+        title_label.setObjectName("fullSpeedPanelTitle")
         title_label.setFixedHeight(34)
         setFont(title_label, 14)
         header_layout.addWidget(title_label)
@@ -237,17 +254,33 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         root_layout.addLayout(header_layout)
 
         separator = QWidget(self)
-        separator.setObjectName("homePanelSeparator")
+        separator.setObjectName("fullSpeedPanelSeparator")
         separator.setFixedHeight(1)
         separator.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         root_layout.addWidget(separator)
 
-        self.scroll_area = ScrollArea(self)
+        self.body_widget = QWidget(self)
+        self.body_widget.setObjectName("homeFullSpeedBody")
+        body_layout = QVBoxLayout(self.body_widget)
+        body_layout.setContentsMargins(8, 8, 8, 8)
+        body_layout.setSpacing(0)
+
+        self.session_pane = QWidget(self.body_widget)
+        self.session_pane.setObjectName("homeFullSpeedSessionPane")
+        self.session_pane.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        pane_layout = QVBoxLayout(self.session_pane)
+        pane_layout.setContentsMargins(0, 0, 0, 0)
+        pane_layout.setSpacing(0)
+
+        self.scroll_area = ScrollArea(self.session_pane)
+        self.scroll_area.setObjectName("homeFullSpeedScrollArea")
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.scroll_area.viewport().setObjectName("homeFullSpeedViewport")
         self.content_widget = QWidget(self.scroll_area)
+        self.content_widget.setObjectName("homeFullSpeedContent")
         self.card_layout = QVBoxLayout(self.content_widget)
         self.card_layout.setContentsMargins(8, 8, 8, 8)
         self.card_layout.setSpacing(8)
@@ -255,11 +288,14 @@ class FullSpeedSessionPanel(SimpleCardWidget):
             "从数据池创建“全速处理（自动）”Session",
             self.content_widget,
         )
+        self.empty_label.setObjectName("homeFullSpeedEmptyLabel")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.card_layout.addWidget(self.empty_label, 1)
         self.card_layout.addStretch(1)
         self.scroll_area.setWidget(self.content_widget)
-        root_layout.addWidget(self.scroll_area, 1)
+        pane_layout.addWidget(self.scroll_area)
+        body_layout.addWidget(self.session_pane)
+        root_layout.addWidget(self.body_widget, 1)
 
     def set_sessions(
         self,

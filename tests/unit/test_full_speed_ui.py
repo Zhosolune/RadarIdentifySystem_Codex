@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from core.models.processing_session import ProcessingMode, ProcessingSession
@@ -66,3 +68,44 @@ def test_full_speed_card_locks_configuration_and_shows_progress() -> None:
     assert not card.output_button.isEnabled()
     assert card.cancel_button.isEnabled()
     assert not card.open_button.isEnabled()
+
+
+def test_full_speed_panel_exposes_qss_scopes_for_transparent_layers() -> None:
+    """全速面板应为滚动层、卡片和次要按钮提供独立 QSS 作用域。"""
+    _app()
+    panel = FullSpeedSessionPanel()
+    session = ProcessingSession(
+        session_id="fullspeed-style",
+        processing_mode=ProcessingMode.FULL_SPEED,
+        display_name="样式任务",
+        data_package_id="package-style",
+    )
+    panel.set_sessions(
+        [session],
+        {session.session_id: FullSpeedExecutionState()},
+    )
+    card = panel._cards[session.session_id]
+
+    assert panel.scroll_area.objectName() == "homeFullSpeedScrollArea"
+    assert panel.scroll_area.viewport().objectName() == "homeFullSpeedViewport"
+    assert panel.body_widget.objectName() == "homeFullSpeedBody"
+    assert panel.session_pane.objectName() == "homeFullSpeedSessionPane"
+    assert panel.content_widget.objectName() == "homeFullSpeedContent"
+    assert card.objectName() == "fullSpeedSessionCard"
+    assert card.output_button.property("fullSpeedSecondaryAction") is True
+    assert card.delete_button.property("fullSpeedSecondaryAction") is True
+
+    project_root = Path(__file__).resolve().parents[2]
+    for theme in ("light", "dark"):
+        qss = (
+            project_root
+            / "resources"
+            / "qss"
+            / theme
+            / "home_interface.qss"
+        ).read_text(encoding="utf-8")
+        assert "QScrollArea#homeFullSpeedScrollArea" in qss
+        assert "QWidget#homeFullSpeedContent" in qss
+        assert "QWidget#homeFullSpeedSessionPane" in qss
+        assert "QFrame#fullSpeedSessionCard" in qss
+        assert 'QPushButton[fullSpeedSecondaryAction="true"]' in qss

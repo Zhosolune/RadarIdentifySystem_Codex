@@ -90,6 +90,38 @@ QWidget#homeLeftScrollContent {
     qproperty-panelColor: rgba(0, 0, 0, 0.1795);
 }
 
+#dataPoolEdgeTab {
+    qproperty-panelColor: rgba(0, 0, 0, 0.1795);
+}
+
+QWidget#dataPoolBody,
+QWidget#dataPoolTabPage,
+QWidget#dataPoolTabViewport,
+QWidget#dataPoolTabContent,
+QScrollArea#dataPoolTabScrollArea,
+QScrollArea#dataPoolTabScrollArea > QWidget {
+    background: transparent;
+    border: none;
+}
+
+QWidget#dataPoolDetailMetrics,
+QWidget#dataPoolDetailInfoPanel,
+QWidget#dataPoolDetailInfoRow {
+    background: transparent;
+    border: none;
+}
+
+QLabel#dataPoolDetailTitle {
+    background: transparent;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+}
+
+QLabel#dataPoolDetailInfoTitle {
+    color: rgba(255, 255, 255, 0.60);
+}
+
 QWidget#edgeTabSeparator {
     background-color: rgba(255, 255, 255, 0.10);
     border: none;
@@ -124,4 +156,68 @@ QWidget#dashboardSeparator {
     font-size: 16px;
     font-weight: bold;
     color: white;
+}
+
+/* 全速处理面板与 Session 管理详情区使用相同的透明滚动层和卡片层次。 */
+QWidget#fullSpeedPanelSeparator {
+    background-color: rgba(255, 255, 255, 0.10);
+    border: none;
+}
+
+QScrollArea#homeFullSpeedScrollArea,
+QScrollArea#homeFullSpeedScrollArea > QWidget,
+QWidget#homeFullSpeedViewport,
+QWidget#homeFullSpeedBody,
+QWidget#homeFullSpeedContent {
+    background: transparent;
+    border: none;
+}
+
+QWidget#homeFullSpeedSessionPane {
+    background-color: rgba(0, 0, 0, 0.1795);
+    border: none;
+    border-radius: 8px;
+}
+
+QFrame#fullSpeedSessionCard {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: none;
+    border-radius: 8px;
+}
+
+QLabel#fullSpeedPanelTitle,
+QLabel#fullSpeedSessionTitle,
+QLabel#fullSpeedSessionStatus,
+QLabel#fullSpeedSessionCaption,
+QLabel#fullSpeedSessionStage,
+QLabel#homeFullSpeedEmptyLabel {
+    background: transparent;
+}
+
+QLabel#fullSpeedSessionTitle,
+QLabel#fullSpeedSessionStage {
+    color: white;
+}
+
+QLabel#fullSpeedSessionStatus,
+QLabel#fullSpeedSessionCaption {
+    color: rgba(255, 255, 255, 0.60);
+}
+
+QPushButton[fullSpeedSecondaryAction="true"] {
+    background-color: transparent;
+    border: none;
+}
+
+QPushButton[fullSpeedSecondaryAction="true"]:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+QPushButton[fullSpeedSecondaryAction="true"]:pressed {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+QPushButton[fullSpeedSecondaryAction="true"]:disabled {
+    background-color: transparent;
+    color: rgba(255, 255, 255, 0.36);
 }
