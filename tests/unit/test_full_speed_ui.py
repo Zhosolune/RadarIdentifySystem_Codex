@@ -80,6 +80,40 @@ def test_full_speed_card_locks_configuration_and_shows_progress() -> None:
     assert not card.open_button.isEnabled()
 
 
+def test_full_speed_card_maps_start_action_to_execution_status() -> None:
+    """全速任务仅在初始或未成功结束状态提供开始与重试操作。"""
+    _app()
+    panel = FullSpeedSessionPanel()
+    session = ProcessingSession(
+        session_id="fullspeed-action-state",
+        processing_mode=ProcessingMode.FULL_SPEED,
+        display_name="按钮状态任务",
+        data_package_id="package-action-state",
+    )
+    expected_actions = {
+        FullSpeedStatus.CONFIGURING: ("开始", True),
+        FullSpeedStatus.RUNNING: ("执行中", False),
+        FullSpeedStatus.EXPORTING: ("保存中", False),
+        FullSpeedStatus.SUCCEEDED: ("已完成", False),
+        FullSpeedStatus.FAILED: ("重试", True),
+        FullSpeedStatus.CANCELLED: ("重试", True),
+        FullSpeedStatus.INTERRUPTED: ("重试", True),
+    }
+
+    for status, (text, enabled) in expected_actions.items():
+        panel.set_sessions(
+            [session],
+            {
+                session.session_id: FullSpeedExecutionState(
+                    status=status,
+                )
+            },
+        )
+        card = panel._cards[session.session_id]
+        assert card.start_button.text() == text
+        assert card.start_button.isEnabled() is enabled
+
+
 def test_full_speed_card_scrolls_long_output_path_without_truncation() -> None:
     """全速任务结果路径超宽时应滚动，变为短路径后应恢复静态显示。"""
     app = _app()

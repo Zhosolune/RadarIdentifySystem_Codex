@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-07-29 17:23
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修正全速任务开始按钮在各执行状态下的文字与可用性映射。
+- 原因：成功任务虽然被运行时禁止再次启动，但卡片仍显示禁用的“重试”，造成错误的操作暗示。
+- 计划清单：
+  - [x] 成功任务显示禁用的“已完成”。
+  - [x] 仅失败、取消和中断任务显示可用的“重试”。
+  - [x] 覆盖等待、运行、保存、成功及可重试状态的 UI 回归测试。
+- 验证结果：
+  - 新增按钮状态映射测试通过，覆盖全部 7 种全速执行状态。
+  - 排除两个既有滚动沟槽断言后的全速 UI 回归通过（7 passed，2 deselected，1 warning）。
+  - 全速运行时回归通过（4 passed，1 warning）。
+  - 完整 UI 文件中的两个既有滚动条测试仍失败：当前沟槽配置为 10px，但测试仍断言 20px，且不足以满足原 8px 卡片间距；该问题与本次按钮状态修复无关，未擅自覆盖现有布局配置。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-29 17:10
 - 操作类型：[修改]
 - 影响文件：

@@ -42,6 +42,23 @@ _STATUS_TEXT = {
     FullSpeedStatus.INTERRUPTED: "已中断",
 }
 
+_START_ACTION_TEXT = {
+    FullSpeedStatus.CONFIGURING: "开始",
+    FullSpeedStatus.RUNNING: "执行中",
+    FullSpeedStatus.EXPORTING: "保存中",
+    FullSpeedStatus.SUCCEEDED: "已完成",
+    FullSpeedStatus.FAILED: "重试",
+    FullSpeedStatus.CANCELLED: "重试",
+    FullSpeedStatus.INTERRUPTED: "重试",
+}
+
+_STARTABLE_STATUSES = {
+    FullSpeedStatus.CONFIGURING,
+    FullSpeedStatus.FAILED,
+    FullSpeedStatus.CANCELLED,
+    FullSpeedStatus.INTERRUPTED,
+}
+
 
 class FullSpeedSessionCard(CardWidget):
     """展示单个全速 Session 的参数冻结、进度和操作入口。
@@ -223,19 +240,15 @@ class FullSpeedSessionCard(CardWidget):
 
         running = state.status is FullSpeedStatus.RUNNING
         exporting = state.status is FullSpeedStatus.EXPORTING
-        succeeded = state.status is FullSpeedStatus.SUCCEEDED
         self.output_button.setEnabled(
             not session.full_speed_locked and not running and not exporting
         )
         self.params_button.setEnabled(
             not session.full_speed_locked and not running and not exporting
         )
-        self.start_button.setEnabled(not running and not exporting and not succeeded)
-        self.start_button.setText(
-            "开始"
-            if state.status is FullSpeedStatus.CONFIGURING
-            else "重试"
-        )
+        # 只有尚未启动或未成功结束的任务可以进入执行流程；成功任务由运行时禁止重启。
+        self.start_button.setEnabled(state.status in _STARTABLE_STATUSES)
+        self.start_button.setText(_START_ACTION_TEXT[state.status])
         # Excel 写入阶段不接受取消，避免原子替换完成后产生“已取消但文件存在”的歧义。
         self.cancel_button.setEnabled(running)
         self.open_button.setEnabled(bool(state.output_file))
