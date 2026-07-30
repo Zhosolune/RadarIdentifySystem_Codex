@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QAbstractScrollArea,
     QApplication,
@@ -13,6 +14,9 @@ from PyQt6.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
+    FluentIcon,
+    IconInfoBadge,
+    InfoLevel,
     PrimaryPushButton,
     ScrollArea,
     TextEdit,
@@ -67,8 +71,9 @@ def test_create_session_dialog_selects_peer_processing_mode() -> None:
 
 def test_full_speed_card_locks_configuration_and_shows_progress() -> None:
     """任务开始后保存路径应锁定，卡片应展示切片与总进度。"""
-    _app()
+    app = _app()
     panel = FullSpeedSessionPanel()
+    panel.resize(620, 500)
     session = ProcessingSession(
         session_id="fullspeed1",
         processing_mode=ProcessingMode.FULL_SPEED,
@@ -87,14 +92,118 @@ def test_full_speed_card_locks_configuration_and_shows_progress() -> None:
     )
 
     panel.set_sessions([session], {session.session_id: state})
+    panel.show()
+    app.processEvents()
     card = panel._cards[session.session_id]
 
     assert card.progress_bar.value() == 37
     assert "切片 2/5" in card.stage_label.text()
+    assert "%" not in card.stage_label.text()
+    assert card.progress_label.text() == "37%"
+    assert card.progress_label.x() > card.progress_bar.x()
+    assert card.title_label.font().pixelSize() == 16
+    assert card.source_label.lightColor == QColor("#606060")
+    assert card.source_label.darkColor == QColor("#d2d2d2")
+    assert card.message_label.lightColor == QColor("#606060")
+    assert card.output_label.primary_label.darkColor == QColor("#d2d2d2")
     assert not card.output_button.isEnabled()
     assert not card.params_button.isEnabled()
     assert card.cancel_button.isEnabled()
     assert not card.open_button.isEnabled()
+
+
+def test_full_speed_card_maps_status_to_badge_text_and_progress_state() -> None:
+    """卡片应通过徽标、文字色和进度条状态区分全部执行状态。"""
+    _app()
+    panel = FullSpeedSessionPanel()
+    session = ProcessingSession(
+        session_id="fullspeed-status-visual",
+        processing_mode=ProcessingMode.FULL_SPEED,
+        display_name="状态视觉任务",
+        data_package_id="package-status-visual",
+    )
+    expected_visuals = {
+        FullSpeedStatus.CONFIGURING: (
+            FluentIcon.INFO,
+            InfoLevel.INFOAMTION,
+            "#606060",
+            False,
+            False,
+        ),
+        FullSpeedStatus.RUNNING: (
+            FluentIcon.SYNC,
+            InfoLevel.ATTENTION,
+            "#0078d4",
+            False,
+            False,
+        ),
+        FullSpeedStatus.EXPORTING: (
+            FluentIcon.SAVE,
+            InfoLevel.WARNING,
+            "#9d5d00",
+            True,
+            False,
+        ),
+        FullSpeedStatus.SUCCEEDED: (
+            FluentIcon.COMPLETED,
+            InfoLevel.SUCCESS,
+            "#107c10",
+            False,
+            False,
+        ),
+        FullSpeedStatus.FAILED: (
+            FluentIcon.CANCEL,
+            InfoLevel.ERROR,
+            "#c42b1c",
+            False,
+            True,
+        ),
+        FullSpeedStatus.CANCELLED: (
+            FluentIcon.CANCEL,
+            InfoLevel.WARNING,
+            "#9d5d00",
+            True,
+            False,
+        ),
+        FullSpeedStatus.INTERRUPTED: (
+            FluentIcon.PAUSE,
+            InfoLevel.WARNING,
+            "#9d5d00",
+            True,
+            False,
+        ),
+    }
+
+    for status, (
+        icon,
+        level,
+        light_color,
+        is_paused,
+        is_error,
+    ) in expected_visuals.items():
+        panel.set_sessions(
+            [session],
+            {
+                session.session_id: FullSpeedExecutionState(
+                    status=status,
+                    progress=58,
+                )
+            },
+        )
+        card = panel._cards[session.session_id]
+
+        assert isinstance(card.status_badge, IconInfoBadge)
+        assert card.status_badge._icon is icon
+        assert card.status_badge.level is level
+        assert card.status_label.lightColor == QColor(light_color)
+        assert card.stage_label.lightColor == QColor(light_color)
+        assert card.progress_label.lightColor == QColor(light_color)
+        assert card.progress_bar.isPaused() is is_paused
+        assert card.progress_bar.isError() is is_error
+
+        if status is FullSpeedStatus.SUCCEEDED:
+            assert card.progress_bar.lightBarColor() == QColor("#107c10")
+            assert card.progress_bar.darkBarColor() == QColor("#6ccb5f")
 
 
 def test_full_speed_card_maps_start_action_to_execution_status() -> None:

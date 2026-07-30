@@ -1,5 +1,27 @@
 # 变更记录
 
+- 时间：2026-07-30 15:42
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：调整全速任务卡片的信息层级，并按执行状态强化图标、文字和进度条反馈。
+- 原因：卡片文字字号和颜色接近，进度百分比混入阶段描述，导致信息密集且状态重点不清晰。
+- 计划清单：
+  - [x] 放大任务名，并将数据包、进度详情和保存路径统一为组件库次要文字色。
+  - [x] 将百分比移至进度条右侧，精简阶段描述。
+  - [x] 使用 `IconInfoBadge`、状态文字色及状态进度条区分等待、运行、保存、成功、失败、取消和中断。
+  - [x] 补充卡片层级和全部状态映射的回归测试。
+- 验证结果：
+  - 任务名提升为 16px 半粗体；数据包、进度详情及滚动保存路径使用组件库标签的明暗主题次要文字色。
+  - 进度百分比从阶段文案中移出并固定显示在进度条右侧；状态徽标、阶段和百分比会同步等待灰、运行蓝、保存/取消/中断黄、成功绿、失败红。
+  - 组件库进度条按状态调用默认、暂停、错误模式，并通过组件 API 为成功状态设置绿色。
+  - 全速卡片与其余非既有失败 UI 回归通过（8 passed，2 deselected，1 warning）；全速运行期回归通过（4 passed，1 warning）。
+  - 完整全速 UI 套件结果为 8 passed、2 failed；两项失败仍是既有滚动沟槽断言（实现为 10px，测试要求 20px 及额外 8px 间距），本次未修改滚动区。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-30 14:56
 - 操作类型：[修复]
 - 影响文件：

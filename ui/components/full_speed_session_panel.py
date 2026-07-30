@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
-from PyQt6.QtGui import QResizeEvent
+from PyQt6.QtGui import QColor, QFont, QResizeEvent
 from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -15,6 +15,9 @@ from qfluentwidgets import (
     BodyLabel,
     CardWidget,
     CaptionLabel,
+    FluentIcon,
+    IconInfoBadge,
+    InfoLevel,
     PrimaryPushButton,
     ProgressBar,
     PushButton,
@@ -57,6 +60,53 @@ _STARTABLE_STATUSES = {
     FullSpeedStatus.FAILED,
     FullSpeedStatus.CANCELLED,
     FullSpeedStatus.INTERRUPTED,
+}
+
+_SECONDARY_TEXT_COLORS = ("#606060", "#d2d2d2")
+
+_STATUS_VISUALS = {
+    FullSpeedStatus.CONFIGURING: (
+        FluentIcon.INFO,
+        InfoLevel.INFOAMTION,
+        "#606060",
+        "#d2d2d2",
+    ),
+    FullSpeedStatus.RUNNING: (
+        FluentIcon.SYNC,
+        InfoLevel.ATTENTION,
+        "#0078d4",
+        "#4cc2ff",
+    ),
+    FullSpeedStatus.EXPORTING: (
+        FluentIcon.SAVE,
+        InfoLevel.WARNING,
+        "#9d5d00",
+        "#fce100",
+    ),
+    FullSpeedStatus.SUCCEEDED: (
+        FluentIcon.COMPLETED,
+        InfoLevel.SUCCESS,
+        "#107c10",
+        "#6ccb5f",
+    ),
+    FullSpeedStatus.FAILED: (
+        FluentIcon.CANCEL,
+        InfoLevel.ERROR,
+        "#c42b1c",
+        "#ff99a4",
+    ),
+    FullSpeedStatus.CANCELLED: (
+        FluentIcon.CANCEL,
+        InfoLevel.WARNING,
+        "#9d5d00",
+        "#fce100",
+    ),
+    FullSpeedStatus.INTERRUPTED: (
+        FluentIcon.PAUSE,
+        InfoLevel.WARNING,
+        "#9d5d00",
+        "#fce100",
+    ),
 }
 
 
@@ -109,10 +159,17 @@ class FullSpeedSessionCard(CardWidget):
         title_layout = QHBoxLayout()
         self.title_label = StrongBodyLabel(session.display_name, self)
         self.title_label.setObjectName("fullSpeedSessionTitle")
+        setFont(self.title_label, 16, QFont.Weight.DemiBold)
+        self.status_badge = IconInfoBadge(
+            FluentIcon.INFO,
+            self,
+            InfoLevel.INFOAMTION,
+        )
         self.status_label = CaptionLabel("等待启动", self)
         self.status_label.setObjectName("fullSpeedSessionStatus")
         title_layout.addWidget(self.title_label)
         title_layout.addStretch(1)
+        title_layout.addWidget(self.status_badge)
         title_layout.addWidget(self.status_label)
         root_layout.addLayout(title_layout)
 
@@ -121,19 +178,35 @@ class FullSpeedSessionCard(CardWidget):
             self,
         )
         self.source_label.setObjectName("fullSpeedSessionCaption")
+        self.source_label.setTextColor(*_SECONDARY_TEXT_COLORS)
         root_layout.addWidget(self.source_label)
 
         self.stage_label = BodyLabel("等待启动", self)
         self.stage_label.setObjectName("fullSpeedSessionStage")
         root_layout.addWidget(self.stage_label)
+
+        progress_layout = QHBoxLayout()
+        progress_layout.setContentsMargins(0, 0, 0, 0)
+        progress_layout.setSpacing(10)
         self.progress_bar = ProgressBar(self)
         self.progress_bar.setObjectName("fullSpeedProgressBar")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        root_layout.addWidget(self.progress_bar)
+        progress_layout.addWidget(self.progress_bar, 1)
+        self.progress_label = StrongBodyLabel("0%", self)
+        self.progress_label.setObjectName("fullSpeedSessionProgress")
+        self.progress_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.progress_label.setFixedWidth(
+            self.progress_label.fontMetrics().horizontalAdvance("100%")
+        )
+        progress_layout.addWidget(self.progress_label)
+        root_layout.addLayout(progress_layout)
 
         self.message_label = CaptionLabel("", self)
         self.message_label.setObjectName("fullSpeedSessionCaption")
+        self.message_label.setTextColor(*_SECONDARY_TEXT_COLORS)
         self.message_label.setWordWrap(True)
         root_layout.addWidget(self.message_label)
 
@@ -145,6 +218,8 @@ class FullSpeedSessionCard(CardWidget):
             label_class=CaptionLabel,
             label_object_name="fullSpeedSessionCaption",
         )
+        self.output_label.primary_label.setTextColor(*_SECONDARY_TEXT_COLORS)
+        self.output_label.secondary_label.setTextColor(*_SECONDARY_TEXT_COLORS)
         root_layout.addWidget(self.output_label)
 
         action_layout = QHBoxLayout()
@@ -226,15 +301,15 @@ class FullSpeedSessionCard(CardWidget):
         """
         self.title_label.setText(session.display_name)
         self.status_label.setText(_STATUS_TEXT[state.status])
+        self._apply_status_visuals(state.status)
         slice_text = (
             f" · 切片 {state.current_slice}/{state.total_slices}"
             if state.total_slices
             else ""
         )
-        self.stage_label.setText(
-            f"{state.current_stage}{slice_text} · {state.progress}%"
-        )
+        self.stage_label.setText(f"{state.current_stage}{slice_text}")
         self.progress_bar.setValue(state.progress)
+        self.progress_label.setText(f"{state.progress}%")
         self.message_label.setText(state.message)
 
         output_text = state.output_file or state.output_dir
@@ -258,6 +333,32 @@ class FullSpeedSessionCard(CardWidget):
         self.cancel_button.setEnabled(running)
         self.open_button.setEnabled(bool(state.output_file))
         self.delete_button.setEnabled(not running and not exporting)
+
+    def _apply_status_visuals(self, status: FullSpeedStatus) -> None:
+        """同步状态图标、文字颜色及组件库进度条状态。"""
+        icon, level, light_color, dark_color = _STATUS_VISUALS[status]
+        self.status_badge.setIcon(icon)
+        self.status_badge.setLevel(level)
+        for label in (
+            self.status_label,
+            self.stage_label,
+            self.progress_label,
+        ):
+            label.setTextColor(light_color, dark_color)
+
+        # 先恢复默认状态和主题色，避免重试时继承上一状态的暂停色或成功色。
+        self.progress_bar.resume()
+        self.progress_bar.setCustomBarColor(QColor(), QColor())
+        if status is FullSpeedStatus.SUCCEEDED:
+            self.progress_bar.setCustomBarColor("#107c10", "#6ccb5f")
+        elif status is FullSpeedStatus.FAILED:
+            self.progress_bar.error()
+        elif status in {
+            FullSpeedStatus.EXPORTING,
+            FullSpeedStatus.CANCELLED,
+            FullSpeedStatus.INTERRUPTED,
+        }:
+            self.progress_bar.pause()
 
 
 class FullSpeedSessionPanel(SimpleCardWidget):
