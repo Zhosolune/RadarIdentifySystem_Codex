@@ -5,7 +5,15 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
+from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtGui import QEnterEvent
+from PyQt6.QtWidgets import (
+    QAbstractScrollArea,
+    QApplication,
+    QLabel,
+    QSizePolicy,
+    QWidget,
+)
 from qfluentwidgets import Flyout, FlyoutAnimationType
 
 from core.models.dashboard_info import ExcelDashboardInfo
@@ -94,6 +102,112 @@ def test_home_interface_hosts_data_pool_and_two_peer_session_panels() -> None:
         interface.full_speed_session_panel.objectName()
         == "homeFullSpeedSessionPanel"
     )
+
+
+def test_home_scroll_bars_only_show_on_hover_when_content_overflows() -> None:
+    """主页全部滚动区域应在移出时隐藏，移入后按原方向策略按需显示。"""
+    app = _app()
+    interface = HomeInterface()
+    interface.resize(1200, 720)
+    interface.show()
+    app.processEvents()
+
+    scroll_areas = interface.findChildren(QAbstractScrollArea)
+    assert len(interface._scrollbar_hover_controllers) == len(scroll_areas)
+    assert scroll_areas
+
+    # 初始状态下，Fluent 覆盖式和 Qt 原生滚动条均应统一隐藏。
+    for scroll_area in scroll_areas:
+        scroll_delegate = getattr(scroll_area, "scrollDelagate", None)
+        if scroll_delegate is None:
+            scroll_delegate = getattr(scroll_area, "delegate", None)
+        vertical_bar = getattr(scroll_delegate, "vScrollBar", None)
+        horizontal_bar = getattr(scroll_delegate, "hScrollBar", None)
+        if vertical_bar is not None and horizontal_bar is not None:
+            assert vertical_bar._isForceHidden
+            assert horizontal_bar._isForceHidden
+        else:
+            assert (
+                scroll_area.verticalScrollBarPolicy()
+                is Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            )
+            assert (
+                scroll_area.horizontalScrollBarPolicy()
+                is Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            )
+
+    left_scroll_area = interface.findChild(
+        QAbstractScrollArea,
+        "homeLeftScrollArea",
+    )
+    assert left_scroll_area is not None
+    left_delegate = left_scroll_area.scrollDelagate
+    left_delegate.vScrollBar.setRange(0, 100)
+    left_delegate.hScrollBar.setRange(0, 100)
+
+    enter_event = QEnterEvent(
+        QPointF(10, 10),
+        QPointF(10, 10),
+        QPointF(10, 10),
+    )
+    QApplication.sendEvent(left_scroll_area.viewport(), enter_event)
+
+    assert not left_delegate.vScrollBar._isForceHidden
+    assert left_delegate.vScrollBar.isVisible()
+    # 左栏原本禁止水平滚动，悬停不得破坏该方向约束。
+    assert left_delegate.hScrollBar._isForceHidden
+    assert not left_delegate.hScrollBar.isVisible()
+
+    QApplication.sendEvent(
+        left_scroll_area,
+        QEvent(QEvent.Type.Leave),
+    )
+    assert left_delegate.vScrollBar._isForceHidden
+    assert not left_delegate.vScrollBar.isVisible()
+
+    # 即使鼠标位于区域内，无实际滚动范围时也不得显示空滚动条。
+    left_delegate.vScrollBar.setRange(0, 0)
+    QApplication.sendEvent(
+        left_scroll_area.viewport(),
+        QEnterEvent(
+            QPointF(10, 10),
+            QPointF(10, 10),
+            QPointF(10, 10),
+        ),
+    )
+    assert not left_delegate.vScrollBar._isForceHidden
+    assert not left_delegate.vScrollBar.isVisible()
+
+    native_scroll_area = interface.findChild(
+        QAbstractScrollArea,
+        "cardNavigationScrollArea",
+    )
+    assert native_scroll_area is not None
+    QApplication.sendEvent(
+        native_scroll_area.viewport(),
+        QEnterEvent(
+            QPointF(10, 10),
+            QPointF(10, 10),
+            QPointF(10, 10),
+        ),
+    )
+    assert (
+        native_scroll_area.verticalScrollBarPolicy()
+        is Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
+    assert (
+        native_scroll_area.horizontalScrollBarPolicy()
+        is Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    QApplication.sendEvent(
+        native_scroll_area,
+        QEvent(QEvent.Type.Leave),
+    )
+    assert (
+        native_scroll_area.verticalScrollBarPolicy()
+        is Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    interface.close()
 
 
 def test_import_data_panel_reports_selected_excel_format() -> None:

@@ -1,5 +1,47 @@
 # 变更记录
 
+- 时间：2026-07-30 16:42
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\adapters\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按 UI 内部职责边界迁移 interface 中的适配策略、可视组件、交互编排和页面装配逻辑。
+- 原因：interface 应聚焦页面组合；通用 Qt/Fluent 兼容策略、日志业务动作、默认 Session 创建及控制器装配不应继续混入页面实现。
+- 计划清单：
+  - [ ] 建立滚动条、响应式宽度、主题配置和桌面服务 UI adapters。
+  - [ ] 提取日志设置卡组件并新增设置控制器。
+  - [ ] 收敛 Home、Setting、Params、Model interfaces 为页面组合与视图 API。
+  - [ ] 移除 `SliceInterface` 默认 Session 创建并统一页面控制器装配。
+  - [ ] 迁移相关测试并执行分层、主页、设置、参数、模型和切片回归。
+- 验证结果：待完成。
+- 测试状态：[待测试]
+
+- 时间：2026-07-30 16:06
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：统一主页全部滚动区域的悬停按需显示行为。
+- 原因：主页多层滚动区域持续显示滚动条会造成额外视觉干扰，需要仅在鼠标进入对应区域且内容溢出时展示。
+- 计划清单：
+  - [x] 统一接管主页原生及 Fluent 覆盖式滚动条的悬停显隐。
+  - [x] 保留各滚动区域原有方向策略，禁止方向不得因悬停重新出现。
+  - [x] 覆盖无溢出、溢出、移入、移出及嵌套滚动区域回归。
+- 验证结果：
+  - 主页构建完成后自动发现全部 `QAbstractScrollArea`，统一覆盖左栏、文件表格、数据池、Session 导航、Session 详情和全速任务等嵌套滚动区域。
+  - 区域外强制隐藏；进入滚动区域或其视口后恢复原方向策略，并由实际滚动范围决定是否显示；无溢出时保持隐藏。
+  - 从视口移向 Fluent 覆盖式滚动条时延后核验真实指针位置，避免滚动条刚出现便因视口 `Leave` 事件消失。
+  - 主页完整回归通过（6 passed，1 warning）；相关子面板非既有失败回归通过（19 passed，3 deselected，1 warning）。
+  - 排除的三项均为既有断言：Session 标题仍断言旧文案“Session 管理”，以及全速任务滚动沟槽仍要求 20px 和额外 8px 间距；本次未修改这些业务与布局。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-30 15:42
 - 操作类型：[修改]
 - 影响文件：
