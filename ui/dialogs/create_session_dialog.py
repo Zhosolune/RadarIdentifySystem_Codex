@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QButtonGroup, QHBoxLayout, QTextEdit, QWidget
+from PyQt6.QtWidgets import QButtonGroup, QHBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
     LineEdit,
     MessageBoxBase,
     RadioButton,
     SubtitleLabel,
+    TextEdit,
 )
 
 from core.models.processing_session import ProcessingMode
@@ -49,22 +50,6 @@ class CreateSessionDialog(MessageBoxBase):
 
         # 创建标题文本。
         title_label = SubtitleLabel("创建 Session", self)
-        # 创建名称说明文本。
-        name_hint_label = BodyLabel("请输入 Session 名称", self)
-        # 创建名称输入框。
-        self.name_line_edit = LineEdit(self)
-        self.name_line_edit.setPlaceholderText(
-            f"留空则默认使用 {self._default_display_name}"
-        )
-        self.name_line_edit.setClearButtonEnabled(True)
-
-        # 创建备注说明文本。
-        remark_hint_label = BodyLabel("请输入备注信息", self)
-        # 创建备注输入框。
-        self.remark_text_edit = QTextEdit(self)
-        self.remark_text_edit.setPlaceholderText("留空则默认使用“无”")
-        self.remark_text_edit.setFixedHeight(100)
-
         # 创建处理模式单选项；两类 Session 在主页中进入不同的同级体系。
         mode_hint_label = BodyLabel("请选择 Session 处理方式", self)
         mode_layout = QHBoxLayout()
@@ -78,8 +63,28 @@ class CreateSessionDialog(MessageBoxBase):
         mode_layout.addWidget(self.interactive_radio)
         mode_layout.addWidget(self.full_speed_radio)
 
+        # 创建名称说明文本。
+        name_hint_label = BodyLabel("请输入 Session 名称", self)
+        # 创建名称输入框。
+        self.name_line_edit = LineEdit(self)
+        self.name_line_edit.setPlaceholderText(
+            f"留空则默认使用 {self._default_display_name}"
+        )
+        self.name_line_edit.setClearButtonEnabled(True)
+
+        # 创建备注说明文本。
+        remark_hint_label = BodyLabel("请输入备注信息", self)
+        # 使用组件库富文本框统一焦点边框、菜单和滚动条样式。
+        self.remark_text_edit = TextEdit(self)
+        self.remark_text_edit.setPlaceholderText("留空则默认使用“无”")
+        self.remark_text_edit.setFixedHeight(100)
+
         # 组装视图布局。
         self.viewLayout.addWidget(title_label)
+        self.viewLayout.addSpacing(12)
+        self.viewLayout.addWidget(mode_hint_label)
+        self.viewLayout.addSpacing(6)
+        self.viewLayout.addLayout(mode_layout)
         self.viewLayout.addSpacing(12)
         self.viewLayout.addWidget(name_hint_label)
         self.viewLayout.addSpacing(6)
@@ -88,10 +93,6 @@ class CreateSessionDialog(MessageBoxBase):
         self.viewLayout.addWidget(remark_hint_label)
         self.viewLayout.addSpacing(6)
         self.viewLayout.addWidget(self.remark_text_edit)
-        self.viewLayout.addSpacing(12)
-        self.viewLayout.addWidget(mode_hint_label)
-        self.viewLayout.addSpacing(6)
-        self.viewLayout.addLayout(mode_layout)
 
         # 设置按钮文案。
         self.yesButton.setText("创建")

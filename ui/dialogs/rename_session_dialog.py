@@ -11,7 +11,13 @@ Example:
 
 from __future__ import annotations
 
-from qfluentwidgets import BodyLabel, LineEdit, MessageBoxBase, PlainTextEdit, SubtitleLabel
+from qfluentwidgets import (
+    BodyLabel,
+    LineEdit,
+    MessageBoxBase,
+    SubtitleLabel,
+    TextEdit,
+)
 
 
 class RenameSessionDialog(MessageBoxBase):
@@ -58,8 +64,8 @@ class RenameSessionDialog(MessageBoxBase):
 
         # 创建备注输入提示。
         remark_hint_label = BodyLabel("Session 备注", self)
-        # 创建多行备注输入框。
-        self.remark_text_edit = PlainTextEdit(self)
+        # 使用组件库富文本框统一焦点边框、菜单和滚动条样式。
+        self.remark_text_edit = TextEdit(self)
         self.remark_text_edit.setPlaceholderText("可填写数据来源、处理目的或当前进度说明")
         self.remark_text_edit.setPlainText(current_remark)
         self.remark_text_edit.setFixedHeight(120)

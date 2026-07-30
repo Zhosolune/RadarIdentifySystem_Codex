@@ -5,12 +5,14 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
+from qfluentwidgets import ScrollArea, TextEdit
 
 from core.models.dashboard_info import ExcelDashboardInfo
 from core.models.processing_session import ProcessingSession
 from ui.components.card_navigation_list import UNIFIED_NAVIGATION_FONT_FAMILIES
 from ui.components.session_manager_panel import SessionManagerPanel
+from ui.dialogs.rename_session_dialog import RenameSessionDialog
 
 
 _APP: QApplication | None = None
@@ -69,6 +71,11 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
     assert panel._remark_value_label.text() == "无"
     assert len(panel._metric_cards) == 6
     assert len(panel.session_command_bar.actions()) == 4
+    assert panel._header_layout.indexOf(panel.session_command_bar) >= 0
+    assert panel._detail_layout.indexOf(panel.session_command_bar) == -1
+    assert not hasattr(panel, "create_session_button")
+    assert isinstance(panel._detail_info_scroll_area, ScrollArea)
+    assert panel._detail_info_scroll_area.widget() is panel._detail_info_widget
     assert panel.jump_button.text() == "跳转到 Session"
     assert panel.jump_button.isEnabled() is True
     assert panel.enable_action.text() == "已启用"
@@ -83,6 +90,68 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
     ]
     assert info_titles == ["Session ID：", "文件名：", "文件大小：", "文件路径：", "备注信息："]
     assert panel.session_titles() == ["A.xlsx"]
+
+
+def test_session_manager_detail_info_scroll_area_uses_remaining_space() -> None:
+    """详情滚动区应自然伸缩，长内容不得改变管理面板最小高度。"""
+    app = _app()
+    panel = SessionManagerPanel()
+    panel.resize(900, 420)
+    long_session = ProcessingSession(
+        session_id="session-long-remark",
+        source_path=(
+            "E:/radar/session/with/a/very/long/source/path/"
+            "that/needs/to/wrap/source.xlsx"
+        ),
+        display_name="长备注.xlsx",
+        remark="\n".join(f"第 {index + 1} 行备注" for index in range(40)),
+    )
+
+    panel.set_sessions([long_session])
+    panel.show()
+    app.processEvents()
+
+    scroll_area = panel._detail_info_scroll_area
+    initial_scroll_height = scroll_area.height()
+    assert scroll_area.verticalScrollBar().maximum() > 0
+    assert scroll_area.scrollDelagate.hScrollBar._isForceHidden
+    assert not scroll_area.scrollDelagate.vScrollBar._isForceHidden
+
+    short_panel = SessionManagerPanel()
+    short_panel.resize(900, 420)
+    short_session = ProcessingSession(
+        session_id="session-short-remark",
+        display_name="短备注.xlsx",
+        remark="短备注",
+    )
+    short_panel.set_sessions([short_session])
+    short_panel.show()
+    app.processEvents()
+    assert (
+        panel.minimumSizeHint().height()
+        == short_panel.minimumSizeHint().height()
+    )
+    assert short_panel._detail_info_scroll_area.verticalScrollBar().maximum() == 0
+
+    panel.resize(900, 600)
+    app.processEvents()
+    assert scroll_area.height() > initial_scroll_height
+    assert scroll_area.verticalScrollBar().maximum() > 0
+    short_panel.close()
+    panel.close()
+
+
+def test_session_metadata_dialog_uses_fluent_rich_text_remark_editor() -> None:
+    """编辑 Session 信息时应使用组件库 TextEdit 并返回纯文本备注。"""
+    _app()
+    parent = QWidget()
+    dialog = RenameSessionDialog("A.xlsx", "原备注", parent)
+
+    assert isinstance(dialog.remark_text_edit, TextEdit)
+    assert dialog.remark_text_edit.acceptRichText()
+    assert dialog.remark_text_edit.toPlainText() == "原备注"
+    dialog.remark_text_edit.setPlainText("新备注")
+    assert dialog.get_remark() == "新备注"
 
 
 def test_session_manager_panel_card_click_only_switches_detail_selection() -> None:

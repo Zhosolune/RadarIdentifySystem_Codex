@@ -10,7 +10,13 @@ from PyQt6.QtWidgets import (
     QApplication,
     QWidget,
 )
-from qfluentwidgets import CardWidget, PrimaryPushButton, ScrollArea
+from qfluentwidgets import (
+    BodyLabel,
+    CardWidget,
+    PrimaryPushButton,
+    ScrollArea,
+    TextEdit,
+)
 
 from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.session_config import SessionConfigSnapshot
@@ -38,11 +44,22 @@ def _app() -> QApplication:
 
 
 def test_create_session_dialog_selects_peer_processing_mode() -> None:
-    """创建窗口应默认交互式，并可切换到全速处理体系。"""
+    """创建窗口应优先选择处理方式并使用 Fluent 富文本备注框。"""
     _app()
     parent = QWidget()
     dialog = CreateSessionDialog("demo.xlsx", parent)
+    hint_labels = {
+        label.text(): label
+        for label in dialog.findChildren(BodyLabel)
+    }
 
+    assert isinstance(dialog.remark_text_edit, TextEdit)
+    assert dialog.remark_text_edit.acceptRichText()
+    assert (
+        dialog.viewLayout.indexOf(hint_labels["请选择 Session 处理方式"])
+        < dialog.viewLayout.indexOf(hint_labels["请输入 Session 名称"])
+        < dialog.viewLayout.indexOf(hint_labels["请输入备注信息"])
+    )
     assert dialog.get_processing_mode() is ProcessingMode.SLICE_INTERACTIVE
     dialog.full_speed_radio.setChecked(True)
     assert dialog.get_processing_mode() is ProcessingMode.FULL_SPEED

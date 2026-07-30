@@ -15,10 +15,8 @@ from qfluentwidgets import (
     CommandBar,
     FluentIcon,
     PrimaryPushButton,
+    ScrollArea,
     SimpleCardWidget,
-    ToolTipFilter,
-    ToolTipPosition,
-    TransparentPushButton,
 )
 from qfluentwidgets.common.font import setFont
 
@@ -83,15 +81,6 @@ class SessionManagerPanel(SimpleCardWidget):
         self.session_title_label.setObjectName("sessionManagerTitleLabel")
         setFont(self.session_title_label, 14)
 
-        # 创建透明按钮。
-        self.create_session_button = TransparentPushButton("新建", self, FluentIcon.ADD)
-        self.create_session_button.setObjectName("createSessionButton")
-        self.create_session_button.setFixedHeight(34)
-        self.create_session_button.setToolTip("新建空白 Session")
-        self.create_session_button.installEventFilter(
-            ToolTipFilter(self.create_session_button, 500, ToolTipPosition.TOP)
-        )
-
         # 创建标题分隔线。
         self.session_header_separator = QWidget(self)
         self.session_header_separator.setObjectName("sessionManagerSeparator")
@@ -121,13 +110,12 @@ class SessionManagerPanel(SimpleCardWidget):
         self.session_detail_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # 创建详情命令栏。
-        self.session_command_bar = CommandBar(self._detail_widget)
+        self.session_command_bar = CommandBar(self)
         self.session_command_bar.setObjectName("sessionDetailCommandBar")
         self.session_command_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.session_command_bar.setButtonTight(True)
         self.enable_action = Action(FluentIcon.ACCEPT, "启用")
         self.close_action = Action(FluentIcon.CLOSE, "关闭")
-        self.edit_remark_action = Action(FluentIcon.EDIT, "编辑备注")
         self.rename_action = Action(FluentIcon.EDIT, "编辑信息")
         self.delete_action = Action(FluentIcon.DELETE, "删除")
         self.delete_action.setProperty("danger", True)
@@ -147,8 +135,24 @@ class SessionManagerPanel(SimpleCardWidget):
         self._detail_content.setObjectName("sessionDetailContent")
         self._detail_metrics_widget = QWidget(self._detail_content)
         self._detail_metrics_widget.setObjectName("sessionDetailMetrics")
-        self._detail_info_widget = QWidget(self._detail_content)
+
+        # 基础信息使用 Fluent 滚动区，自然占据剩余高度并承载长路径和长备注。
+        self._detail_info_scroll_area = ScrollArea(self._detail_content)
+        self._detail_info_scroll_area.setObjectName("sessionDetailInfoScrollArea")
+        self._detail_info_scroll_area.setWidgetResizable(True)
+        self._detail_info_scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._detail_info_scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self._detail_info_widget = QWidget()
         self._detail_info_widget.setObjectName("sessionDetailInfoPanel")
+        self._detail_info_scroll_area.setWidget(self._detail_info_widget)
+        self._detail_info_scroll_area.viewport().setObjectName(
+            "sessionDetailInfoViewport"
+        )
+        self._detail_info_scroll_area.enableTransparentBackground()
 
         self._detail_name_label = BodyLabel("数据包信息", self._detail_content)
         self._detail_name_label.setObjectName("sessionDetailName")
@@ -190,7 +194,7 @@ class SessionManagerPanel(SimpleCardWidget):
         self._header_layout.setSpacing(8)
         self._header_layout.addWidget(self.session_title_label)
         self._header_layout.addStretch(1)
-        self._header_layout.addWidget(self.create_session_button)
+        self._header_layout.addWidget(self.session_command_bar)
 
         # 内容区双栏布局。
         self._content_layout.setContentsMargins(8, 7, 8, 8)
@@ -199,7 +203,6 @@ class SessionManagerPanel(SimpleCardWidget):
         # 详情区布局。
         self._detail_layout.setContentsMargins(8, 8, 8, 8)
         self._detail_layout.setSpacing(8)
-        self._detail_layout.addWidget(self.session_command_bar, 0, Qt.AlignmentFlag.AlignLeft)
         self._detail_layout.addWidget(self.session_detail_placeholder, 1)
         self._detail_layout.addWidget(self._detail_content, 1)
 
@@ -234,8 +237,7 @@ class SessionManagerPanel(SimpleCardWidget):
         detail_content_layout.setSpacing(8)
         detail_content_layout.addWidget(self._detail_name_label)
         detail_content_layout.addWidget(self._detail_metrics_widget)
-        detail_content_layout.addWidget(self._detail_info_widget)
-        detail_content_layout.addStretch(1)
+        detail_content_layout.addWidget(self._detail_info_scroll_area)
         detail_content_layout.addLayout(jump_layout)
 
         # 按“标题栏 + 分隔线 + 内容区”顺序挂接布局。
@@ -256,10 +258,6 @@ class SessionManagerPanel(SimpleCardWidget):
         # 发射关闭动作信号。
         self.close_action.triggered.connect(
             lambda _checked=False: self._emit_action_for_selected(self.sessionCloseRequested)
-        )
-        # 发射备注编辑动作信号。
-        self.edit_remark_action.triggered.connect(
-            lambda _checked=False: self._emit_action_for_selected(self.sessionRemarkEditRequested)
         )
         # 发射重命名动作信号。
         self.rename_action.triggered.connect(
