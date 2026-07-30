@@ -407,29 +407,35 @@ def test_home_create_action_delegates_mode_and_package(
             """返回全速模式。"""
             return ProcessingMode.FULL_SPEED
 
-    class _Window:
-        """记录创建请求的窗口替身。"""
-
-        def create_session_from_data_package(self, *args):
-            """记录参数并返回展示对象。"""
-            captured["args"] = args
-            return SimpleNamespace(display_name=args[2])
-
     class _View(QObject):
-        """返回窗口替身的最小视图。"""
+        """提供消息条父对象的最小视图。"""
 
         def __init__(self) -> None:
-            """初始化窗口替身。"""
+            """初始化最小视图。"""
             super().__init__()
-            self._window = _Window()
 
         def window(self):
-            """返回窗口替身。"""
-            return self._window
+            """返回自身作为消息条父对象。"""
+            return self
+
+    class _Coordinator:
+        """记录 Session 构造与注册请求的协调器替身。"""
+
+        def build_session_from_data_package(self, *args):
+            """记录构造参数并返回展示对象。"""
+            captured["args"] = args
+            return SimpleNamespace(session_id="full-speed", display_name=args[2])
+
+        def register_full_speed_session(self, session):
+            """记录全速 Session 注册对象。"""
+            captured["registered"] = session
+            return session
 
     controller = HomeController.__new__(HomeController)
     controller.view = _View()
     controller.data_pool_registry = registry
+    controller.session_coordinator = _Coordinator()
+    controller.interactive_session_registrar = None
     controller._show_top_warning = lambda _title, _content: None
     monkeypatch.setattr(home_controller_module, "CreateSessionDialog", _DialogStub)
     monkeypatch.setattr(

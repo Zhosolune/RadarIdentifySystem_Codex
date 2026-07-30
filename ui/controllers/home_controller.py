@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, Qt, QTimer
@@ -13,12 +14,18 @@ from app.app_config import appConfig
 from core.models.data_package import DataPackage
 from infra.import_file_list_manager import ImportFileListManager
 from runtime.data_pool_registry import DataPoolRegistry
+from runtime.session_coordinator import (
+    ProcessingMode,
+    ProcessingSession,
+    SessionCoordinator,
+)
 from runtime.workflows.import_workflow import import_workflow
 from ui.dialogs.create_session_dialog import CreateSessionDialog
 from ui.dialogs.processing_dialog import ProcessingDialog
 
 if TYPE_CHECKING:
     from ui.interfaces.home_interface import HomeInterface
+    from ui.interfaces.slice_interface import SliceInterface
 
 
 class HomeController(QObject):
@@ -36,12 +43,18 @@ class HomeController(QObject):
         self,
         view: HomeInterface,
         data_pool_registry: DataPoolRegistry,
+        session_coordinator: SessionCoordinator | None = None,
+        interactive_session_registrar: (
+            Callable[[ProcessingSession], SliceInterface] | None
+        ) = None,
     ) -> None:
         """初始化主页控制器。
 
         Args:
             view: 主页视图实例，必须包含导入面板和数据池面板。
             data_pool_registry: 主窗口共享的数据池注册器。
+            session_coordinator: Session 生命周期协调器；独立导入测试可不提供。
+            interactive_session_registrar: 注册交互式 Session 并创建动态页面的回调。
 
         Returns:
             None: 无返回值。
@@ -52,6 +65,8 @@ class HomeController(QObject):
         super().__init__(view)
         self.view = view
         self.data_pool_registry = data_pool_registry
+        self.session_coordinator = session_coordinator
+        self.interactive_session_registrar = interactive_session_registrar
         self.file_manager = ImportFileListManager()
         self._active_parse_package_id: str | None = None
         self._processing_dialog: ProcessingDialog | None = None
@@ -281,7 +296,7 @@ class HomeController(QObject):
             return
 
         window = self.view.window()
-        if window is None or not hasattr(window, "create_session_from_data_package"):
+        if self.session_coordinator is None:
             self._show_top_warning("创建失败", "当前窗口不支持数据池 Session。")
             return
 
@@ -294,7 +309,7 @@ class HomeController(QObject):
         session_remark = dialog.get_session_remark().strip() or "无"
         processing_mode = dialog.get_processing_mode()
         try:
-            session = window.create_session_from_data_package(
+            session = self.create_session(
                 package_id,
                 processing_mode,
                 session_name,
@@ -318,6 +333,46 @@ class HomeController(QObject):
             parent=self.view.window() or self.view,
         )
 
+    def create_session(
+        self,
+        package_id: str,
+        processing_mode: ProcessingMode,
+        display_name: str,
+        remark: str,
+    ) -> ProcessingSession:
+        """从数据包创建并注册指定处理模式的 Session。
+
+        Args:
+            package_id [str]: 来源数据包 ID。
+            processing_mode [ProcessingMode]: 交互式或全速处理模式。
+            display_name [str]: Session 展示名称。
+            remark [str]: Session 备注。
+
+        Returns:
+            ProcessingSession: 已注册到对应体系的 Session。
+
+        Raises:
+            RuntimeError: Session 协调器或交互式页面注册回调缺失时抛出。
+            KeyError: 数据包不存在时抛出。
+            OSError: Session 持久化失败时抛出。
+        """
+        if self.session_coordinator is None:
+            raise RuntimeError("Session 协调器尚未配置")
+        session = self.session_coordinator.build_session_from_data_package(
+            package_id,
+            processing_mode,
+            display_name,
+            remark,
+        )
+        if processing_mode is ProcessingMode.FULL_SPEED:
+            self.session_coordinator.register_full_speed_session(session)
+            signal_bus.session_registered.emit(session.session_id)
+            return session
+        if self.interactive_session_registrar is None:
+            raise RuntimeError("交互式 Session 页面注册器尚未配置")
+        self.interactive_session_registrar(session)
+        return session
+
     def delete_data_package(self, package_id: str) -> None:
         """确认后删除未被任何 Session 引用的数据包。
 
@@ -340,11 +395,9 @@ class HomeController(QObject):
         )
         if not dialog.exec():
             return
-        window = self.view.window()
         referenced_ids = (
-            window.referenced_data_package_ids()
-            if window is not None
-            and hasattr(window, "referenced_data_package_ids")
+            self.session_coordinator.referenced_data_package_ids()
+            if self.session_coordinator is not None
             else set()
         )
         try:

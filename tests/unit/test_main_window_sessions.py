@@ -272,7 +272,10 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
         signal_bus.session_registered.connect(received_registered.append)
         signal_bus.session_activated.connect(received_activated.append)
 
-        interface = window.create_session_from_parsed(session)
+        interface = window.session_manager_controller.add_session_from_import(
+            session,
+            activate=True,
+        )
 
         assert window.session_registry.get("session_imported") is session
         assert window.session_registry.active_session_id == "session_imported"
@@ -344,7 +347,9 @@ def test_main_window_add_session_from_import_stays_on_home_and_persists_remark(
         signal_bus.session_registered.connect(received_registered.append)
         signal_bus.session_activated.connect(received_activated.append)
 
-        interface = window.add_session_from_import(session)
+        interface = window.session_manager_controller.add_session_from_import(
+            session
+        )
         persisted_session = window.session_registry.store.load_session(session.session_id)
 
         assert window.session_registry.get(session.session_id) is session
@@ -386,7 +391,10 @@ def test_session_drawer_config_change_is_persisted(
             source_path="E:/data/config.xlsx",
             source_type="excel",
         )
-        interface = window.create_session_from_parsed(session)
+        interface = window.session_manager_controller.add_session_from_import(
+            session,
+            activate=True,
+        )
         target_value = not bool(interface.slice_param_panel.auto_recognize_item.value)
 
         interface.slice_param_panel.auto_recognize_card.setChecked(target_value)
@@ -512,7 +520,10 @@ def test_main_window_close_does_not_persist_home_exit_view(
 
     first_window = MainWindow(session_registry=SessionRegistry(store))
     try:
-        first_window.create_session_from_parsed(session)
+        first_window.session_manager_controller.add_session_from_import(
+            session,
+            activate=True,
+        )
         first_window.switchTo(first_window.homeInterface)
         first_window.close()
         QApplication.processEvents()
@@ -560,7 +571,10 @@ def test_main_window_close_does_not_persist_session_exit_view(
 
     first_window = MainWindow(session_registry=SessionRegistry(store))
     try:
-        first_window.create_session_from_parsed(session)
+        first_window.session_manager_controller.add_session_from_import(
+            session,
+            activate=True,
+        )
         first_window.close()
         QApplication.processEvents()
         payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
@@ -664,7 +678,10 @@ def test_home_session_manager_lists_created_session(
             source_type="excel",
         )
 
-        window.create_session_from_parsed(session)
+        window.session_manager_controller.add_session_from_import(
+            session,
+            activate=True,
+        )
 
         titles = window.homeInterface.session_manager_panel.session_titles()
         assert session.display_name in titles
@@ -691,7 +708,10 @@ def test_main_window_close_session_keeps_card_and_registry_entry(
             display_name="close.xlsx",
         )
 
-        window.create_session_from_parsed(session)
+        window.session_manager_controller.add_session_from_import(
+            session,
+            activate=True,
+        )
         window.homeInterface.session_manager_panel.sessionCloseRequested.emit(session.session_id)
 
         panel = window.homeInterface.session_manager_panel
@@ -728,7 +748,10 @@ def test_main_window_delete_session_removes_card_and_persisted_data(
             display_name="delete.xlsx",
         )
 
-        window.create_session_from_parsed(session)
+        window.session_manager_controller.add_session_from_import(
+            session,
+            activate=True,
+        )
         window.homeInterface.session_manager_panel.sessionDeleteRequested.emit(session.session_id)
 
         panel = window.homeInterface.session_manager_panel
@@ -785,7 +808,10 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
         monkeypatch.setattr(window, "create_session_interface", _raise_page_error)
 
         try:
-            window.create_session_from_parsed(session)
+            window.session_manager_controller.add_session_from_import(
+                session,
+                activate=True,
+            )
         except RuntimeError as exc:
             assert str(exc) == "page creation failed"
         else:

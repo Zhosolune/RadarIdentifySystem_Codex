@@ -7,6 +7,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QApplication
 
+from app.application import create_application_services
 from core.models.processing_session import ProcessingSession
 from infra.session_store import SessionStore
 from runtime.session_registry import SessionRegistry
@@ -30,28 +31,23 @@ def _app() -> QApplication:
 class _FakeMainWindow(QObject):
     """提供控制器测试所需的最小主窗口接口。"""
 
-    def __init__(self, registry: SessionRegistry) -> None:
+    def __init__(self) -> None:
         """初始化假主窗口并记录刷新与导航更新调用。"""
         super().__init__()
-        self.session_registry = registry
         self.refreshed_session_ids: list[str | None] = []
         self.navigation_text_updates: list[tuple[str, str]] = []
-
-    def refresh_session_manager_panel(self, selected_session_id: str | None = None) -> None:
-        """记录 Session 管理器刷新请求。"""
-        self.refreshed_session_ids.append(selected_session_id)
 
     def set_session_navigation_text(self, session_id: str, display_name: str) -> None:
         """记录 Session 导航文案更新请求。"""
         self.navigation_text_updates.append((session_id, display_name))
 
-    def activate_session_interface(self, session_id: str) -> None:
-        """满足控制器跳转信号连接所需的占位接口。"""
-        return None
-
     def session_interface(self, session_id: str):
         """满足控制器启用或关闭逻辑所需的占位接口。"""
         return None
+
+    def enabled_session_ids(self) -> set[str]:
+        """返回空的已启用页面集合。"""
+        return set()
 
 
 class _AcceptedMetadataDialog:
@@ -86,14 +82,26 @@ def test_controller_updates_session_name_and_remark_from_one_dialog(
         ProcessingSession(session_id="session-a", source_path="E:/data/a.xlsx"),
     )
     view = SessionManagerPanel()
-    main_window = _FakeMainWindow(registry)
-    controller = SessionManagerController(view, main_window)
+    services = create_application_services(session_registry=registry)
+    main_window = _FakeMainWindow()
+    controller = SessionManagerController(
+        view,
+        main_window,
+        services.session_coordinator,
+    )
     monkeypatch.setattr(
         session_manager_controller,
         "RenameSessionDialog",
         _AcceptedMetadataDialog,
     )
     monkeypatch.setattr(controller, "_show_top_success", lambda title, content: None)
+    monkeypatch.setattr(
+        controller,
+        "refresh_panel",
+        lambda selected_session_id=None: (
+            main_window.refreshed_session_ids.append(selected_session_id)
+        ),
+    )
 
     view.sessionRenameRequested.emit(session.session_id)
 

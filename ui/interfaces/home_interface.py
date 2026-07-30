@@ -20,8 +20,6 @@ from ui.components import (
     JitterFreeCardGroup,
     SessionManagerPanel,
 )
-from ui.controllers.home_controller import HomeController
-from runtime.data_pool_registry import DataPoolRegistry
 
 
 class HomeInterface(QFrame):
@@ -40,13 +38,11 @@ class HomeInterface(QFrame):
     def __init__(
         self,
         parent: QWidget | None = None,
-        data_pool_registry: DataPoolRegistry | None = None,
     ) -> None:
         """初始化主页界面。
 
         Args:
             parent: 父级控件，默认值为 None。
-            data_pool_registry: 主窗口持有的数据池注册器。
 
         Returns:
             None: 无返回值。
@@ -59,10 +55,6 @@ class HomeInterface(QFrame):
         self.setObjectName("homeInterface")
         self._init_layout()
         StyleSheet.HOME_INTERFACE.apply(self)
-        self._home_controller = HomeController(
-            self,
-            data_pool_registry or DataPoolRegistry(),
-        )
 
     def _init_layout(self) -> None:
         """初始化两栏布局。

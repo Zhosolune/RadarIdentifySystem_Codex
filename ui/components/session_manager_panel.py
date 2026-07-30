@@ -216,14 +216,26 @@ class SessionManagerPanel(SimpleCardWidget):
         self._metrics_layout.setWidgetMinimumWidth(110)
 
         # 文件详情区域。
-        info_layout = QVBoxLayout(self._detail_info_widget)
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(5)
-        info_layout.addWidget(self._create_info_row("Session ID", self._session_id_value_label))
-        info_layout.addWidget(self._create_info_row("文件名", self._file_name_value_label))
-        info_layout.addWidget(self._create_info_row("文件大小", self._file_size_value_label))
-        info_layout.addWidget(self._create_info_row("文件路径", self._file_path_value_label))
-        info_layout.addWidget(self._create_info_row("备注信息", self._remark_value_label))
+        self._detail_info_layout = QVBoxLayout(self._detail_info_widget)
+        self._detail_info_layout.setContentsMargins(0, 0, 0, 0)
+        self._detail_info_layout.setSpacing(5)
+        self._detail_info_layout.addWidget(
+            self._create_info_row("Session ID", self._session_id_value_label)
+        )
+        self._detail_info_layout.addWidget(
+            self._create_info_row("文件名", self._file_name_value_label)
+        )
+        self._detail_info_layout.addWidget(
+            self._create_info_row("文件大小", self._file_size_value_label)
+        )
+        self._detail_info_layout.addWidget(
+            self._create_info_row("文件路径", self._file_path_value_label)
+        )
+        self._detail_info_layout.addWidget(
+            self._create_info_row("备注信息", self._remark_value_label)
+        )
+        # 由底部弹性空间吸收滚动视口新增高度，信息行保持自然高度和固定间距。
+        self._detail_info_layout.addStretch(1)
 
         # 跳转按钮布局。
         jump_layout = QHBoxLayout()

@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
 from qfluentwidgets import FluentTranslator
 from app.app_config import appConfig, qconfig
+from app.application import create_application_services
 from app.model_bootstrap import initialize_model_runtime
 from ui.main_window import MainWindow
 from app.logger import configure_logging, get_current_log_file_path
@@ -124,7 +125,8 @@ def main() -> None:
     # 初始化模型启用配置（内部完成 ONNX 模型预加载）
     initialize_model_runtime(write_log=True)
 
-    window = MainWindow()
+    # 在应用入口完成运行期依赖装配，主窗口只接收已构造的共享服务。
+    window = MainWindow(create_application_services())
     window.show()
 
     sys.exit(app.exec())

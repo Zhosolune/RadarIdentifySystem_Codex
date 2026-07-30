@@ -1,5 +1,61 @@
 # 变更记录
 
+- 时间：2026-07-30 14:56
+- 操作类型：[修复]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：固定 Session 详情信息项间距，将窗口新增高度全部留给滚动区底部空白。
+- 原因：详情滚动内容随视口增高后，垂直布局会把额外空间分配给各信息行，导致信息项间距被拉大。
+- 计划清单：
+  - [x] 将详情信息行保持自然高度并贴顶排列。
+  - [x] 使用滚动内容底部弹性空间吸收视口新增高度。
+  - [x] 补充窗口增高前后信息项位置和间距不变的回归测试。
+- 验证结果：
+  - 详情信息布局新增底部弹性空间；窗口从 900×420 增高到 900×700 后，五个信息行的纵向位置和高度保持完全一致。
+  - 同一过程中详情滚动区域高度正常增长，短内容仍无纵向滚动范围。
+  - Session 管理面板专项回归通过（8 passed，1 warning）。
+  - Session 管理控制器与主页布局相关回归通过（6 passed，1 warning）。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-30 12:21
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\session_manager_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\full_speed_session_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_coordinator.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\application.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\main.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_architecture.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按应用装配、Session 运行期协调、全速任务 UI 控制和主窗口页面宿主边界拆分 `MainWindow`。
+- 原因：主窗口同时承担持久化路径装配、Session 业务编排、全速任务控制和动态页面生命周期，违反 `ui -> runtime -> core` 分层约束并形成职责杂糅。
+- 计划清单：
+  - [x] 建立应用级依赖装配入口，移除主窗口对持久化目录结构的感知。
+  - [x] 建立 Session 运行期协调边界，承接创建、恢复、数据包挂接和引用查询。
+  - [x] 抽取全速 Session UI 控制器，保留现有参数、目录、启动、取消、删除和结果打开行为。
+  - [x] 将主窗口收敛为窗口初始化、导航和动态页面宿主。
+  - [x] 迁移控制器调用方并删除未挂载的静态 `SliceInterface` 及旧主窗口业务入口。
+  - [x] 执行静态检查及 Session、数据池、全速任务聚焦回归。
+- 验证结果：
+  - `ui/main_window.py` 从 837 行、32 个方法收敛为 370 行、14 个方法；不再导入 `core`/`infra`，也不包含目录选择、Excel 结果打开、Session 注册恢复或全速任务业务方法。
+  - 新增架构边界、数据池双模式路由、主页事件隔离、Session 控制器和主页布局回归合计 17 passed。
+  - 主窗口 Session 创建、恢复、导入缓存、关闭、删除和失败回滚回归全部通过（16 passed，1 warning）；pytest 已输出完整结果，进程仍受既有 Qt 清理挂起影响而被 180 秒外部超时终止。
+  - 数据池、SessionRegistry 和 SessionStore 回归通过（65 passed，1 warning）。
+  - 全速运行期及 UI 非既有失败项回归通过（11 passed，2 deselected，1 warning）。
+  - 全速 UI 完整运行仍有两个既有滚动沟槽断言失败：当前实现为 10px，但测试断言 20px，并要求额外 8px 卡片间距；本次未修改相关组件或 QSS。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-30 09:48
 - 操作类型：[修正]
 - 影响文件：

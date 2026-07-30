@@ -86,13 +86,13 @@ def test_main_window_routes_data_package_to_peer_session_systems(
         full_speed_session_registry=full_speed_registry,
     )
     try:
-        interactive = window.create_session_from_data_package(
+        interactive = window.home_controller.create_session(
             package.package_id,
             ProcessingMode.SLICE_INTERACTIVE,
             "交互任务",
             "无",
         )
-        full_speed = window.create_session_from_data_package(
+        full_speed = window.home_controller.create_session(
             package.package_id,
             ProcessingMode.FULL_SPEED,
             "全速任务",
@@ -111,8 +111,8 @@ def test_main_window_routes_data_package_to_peer_session_systems(
         assert full_speed.config_snapshot.business.auto_export
 
         # 参数窗口保存的是 Session 独立草稿。
-        window.open_full_speed_params(full_speed.session_id)
-        params_window = window._full_speed_param_windows[
+        window.full_speed_controller.open_parameters(full_speed.session_id)
+        params_window = window.full_speed_controller._param_windows[
             full_speed.session_id
         ]
         params_window.parameter_cards[
@@ -133,7 +133,7 @@ def test_main_window_routes_data_package_to_peer_session_systems(
             started.append,
         )
 
-        window.start_full_speed_session(full_speed.session_id)
+        window.full_speed_controller.start_session(full_speed.session_id)
 
         assert started == [full_speed.session_id]
         # 首次开始只冻结该 Session 草稿，不得再用全局参数覆盖。

@@ -141,6 +141,47 @@ def test_session_manager_detail_info_scroll_area_uses_remaining_space() -> None:
     panel.close()
 
 
+def test_session_manager_detail_rows_keep_spacing_when_window_grows() -> None:
+    """窗口增高时详情行位置不变，新增高度应由滚动区底部空白吸收。"""
+    app = _app()
+    panel = SessionManagerPanel()
+    panel.resize(900, 420)
+    session = ProcessingSession(
+        session_id="session-fixed-detail-spacing",
+        display_name="固定间距.xlsx",
+        remark="短备注",
+    )
+    panel.set_sessions([session])
+    panel.show()
+    app.processEvents()
+
+    rows = [
+        panel._detail_info_layout.itemAt(index).widget()
+        for index in range(5)
+    ]
+    assert all(row is not None for row in rows)
+    initial_geometries = [
+        (row.y(), row.height())
+        for row in rows
+        if row is not None
+    ]
+    initial_scroll_height = panel._detail_info_scroll_area.height()
+    assert panel._detail_info_layout.stretch(5) == 1
+
+    panel.resize(900, 700)
+    app.processEvents()
+
+    grown_geometries = [
+        (row.y(), row.height())
+        for row in rows
+        if row is not None
+    ]
+    assert grown_geometries == initial_geometries
+    assert panel._detail_info_scroll_area.height() > initial_scroll_height
+    assert panel._detail_info_scroll_area.verticalScrollBar().maximum() == 0
+    panel.close()
+
+
 def test_session_metadata_dialog_uses_fluent_rich_text_remark_editor() -> None:
     """编辑 Session 信息时应使用组件库 TextEdit 并返回纯文本备注。"""
     _app()
