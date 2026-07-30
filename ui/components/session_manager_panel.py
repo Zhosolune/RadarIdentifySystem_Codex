@@ -77,7 +77,7 @@ class SessionManagerPanel(SimpleCardWidget):
         self._metric_cards: list[DashboardCard] = []
 
         # 创建标题标签。
-        self.session_title_label = BodyLabel("Session 管理", self)
+        self.session_title_label = BodyLabel("切片处理", self)
         self.session_title_label.setObjectName("sessionManagerTitleLabel")
         setFont(self.session_title_label, 14)
 

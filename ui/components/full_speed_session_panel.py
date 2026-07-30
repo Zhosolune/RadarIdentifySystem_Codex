@@ -236,18 +236,6 @@ class FullSpeedSessionCard(CardWidget):
         self.cancel_button = PushButton("取消", self)
         self.open_button = PushButton("打开结果", self)
         self.delete_button = PushButton("删除", self)
-        # for button in (
-        #     self.output_button,
-        #     self.params_button,
-        #     self.open_button,
-        # ):
-        #     button.setFixedWidth(72)
-        # for button in (
-        #     self.start_button,
-        #     self.cancel_button,
-        #     self.delete_button,
-        # ):
-        #     button.setFixedWidth(56)
         for button in (
             self.output_button,
             self.params_button,
@@ -409,7 +397,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
 
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(20, 8, 8, 7)
-        title_label = BodyLabel("全速处理 Session", self)
+        title_label = BodyLabel("全速处理", self)
         title_label.setObjectName("fullSpeedPanelTitle")
         title_label.setFixedHeight(34)
         setFont(title_label, 14)
