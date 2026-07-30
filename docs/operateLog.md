@@ -1,25 +1,30 @@
 # 变更记录
 
-- 时间：2026-07-30 16:42
+- 时间：2026-07-30 17:12
 - 操作类型：[重构]
 - 影响文件：
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\adapters\`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\main_window.py`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
-- 变更摘要：按 UI 内部职责边界迁移 interface 中的适配策略、可视组件、交互编排和页面装配逻辑。
-- 原因：interface 应聚焦页面组合；通用 Qt/Fluent 兼容策略、日志业务动作、默认 Session 创建及控制器装配不应继续混入页面实现。
+- 变更摘要：按 KISS 原则迁移 interface 中真正可复用的 UI 策略、日志可视组件和日志业务编排，同时保留页面内的简单信号连接与控制器构造。
+- 原因：interface 应聚焦页面组合，但一行系统调用、简单主题信号连接和页面控制器构造不值得增加抽象层；仅有状态且跨页面复用的 UI 策略进入 adapters。
 - 计划清单：
-  - [ ] 建立滚动条、响应式宽度、主题配置和桌面服务 UI adapters。
-  - [ ] 提取日志设置卡组件并新增设置控制器。
-  - [ ] 收敛 Home、Setting、Params、Model interfaces 为页面组合与视图 API。
-  - [ ] 移除 `SliceInterface` 默认 Session 创建并统一页面控制器装配。
-  - [ ] 迁移相关测试并执行分层、主页、设置、参数、模型和切片回归。
-- 验证结果：待完成。
-- 测试状态：[待测试]
+  - [x] 将主页滚动条悬停显隐策略迁入 adapters。
+  - [x] 将 Setting、Params、Model 共用的响应式内容宽度策略迁入 adapters。
+  - [x] 提取日志设置卡组件和日志操作控制器，页面内保留一行控制器构造。
+  - [x] 移除 `SliceInterface` 默认 Session 创建，保留页面内三行控制器构造。
+  - [x] 删除无实际收益的桌面服务、主题同步和页面装配适配层。
+  - [x] 迁移相关测试并执行分层、主页、设置、参数、模型和切片回归。
+- 验证结果：
+  - adapters、Interface 职责、主页、参数、主窗口架构及导航回归通过（29 passed，1 warning）。
+  - 主窗口动态 Session 创建、复用与数据包双模式路由回归通过（3 passed，14 deselected，1 warning）。
+  - 切片与合并链路本次相关回归通过（26 passed，6 deselected，2 warnings）。
+  - 完整切片套件为 19 passed、3 failed；完整导航与合并套件为 31 passed、3 failed。失败均为既有展示文案/QSS 断言：分析表选择器、合并结果空格与“组/类”文案、快照标题文案，本次未修改对应组件和 QSS。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
 
 - 时间：2026-07-30 16:06
 - 操作类型：[修改]

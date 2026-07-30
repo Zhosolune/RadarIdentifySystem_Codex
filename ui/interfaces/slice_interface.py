@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QWidget
 from qfluentwidgets import qconfig
 
 from app.style_sheet import StyleSheet
-from core.models.processing_session import ProcessingSession
 from ui.components import (
     ClusterImageColumn,
     DrawerPosition,
@@ -20,9 +20,12 @@ from ui.components import (
     SliceRightPanel,
     SlidingDrawer,
 )
-from ui.controllers.slice_controller import SliceController
 from ui.controllers.identify_controller import IdentifyController
 from ui.controllers.merge_controller import MergeController
+from ui.controllers.slice_controller import SliceController
+
+if TYPE_CHECKING:
+    from core.models.processing_session import ProcessingSession
 
 
 class SliceInterface(QFrame):
@@ -37,15 +40,21 @@ class SliceInterface(QFrame):
         image_workspace [HorizontalImageWorkspace]: A/B/C/D 横向滑动工作区。
         slice_param_drawer [SlidingDrawer]: 覆盖页面的参数抽屉。
         slice_param_panel [SliceParamPanel]: 参数抽屉内容组件。
+        _slice_controller [SliceController]: 切片浏览控制器。
+        _identify_controller [IdentifyController]: 识别结果控制器。
         _merge_controller [MergeController]: 自动策略合并的流程控制器。
     """
 
     RIGHT_COLUMN_MAX_WIDTH = 580
+    _slice_controller: SliceController
+    _identify_controller: IdentifyController
+    _merge_controller: MergeController
 
     def __init__(
         self,
         parent: QWidget | None = None,
-        session: ProcessingSession | None = None,
+        *,
+        session: ProcessingSession,
         on_config_changed: Callable[[], None] | None = None,
     ) -> None:
         """初始化切片处理子页面。
@@ -54,7 +63,7 @@ class SliceInterface(QFrame):
 
         Args:
             parent [QWidget | None]: 父级控件，默认值为 None。
-            session [ProcessingSession | None]: 当前页面绑定的处理会话，默认新建空会话。
+            session [ProcessingSession]: 当前页面绑定的处理会话，必须由调用方注入。
             on_config_changed [Callable[[], None] | None]: 子配置变更后的保存回调，默认不回调。
 
         Returns:
@@ -66,14 +75,12 @@ class SliceInterface(QFrame):
 
         super().__init__(parent)
         self.setObjectName("sliceInterface")
-        self._session = session or ProcessingSession()
+        self._session = session
         self._on_config_changed = on_config_changed
 
         self._init_layout()
         StyleSheet.SLICE_INTERFACE.apply(self)
         qconfig.themeChanged.connect(self._update_icon_colors)
-
-        # 初始化控制器，将业务逻辑抽离
         self._slice_controller = SliceController(self)
         self._identify_controller = IdentifyController(self)
         self._merge_controller = MergeController(self)

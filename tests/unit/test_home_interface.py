@@ -22,6 +22,7 @@ from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult
 from ui.components.card_navigation_list import CardNavigationItem
 from ui.components.data_pool_panel import DataPackageDetailFlyoutView, DataPoolPanel
+from ui.adapters import HoverScrollBarAdapter
 from ui.interfaces.home_interface import HomeInterface
 from ui.components.import_data_panel import ImportDataPanel
 
@@ -113,7 +114,11 @@ def test_home_scroll_bars_only_show_on_hover_when_content_overflows() -> None:
     app.processEvents()
 
     scroll_areas = interface.findChildren(QAbstractScrollArea)
-    assert len(interface._scrollbar_hover_controllers) == len(scroll_areas)
+    assert len(interface._scrollbar_hover_adapters) == len(scroll_areas)
+    assert all(
+        isinstance(adapter, HoverScrollBarAdapter)
+        for adapter in interface._scrollbar_hover_adapters
+    )
     assert scroll_areas
 
     # 初始状态下，Fluent 覆盖式和 Qt 原生滚动条均应统一隐藏。

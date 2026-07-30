@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """参数配置界面。"""
 
-import logging
-
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt
 from qfluentwidgets import (
@@ -17,10 +15,9 @@ from qfluentwidgets import (
 
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
+from ui.adapters import ResponsiveContentWidthAdapter
 from ui.components.spin_box_setting_card import SpinBoxSettingCard
 from ui.components.double_spin_box_setting_card import DoubleSpinBoxSettingCard
-
-LOGGER = logging.getLogger(__name__)
 
 
 class ParamsInterface(ScrollArea):
@@ -357,6 +354,11 @@ class ParamsInterface(ScrollArea):
         )
 
         self._initWidget()
+        self._responsive_width_adapter = ResponsiveContentWidthAdapter(
+            self.viewport(),
+            self.cardGroupsLayout,
+            max_content_width=self.MAX_CONTENT_WIDTH,
+        )
 
     def _initWidget(self) -> None:
         """初始化控件外观与布局结构。
@@ -438,25 +440,3 @@ class ParamsInterface(ScrollArea):
         self.cardGroupsLayout.addWidget(self._extractPWGroup)
         self.cardGroupsLayout.addWidget(self._extractPRIGroup)
         self.cardGroupsLayout.addWidget(self._mergeGroup)
-
-    def resizeEvent(self, event) -> None:
-        """处理窗口大小改变事件。
-
-        功能描述：
-            动态调整左右边距，让卡片内容区不超过 MAX_CONTENT_WIDTH 并始终保持水平居中。
-
-        Args:
-            event (QResizeEvent): 触发的窗口大小改变事件对象。
-
-        Returns:
-            None: 无返回值。
-
-        Raises:
-            无。
-        """
-        super().resizeEvent(event)
-
-        # 计算视口宽度并分配左右留白
-        viewport_w = self.viewport().width()
-        h_margin = max(36, (viewport_w - self.MAX_CONTENT_WIDTH) // 2)
-        self.cardGroupsLayout.setContentsMargins(h_margin, 10, h_margin, 0)

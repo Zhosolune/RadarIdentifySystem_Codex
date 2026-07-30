@@ -52,6 +52,13 @@ def _app() -> QApplication:
     return app
 
 
+def _slice_interface(
+    session: ProcessingSession | None = None,
+) -> SliceInterface:
+    """创建显式绑定 Session 的切片页面。"""
+    return SliceInterface(session=session or ProcessingSession())
+
+
 def _layout_widgets(layout: QLayout) -> list[object]:
     """返回布局中按顺序排列的直接子控件。"""
     return [
@@ -164,7 +171,7 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
     monkeypatch.setattr(SliceController, "_on_next_slice", count("next_slice"))
     monkeypatch.setattr(IdentifyController, "_on_prev_cluster", count("prev_cluster"))
     monkeypatch.setattr(IdentifyController, "_on_next_cluster", count("next_cluster"))
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface.right_panel.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
@@ -233,7 +240,7 @@ def test_navigation_buttons_are_disabled_in_initial_state(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     assert interface.cluster_column.title_label.text() == "暂无聚类结果"
     assert not interface.original_column.prev_button.isEnabled()
@@ -275,7 +282,7 @@ def test_reset_current_slice_clears_identification_and_allows_recognition_again(
     )
     monkeypatch.setattr(IdentifyController, "handle_identify", fake_handle_identify)
 
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         session = interface._session
         first_cluster_result = SliceClusterResult(
@@ -384,7 +391,7 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface.right_panel.plot_option_card.show_mode_item.set("IDENTIFIED_ONLY")
         interface._session.slice_result = SliceResult(
@@ -469,7 +476,7 @@ def test_next_slice_auto_recognize_passes_target_slice_index(
     )
     monkeypatch.setattr(IdentifyController, "handle_identify", fake_handle_identify)
 
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface._session.config_snapshot.business.auto_recognize_next_slice = True
         interface._session.slice_result = SliceResult(
@@ -514,7 +521,7 @@ def test_prev_slice_auto_recognize_passes_target_slice_index(
     )
     monkeypatch.setattr(IdentifyController, "handle_identify", fake_handle_identify)
 
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface._session.config_snapshot.business.auto_recognize_next_slice = True
         interface._session.slice_result = SliceResult(
@@ -559,7 +566,7 @@ def test_redraw_auto_recognize_passes_target_slice_index(
     )
     monkeypatch.setattr(IdentifyController, "handle_identify", fake_handle_identify)
 
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface._session.config_snapshot.business.auto_recognize_next_slice = True
         interface._session.slice_result = SliceResult(
@@ -620,7 +627,7 @@ def test_manual_recognize_button_uses_current_slice_index(
         fake_start_identify,
     )
 
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface._session.slice_result = SliceResult(
             slices=[
@@ -649,7 +656,7 @@ def test_slice_controller_uses_constructor_session(
     )
     session = ProcessingSession(session_id="constructor_session")
 
-    interface = SliceInterface(session=session)
+    interface = _slice_interface(session)
 
     assert interface._session is session
     assert interface._slice_controller.view._session is session
@@ -673,7 +680,7 @@ def test_data_package_parsed_does_not_replace_constructor_session(
         preprocess_result=PreprocessResult(data.copy()),
     )
 
-    interface = SliceInterface(session=constructor_session)
+    interface = _slice_interface(constructor_session)
 
     signal_bus.data_package_parsed.emit(package)
 
@@ -702,7 +709,7 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
         lambda **kwargs: _fake_cluster_bundle(),
     )
 
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface._session.slice_result = SliceResult(
             slices=[SingleSlice(0, np.zeros((2, 6), dtype=float), (0.0, 1.0))]

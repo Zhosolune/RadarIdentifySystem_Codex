@@ -34,6 +34,7 @@ from .session_manager_panel import SessionManagerPanel
 from .card_navigation_list import CardNavigationItem, CardNavigationList
 from .data_pool_panel import DataPoolPanel
 from .full_speed_session_panel import FullSpeedSessionPanel
+from .log_setting_card import LogSettingCard
 
 __all__ = [
     "ActionButtonCard",
@@ -73,4 +74,5 @@ __all__ = [
     "CardNavigationList",
     "DataPoolPanel",
     "FullSpeedSessionPanel",
+    "LogSettingCard",
 ]

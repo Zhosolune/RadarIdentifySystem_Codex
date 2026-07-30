@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QCursor, QResizeEvent
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QResizeEvent
 from PyQt6.QtWidgets import (
     QAbstractScrollArea,
     QFrame,
@@ -20,6 +20,7 @@ from qfluentwidgets import (
 )
 from app.app_config import appConfig
 from app.style_sheet import StyleSheet
+from ui.adapters import HoverScrollBarAdapter
 from ui.components import (
     ImportDataPanel,
     DataPoolPanel,
@@ -27,98 +28,6 @@ from ui.components import (
     JitterFreeCardGroup,
     SessionManagerPanel,
 )
-
-
-class _HomeScrollBarHoverController(QObject):
-    """控制主页单个滚动区域仅在鼠标进入后按需显示滚动条。"""
-
-    def __init__(self, scroll_area: QAbstractScrollArea) -> None:
-        """记录原始方向策略并立即隐藏滚动条。"""
-        super().__init__(scroll_area)
-        self._scroll_area = scroll_area
-        self._viewport = scroll_area.viewport()
-        self._fluent_bars = []
-        self._native_policies: (
-            tuple[Qt.ScrollBarPolicy, Qt.ScrollBarPolicy] | None
-        ) = None
-        self._leave_timer = QTimer(self)
-        self._leave_timer.setSingleShot(True)
-        self._leave_timer.timeout.connect(self._hide_if_pointer_outside)
-
-        scroll_delegate = getattr(scroll_area, "scrollDelagate", None)
-        if scroll_delegate is None:
-            scroll_delegate = getattr(scroll_area, "delegate", None)
-
-        vertical_bar = getattr(scroll_delegate, "vScrollBar", None)
-        horizontal_bar = getattr(scroll_delegate, "hScrollBar", None)
-        if vertical_bar is not None and horizontal_bar is not None:
-            # Fluent 覆盖式滚动条的 Qt 原生策略始终为 AlwaysOff，
-            # 因此必须从代理滚动条记录各方向是否原本允许按需显示。
-            self._fluent_bars = [
-                (vertical_bar, not vertical_bar._isForceHidden),
-                (horizontal_bar, not horizontal_bar._isForceHidden),
-            ]
-        else:
-            self._native_policies = (
-                scroll_area.verticalScrollBarPolicy(),
-                scroll_area.horizontalScrollBarPolicy(),
-            )
-
-        scroll_area.installEventFilter(self)
-        self._viewport.installEventFilter(self)
-        self._hide_scroll_bars()
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        """根据鼠标是否位于滚动区域内切换滚动条策略。"""
-        if (
-            watched is self._scroll_area
-            or watched is self._viewport
-        ):
-            if event.type() == QEvent.Type.Enter:
-                self._leave_timer.stop()
-                self._show_scroll_bars_if_needed()
-            elif (
-                watched is self._scroll_area
-                and event.type() == QEvent.Type.Leave
-            ):
-                self._leave_timer.stop()
-                self._hide_scroll_bars()
-            elif event.type() == QEvent.Type.Leave:
-                # 指针从视口移到覆盖式滚动条时仍在滚动区域内部；
-                # 延后一拍读取真实位置，避免滚动条刚出现便被隐藏。
-                self._leave_timer.start(0)
-        return super().eventFilter(watched, event)
-
-    def _hide_if_pointer_outside(self) -> None:
-        """指针确已离开整个滚动区域时再隐藏滚动条。"""
-        local_position = self._scroll_area.mapFromGlobal(QCursor.pos())
-        if not self._scroll_area.rect().contains(local_position):
-            self._hide_scroll_bars()
-
-    def _show_scroll_bars_if_needed(self) -> None:
-        """恢复允许方向，具体显隐继续由实际滚动范围决定。"""
-        if self._native_policies is not None:
-            vertical_policy, horizontal_policy = self._native_policies
-            self._scroll_area.setVerticalScrollBarPolicy(vertical_policy)
-            self._scroll_area.setHorizontalScrollBarPolicy(horizontal_policy)
-            return
-
-        for bar, was_allowed in self._fluent_bars:
-            bar.setForceHidden(not was_allowed)
-
-    def _hide_scroll_bars(self) -> None:
-        """隐藏滚动区域的全部原生或 Fluent 滚动条。"""
-        if self._native_policies is not None:
-            self._scroll_area.setVerticalScrollBarPolicy(
-                Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            )
-            self._scroll_area.setHorizontalScrollBarPolicy(
-                Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            )
-            return
-
-        for bar, _ in self._fluent_bars:
-            bar.setForceHidden(True)
 
 
 class HomeInterface(QFrame):
@@ -176,8 +85,8 @@ class HomeInterface(QFrame):
 
     def _install_scrollbar_hover_behavior(self) -> None:
         """为主页当前全部滚动区域安装悬停按需显示控制器。"""
-        self._scrollbar_hover_controllers = [
-            _HomeScrollBarHoverController(scroll_area)
+        self._scrollbar_hover_adapters = [
+            HoverScrollBarAdapter(scroll_area)
             for scroll_area in self.findChildren(QAbstractScrollArea)
         ]
 

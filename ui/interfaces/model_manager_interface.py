@@ -13,6 +13,7 @@ from qfluentwidgets import (
 )
 
 from app.style_sheet import StyleSheet
+from ui.adapters import ResponsiveContentWidthAdapter
 from ui.components.model_list_page import ModelListPage
 from ui.controllers.model_manager_controller import ModelManagerController
 
@@ -80,8 +81,11 @@ class ModelManagerInterface(QWidget):
 
         # 装配界面模块
         self._initWidget()
-
-        # 初始化控制器
+        self._responsive_width_adapter = ResponsiveContentWidthAdapter(
+            self,
+            self.content_layout,
+            max_content_width=self.MAX_CONTENT_WIDTH,
+        )
         self._controller = ModelManagerController(self)
 
     def _initWidget(self) -> None:
@@ -274,16 +278,3 @@ class ModelManagerInterface(QWidget):
         """
         # 同步展示用户模型根目录
         self.user_model_root_card.setContent(path)
-
-    def resizeEvent(self, event):
-        """处理界面大小变化事件。
-
-        Args:
-            event (QResizeEvent): 尺寸变更事件对象。
-        """
-        super().resizeEvent(event)
-        # 计算水平边距
-        viewport_w = self.width()
-        h_margin = max(36, (viewport_w - self.MAX_CONTENT_WIDTH) // 2)
-        # 更新内容边距
-        self.content_layout.setContentsMargins(h_margin, 10, h_margin, 0)

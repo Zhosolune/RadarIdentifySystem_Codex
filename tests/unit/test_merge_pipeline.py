@@ -56,6 +56,11 @@ def _app() -> QApplication:
     return app
 
 
+def _slice_interface(session: ProcessingSession) -> SliceInterface:
+    """创建显式绑定 Session 的切片页面。"""
+    return SliceInterface(session=session)
+
+
 def _wait_for_merge_workflow(workflow: MergeWorkflow) -> None:
     """等待合并线程结束并处理主线程完成回调。"""
     worker = workflow._worker
@@ -951,7 +956,7 @@ def test_visibility_controls_update_merge_parameter_table(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda _model_type: [],
     )
-    interface = SliceInterface(session=_session_with_source_results())
+    interface = _slice_interface(_session_with_source_results())
 
     try:
         interface.resize(1500, 900)
@@ -1000,7 +1005,7 @@ def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
         lambda _model_type: [],
     )
     session = _session_with_four_source_results()
-    interface = SliceInterface(session=session)
+    interface = _slice_interface(session)
 
     try:
         controller = interface._merge_controller
@@ -1065,7 +1070,7 @@ def test_empty_rejudgment_keeps_merge_menu_disabled_after_reset(
         lambda _model_type: [],
     )
     session = _session_with_source_results()
-    interface = SliceInterface(session=session)
+    interface = _slice_interface(session)
 
     try:
         controller = interface._merge_controller
@@ -1104,7 +1109,7 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda _model_type: [],
     )
-    interface = SliceInterface(session=_session_with_source_results())
+    interface = _slice_interface(_session_with_source_results())
 
     try:
         interface.resize(1500, 900)
@@ -1238,7 +1243,7 @@ def test_merge_menu_activation_follows_current_slice_candidates(
     for slice_index in range(2):
         session.mark_slice_cluster_succeeded(slice_index)
         session.mark_slice_recognition_succeeded(slice_index)
-    interface = SliceInterface(session=session)
+    interface = _slice_interface(session)
 
     try:
         controller = interface._merge_controller
@@ -1277,7 +1282,7 @@ def test_identify_finished_does_not_prepare_plan_for_non_current_slice(
         lambda _model_type: [],
     )
     session = _session_with_source_results()
-    interface = SliceInterface(session=session)
+    interface = _slice_interface(session)
 
     try:
         _wait_for_merge_plan(interface._merge_controller._workflow)
@@ -1307,7 +1312,7 @@ def test_identify_finished_logs_merge_menu_activation_judgment(
         lambda _model_type: [],
     )
     session = _session_with_source_results()
-    interface = SliceInterface(session=session)
+    interface = _slice_interface(session)
 
     try:
         _wait_for_merge_plan(interface._merge_controller._workflow)

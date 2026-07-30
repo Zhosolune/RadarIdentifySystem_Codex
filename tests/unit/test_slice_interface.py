@@ -22,6 +22,7 @@ from qfluentwidgets import (
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from core.models.processing_session import ProcessingSession
 from infra.plotting.types import RenderedImageBundle
 from ui.interfaces.slice_interface import SliceInterface
 from ui.components.analysis_result_card import (
@@ -67,6 +68,11 @@ def _app() -> QApplication:
     return app
 
 
+def _slice_interface() -> SliceInterface:
+    """创建显式绑定 Session 的切片页面。"""
+    return SliceInterface(session=ProcessingSession())
+
+
 def test_slice_param_panel_is_mounted_in_matching_drawer(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -76,7 +82,7 @@ def test_slice_param_panel_is_mounted_in_matching_drawer(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     assert hasattr(interface, "slice_param_panel")
     assert hasattr(interface, "slice_param_drawer")
@@ -102,7 +108,7 @@ def test_analysis_result_table_is_mounted_in_right_bottom_card(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     try:
         expected_labels = [
@@ -162,7 +168,7 @@ def test_header_title_length_does_not_change_image_column_width(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     try:
         interface.resize(1400, 900)
@@ -225,7 +231,7 @@ def test_slice_interface_uses_session_scale_mode_for_image_updates(
         fake_apply_scale_mode,
     )
 
-    interface = SliceInterface()
+    interface = _slice_interface()
     try:
         interface.show()
         QApplication.processEvents()
@@ -252,7 +258,7 @@ def test_right_panel_keeps_controls_fixed_and_hides_table_scrollbar_when_height_
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     try:
         interface.resize(1400, 900)
@@ -286,7 +292,7 @@ def test_slice_dimension_cards_have_explicit_snapshot_titles(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     try:
         assert interface.original_column.cf_card._snapshot_window_title == "原始图像 - 载频"
@@ -312,7 +318,7 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     try:
         interface.resize(1500, 900)
@@ -570,7 +576,7 @@ def test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     try:
         interface.resize(1500, 900)
@@ -630,7 +636,7 @@ def test_original_snapshot_titles_include_current_slice_number(
         "ui.components.model_selection_card.collect_available_model_files",
         lambda model_type: [],
     )
-    interface = SliceInterface()
+    interface = _slice_interface()
 
     try:
         interface._slice_controller._update_ui_with_bundle(
