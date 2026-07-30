@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QWidget,
 )
-from qfluentwidgets import CardWidget, ScrollArea
+from qfluentwidgets import CardWidget, PrimaryPushButton, ScrollArea
 
 from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.session_config import SessionConfigSnapshot
@@ -84,6 +84,8 @@ def test_full_speed_card_maps_start_action_to_execution_status() -> None:
     """全速任务仅在初始或未成功结束状态提供开始与重试操作。"""
     _app()
     panel = FullSpeedSessionPanel()
+    reference_button = PrimaryPushButton("已完成")
+    expected_width = reference_button.sizeHint().width()
     session = ProcessingSession(
         session_id="fullspeed-action-state",
         processing_mode=ProcessingMode.FULL_SPEED,
@@ -112,6 +114,7 @@ def test_full_speed_card_maps_start_action_to_execution_status() -> None:
         card = panel._cards[session.session_id]
         assert card.start_button.text() == text
         assert card.start_button.isEnabled() is enabled
+        assert card.start_button.width() == expected_width
 
 
 def test_full_speed_card_scrolls_long_output_path_without_truncation() -> None:

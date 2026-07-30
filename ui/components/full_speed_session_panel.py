@@ -153,6 +153,11 @@ class FullSpeedSessionCard(CardWidget):
         self.output_button = PushButton("保存路径", self)
         self.params_button = PushButton("修改参数", self)
         self.start_button = PrimaryPushButton("开始", self)
+        # 用组件库自身的 sizeHint 计算三个中文字的完整宽度（当前样式下为 68px）。
+        start_text = self.start_button.text()
+        self.start_button.setText(_START_ACTION_TEXT[FullSpeedStatus.SUCCEEDED])
+        self.start_button.setFixedWidth(self.start_button.sizeHint().width())
+        self.start_button.setText(start_text)
         self.cancel_button = PushButton("取消", self)
         self.open_button = PushButton("打开结果", self)
         self.delete_button = PushButton("删除", self)

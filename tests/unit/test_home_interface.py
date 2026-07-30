@@ -207,20 +207,30 @@ def test_home_interface_responsively_expands_data_pool_height() -> None:
 
 
 def test_data_pool_details_uses_upward_panel_width_flyout() -> None:
-    """详情按钮应使用向上弹出的 FlyoutViewBase，且外层宽度等于数据池。"""
+    """详情按钮应选中来源卡片并使用与数据池等宽的向上 Flyout。"""
     _app()
     panel = DataPoolPanel()
+    first_package = _build_data_package("excel-first", "excel")
     package = _build_data_package("excel-detail", "excel")
     panel.resize(720, 300)
-    panel.set_packages([package])
+    panel.set_packages([first_package, package])
     fake_flyout = MagicMock()
+    first_card = panel.package_pages["excel"].cards[
+        first_package.package_id
+    ]
+    detail_card = panel.package_pages["excel"].cards[
+        package.package_id
+    ]
+    assert first_card.is_selected()
+    assert not detail_card.is_selected()
 
     with patch.object(Flyout, "make", return_value=fake_flyout) as make:
-        panel.package_pages["excel"].cards[
-            package.package_id
-        ].details_button.click()
+        detail_card.details_button.click()
 
     view, target, _parent = make.call_args.args
+    assert panel.current_package_id() == package.package_id
+    assert detail_card.is_selected()
+    assert not first_card.is_selected()
     assert isinstance(view, DataPackageDetailFlyoutView)
     assert view.width() + 30 == panel.width()
     assert len(view.metric_cards) == 6

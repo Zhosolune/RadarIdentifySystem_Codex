@@ -708,6 +708,8 @@ class DataPoolPanel(SimpleCardWidget):
         if package is None or card is None:
             return
 
+        # 详情属于卡片当前选择的一部分，复用现有选中态明确 Flyout 的来源。
+        self._select_package(package_id)
         if self._detail_flyout is not None:
             self._detail_flyout.close()
         # Flyout 固定包含左右各 15px 的阴影边距，扣除后外层总宽与面板一致。

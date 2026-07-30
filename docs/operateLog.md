@@ -1,5 +1,42 @@
 # 变更记录
 
+- 时间：2026-07-30 08:41
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按组件库三个中文字符的推荐宽度固定全速任务开始按钮。
+- 原因：开始按钮会在“开始”“重试”“执行中”“保存中”“已完成”之间切换，需要以最长的三个字符状态保持宽度稳定。
+- 计划清单：
+  - [x] 使用 `PrimaryPushButton` 当前字体和样式计算三个中文字的按钮宽度。
+  - [x] 将全速任务开始按钮固定为计算结果，避免状态变化造成布局抖动。
+  - [x] 补充按钮宽度及状态切换稳定性测试。
+- 验证结果：
+  - 当前组件库字体与样式下，三个中文字符的按钮推荐宽度为 68px。
+  - 七种全速执行状态切换后，开始按钮宽度均保持为三个字符的 `sizeHint` 宽度。
+  - 相关全速 UI 回归通过（7 passed，2 deselected，1 warning）；两个 deselected 仍为既有滚动沟槽断言。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-07-30 08:32
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为数据池详情按钮补充来源卡片的选中反馈。
+- 原因：详情 Flyout 较宽，用户需要明确识别当前详情属于哪一张数据卡片。
+- 计划清单：
+  - [x] 打开详情前同步选中来源数据卡片，复用现有组件库卡片选中效果。
+  - [x] 确保其他卡片取消选中，并同步创建、删除操作的目标数据包。
+  - [x] 补充详情按钮切换卡片归属的回归测试。
+- 验证结果：
+  - 详情来源卡片聚焦测试通过，确认点击第二张卡片的详情后第二张进入选中态、第一张退出选中态。
+  - 主页、数据池持久化及双 Session 路由相关回归通过（9 passed，1 warning）。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-29 17:23
 - 操作类型：[修复]
 - 影响文件：
