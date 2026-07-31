@@ -75,6 +75,19 @@ class FullSpeedWorkflow(QObject):
         session = self.registry.get(session_id)
         if session is None:
             raise KeyError(f"全速 Session 不存在: {session_id}")
+        concurrent_limit = max(
+            1,
+            int(qconfig.get(appConfig.fullSpeedMaxConcurrentTasks)),
+        )
+        running_count = sum(
+            worker.isRunning()
+            for worker in self._workers.values()
+        )
+        if running_count >= concurrent_limit:
+            raise RuntimeError(
+                "已达到全速任务并发上限"
+                f"（{concurrent_limit} 个），请等待当前任务结束"
+            )
         self._validate_session(session)
         session = self.registry.begin(session_id)
         request = self._build_request(session)
@@ -307,5 +320,12 @@ class FullSpeedWorkflow(QObject):
             temp_dir=(
                 configured_temp_dir
                 or session.config_snapshot.business.export_dir_path
+            ),
+            compute_device=str(
+                qconfig.get(appConfig.fullSpeedComputeDevice)
+            ).upper(),
+            recognition_workers=max(
+                1,
+                int(qconfig.get(appConfig.fullSpeedRecognitionWorkers)),
             ),
         )

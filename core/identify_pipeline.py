@@ -72,6 +72,7 @@ class SliceIdentifyPipeline:
         recognize_params [RecognitionParams]: 识别参数快照。
         extract_params [ExtractParams]: 参数提取配置。
         context [IdentifyPipelineContext]: 流程执行上下文，用于阶段标记与识别阶段回调。
+        recognition_max_workers [int | None]: 簇级识别并发线程上限。
         stage_ops [IdentifyStageOps]: 阶段算子集合，聚合 DOA 复检与识别调用。
     """
 
@@ -82,6 +83,7 @@ class SliceIdentifyPipeline:
         recognize_params: RecognitionParams | None = None,
         extract_params: ExtractParams | None = None,
         context: IdentifyPipelineContext | None = None,
+        recognition_max_workers: int | None = None,
     ) -> None:
         """初始化切片识别流程编排器。
 
@@ -91,6 +93,7 @@ class SliceIdentifyPipeline:
             recognize_params [RecognitionParams | None]: 识别参数；为 ``None`` 时使用默认参数。
             extract_params [ExtractParams | None]: 参数提取配置；为 ``None`` 时使用默认参数。
             context [IdentifyPipelineContext | None]: 流程上下文；为 ``None`` 时创建默认上下文。
+            recognition_max_workers [int | None]: 簇级识别并发线程上限；默认自动推导。
         """
         # 保存注入依赖，供后续每个阶段方法直接读取。
         self.inference_service = inference_service
@@ -99,12 +102,14 @@ class SliceIdentifyPipeline:
         self.recognize_params = recognize_params or RecognitionParams()
         self.extract_params = extract_params or ExtractParams()
         self.context = context or IdentifyPipelineContext()
+        self.recognition_max_workers = recognition_max_workers
         # 构造阶段算子对象，聚合 DOA 复检、识别调用等可复用步骤。
         self.stage_ops = IdentifyStageOps(
             inference_service=self.inference_service,
             cluster_params=self.cluster_params,
             recognize_params=self.recognize_params,
             context=self.context,
+            recognition_max_workers=self.recognition_max_workers,
         )
 
     def run(self, slice_data: Any) -> tuple[SliceClusterResult, SliceRecognitionResult]:

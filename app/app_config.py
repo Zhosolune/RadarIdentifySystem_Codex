@@ -5,8 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from qfluentwidgets import (
-    BoolValidator, ConfigItem, OptionsConfigItem, OptionsValidator, RangeValidator,
-    QConfig, qconfig, Theme, setTheme, setThemeColor,
+    BoolValidator,
+    ConfigItem,
+    OptionsConfigItem,
+    OptionsValidator,
+    QConfig,
+    RangeValidator,
+    Theme,
+    qconfig,
+    setTheme,
+    setThemeColor,
 )
 
 from utils.paths import get_config_file_path, get_log_dir
@@ -33,6 +41,26 @@ class AppConfig(QConfig):
         "System",
         "LogDir",
         str(get_log_dir()),
+    )
+
+    # 全速处理性能 ─────────────────────────────────────────────────────────────
+    fullSpeedComputeDevice = OptionsConfigItem(
+        "performance.fullSpeed",
+        "computeDevice",
+        "AUTO",
+        validator=OptionsValidator(["AUTO", "CPU", "GPU"]),
+    )
+    fullSpeedMaxConcurrentTasks = ConfigItem(
+        "performance.fullSpeed",
+        "maxConcurrentTasks",
+        1,
+        validator=RangeValidator(1, 4),
+    )
+    fullSpeedRecognitionWorkers = ConfigItem(
+        "performance.fullSpeed",
+        "recognitionWorkers",
+        2,
+        validator=RangeValidator(1, 8),
     )
 
     # 界面缩放 ─────────────────────────────────────────────────────────────────

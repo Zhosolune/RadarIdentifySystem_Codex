@@ -6,7 +6,9 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
+from qfluentwidgets import qconfig
 
+from app.app_config import appConfig
 import ui.controllers.setting_controller as setting_controller_module
 from ui.adapters import ResponsiveContentWidthAdapter
 from ui.controllers.setting_controller import SettingController
@@ -102,3 +104,22 @@ def test_repeated_width_policy_is_attached_as_adapter() -> None:
         SettingController,
     )
     assert model_interface._controller.parent() is model_interface
+
+
+def test_setting_advanced_group_exposes_full_speed_performance_limits() -> None:
+    """设置页高级组应提供设备、任务并发和识别线程上限。"""
+    _app()
+    interface = SettingInterface()
+
+    assert interface._full_speed_device_card.card.titleLabel.text() == (
+        "全速推理设备"
+    )
+    assert interface._full_speed_concurrency_card.spinBox.minimum() == 1
+    assert interface._full_speed_concurrency_card.spinBox.maximum() == 4
+    assert interface._full_speed_workers_card.spinBox.minimum() == 1
+    assert interface._full_speed_workers_card.spinBox.maximum() == 8
+    assert qconfig.get(appConfig.fullSpeedComputeDevice) in {
+        "AUTO",
+        "CPU",
+        "GPU",
+    }

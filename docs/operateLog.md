@@ -1,5 +1,35 @@
 # 变更记录
 
+- 时间：2026-07-31 10:55
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\app_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\setting_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\full_speed_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\identify_stages.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\onnx_service.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为全速处理增加并发任务、单任务识别线程和 ONNX 推理设备限制，并在设置页高级组提供全局配置入口。
+- 原因：全速任务、簇级识别线程和 ONNX 内部线程可能叠加占满 CPU；现有 ONNX 服务又固定使用 CPU Provider，无法在可用时利用 GPU。
+- 计划清单：
+  - [x] 新增自动、仅 CPU、GPU 优先及两项并发上限配置。
+  - [x] 在设置页高级组增加全速性能配置卡。
+  - [x] 将冻结的性能策略传入全速 Worker、识别管线和 ONNX 服务。
+  - [x] 达到并发任务上限时拒绝新任务，不新增排队状态。
+  - [x] 补充 Provider 回退、线程限制、配置传递和并发拒绝回归。
+- 验证结果：
+  - 默认采用自动设备、1 个同时运行任务和 2 个单任务识别线程；ONNX 单次推理内部线程固定为 1。
+  - 自动或 GPU 优先模式会按 CUDA、DirectML、ROCm、CoreML、TensorRT 顺序选择可用 GPU Provider，并保留 CPU 回退；当前环境仅提供 CPU Provider，因此实际使用 CPU。
+  - 达到并发上限时在冻结任务配置和创建 Worker 前拒绝新任务，现有任务不受影响。
+  - 全速运行期、ONNX Provider、设置页、并发识别、识别参数和全速 UI 非既有失败项回归通过（47 passed，2 deselected，2 warnings）。
+  - 数据池双模式路由和主窗口架构回归通过（3 passed，1 warning）。
+  - 两项排除项仍为既有全速任务滚动沟槽断言，本次未修改对应组件或 QSS。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-30 17:12
 - 操作类型：[重构]
 - 影响文件：

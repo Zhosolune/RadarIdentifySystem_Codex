@@ -27,6 +27,13 @@ from infra.plotting.utils import _BASE_SPECS, build_dtoa_series, resolve_dtoa_sp
 
 
 LOGGER = logging.getLogger(__name__)
+GPU_PROVIDER_PRIORITY = (
+    "CUDAExecutionProvider",
+    "DmlExecutionProvider",
+    "ROCMExecutionProvider",
+    "CoreMLExecutionProvider",
+    "TensorrtExecutionProvider",
+)
 
 
 def _emit_or_collect_message(
@@ -57,18 +64,38 @@ def _emit_or_collect_message(
 class OnnxInferenceService(InferenceService):
     """基于 ONNX Runtime 的推理服务实现。"""
 
-    def __init__(self, dtoa_model_path: str, pa_model_path: str, temp_dir: str):
+    def __init__(
+        self,
+        dtoa_model_path: str,
+        pa_model_path: str,
+        temp_dir: str,
+        device_preference: str = "CPU",
+        intra_op_num_threads: int | None = None,
+    ) -> None:
         """初始化 ONNX 推理服务。
 
         Args:
             dtoa_model_path: DTOA 模型的文件绝对路径。
             pa_model_path: PA 模型的文件绝对路径。
             temp_dir: 用于存放临时中间图片的目录（如果使用文件系统转换）。
+            device_preference: 推理设备偏好，取值为 AUTO、CPU 或 GPU。
+            intra_op_num_threads: 单次 ONNX 算子内部线程数；为 None 时使用运行时默认值。
+
+        Raises:
+            ValueError: 推理设备偏好不受支持或线程数小于 1 时抛出。
         """
         LOGGER.info("正在初始化 ONNX 推理服务: PA=%s, DTOA=%s", pa_model_path, dtoa_model_path)
         self._dtoa_model_path = dtoa_model_path
         self._pa_model_path = pa_model_path
         self._temp_dir = temp_dir
+        self._device_preference = device_preference.upper()
+        if self._device_preference not in {"AUTO", "CPU", "GPU"}:
+            raise ValueError(
+                f"不支持的 ONNX 推理设备偏好: {device_preference}"
+            )
+        if intra_op_num_threads is not None and intra_op_num_threads < 1:
+            raise ValueError("ONNX 内部线程数必须大于 0")
+        self._intra_op_num_threads = intra_op_num_threads
 
         # 预测阈值（旧版保留，当前不参与标签判定，供后续扩展使用）
         self.th_pa = 0.9
@@ -80,8 +107,93 @@ class OnnxInferenceService(InferenceService):
         if ort is None:
             LOGGER.warning("未检测到 onnxruntime，推理功能将不可用！")
 
+        self._providers = self._resolve_execution_providers()
+        self._session_options = self._build_session_options()
         os.makedirs(self._temp_dir, exist_ok=True)
         self._load_models()
+
+    def _build_session_options(self) -> Any | None:
+        """按线程限制构造 ONNX Runtime Session 配置。"""
+        if ort is None:
+            return None
+        uses_directml = (
+            bool(self._providers)
+            and self._providers[0] == "DmlExecutionProvider"
+        )
+        if self._intra_op_num_threads is None and not uses_directml:
+            return None
+        options = ort.SessionOptions()
+        if self._intra_op_num_threads is not None:
+            options.intra_op_num_threads = self._intra_op_num_threads
+        options.inter_op_num_threads = 1
+        options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        if uses_directml:
+            # DirectML 要求禁用内存模式并采用顺序执行。
+            options.enable_mem_pattern = False
+        return options
+
+    def _resolve_execution_providers(self) -> list[str]:
+        """根据设备偏好选择当前环境实际可用的执行 Provider。"""
+        if ort is None:
+            return []
+        available = set(ort.get_available_providers())
+        if self._device_preference == "CPU":
+            return ["CPUExecutionProvider"]
+
+        gpu_provider = next(
+            (
+                provider
+                for provider in GPU_PROVIDER_PRIORITY
+                if provider in available
+            ),
+            None,
+        )
+        if gpu_provider is not None:
+            providers = [gpu_provider]
+            if "CPUExecutionProvider" in available:
+                providers.append("CPUExecutionProvider")
+            LOGGER.info(
+                "全速推理将优先使用 GPU Provider: %s",
+                gpu_provider,
+            )
+            return providers
+
+        if self._device_preference == "GPU":
+            LOGGER.warning(
+                "未检测到可用 GPU Provider，全速推理回退到 CPU"
+            )
+        else:
+            LOGGER.info("未检测到可用 GPU Provider，自动使用 CPU")
+        return ["CPUExecutionProvider"]
+
+    def _create_session(self, model_path: str, model_name: str) -> Any:
+        """创建模型 Session，并在 GPU 初始化失败时回退到 CPU。"""
+        try:
+            session = ort.InferenceSession(
+                model_path,
+                sess_options=self._session_options,
+                providers=self._providers,
+            )
+        except Exception:
+            if self._providers == ["CPUExecutionProvider"]:
+                raise
+            LOGGER.warning(
+                "%s 模型 GPU Provider 初始化失败，正在回退 CPU",
+                model_name,
+                exc_info=True,
+            )
+            session = ort.InferenceSession(
+                model_path,
+                sess_options=self._session_options,
+                providers=["CPUExecutionProvider"],
+            )
+        LOGGER.info(
+            "%s 模型加载成功: %s, providers=%s",
+            model_name,
+            model_path,
+            session.get_providers(),
+        )
+        return session
 
     def _load_models(self) -> None:
         """加载 PA 和 DTOA 的 ONNX 模型。"""
@@ -91,8 +203,10 @@ class OnnxInferenceService(InferenceService):
         # 加载 DTOA
         if os.path.exists(self._dtoa_model_path):
             try:
-                self._dtoa_model = ort.InferenceSession(self._dtoa_model_path, providers=['CPUExecutionProvider'])
-                LOGGER.info(f"DTOA 模型加载成功: {self._dtoa_model_path}")
+                self._dtoa_model = self._create_session(
+                    self._dtoa_model_path,
+                    "DTOA",
+                )
             except Exception as e:
                 LOGGER.error(f"DTOA 模型加载失败: {e}")
         else:
@@ -101,8 +215,10 @@ class OnnxInferenceService(InferenceService):
         # 加载 PA
         if os.path.exists(self._pa_model_path):
             try:
-                self._pa_model = ort.InferenceSession(self._pa_model_path, providers=['CPUExecutionProvider'])
-                LOGGER.info(f"PA 模型加载成功: {self._pa_model_path}")
+                self._pa_model = self._create_session(
+                    self._pa_model_path,
+                    "PA",
+                )
             except Exception as e:
                 LOGGER.error(f"PA 模型加载失败: {e}")
         else:

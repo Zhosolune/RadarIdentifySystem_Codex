@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from app.app_config import appConfig
 from core.models.cluster_result import (
     ClusterItem,
     ClusterState,
@@ -47,6 +48,7 @@ from runtime.threading.full_speed_worker import (
     FullSpeedWorkerResult,
 )
 from runtime.workflows.full_speed_workflow import FullSpeedWorkflow
+import runtime.workflows.full_speed_workflow as workflow_module
 
 
 def _build_full_speed_session(output_dir: Path) -> ProcessingSession:
@@ -125,18 +127,22 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
 ) -> None:
     """全速线程应按现有切片模型逐片识别、合并并保存。"""
     from runtime.threading import full_speed_worker as worker_module
+    inference_kwargs: list[dict[str, object]] = []
+    pipeline_kwargs: list[dict[str, object]] = []
 
     class _InferenceStub:
         """替代独立 ONNX 推理服务。"""
 
-        def __init__(self, **_kwargs) -> None:
-            """忽略测试构造参数。"""
+        def __init__(self, **kwargs) -> None:
+            """记录测试构造参数。"""
+            inference_kwargs.append(kwargs)
 
     class _IdentifyPipelineStub:
         """为每个切片返回一组确定性识别结果。"""
 
-        def __init__(self, **_kwargs) -> None:
-            """忽略测试构造参数。"""
+        def __init__(self, **kwargs) -> None:
+            """记录测试构造参数。"""
+            pipeline_kwargs.append(kwargs)
 
         def run(self, single_slice):
             """生成与切片索引一致的聚类和识别结果。"""
@@ -220,6 +226,8 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
         model_selection=SessionModelSelection("pa.onnx", "dtoa.onnx"),
         output_dir=str(tmp_path),
         temp_dir=str(tmp_path),
+        compute_device="GPU",
+        recognition_workers=1,
     )
     result = FullSpeedWorker(request)._execute()
 
@@ -228,6 +236,73 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
     assert sorted(result.recognition_result.slice_results) == [0, 1]
     assert sorted(result.merge_plan.slice_plans) == [0, 1]
     assert result.output_file.endswith("result.xlsx")
+    assert inference_kwargs == [
+        {
+            "pa_model_path": "pa.onnx",
+            "dtoa_model_path": "dtoa.onnx",
+            "temp_dir": str(tmp_path),
+            "device_preference": "GPU",
+            "intra_op_num_threads": 1,
+        }
+    ]
+    assert len(pipeline_kwargs) == 2
+    assert all(
+        kwargs["recognition_max_workers"] == 1
+        for kwargs in pipeline_kwargs
+    )
+
+
+def test_full_speed_workflow_rejects_start_at_concurrency_limit(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """达到全速任务并发上限时应拒绝启动新任务。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    workflow = FullSpeedWorkflow(registry)
+    workflow._workers["busy"] = type(
+        "_BusyWorker",
+        (),
+        {"isRunning": lambda self: True},
+    )()
+    original_get = workflow_module.qconfig.get
+
+    def fake_get(config_item):
+        """仅替换全速任务并发上限。"""
+        if config_item is appConfig.fullSpeedMaxConcurrentTasks:
+            return 1
+        return original_get(config_item)
+
+    monkeypatch.setattr(workflow_module.qconfig, "get", fake_get)
+
+    with pytest.raises(RuntimeError, match="并发上限"):
+        workflow.start(session.session_id)
+
+
+def test_full_speed_request_snapshots_global_performance_settings(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """全速请求应冻结启动时的设备偏好和识别线程上限。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    workflow = FullSpeedWorkflow(registry)
+    original_get = workflow_module.qconfig.get
+
+    def fake_get(config_item):
+        """返回当前测试指定的全速性能配置。"""
+        if config_item is appConfig.fullSpeedComputeDevice:
+            return "GPU"
+        if config_item is appConfig.fullSpeedRecognitionWorkers:
+            return 3
+        return original_get(config_item)
+
+    monkeypatch.setattr(workflow_module.qconfig, "get", fake_get)
+
+    request = workflow._build_request(session)
+
+    assert request.compute_device == "GPU"
+    assert request.recognition_workers == 3
 
 
 def test_full_speed_workflow_commits_complete_result_atomically(

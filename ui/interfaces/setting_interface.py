@@ -20,6 +20,7 @@ from app.app_config import appConfig
 from app.style_sheet import StyleSheet
 from ui.adapters import ResponsiveContentWidthAdapter
 from ui.components import LogSettingCard
+from ui.components.spin_box_setting_card import SpinBoxSettingCard
 from ui.controllers.setting_controller import SettingController
 
 
@@ -86,6 +87,30 @@ class SettingInterface(ScrollArea):
             "高级",
             self.settingScrollWidget,
         )
+        self._full_speed_device_card = OptionsSettingCard(
+            appConfig.fullSpeedComputeDevice,
+            FluentIcon.ROBOT,
+            "全速推理设备",
+            "自动模式优先使用可用 GPU Provider，否则回退到 CPU",
+            texts=["自动", "仅 CPU", "GPU 优先"],
+            parent=self._advancedGroup,
+        )
+        self._full_speed_concurrency_card = SpinBoxSettingCard(
+            appConfig.fullSpeedMaxConcurrentTasks,
+            FluentIcon.SPEED_HIGH,
+            "同时运行的全速任务数",
+            "达到上限时拒绝启动新任务，不影响正在执行的任务",
+            unit="个",
+            parent=self._advancedGroup,
+        )
+        self._full_speed_workers_card = SpinBoxSettingCard(
+            appConfig.fullSpeedRecognitionWorkers,
+            FluentIcon.SPEED_MEDIUM,
+            "单任务识别线程上限",
+            "限制簇级并发；ONNX 单次推理固定使用一个内部线程",
+            unit="线程",
+            parent=self._advancedGroup,
+        )
         # 实际路径由 SettingController 从配置边界读取后写回。
         self.log_card = LogSettingCard(
             "正在读取日志目录",
@@ -118,6 +143,15 @@ class SettingInterface(ScrollArea):
         self._interfaceGroup.addSettingCard(self._themeCard)
         self._interfaceGroup.addSettingCard(self._themeColorCard)
         self._interfaceGroup.addSettingCard(self._zoomCard)
+        self._advancedGroup.addSettingCard(
+            self._full_speed_device_card
+        )
+        self._advancedGroup.addSettingCard(
+            self._full_speed_concurrency_card
+        )
+        self._advancedGroup.addSettingCard(
+            self._full_speed_workers_card
+        )
         self._advancedGroup.addSettingCard(self.log_card)
         self.cardGroupsLayout.addWidget(self._interfaceGroup)
         self.cardGroupsLayout.addWidget(self._advancedGroup)

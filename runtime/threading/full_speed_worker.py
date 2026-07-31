@@ -60,6 +60,8 @@ class FullSpeedExecutionRequest:
         model_selection: 首次启动时冻结的模型路径。
         output_dir: Excel 保存目录。
         temp_dir: ONNX 推理中间文件目录。
+        compute_device: ONNX 推理设备偏好，取值为 AUTO、CPU 或 GPU。
+        recognition_workers: 单任务簇级识别并发线程上限。
     """
 
     session_id: str
@@ -73,6 +75,8 @@ class FullSpeedExecutionRequest:
     model_selection: SessionModelSelection
     output_dir: str
     temp_dir: str
+    compute_device: str = "AUTO"
+    recognition_workers: int = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,10 +162,14 @@ class FullSpeedWorker(QThread):
         log_token = bind_session_log_context(request.session_id)
         try:
             LOGGER.info(
-                "全速任务启动: package_id=%s, source=%s, output_dir=%s",
+                "全速任务启动: package_id=%s, source=%s, output_dir=%s, "
+                "compute_device=%s, recognition_workers=%d, "
+                "onnx_intra_op_threads=1",
                 request.data_package_id,
                 request.source_path,
                 request.output_dir,
+                request.compute_device,
+                request.recognition_workers,
             )
             result = self._execute()
             self.finished_signal.emit(request.session_id, result)
@@ -231,6 +239,9 @@ class FullSpeedWorker(QThread):
                     cluster_params=cluster_params,
                     recognize_params=recognition_params,
                     extract_params=extract_params,
+                    recognition_max_workers=(
+                        self._request.recognition_workers
+                    ),
                 )
                 cluster_slice, recognition_slice = identify_pipeline.run(
                     current_slice
@@ -339,6 +350,8 @@ class FullSpeedWorker(QThread):
             pa_model_path=selection.pa_model_path,
             dtoa_model_path=selection.dtoa_model_path,
             temp_dir=self._request.temp_dir,
+            device_preference=self._request.compute_device,
+            intra_op_num_threads=1,
         )
 
     def _build_cluster_params(self) -> ClusteringParams:

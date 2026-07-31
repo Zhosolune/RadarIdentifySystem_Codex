@@ -92,6 +92,7 @@ class IdentifyStageOps:
         cluster_params [ClusteringParams]: 聚类参数，供 DOA 二次聚类和限幅使用。
         recognize_params [RecognitionParams]: 识别参数，供 ``recognize`` 使用。
         context [IdentifyPipelineContext]: 阶段执行上下文，供阶段迁移与识别回调使用。
+        recognition_max_workers [int | None]: 簇级识别并发线程上限。
     """
 
     def __init__(
@@ -100,6 +101,7 @@ class IdentifyStageOps:
         cluster_params: ClusteringParams,
         recognize_params: RecognitionParams,
         context: IdentifyPipelineContext,
+        recognition_max_workers: int | None = None,
     ) -> None:
         """
         Args:
@@ -107,12 +109,14 @@ class IdentifyStageOps:
             cluster_params [ClusteringParams]: 聚类参数快照。
             recognize_params [RecognitionParams]: 识别参数快照。
             context [IdentifyPipelineContext]: 阶段执行上下文。
+            recognition_max_workers [int | None]: 簇级识别并发线程上限。
         """
         # 保存注入依赖，供后续算子方法直接读取。
         self.inference_service = inference_service
         self.cluster_params = cluster_params
         self.recognize_params = recognize_params
         self.context = context
+        self.recognition_max_workers = recognition_max_workers
 
     def recognize(
         self,
@@ -138,6 +142,7 @@ class IdentifyStageOps:
             self.inference_service,
             self.recognize_params,
             start_index,
+            max_workers=self.recognition_max_workers,
             write_summary_log=write_summary_log,
         )
 
