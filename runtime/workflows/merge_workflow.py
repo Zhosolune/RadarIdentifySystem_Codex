@@ -16,7 +16,6 @@ from core.merge import (
     DefaultMergeStrategy,
     MergeStrategy,
 )
-from core.models.algorithm_params import ExtractParams
 from core.models.cluster_result import SliceClusterResult
 from core.models.extraction_result import ExtractedClusterParams
 from core.models.merge_result import (
@@ -39,6 +38,7 @@ from infra.plotting.facades import (
     resolve_merge_source_colors,
 )
 from infra.plotting.types import RenderedImageBundle
+from runtime.algorithm_params import build_extract_params
 from runtime.threading.merge_worker import (
     MergePlanWorker,
     MergePlanWorkerResult,
@@ -721,7 +721,7 @@ class MergeWorkflow(QObject):
             )
             return False
 
-        extract_params = self._build_extract_params(session)
+        extract_params = build_extract_params(session.config_snapshot.extract)
         strategy = self._strategy
         slice_clusters, slice_recognitions = source_results
         LOGGER.info(
@@ -1107,7 +1107,7 @@ class MergeWorkflow(QObject):
         )
         return extract_cluster_params(
             visible_points,
-            self._build_extract_params(session),
+            build_extract_params(session.config_snapshot.extract),
         )
 
     @staticmethod
@@ -1156,24 +1156,6 @@ class MergeWorkflow(QObject):
         if slice_clusters is None or slice_recognitions is None:
             return None
         return slice_clusters, slice_recognitions
-
-    @staticmethod
-    def _build_extract_params(session: ProcessingSession) -> ExtractParams:
-        """根据session快照构造参数提取值对象。"""
-        config = session.config_snapshot.extract
-        return ExtractParams(
-            eps_cf=config.eps_cf,
-            min_pts_cf=config.min_pts_cf,
-            threshold_ratio_cf=config.threshold_ratio_cf,
-            eps_pw=config.eps_pw,
-            min_pts_pw=config.min_pts_pw,
-            threshold_ratio_pw=config.threshold_ratio_pw,
-            eps_pri=config.eps_pri,
-            min_pts_pri=config.min_pts_pri,
-            threshold_ratio_pri=config.threshold_ratio_pri,
-            filter_threshold_pri=config.filter_threshold_pri,
-            harmonic_tolerance_pri=config.harmonic_tolerance_pri,
-        )
 
     @staticmethod
     def _format_values(

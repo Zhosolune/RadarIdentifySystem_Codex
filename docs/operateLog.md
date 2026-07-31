@@ -1,5 +1,29 @@
 # 变更记录
 
+- 时间：2026-07-31 11:34
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\algorithm_params.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\identify_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\full_speed_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：统一交互式处理、全速处理和合并重提取的 Session 参数快照转换规则。
+- 原因：消除多条运行链路重复维护聚类、识别和提取字段映射造成的参数漂移风险，同时保持各 Session 快照和运行参数实例相互独立。
+- 计划清单：
+  - [x] 建立 Session 快照到冻结算法参数的唯一显式转换入口。
+  - [x] 迁移交互式识别、全速逐片识别和合并参数重提取调用方。
+  - [x] 删除未被生产代码使用的全局 qconfig 算法参数读取入口。
+  - [x] 覆盖全部映射字段、Session 独立性和两种处理模式回归。
+- 验证结果：
+  - 转换器是无全局配置读取、无缓存、无快照写入的纯转换函数；每次调用都会创建新的冻结参数实例。
+  - 交互式识别继续读取所属 Session 快照；全速处理继续读取启动请求中的深拷贝快照，并只在单个全速任务内部跨切片复用参数。
+  - 聚焦参数映射、交互式注入、全速冻结与逐片复用、合并重提取回归通过（14 passed，2 warnings）。
+  - 扩大到相关配置、识别、全速、合并和数据池路由测试后为 52 passed、3 failed；失败均为既有合并 UI 文案断言（“组/类”和空格差异），本次未修改对应 UI。
+  - 相关 Python 文件 `py_compile`、转换器 doctest、未暂存及已暂存差异的 `git diff --check` 均通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-31 10:55
 - 操作类型：[新增]
 - 影响文件：

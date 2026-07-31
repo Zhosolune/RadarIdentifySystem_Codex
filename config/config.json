@@ -41,6 +41,11 @@
         "ThemeColor": "#ff4772c3",
         "ThemeMode": "Auto"
     },
+    "performance.fullSpeed": {
+        "computeDevice": "AUTO",
+        "maxConcurrentTasks": 2,
+        "recognitionWorkers": 4
+    },
     "System": {
         "LogDir": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\logs"
     },

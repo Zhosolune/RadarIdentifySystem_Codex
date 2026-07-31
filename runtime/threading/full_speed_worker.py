@@ -18,11 +18,6 @@ from app.logger import bind_session_log_context, unbind_session_log_context
 from core.identify_pipeline import SliceIdentifyPipeline
 from core.merge import MergePipeline
 from core.merge_strategy import HybridParameterMergeStrategy
-from core.models.algorithm_params import (
-    ClusteringParams,
-    ExtractParams,
-    RecognitionParams,
-)
 from core.models.cluster_result import ClusteringResult
 from core.models.merge_result import (
     MergePlan,
@@ -39,6 +34,7 @@ from infra.excel_result_exporter import (
     FullSpeedExportData,
 )
 from infra.onnx_service import OnnxInferenceService
+from runtime.algorithm_params import build_identify_pipeline_params
 
 
 LOGGER = logging.getLogger(__name__)
@@ -217,11 +213,12 @@ class FullSpeedWorker(QThread):
 
         if total_slices:
             inference_service = self._create_inference_service()
-            cluster_params = self._build_cluster_params()
-            recognition_params = self._build_recognition_params()
-            extract_params = self._build_extract_params()
+            # 全速任务只从启动时深拷贝的快照构造一次参数，随后由本任务各切片复用。
+            pipeline_params = build_identify_pipeline_params(
+                request.config_snapshot
+            )
             merge_strategy = HybridParameterMergeStrategy()
-            merge_pipeline = MergePipeline(extract_params)
+            merge_pipeline = MergePipeline(pipeline_params.extract)
 
             for offset, current_slice in enumerate(slice_result.slices):
                 self._check_cancelled()
@@ -236,9 +233,9 @@ class FullSpeedWorker(QThread):
                 )
                 identify_pipeline = SliceIdentifyPipeline(
                     inference_service=inference_service,
-                    cluster_params=cluster_params,
-                    recognize_params=recognition_params,
-                    extract_params=extract_params,
+                    cluster_params=pipeline_params.clustering,
+                    recognize_params=pipeline_params.recognition,
+                    extract_params=pipeline_params.extract,
                     recognition_max_workers=(
                         self._request.recognition_workers
                     ),
@@ -352,48 +349,6 @@ class FullSpeedWorker(QThread):
             temp_dir=self._request.temp_dir,
             device_preference=self._request.compute_device,
             intra_op_num_threads=1,
-        )
-
-    def _build_cluster_params(self) -> ClusteringParams:
-        """从冻结快照构造聚类参数值对象。"""
-        config = self._request.config_snapshot.clustering
-        return ClusteringParams(
-            eps_cf=config.eps_cf,
-            min_pts_cf=config.min_pts_cf,
-            eps_pw=config.eps_pw,
-            min_pts_pw=config.min_pts_pw,
-            eps_doa=config.eps_doa,
-            min_pts_doa=config.min_pts_doa,
-            clip_threshold_doa=config.clip_threshold_doa,
-        )
-
-    def _build_recognition_params(self) -> RecognitionParams:
-        """从冻结快照构造识别参数值对象。"""
-        config = self._request.config_snapshot.recognition
-        return RecognitionParams(
-            greedy_strategy=config.greedy_strategy,
-            pa_confidence_threshold=config.pa_confidence_threshold,
-            pa_confidence_weight=config.pa_confidence_weight,
-            dtoa_confidence_threshold=config.dtoa_confidence_threshold,
-            dtoa_confidence_weight=config.dtoa_confidence_weight,
-            joint_confidence_threshold=config.joint_confidence_threshold,
-        )
-
-    def _build_extract_params(self) -> ExtractParams:
-        """从冻结快照构造参数提取值对象。"""
-        config = self._request.config_snapshot.extract
-        return ExtractParams(
-            eps_cf=config.eps_cf,
-            min_pts_cf=config.min_pts_cf,
-            threshold_ratio_cf=config.threshold_ratio_cf,
-            eps_pw=config.eps_pw,
-            min_pts_pw=config.min_pts_pw,
-            threshold_ratio_pw=config.threshold_ratio_pw,
-            eps_pri=config.eps_pri,
-            min_pts_pri=config.min_pts_pri,
-            threshold_ratio_pri=config.threshold_ratio_pri,
-            filter_threshold_pri=config.filter_threshold_pri,
-            harmonic_tolerance_pri=config.harmonic_tolerance_pri,
         )
 
     def _emit_progress(

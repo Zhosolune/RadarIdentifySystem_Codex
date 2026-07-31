@@ -212,6 +212,9 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
     monkeypatch.setattr(worker_module, "ExcelResultExporter", _ExporterStub)
 
     session = _build_full_speed_session(tmp_path)
+    session.config_snapshot.clustering.eps_cf = 7.75
+    session.config_snapshot.recognition.greedy_strategy = False
+    session.config_snapshot.extract.eps_pri = 0.65
     request = FullSpeedExecutionRequest(
         session_id=session.session_id,
         data_package_id=session.data_package_id,
@@ -250,6 +253,12 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
         kwargs["recognition_max_workers"] == 1
         for kwargs in pipeline_kwargs
     )
+    assert all(
+        kwargs["cluster_params"].eps_cf == 7.75
+        and kwargs["recognize_params"].greedy_strategy is False
+        and kwargs["extract_params"].eps_pri == 0.65
+        for kwargs in pipeline_kwargs
+    )
 
 
 def test_full_speed_workflow_rejects_start_at_concurrency_limit(
@@ -283,9 +292,11 @@ def test_full_speed_request_snapshots_global_performance_settings(
     tmp_path,
     monkeypatch,
 ) -> None:
-    """全速请求应冻结启动时的设备偏好和识别线程上限。"""
+    """全速请求应冻结独立算法快照、设备偏好和识别线程上限。"""
     registry = FullSpeedSessionRegistry(tmp_path / "sessions")
     session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    session.config_snapshot.clustering.eps_cf = 6.25
+    session.config_snapshot.recognition.greedy_strategy = False
     workflow = FullSpeedWorkflow(registry)
     original_get = workflow_module.qconfig.get
 
@@ -300,9 +311,14 @@ def test_full_speed_request_snapshots_global_performance_settings(
     monkeypatch.setattr(workflow_module.qconfig, "get", fake_get)
 
     request = workflow._build_request(session)
+    session.config_snapshot.clustering.eps_cf = 9.5
+    session.config_snapshot.recognition.greedy_strategy = True
 
     assert request.compute_device == "GPU"
     assert request.recognition_workers == 3
+    assert request.config_snapshot is not session.config_snapshot
+    assert request.config_snapshot.clustering.eps_cf == 6.25
+    assert request.config_snapshot.recognition.greedy_strategy is False
 
 
 def test_full_speed_workflow_commits_complete_result_atomically(

@@ -11,10 +11,10 @@ from app.app_config import appConfig, qconfig
 from app.logger import bind_session_log_context, unbind_session_log_context
 from app.model_bootstrap import get_cached_inference_service
 from app.signal_bus import signal_bus
-from core.models.algorithm_params import ClusteringParams, ExtractParams, RecognitionParams
 from core.models.cluster_result import ClusteringResult, SliceClusterResult
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.recognition_result import RecognitionResult, SliceRecognitionResult
+from runtime.algorithm_params import build_identify_pipeline_params
 from runtime.threading.identify_worker import IdentifyWorker, IdentifyWorkerResult
 
 
@@ -166,41 +166,9 @@ class IdentifyWorkflow(QObject):
             self._inference_service = get_cached_inference_service(
                 pa_path=pa_path, dtoa_path=dtoa_path, temp_dir=temp_dir
             )
-            clustering_config = session.config_snapshot.clustering
-            recognition_config = session.config_snapshot.recognition
-            extract_config = session.config_snapshot.extract
-            # 按当前 session 快照构造聚类参数对象，避免跨函数来回跳转。
-            cluster_params = ClusteringParams(
-                eps_cf=clustering_config.eps_cf,
-                min_pts_cf=clustering_config.min_pts_cf,
-                eps_pw=clustering_config.eps_pw,
-                min_pts_pw=clustering_config.min_pts_pw,
-                eps_doa=clustering_config.eps_doa,
-                min_pts_doa=clustering_config.min_pts_doa,
-                clip_threshold_doa=clustering_config.clip_threshold_doa,
-            )
-            # 按当前 session 快照构造识别参数对象，保证线程只接收值对象。
-            recognize_params = RecognitionParams(
-                greedy_strategy=recognition_config.greedy_strategy,
-                pa_confidence_threshold=recognition_config.pa_confidence_threshold,
-                pa_confidence_weight=recognition_config.pa_confidence_weight,
-                dtoa_confidence_threshold=recognition_config.dtoa_confidence_threshold,
-                dtoa_confidence_weight=recognition_config.dtoa_confidence_weight,
-                joint_confidence_threshold=recognition_config.joint_confidence_threshold,
-            )
-            # 按当前 session 快照构造提取参数对象，供识别通过类提取典型参数。
-            extract_params = ExtractParams(
-                eps_cf=extract_config.eps_cf,
-                min_pts_cf=extract_config.min_pts_cf,
-                threshold_ratio_cf=extract_config.threshold_ratio_cf,
-                eps_pw=extract_config.eps_pw,
-                min_pts_pw=extract_config.min_pts_pw,
-                threshold_ratio_pw=extract_config.threshold_ratio_pw,
-                eps_pri=extract_config.eps_pri,
-                min_pts_pri=extract_config.min_pts_pri,
-                threshold_ratio_pri=extract_config.threshold_ratio_pri,
-                filter_threshold_pri=extract_config.filter_threshold_pri,
-                harmonic_tolerance_pri=extract_config.harmonic_tolerance_pri,
+            # 只从当前 Session 快照构造本次任务参数，禁止回读全局配置或共享实例。
+            pipeline_params = build_identify_pipeline_params(
+                session.config_snapshot
             )
 
             with session.lock:
@@ -229,9 +197,9 @@ class IdentifyWorkflow(QObject):
                 slice_index=slice_index,
                 slice_data=session.slice_result.slices[slice_index],
                 inference_service=self._inference_service,
-                cluster_params=cluster_params,
-                recognize_params=recognize_params,
-                extract_params=extract_params,
+                cluster_params=pipeline_params.clustering,
+                recognize_params=pipeline_params.recognition,
+                extract_params=pipeline_params.extract,
                 parent=self
             )
             self._active_slice_index = slice_index
