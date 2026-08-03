@@ -156,7 +156,7 @@ class IdentifyWorkflow(QObject):
             # 读取当前 session 选择的模型路径。
             pa_path = session.model_selection.pa_model_path
             dtoa_path = session.model_selection.dtoa_model_path
-            LOGGER.info("启用模型路径: PA=%s, DTOA=%s", pa_path, dtoa_path)
+            LOGGER.debug("启用模型路径: PA=%s, DTOA=%s", pa_path, dtoa_path)
             if not pa_path or not dtoa_path:
                 LOGGER.warning("session 模型路径为空，推理将无法执行！请在当前 session 中选择 PA 和 DTOA 模型。")
                 return
@@ -185,7 +185,7 @@ class IdentifyWorkflow(QObject):
 
             # 发射阶段开始事件，通知 UI 和其它监听者进入 identifying 流程。
             signal_bus.stage_started.emit(session_id, "identifying", slice_index)
-            LOGGER.info(
+            LOGGER.debug(
                 "发射识别开始事件，当前切片: %d",
                 slice_index + 1,
                 extra={"session_id": session_id},
@@ -237,7 +237,7 @@ class IdentifyWorkflow(QObject):
         Raises:
             无显式抛出异常。
         """
-        LOGGER.info(
+        LOGGER.debug(
             "识别线程进度更新：phase=%s, current=%d, total=%d",
             phase,
             current,

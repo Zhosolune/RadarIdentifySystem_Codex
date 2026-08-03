@@ -86,7 +86,7 @@ def clean_pa(data: np.ndarray, pa_col: int = COL_PA, session_id: str = "-") -> n
     cleaned = data[valid_mask]
     removed = len(data) - len(cleaned)
     if removed > 0:
-        LOGGER.info("剔除 PA=255 无效脉冲 %d 条，剩余 %d 条", removed, len(cleaned), extra={"session_id": session_id})
+        LOGGER.debug("剔除 PA=255 无效脉冲 %d 条，剩余 %d 条", removed, len(cleaned), extra={"session_id": session_id})
     return cleaned
 
 
@@ -148,7 +148,7 @@ def fix_toa_flip(
         # 时间轴归零：减去第一个脉冲的 TOA
         time_data -= time_data[0]
         result[:, toa_col] = time_data
-        LOGGER.info("TOA 修正完成，新时间范围 [%.2f, %.2f] ms",
+        LOGGER.debug("TOA 修正完成，新时间范围 [%.2f, %.2f] ms",
                      float(time_data[0]) / 1e4, float(time_data[-1]) / 1e4, extra={"session_id": session_id})
 
     return result, flip_count

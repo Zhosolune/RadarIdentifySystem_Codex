@@ -163,9 +163,10 @@ class SettingController(QObject):
                 parent=self.view.window(),
             )
         except Exception as error:
-            LOGGER.exception(
+            LOGGER.error(
                 "清理日志失败：%s",
                 error,
+                exc_info=True,
                 extra={"session_id": "-"},
             )
             InfoBar.error(

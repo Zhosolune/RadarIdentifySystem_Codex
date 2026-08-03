@@ -363,7 +363,7 @@ class FullSpeedWorker(QThread):
     ) -> None:
         """发出归一化进度信号并记录阶段日志。"""
         normalized_progress = max(0, min(100, int(progress)))
-        LOGGER.info(
+        LOGGER.debug(
             "全速进度: stage=%s, slice=%d/%d, progress=%d, message=%s",
             stage,
             current_slice,

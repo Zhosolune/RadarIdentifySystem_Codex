@@ -320,11 +320,18 @@ class SliceController(QObject):
         Raises:
             无。
         """
-        LOGGER.info("收到指定切片绘制请求，目标切片编号: %d", slice_index)
-
         session = self.view._session
+        session_id = session.session_id if session else "-"
+        LOGGER.info(
+            "收到指定切片绘制请求，目标切片编号: %d",
+            slice_index,
+            extra={"session_id": session_id},
+        )
         if not session or not session.slice_result:
-            LOGGER.warning("指定切片绘制失败：无有效会话或切片结果为空")
+            LOGGER.warning(
+                "指定切片绘制失败：无有效会话或切片结果为空",
+                extra={"session_id": session_id},
+            )
             InfoBar.warning(
                 title="提示",
                 content="请先执行切片操作，再指定切片编号。",
@@ -338,7 +345,12 @@ class SliceController(QObject):
 
         total = session.slice_result.slice_count
         if slice_index < 1 or slice_index > total:
-            LOGGER.warning("指定切片绘制失败：切片编号 %d 超出有效范围 [1, %d]", slice_index, total)
+            LOGGER.warning(
+                "指定切片绘制失败：切片编号 %d 超出有效范围 [1, %d]",
+                slice_index,
+                total,
+                extra={"session_id": session_id},
+            )
             InfoBar.warning(
                 title="提示",
                 content=f"切片编号超出范围，请输入 1 到 {total} 之间的编号。",
@@ -401,10 +413,13 @@ class SliceController(QObject):
             return
         session = self.view._session
         if not session:
-            LOGGER.debug("无有效会话，跳过自动识别")
+            LOGGER.debug(
+                "无有效会话，跳过自动识别",
+                extra={"session_id": "-"},
+            )
             return
         if self.view._identify_controller.is_identifying_running():
-            LOGGER.info(
+            LOGGER.debug(
                 "识别工作流正在运行，跳过本次自动识别",
                 extra={"session_id": session.session_id},
             )
@@ -415,7 +430,7 @@ class SliceController(QObject):
             else target_slice_index
         )
         if session.is_slice_recognized(target_index):
-            LOGGER.info(
+            LOGGER.debug(
                 "切片 %d 已完成识别，跳过自动识别",
                 target_index + 1,
                 extra={"session_id": session.session_id},
@@ -513,10 +528,22 @@ class SliceController(QObject):
         """
         session = self.view._session
         if not session or not session.slice_result:
-            LOGGER.debug("_load_slice_image: 无有效会话或切片结果为空，跳过加载")
+            LOGGER.debug(
+                "_load_slice_image: 无有效会话或切片结果为空，跳过加载",
+                extra={
+                    "session_id": (
+                        session.session_id if session else "-"
+                    )
+                },
+            )
             return
         if index < 0 or index >= session.slice_result.slice_count:
-            LOGGER.debug("_load_slice_image: 索引 %d 超出有效范围 [0, %d)，跳过加载", index, session.slice_result.slice_count)
+            LOGGER.debug(
+                "_load_slice_image: 索引 %d 超出有效范围 [0, %d)，跳过加载",
+                index,
+                session.slice_result.slice_count,
+                extra={"session_id": session.session_id},
+            )
             return
 
         self._current_slice_index = index

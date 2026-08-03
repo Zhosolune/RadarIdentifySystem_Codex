@@ -40,7 +40,7 @@ class TraceLogEntry:
     pathname: str
     func_name: str
     message: str
-    level: int = logging.INFO
+    level: int = logging.DEBUG
 
 
 @dataclass(frozen=True, slots=True)

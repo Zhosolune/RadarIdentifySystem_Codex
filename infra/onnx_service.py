@@ -48,7 +48,7 @@ def _emit_or_collect_message(
     """输出或收集预测日志。"""
     rendered_message = message % args if args else message
     if write_log:
-        LOGGER.info(rendered_message)
+        LOGGER.debug(rendered_message)
         return
     if trace_messages is not None:
         trace_messages.append(
@@ -84,7 +84,7 @@ class OnnxInferenceService(InferenceService):
         Raises:
             ValueError: 推理设备偏好不受支持或线程数小于 1 时抛出。
         """
-        LOGGER.info("正在初始化 ONNX 推理服务: PA=%s, DTOA=%s", pa_model_path, dtoa_model_path)
+        LOGGER.debug("正在初始化 ONNX 推理服务: PA=%s, DTOA=%s", pa_model_path, dtoa_model_path)
         self._dtoa_model_path = dtoa_model_path
         self._pa_model_path = pa_model_path
         self._temp_dir = temp_dir
@@ -241,7 +241,7 @@ class OnnxInferenceService(InferenceService):
             (类别标签, 置信度, 各类别置信度字典)
         """
         if self._pa_model is None:
-            LOGGER.warning("PA 模型未加载，跳过预测")
+            LOGGER.debug("PA 模型未加载，跳过预测")
             return -1, 0.0, {}
 
         try:
@@ -349,7 +349,7 @@ class OnnxInferenceService(InferenceService):
             无显式抛出异常。
         """
         if self._dtoa_model is None:
-            LOGGER.warning("DTOA 模型未加载，跳过预测")
+            LOGGER.debug("DTOA 模型未加载，跳过预测")
             return -1, 0.0, {}
 
         try:

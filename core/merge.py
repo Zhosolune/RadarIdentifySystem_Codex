@@ -49,7 +49,7 @@ class MergePipeline:
             无显式抛出异常。
         """
         self.extract_params = extract_params or ExtractParams()
-        LOGGER.info(
+        LOGGER.debug(
             "初始化合并执行管线: 参数提取配置=%s",
             asdict(self.extract_params),
         )
@@ -72,7 +72,7 @@ class MergePipeline:
         if slice_recognition_result.slice_index != group.slice_index:
             raise ValueError("识别结果与合并目标的切片索引不一致")
 
-        LOGGER.info(
+        LOGGER.debug(
             "开始执行单个合并组: slice_index=%d, merge_index=%d, "
             "strategy_id=%s, source_cluster_indices=%s, 参数提取配置=%s",
             group.slice_index,
@@ -96,7 +96,7 @@ class MergePipeline:
             tuple(cluster.points_indices for cluster in source_clusters),
             "点索引",
         )
-        LOGGER.info(
+        LOGGER.debug(
             "来源数据拼接完成: slice_index=%d, merge_index=%d, "
             "source_cluster_indices=%s, 各来源点数=%s, 合并点云shape=%s, "
             "合并点索引shape=%s",
@@ -126,7 +126,7 @@ class MergePipeline:
             merged_recognition=None,
             extracted_params=extracted_params,
         )
-        LOGGER.info(
+        LOGGER.debug(
             "单个合并组执行完成: slice_index=%d, merge_index=%d, "
             "source_cluster_indices=%s, time_range=%s, "
             "提取结果CF=%s, PW=%s, PRI=%s, DOA=%s",
@@ -172,7 +172,7 @@ class MergePipeline:
             raise ValueError("聚类结果与合并计划的切片索引不一致")
         if slice_recognition_result.slice_index != plan.slice_index:
             raise ValueError("识别结果与合并计划的切片索引不一致")
-        LOGGER.info(
+        LOGGER.debug(
             "开始执行完整合并计划: slice_index=%d, strategy_id=%s, "
             "group_count=%d, groups=%s, start_merge_index=%d",
             plan.slice_index,
@@ -192,7 +192,7 @@ class MergePipeline:
             )
             for offset, group in enumerate(plan.groups)
         )
-        LOGGER.info(
+        LOGGER.debug(
             "完整合并计划执行完成: slice_index=%d, strategy_id=%s, "
             "result_count=%d, 结果来源=%s",
             plan.slice_index,
@@ -230,7 +230,7 @@ class MergePipeline:
             recognition = recognition_map.get(cluster_index)
             if recognition is None:
                 raise ValueError(f"来源簇 {cluster_index} 未识别通过")
-            LOGGER.info(
+            LOGGER.debug(
                 "解析合并来源类别: slice_index=%d, cluster_index=%d, "
                 "cluster_state=%s, dim_name=%s, point_count=%d, "
                 "point_shape=%s, time_range=%s, pa_label=%d, dtoa_label=%d",

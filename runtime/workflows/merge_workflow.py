@@ -244,7 +244,7 @@ class MergeWorkflow(QObject):
         if slice_index < 0:
             raise ValueError("slice_index 不能为负数")
         session_id = session.session_id
-        LOGGER.info(
+        LOGGER.debug(
             "请求后台判别合并候选: slice_index=%d, strategy_id=%s, "
             "force=%s, judging=%s, result_count=%d",
             slice_index,
@@ -255,21 +255,21 @@ class MergeWorkflow(QObject):
             extra={"session_id": session_id},
         )
         if self.is_judging() or self.is_running():
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过后台合并候选判别: slice_index=%d, 原因=已有合并任务运行",
                 slice_index,
                 extra={"session_id": session_id},
             )
             return False
         if self.get_result_count(session, slice_index):
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过后台合并候选判别: slice_index=%d, 原因=已有合并结果",
                 slice_index,
                 extra={"session_id": session_id},
             )
             return False
         if not session.is_slice_recognized(slice_index):
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过后台合并候选判别: slice_index=%d, 原因=切片尚未识别完成",
                 slice_index,
                 extra={"session_id": session_id},
@@ -277,7 +277,7 @@ class MergeWorkflow(QObject):
             return False
         slice_state = session.get_slice_processing_state(slice_index)
         if slice_state.merge_judgment_suppressed and not force:
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过后台合并候选判别: slice_index=%d, "
                 "原因=重置后判别被抑制且force=False",
                 slice_index,
@@ -286,7 +286,7 @@ class MergeWorkflow(QObject):
             return False
         existing = self._get_prepared_plan(session, slice_index)
         if existing is not None and not force:
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过后台合并候选判别: slice_index=%d, "
                 "原因=当前策略计划已经存在, group_count=%d",
                 slice_index,
@@ -296,7 +296,7 @@ class MergeWorkflow(QObject):
             return False
         source_results = self._find_source_results(session, slice_index)
         if source_results is None:
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过后台合并候选判别: slice_index=%d, 原因=来源结果缺失",
                 slice_index,
                 extra={"session_id": session_id},
@@ -449,7 +449,7 @@ class MergeWorkflow(QObject):
             raise ValueError("slice_index 不能为负数")
         session_id = session.session_id
         merge_config = session.config_snapshot.merge
-        LOGGER.info(
+        LOGGER.debug(
             "请求生成合并判别计划: slice_index=%d, strategy_id=%s, force=%s, "
             "session合并参数快照={placeholder_value=%s, "
             "当前字段为占位且不参与判别=True}",
@@ -460,7 +460,7 @@ class MergeWorkflow(QObject):
             extra={"session_id": session_id},
         )
         if not session.is_slice_recognized(slice_index):
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过合并判别计划生成: slice_index=%d, 原因=切片尚未识别完成",
                 slice_index,
                 extra={"session_id": session_id},
@@ -468,7 +468,7 @@ class MergeWorkflow(QObject):
             return None
         slice_state = session.get_slice_processing_state(slice_index)
         if slice_state.merge_judgment_suppressed and not force:
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过合并判别计划生成: slice_index=%d, "
                 "原因=重置后判别被抑制且force=False",
                 slice_index,
@@ -487,7 +487,7 @@ class MergeWorkflow(QObject):
             and existing is not None
             and existing.strategy_id == self.strategy_id
         ):
-            LOGGER.info(
+            LOGGER.debug(
                 "复用已有合并判别计划: slice_index=%d, strategy_id=%s, "
                 "group_count=%d, groups=%s",
                 slice_index,
@@ -500,7 +500,7 @@ class MergeWorkflow(QObject):
 
         source_results = self._find_source_results(session, slice_index)
         if source_results is None:
-            LOGGER.info(
+            LOGGER.debug(
                 "跳过合并判别计划生成: slice_index=%d, "
                 "原因=聚类结果或识别结果缺失",
                 slice_index,
@@ -514,7 +514,7 @@ class MergeWorkflow(QObject):
         # MergeController 传入当前面板激活周期持有的临时副本。两种来源都
         # 只作为本次策略输入，不允许工作流读取全局qconfig或回写Session快照。
         # 准则只读取当前切片的聚类与识别结果，并返回独立的派生计划。
-        LOGGER.info(
+        LOGGER.debug(
             "调用核心合并策略: slice_index=%d, strategy_id=%s, "
             "cluster_count=%d, valid_recognition_count=%d",
             slice_index,
@@ -693,7 +693,7 @@ class MergeWorkflow(QObject):
             return False
         existing_count = self.get_result_count(session, slice_index)
         if existing_count:
-            LOGGER.info(
+            LOGGER.debug(
                 "拒绝执行合并计划: slice_index=%d, 原因=已有合并结果, "
                 "existing_result_count=%d",
                 slice_index,
@@ -703,7 +703,7 @@ class MergeWorkflow(QObject):
             return False
         source_results = self._find_source_results(session, slice_index)
         if not session.is_slice_recognized(slice_index) or source_results is None:
-            LOGGER.info(
+            LOGGER.warning(
                 "拒绝执行合并计划: slice_index=%d, "
                 "原因=当前切片尚未完成识别",
                 slice_index,
@@ -712,7 +712,7 @@ class MergeWorkflow(QObject):
             return False
         plan = self._get_prepared_plan(session, slice_index)
         if plan is None or not plan.groups:
-            LOGGER.info(
+            LOGGER.warning(
                 "拒绝执行合并计划: slice_index=%d, "
                 "原因=%s",
                 slice_index,
@@ -724,7 +724,7 @@ class MergeWorkflow(QObject):
         extract_params = build_extract_params(session.config_snapshot.extract)
         strategy = self._strategy
         slice_clusters, slice_recognitions = source_results
-        LOGGER.info(
+        LOGGER.debug(
             "准备启动合并线程: slice_index=%d, strategy_id=%s, "
             "groups=%s, cluster_count=%d, valid_recognition_count=%d, "
             "参数提取配置=%s",
@@ -946,7 +946,7 @@ class MergeWorkflow(QObject):
             else None
         )
         previous_result_count = self.get_result_count(session, slice_index)
-        LOGGER.info(
+        LOGGER.debug(
             "开始重置合并状态: slice_index=%d, previous_strategy_id=%s, "
             "previous_groups=%s, previous_result_count=%d",
             slice_index,

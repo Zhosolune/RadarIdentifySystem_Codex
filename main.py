@@ -16,7 +16,12 @@ from app.app_config import appConfig, qconfig
 from app.application import create_application_services
 from app.model_bootstrap import initialize_model_runtime
 from ui.main_window import MainWindow
-from app.logger import configure_logging, get_current_log_file_path
+from app.logger import (
+    configure_logging,
+    get_current_log_file_path,
+    set_log_level,
+    shutdown_logging,
+)
 from app import resource_rc
 import logging
 
@@ -51,9 +56,9 @@ def qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: st
     elif mode == QtMsgType.QtWarningMsg:
         LOGGER.warning(f"[Qt] {message}", extra={"session_id": "-"})
     elif mode == QtMsgType.QtCriticalMsg:
-        LOGGER.critical(f"[Qt] {message}", extra={"session_id": "-"})
+        LOGGER.error(f"[Qt] {message}", extra={"session_id": "-"})
     elif mode == QtMsgType.QtFatalMsg:
-        LOGGER.fatal(f"[Qt] {message}", extra={"session_id": "-"})
+        LOGGER.error(f"[Qt] {message}", extra={"session_id": "-"})
 
 
 def exception_hook(exctype: type, value: BaseException, tb: object) -> None:
@@ -72,7 +77,7 @@ def exception_hook(exctype: type, value: BaseException, tb: object) -> None:
     """
     # 拼接完整异常堆栈文本，便于日志定位
     error_msg = "".join(traceback.format_exception(exctype, value, tb))
-    LOGGER.critical("Uncaught exception:\n%s", error_msg, extra={"session_id": "-"})
+    LOGGER.error("Uncaught exception:\n%s", error_msg, extra={"session_id": "-"})
 
     # 仅在主线程弹出错误对话框，避免子线程触发 GUI 崩溃
     from PyQt6.QtCore import QThread
@@ -94,12 +99,22 @@ def exception_hook(exctype: type, value: BaseException, tb: object) -> None:
 
 
 def main() -> None:
-    configure_logging(qconfig.get(appConfig.logDir))
+    configure_logging(
+        qconfig.get(appConfig.logDir),
+        qconfig.get(appConfig.logLevel),
+    )
+    # 设置页修改配置后立即更新所有全局及 Session Handler，无需重启。
+    appConfig.logLevel.valueChanged.connect(set_log_level)
     sys.excepthook = exception_hook
     qInstallMessageHandler(qt_message_handler)
 
     LOGGER.info("=========================================", extra={"session_id": "-"})
     LOGGER.info("RadarIdentifySystem Starting...", extra={"session_id": "-"})
+    LOGGER.info(
+        "日志记录等级：%s",
+        qconfig.get(appConfig.logLevel),
+        extra={"session_id": "-"},
+    )
     LOGGER.info("当前运行日志文件：%s", get_current_log_file_path(), extra={"session_id": "-"})
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -129,7 +144,13 @@ def main() -> None:
     window = MainWindow(create_application_services())
     window.show()
 
-    sys.exit(app.exec())
+    exit_code = 0
+    try:
+        exit_code = app.exec()
+    finally:
+        # 主事件循环结束后显式关闭全局和各 Session 文件，避免残留句柄。
+        shutdown_logging()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

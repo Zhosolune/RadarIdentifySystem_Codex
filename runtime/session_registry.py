@@ -2,12 +2,41 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import replace
 from datetime import datetime
+import logging
+import threading
 
+from app.logger import register_session_log, unregister_session_log
 from core.models.processing_session import ProcessingSession
 from infra.session_store import SessionStore
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _register_session_log_safely(session_id: str) -> None:
+    """注册 Session 日志路由，失败时只记录全局错误。"""
+    try:
+        register_session_log(session_id)
+    except (OSError, ValueError) as error:
+        LOGGER.error(
+            "注册 Session 独立日志失败: %s",
+            error,
+            extra={"session_id": "-"},
+        )
+
+
+def _unregister_session_log_safely(session_id: str) -> None:
+    """注销 Session 日志路由，失败时只记录全局错误。"""
+    try:
+        unregister_session_log(session_id)
+    except (OSError, ValueError) as error:
+        LOGGER.error(
+            "关闭 Session 独立日志失败: %s",
+            error,
+            extra={"session_id": "-"},
+        )
 
 
 class SessionRegistry:
@@ -121,6 +150,8 @@ class SessionRegistry:
             self._sessions[session.session_id] = session
             if activate:
                 self.active_session_id = session.session_id
+            # Session 注册成功后才启用独立文件，避免失败对象残留日志路由。
+            _register_session_log_safely(session.session_id)
             return session
 
     def restore(self) -> list[ProcessingSession]:
@@ -145,6 +176,7 @@ class SessionRegistry:
             True
         """
         with self._lock:
+            previous_session_ids = set(self._sessions)
             restored_sessions = self.store.load_all_sessions()
             for session in restored_sessions:
                 # 导入缓存缺失或损坏时保留元数据恢复结果，不阻断页面恢复。
@@ -156,6 +188,11 @@ class SessionRegistry:
 
             self._sessions = restored_mapping
             self.active_session_id = None
+            restored_session_ids = set(restored_mapping)
+            for session_id in previous_session_ids - restored_session_ids:
+                _unregister_session_log_safely(session_id)
+            for session_id in restored_session_ids:
+                _register_session_log_safely(session_id)
             return self.all_sessions()
 
     def get(self, session_id: str) -> ProcessingSession | None:
@@ -477,11 +514,13 @@ class SessionRegistry:
                 self.active_session_id = next_active_session_id
 
             self._sessions.pop(session_id, None)
+            _unregister_session_log_safely(session_id)
 
     def _reconcile_after_persisted_close(self, session_id: str) -> None:
         """按磁盘删除结果同步 close 失败后的内存状态。"""
         with self._lock:
             self._sessions.pop(session_id, None)
+            _unregister_session_log_safely(session_id)
             if self.active_session_id == session_id:
                 self.active_session_id = None
 

@@ -42,6 +42,12 @@ class AppConfig(QConfig):
         "LogDir",
         str(get_log_dir()),
     )
+    logLevel = OptionsConfigItem(
+        "System",
+        "LogLevel",
+        "INFO",
+        validator=OptionsValidator(["DEBUG", "INFO", "WARN", "ERROR"]),
+    )
 
     # 全速处理性能 ─────────────────────────────────────────────────────────────
     fullSpeedComputeDevice = OptionsConfigItem(

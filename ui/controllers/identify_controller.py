@@ -234,7 +234,7 @@ class IdentifyController(QObject):
         self.load_cluster_image(current_slice_index)
 
         # 记录完成事件日志
-        LOGGER.info(
+        LOGGER.debug(
             "收到识别完成事件，当前切片: %s",
             slice_index + 1,
             extra={"session_id": session_id},
@@ -448,13 +448,13 @@ class IdentifyController(QObject):
             session.slice_result is None
             or not 0 <= slice_index < session.slice_result.slice_count
         ):
-            LOGGER.info(
+            LOGGER.debug(
                 "忽略当前切片重置请求：没有有效切片",
                 extra={"session_id": session.session_id},
             )
             return
         if self._workflow.is_running():
-            LOGGER.info(
+            LOGGER.warning(
                 "忽略当前切片重置请求：识别工作流正在运行",
                 extra={"session_id": session.session_id},
             )
@@ -558,7 +558,7 @@ class IdentifyController(QObject):
 
         # 同步获取聚类图像并更新界面
         cluster_type = "有效识别簇" if self._is_identified_only_mode() else "聚类簇"
-        LOGGER.info(
+        LOGGER.debug(
             "加载切片 %d 的%s %d 图像",
             current_slice_index + 1,
             cluster_type,

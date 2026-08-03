@@ -163,7 +163,7 @@ class IdentifyWorker(QThread):
             # 调用 core 层完成级联聚类与识别。
             slice_cluster_res, slice_recognition_res = pipeline.run(self._slice_data)
             # 记录聚类阶段输出规模，便于观察不同参数下的聚类密度。
-            LOGGER.info(
+            LOGGER.debug(
                 "切片 %d 聚类完成，产生 %d 个簇",
                 self._slice_index + 1,
                 len(slice_cluster_res.clusters),
@@ -216,7 +216,7 @@ class IdentifyWorker(QThread):
         """记录聚类与识别参数快照。"""
         clustering_params = self._cluster_params
         recognition_params = self._recognize_params
-        LOGGER.info(
+        LOGGER.debug(
             "参数: eps_cf=%.4f, min_pts_cf=%d, eps_pw=%.4f, min_pts_pw=%d, "
             "eps_doa=%.4f, min_pts_doa=%d, clip_doa=%.2f, min_cluster_size=%d, "
             "recognition_strategy=%s, pa_threshold=%.2f, pa_weight=%.2f, "

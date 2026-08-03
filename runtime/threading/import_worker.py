@@ -68,7 +68,7 @@ class ImportWorker(QThread):
         # 绑定会话日志上下文，使本线程内下层模块日志自动带上 session_id
         log_token = bind_session_log_context(self._package_id)
         try:
-            LOGGER.info("开始导入并预处理数据", extra={"session_id": self._package_id})
+            LOGGER.debug("开始导入并预处理数据", extra={"session_id": self._package_id})
             batch = ExcelPulseParser().parse(
                 self._file_path,
                 data_format=self._data_format,
@@ -91,7 +91,7 @@ class ImportWorker(QThread):
                 data_format=self._data_format,
             )
 
-            LOGGER.info("数据导入与预处理完成", extra={"session_id": self._package_id})
+            LOGGER.debug("数据导入与预处理完成", extra={"session_id": self._package_id})
             self.finished_signal.emit(
                 self._package_id,
                 ImportWorkerResult(

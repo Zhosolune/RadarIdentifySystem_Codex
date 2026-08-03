@@ -411,7 +411,7 @@ def test_strategy_logs_parameters_features_and_common_pri_branch(
             ),
         ]
     )
-    caplog.set_level(logging.INFO, logger="core.merge_strategy")
+    caplog.set_level(logging.DEBUG, logger="core.merge_strategy")
 
     plan = DefaultMergeStrategy().build_plan(
         cluster_result,
@@ -466,7 +466,7 @@ def test_strategy_logs_toa_rejection_and_pdoa_fallback_branch(
             ),
         ]
     )
-    caplog.set_level(logging.INFO, logger="core.merge_strategy")
+    caplog.set_level(logging.DEBUG, logger="core.merge_strategy")
 
     DefaultMergeStrategy().build_plan(*toa_inputs)
     DefaultMergeStrategy().build_plan(*fallback_inputs)

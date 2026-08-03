@@ -9,6 +9,7 @@ from pytest import MonkeyPatch
 from qfluentwidgets import qconfig
 
 from app.app_config import appConfig
+import ui.components.log_setting_card as log_setting_card_module
 import ui.controllers.setting_controller as setting_controller_module
 from ui.adapters import ResponsiveContentWidthAdapter
 from ui.controllers.setting_controller import SettingController
@@ -123,3 +124,45 @@ def test_setting_advanced_group_exposes_full_speed_performance_limits() -> None:
         "CPU",
         "GPU",
     }
+    level_combo = interface.log_card.log_level_combo
+    assert tuple(
+        level_combo.itemText(index) for index in range(level_combo.count())
+    ) == ("DEBUG", "INFO", "WARN", "ERROR")
+    assert level_combo.currentText() == qconfig.get(appConfig.logLevel)
+    assert qconfig.get(appConfig.logLevel) in {
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "ERROR",
+    }
+
+
+def test_log_option_level_combo_writes_selected_config(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """日志选项内的下拉框应写入所选日志等级。"""
+    _app()
+    interface = SettingInterface()
+    combo = interface.log_card.log_level_combo
+    writes: list[tuple[object, object]] = []
+
+    def record_config_write(
+        config_item: object,
+        value: object,
+        **_kwargs: object,
+    ) -> None:
+        """记录下拉框发起的配置写入而不修改磁盘配置。"""
+        writes.append((config_item, value))
+
+    monkeypatch.setattr(
+        log_setting_card_module.qconfig,
+        "set",
+        record_config_write,
+    )
+    target_index = (combo.currentIndex() + 1) % combo.count()
+    combo.setCurrentIndex(target_index)
+
+    assert writes[-1] == (
+        appConfig.logLevel,
+        combo.itemText(target_index),
+    )

@@ -381,7 +381,7 @@ def test_parallel_recognition_replays_detailed_logs_in_cluster_order(caplog) -> 
     clusters = [_make_cluster(1), _make_cluster(2), _make_cluster(3)]
     service = _FakeInferenceService({1: 0.03, 2: 0.01, 3: 0.02})
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         recognize_clusters_parallel(
             clusters,
             service,
@@ -419,7 +419,7 @@ def test_single_cluster_path_uses_same_detailed_log_structure(caplog) -> None:
     clusters = [_make_cluster(1)]
     service = _FakeInferenceService({1: 0.0})
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         recognize_clusters_parallel(
             clusters,
             service,

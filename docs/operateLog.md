@@ -1,5 +1,83 @@
 # 变更记录
 
+- 时间：2026-08-03 11:47
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\log_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\setting_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_interface_responsibilities.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将日志记录等级从高级设置独立卡片移入“日志选项”，并改用下拉框选择。
+- 原因：日志等级与目录、打开及清理操作属于同一日志配置域，应集中展示并减少高级设置卡片占用。
+- 计划清单：
+  - [x] 核对日志选项卡和既有 ComboBox 配置绑定方式。
+  - [x] 在日志选项卡内增加等级下拉框并绑定全局持久化配置。
+  - [x] 删除高级组中的独立日志等级卡片并迁移回归断言。
+  - [x] 执行设置页、日志等级和语法回归。
+- 验证结果：
+  - “日志选项”展开卡首项新增固定宽度下拉框，选项为 DEBUG、INFO、WARN、ERROR；后续目录修改、打开和清理操作保持原顺序。
+  - 下拉框直接写入既有 `appConfig.logLevel`，配置从其它入口变化时也会反向同步显示；运行时 Handler 等级更新链路未改变。
+  - 高级设置组不再创建独立日志等级卡片，未修改任何 QSS 文件。
+  - 设置页、下拉框配置写入、四级过滤、Session 路由和日志上下文回归通过（20 passed，1 warning）。
+  - 相关文件 `py_compile` 与 `git diff --check` 通过，临时测试目录已清理。
+- 测试状态：[已测试]
+
+- 时间：2026-08-03 09:30
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\app_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\logger.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\main.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：审计项目全部业务日志调用，统一四级语义，并增加可持久化且运行时生效的日志记录等级设置。
+- 原因：算法内部过程和 UI 状态同步大量占用 INFO，正常启动日志噪声过高；同时需要允许用户按 DEBUG、INFO、WARN、ERROR 阈值控制全局及 Session 日志。
+- 计划清单：
+  - [x] 建立项目日志调用清单，排除第三方组件和测试辅助日志。
+  - [x] 按调试细节、业务里程碑、可恢复异常和任务失败统一 DEBUG、INFO、WARN、ERROR。
+  - [x] 在全局配置和设置页增加日志记录等级选项，并支持运行时立即生效。
+  - [x] 覆盖等级过滤、配置持久化、设置页绑定及 Session 文件路由回归。
+- 验证结果：
+  - 审计项目自身全部直接日志调用及识别 `LogRecord` 回放链路；最终直接调用分布为 DEBUG 125、INFO 47、WARN 33、ERROR 36，第三方 qfluentwidgets、界面 InfoBar 和测试辅助日志不计入业务等级改写。
+  - 聚类/识别逐簇详情、合并策略逐分支判定、UI 控件同步、后台进度和跳过分支降为 DEBUG；任务启动/完成、模型与配置变更保留 INFO；可恢复回退和前置条件拒绝使用 WARN；任务失败和不可恢复异常使用 ERROR。
+  - 新增持久化 `System/LogLevel` 配置，设置页可选择 DEBUG、INFO、WARN、ERROR；阈值同时作用于控制台、全局运行文件与各 Session 独立文件，并可在运行时立即生效。
+  - 四级过滤、运行时切换、全局/Session 双路由、设置页绑定和日志上下文回归通过（19 passed）；日志、设置、识别详细回放及合并相关聚焦回归通过（60 passed，3 deselected，2 warnings）。
+  - 扩大到 Session、预处理、切片、识别、ONNX、全速和合并相关套件为 138 passed、3 failed、3 deselected、2 warnings；失败是既有的预处理单位断言及两项全速滚动区几何断言，本次均未修改对应逻辑或 QSS。
+  - 完整合并相关运行仍有 3 项既有 UI 文案断言差异（“组/类”和结果数量空格），其余 60 项通过。
+  - 相关文件 `py_compile`、`app/logger.py` doctest 与 `git diff --check` 通过；临时测试目录已清理。
+- 测试状态：[已测试]
+
+- 时间：2026-07-31 17:12
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\logger.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\main.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在保留全局运行日志的同时，为每个已注册 Session 增加独立日志文件。
+- 原因：并发交互式和全速 Session 共用单个运行日志不利于独立排查，需要依据既有 session_id 上下文安全路由，同时避免把数据包导入 ID 误识别为 Session。
+- 计划清单：
+  - [x] 实现线程安全且按需创建文件的 Session 日志路由 Handler。
+  - [x] 将 Session 注册、恢复、删除和程序退出接入日志文件生命周期。
+  - [x] 保留全局运行日志，并只为已注册 Session 复制对应日志。
+  - [x] 扩展历史日志清理范围且保留当前运行占用文件。
+  - [x] 覆盖多 Session 隔离、并发写入、数据包排除和生命周期回归。
+- 验证结果：
+  - 全局 `RadarIdentifySystem_run_<时间>.log` 继续记录全部日志；已注册 Session 的记录同时写入 `sessions/<session_id>/RadarIdentifySystem_session_<session_id>_<时间>.log`。
+  - Session 文件按首条记录延迟创建；并发线程使用既有 ContextVar 路由，注销、删除和程序退出会关闭对应文件句柄。
+  - 只有运行期注册表中的 Session ID 会启用独立文件，数据包导入阶段使用的 package_id 不会生成伪 Session 日志。
+  - 历史日志清理覆盖全局和 Session 子目录，并保留当前运行仍打开的文件。
+  - 独立文件、全局双写、并发隔离、数据包排除、清理和注册表生命周期聚焦回归通过（10 passed）。
+  - 日志、Session 注册表、切片导航、全速处理和数据池路由相关回归通过（48 passed，1 warning）。
+  - 相关 Python 文件 `py_compile`、日志模块 doctest、未暂存及已暂存差异的 `git diff --check` 均通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-07-31 11:34
 - 操作类型：[重构]
 - 影响文件：

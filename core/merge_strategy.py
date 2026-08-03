@@ -139,7 +139,7 @@ class HybridParameterMergeStrategy:
         if slice_cluster_result.slice_idx != slice_recognition_result.slice_index:
             raise ValueError("聚类结果与识别结果的切片索引不一致")
 
-        LOGGER.info(
+        LOGGER.debug(
             "开始合并判别: strategy_id=%s, slice_index=%d, "
             "聚类簇总数=%d, 识别通过记录数=%d",
             self.strategy_id,
@@ -147,7 +147,7 @@ class HybridParameterMergeStrategy:
             len(slice_cluster_result.clusters),
             len(slice_recognition_result.valid_clusters),
         )
-        LOGGER.info(
+        LOGGER.debug(
             "合并策略硬编码参数: TOA要求=严格交叠(端点相接不算), "
             "PRI共同值容差=%.6gus, 共同PRI分支CF容差=种子CF绝对值*%.2f, "
             "共同PRI分支DOA容差=%.6g°, 无共同PRI分支CF容差=种子CF绝对值*%.2f, "
@@ -185,7 +185,7 @@ class HybridParameterMergeStrategy:
         ):
             recognition = recognition_map.get(cluster.cluster_idx)
             if cluster.state is not ClusterState.VALID:
-                LOGGER.info(
+                LOGGER.debug(
                     "类别跳过合并判别: slice_index=%d, cluster_index=%d, "
                     "原因=聚类状态不是VALID, state=%s",
                     slice_cluster_result.slice_idx,
@@ -194,7 +194,7 @@ class HybridParameterMergeStrategy:
                 )
                 continue
             if recognition is None:
-                LOGGER.info(
+                LOGGER.debug(
                     "类别跳过合并判别: slice_index=%d, cluster_index=%d, "
                     "原因=不存在识别通过记录",
                     slice_cluster_result.slice_idx,
@@ -205,7 +205,7 @@ class HybridParameterMergeStrategy:
             if feature is not None:
                 features.append(feature)
 
-        LOGGER.info(
+        LOGGER.debug(
             "合并判别有效输入准备完成: slice_index=%d, 有效类别数=%d, 类别编号=%s",
             slice_cluster_result.slice_idx,
             len(features),
@@ -218,7 +218,7 @@ class HybridParameterMergeStrategy:
         while remaining:
             seed = remaining.pop(0)
             merged_group = [seed]
-            LOGGER.info(
+            LOGGER.debug(
                 "开始构建合并组: slice_index=%d, seed_cluster=%d, "
                 "seed_cf_mean=%.12g, 待判别类别=%s",
                 slice_cluster_result.slice_idx,
@@ -234,7 +234,7 @@ class HybridParameterMergeStrategy:
             while changed:
                 changed = False
                 scan_round += 1
-                LOGGER.info(
+                LOGGER.debug(
                     "合并组扩展扫描: slice_index=%d, seed_cluster=%d, "
                     "scan_round=%d, 当前组=%s, 候选=%s",
                     slice_cluster_result.slice_idx,
@@ -248,7 +248,7 @@ class HybridParameterMergeStrategy:
                         merged_group.append(candidate)
                         remaining.remove(candidate)
                         changed = True
-                        LOGGER.info(
+                        LOGGER.debug(
                             "候选类别加入合并组: slice_index=%d, seed_cluster=%d, "
                             "candidate_cluster=%d, 更新后组=%s",
                             slice_cluster_result.slice_idx,
@@ -267,7 +267,7 @@ class HybridParameterMergeStrategy:
                     ),
                 )
                 groups.append(group)
-                LOGGER.info(
+                LOGGER.debug(
                     "形成合并组: slice_index=%d, seed_cluster=%d, "
                     "cluster_indices=%s",
                     slice_cluster_result.slice_idx,
@@ -275,13 +275,13 @@ class HybridParameterMergeStrategy:
                     group.cluster_indices,
                 )
             else:
-                LOGGER.info(
+                LOGGER.debug(
                     "种子类别未形成合并组: slice_index=%d, seed_cluster=%d, "
                     "原因=没有任何候选通过全部判别",
                     slice_cluster_result.slice_idx,
                     seed.cluster_index,
                 )
-        LOGGER.info(
+        LOGGER.debug(
             "合并判别完成: strategy_id=%s, slice_index=%d, 合并组数量=%d, "
             "合并组=%s",
             self.strategy_id,
@@ -304,7 +304,7 @@ class HybridParameterMergeStrategy:
         points = cluster.points
         params = recognition.extracted_params
         if not isinstance(points, np.ndarray):
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=点云不是NumPy数组, "
                 "实际类型=%s",
                 cluster.cluster_idx,
@@ -312,7 +312,7 @@ class HybridParameterMergeStrategy:
             )
             return None
         if points.ndim != 2:
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=点云不是二维数组, "
                 "shape=%s",
                 cluster.cluster_idx,
@@ -320,13 +320,13 @@ class HybridParameterMergeStrategy:
             )
             return None
         if points.shape[0] == 0:
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=点云没有数据行",
                 cluster.cluster_idx,
             )
             return None
         if points.shape[1] < PULSE_COLUMN_COUNT:
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=点云列数不足, "
                 "实际列数=%d, 最低列数=%d",
                 cluster.cluster_idx,
@@ -335,7 +335,7 @@ class HybridParameterMergeStrategy:
             )
             return None
         if params is None:
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=识别记录缺少提取参数",
                 cluster.cluster_idx,
             )
@@ -345,21 +345,21 @@ class HybridParameterMergeStrategy:
         doa_values = self._finite_values(params.doa_values)
         toa_values = self._finite_values(points[:, COL_TOA])
         if not cf_values:
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=CF没有有限数值, 原值=%s",
                 cluster.cluster_idx,
                 params.cf_values,
             )
             return None
         if not doa_values:
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=DOA没有有限数值, 原值=%s",
                 cluster.cluster_idx,
                 params.doa_values,
             )
             return None
         if not toa_values:
-            LOGGER.info(
+            LOGGER.warning(
                 "类别特征构建失败: cluster_index=%d, 原因=TOA没有有限数值",
                 cluster.cluster_idx,
             )
@@ -377,7 +377,7 @@ class HybridParameterMergeStrategy:
             toa_range=(min(toa_values), max(toa_values)),
             direction_stats=direction_stats,
         )
-        LOGGER.info(
+        LOGGER.debug(
             "类别合并特征: cluster_index=%d, point_count=%d, cf_values=%s, "
             "cf_mean=%.12g, pri_values=%s, doa_values=%s, doa_mean=%.12g°, "
             "pa_label=%d, toa_range=[%.12g, %.12g], doa_main_bin=%d, "
@@ -418,7 +418,7 @@ class HybridParameterMergeStrategy:
     ) -> bool:
         """判断候选类别是否与组内至少一个类别满足完整规则。"""
         # “至少一个”是组扩展规则的关键，尤其适用于PA类型不一致时的2°比较。
-        LOGGER.info(
+        LOGGER.debug(
             "开始候选入组判别: seed_cluster=%d, candidate_cluster=%d, "
             "依次比较组内类别=%s",
             seed.cluster_index,
@@ -427,7 +427,7 @@ class HybridParameterMergeStrategy:
         )
         for member in merged_group:
             if self._matches_member(seed, member, candidate):
-                LOGGER.info(
+                LOGGER.debug(
                     "候选入组判别通过: seed_cluster=%d, member_cluster=%d, "
                     "candidate_cluster=%d, 规则=与组内至少一个类别匹配",
                     seed.cluster_index,
@@ -435,7 +435,7 @@ class HybridParameterMergeStrategy:
                     candidate.cluster_index,
                 )
                 return True
-        LOGGER.info(
+        LOGGER.debug(
             "候选入组判别拒绝: seed_cluster=%d, candidate_cluster=%d, "
             "原因=与当前组内所有类别均不匹配",
             seed.cluster_index,
@@ -450,7 +450,7 @@ class HybridParameterMergeStrategy:
         candidate: _MergeFeatures,
     ) -> bool:
         """使用固定种子CF评估候选与一个已合并类别。"""
-        LOGGER.info(
+        LOGGER.debug(
             "类别两两合并判别开始: seed_cluster=%d, member_cluster=%d, "
             "candidate_cluster=%d",
             seed.cluster_index,
@@ -461,7 +461,7 @@ class HybridParameterMergeStrategy:
         overlap_start = max(member.toa_range[0], candidate.toa_range[0])
         overlap_end = min(member.toa_range[1], candidate.toa_range[1])
         if overlap_start >= overlap_end:
-            LOGGER.info(
+            LOGGER.debug(
                 "类别两两合并判别拒绝: member_cluster=%d, candidate_cluster=%d, "
                 "分支=TOA严格交叠前置条件, member_toa=[%.12g, %.12g], "
                 "candidate_toa=[%.12g, %.12g], overlap_start=%.12g, "
@@ -476,7 +476,7 @@ class HybridParameterMergeStrategy:
                 overlap_end,
             )
             return False
-        LOGGER.info(
+        LOGGER.debug(
             "TOA严格交叠前置条件通过: member_cluster=%d, candidate_cluster=%d, "
             "member_toa=[%.12g, %.12g], candidate_toa=[%.12g, %.12g], "
             "overlap=[%.12g, %.12g]",
@@ -496,7 +496,7 @@ class HybridParameterMergeStrategy:
             member.pri_values,
             candidate.pri_values,
         )
-        LOGGER.info(
+        LOGGER.debug(
             "PRI共同值判别: member_cluster=%d, candidate_cluster=%d, "
             "member_pri=%s, candidate_pri=%s, 容差=%.6gus, has_common_pri=%s",
             member.cluster_index,
@@ -517,7 +517,7 @@ class HybridParameterMergeStrategy:
             cf_passed = cf_difference <= cf_limit
             doa_passed = doa_difference <= self.common_pri_doa_tolerance
             result = cf_passed and doa_passed
-            LOGGER.info(
+            LOGGER.debug(
                 "类别两两合并判别%s: member_cluster=%d, candidate_cluster=%d, "
                 "分支=规则1_存在共同PRI, seed_cf=%.12g, candidate_cf=%.12g, "
                 "cf_difference=%.12g, cf_limit=%.12g, cf_passed=%s, "
@@ -544,7 +544,7 @@ class HybridParameterMergeStrategy:
         # 规则2：PRI不能全提取或没有共同值时，CF门限收紧为种子CF的5%。
         cf_limit = abs(seed.cf_mean) * self.fallback_cf_ratio
         if cf_difference > cf_limit:
-            LOGGER.info(
+            LOGGER.debug(
                 "类别两两合并判别拒绝: member_cluster=%d, candidate_cluster=%d, "
                 "分支=规则2_无共同PRI_CF前置条件, seed_cf=%.12g, "
                 "candidate_cf=%.12g, cf_difference=%.12g, cf_limit=%.12g, "
@@ -557,7 +557,7 @@ class HybridParameterMergeStrategy:
                 cf_limit,
             )
             return False
-        LOGGER.info(
+        LOGGER.debug(
             "规则2无共同PRI的CF前置条件通过: member_cluster=%d, "
             "candidate_cluster=%d, seed_cf=%.12g, candidate_cf=%.12g, "
             "cf_difference=%.12g, cf_limit=%.12g",
@@ -577,7 +577,7 @@ class HybridParameterMergeStrategy:
                 candidate.doa_mean,
             )
             result = doa_difference <= self.pa_mismatch_doa_tolerance
-            LOGGER.info(
+            LOGGER.debug(
                 "类别两两合并判别%s: member_cluster=%d, candidate_cluster=%d, "
                 "分支=规则2.1.1_PA类型不一致, member_pa=%d, candidate_pa=%d, "
                 "member_doa=%.12g°, candidate_doa=%.12g°, "
@@ -602,7 +602,7 @@ class HybridParameterMergeStrategy:
         # PDOA均值差不大于6°或循环格子距离不大于2即可合并。
         if member_stats.pdoa_valid and candidate_stats.pdoa_valid:
             if member_stats.pdoa_mean is None or candidate_stats.pdoa_mean is None:
-                LOGGER.info(
+                LOGGER.debug(
                     "类别两两合并判别拒绝: member_cluster=%d, "
                     "candidate_cluster=%d, 分支=规则2.1.2.1_PDOA有效, "
                     "原因=有效标记与均值数据不一致, member_pdoa_mean=%s, "
@@ -625,7 +625,7 @@ class HybridParameterMergeStrategy:
             mean_passed = pdoa_difference <= self.pdoa_mean_tolerance
             bin_passed = bin_difference <= self.direction_bin_tolerance
             result = mean_passed or bin_passed
-            LOGGER.info(
+            LOGGER.debug(
                 "类别两两合并判别%s: member_cluster=%d, candidate_cluster=%d, "
                 "分支=规则2.1.2.1_PA一致且双方PDOA有效, pa_label=%d, "
                 "member_pdoa_mean=%.12g°, candidate_pdoa_mean=%.12g°, "
@@ -665,7 +665,7 @@ class HybridParameterMergeStrategy:
         mean_passed = doa_difference <= self.doa_fallback_tolerance
         bin_passed = bin_difference <= self.direction_bin_tolerance
         result = mean_passed or bin_passed
-        LOGGER.info(
+        LOGGER.debug(
             "类别两两合并判别%s: member_cluster=%d, candidate_cluster=%d, "
             "分支=规则2.1.2.2_PA一致且至少一方PDOA无效_回退DOA, pa_label=%d, "
             "member_pdoa_valid=%s(%.6f), candidate_pdoa_valid=%s(%.6f), "

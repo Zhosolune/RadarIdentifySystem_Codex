@@ -467,7 +467,7 @@ def test_merge_workflow_logs_session_config_plan_and_atomic_writeback(
     """工作流日志应记录Session配置、完整计划、执行参数及原子写回结果。"""
     session = _session_with_four_source_results()
     workflow = MergeWorkflow(strategy=_FixedBatchStrategy())
-    caplog.set_level(logging.INFO, logger="runtime.workflows.merge_workflow")
+    caplog.set_level(logging.DEBUG, logger="runtime.workflows.merge_workflow")
 
     plan = workflow.prepare_merge_plan(session, 0)
     started = _execute_merge_and_wait(workflow, session)
@@ -1318,7 +1318,7 @@ def test_identify_finished_logs_merge_menu_activation_judgment(
         _wait_for_merge_plan(interface._merge_controller._workflow)
         interface._merge_controller.set_strategy(_FixedSingleStrategy())
         _wait_for_merge_plan(interface._merge_controller._workflow)
-        caplog.set_level(logging.INFO, logger="ui.controllers.merge_controller")
+        caplog.set_level(logging.DEBUG, logger="ui.controllers.merge_controller")
         caplog.clear()
 
         interface._merge_controller._on_stage_finished(

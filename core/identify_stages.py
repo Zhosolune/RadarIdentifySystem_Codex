@@ -177,7 +177,7 @@ class IdentifyStageOps:
             # DOA 聚类输入是父簇点集，需要把局部索引映射回原始切片数据索引。
             cluster.points_indices = parent_cluster.points_indices[cluster.points_indices]
         # 记录 DOA 聚类原始输出与限幅前每个子簇点数，供后续对齐限幅前后差异。
-        LOGGER.info(
+        LOGGER.debug(
             "  ├─ [%s→DOA] 父簇 %d 聚类：拆出子簇=%d，未聚类点=%d，父簇点数=%d",
             parent_dim_name or parent_cluster.dim_name,
             parent_cluster.cluster_idx,
@@ -186,7 +186,7 @@ class IdentifyStageOps:
             len(parent_cluster.points),
         )
         for offset, cluster in enumerate(doa_clusters, start=1):
-            LOGGER.info(
+            LOGGER.debug(
                 "  │   ├─ 限幅前 DOA 子簇 %d：点数=%d",
                 offset,
                 cluster.cluster_size,
@@ -198,7 +198,7 @@ class IdentifyStageOps:
         )
         # 记录限幅后的保留结果，便于对比限幅规则的实际生效情况。
         dropped = len(doa_clusters) - len(kept_clusters)
-        LOGGER.info(
+        LOGGER.debug(
             "  ├─ [%s→DOA] 父簇 %d 限幅：阈值=%.2f%%，保留子簇=%d，丢弃=%d",
             parent_dim_name or parent_cluster.dim_name,
             parent_cluster.cluster_idx,
@@ -207,7 +207,7 @@ class IdentifyStageOps:
             dropped,
         )
         for offset, cluster in enumerate(kept_clusters, start=1):
-            LOGGER.info(
+            LOGGER.debug(
                 "  │   ├─ 保留 DOA 子簇 %d：点数=%d",
                 offset,
                 cluster.cluster_size,
@@ -249,7 +249,7 @@ class IdentifyStageOps:
                 # 没有找到一次识别记录时，跳过该簇以避免构造不完整最终结果。
                 continue
 
-            LOGGER.info(
+            LOGGER.debug(
                 "[%s→DOA] 父簇 %d 进入 DOA 复检：父簇点数=%d",
                 parent_dim_name,
                 cluster.cluster_idx,
@@ -262,7 +262,7 @@ class IdentifyStageOps:
             )
             if len(doa_children) <= 1:
                 # 未拆出多个子簇时，保留父簇作为最终有效结果。
-                LOGGER.info(
+                LOGGER.debug(
                     "  └─ %s 父簇 %d 未拆出多子簇（DOA 子簇数=%d），保留父簇为最终有效",
                     parent_dim_name,
                     cluster.cluster_idx,
@@ -287,14 +287,14 @@ class IdentifyStageOps:
             for child_offset, child in enumerate(doa_children, start=1):
                 rec = doa_rec_map.get(child.cluster_idx)
                 if rec is None:
-                    LOGGER.info(
+                    LOGGER.warning(
                         "  ├─ 子簇 %d (DOA)：点数=%d，识别记录缺失",
                         child_offset,
                         child.cluster_size,
                     )
                     continue
                 # 先输出 PA 各类别概率，保留完整分布便于溯源模型判定过程。
-                LOGGER.info(
+                LOGGER.debug(
                     "  ├─ 子簇 %d (DOA)：父簇=%s#%d，点数=%d，PA 各类别概率=%s",
                     child_offset,
                     parent_dim_name,
@@ -303,12 +303,12 @@ class IdentifyStageOps:
                     format_conf_dict(rec.pa_conf_dict),
                 )
                 # 再输出 DTOA 各类别概率，与 PA 对齐同一子簇的两组分布。
-                LOGGER.info(
+                LOGGER.debug(
                     "  │   ├─ DTOA 各类别概率=%s",
                     format_conf_dict(rec.dtoa_conf_dict),
                 )
                 # 最后输出总结性预测结果，方便快速识别 label 与置信度。
-                LOGGER.info(
+                LOGGER.debug(
                     "  │   └─ 预测结果 PA=%d(%.4f), DTOA=%d(%.4f)，识别%s",
                     rec.pa_label,
                     rec.pa_confidence,
@@ -340,7 +340,7 @@ class IdentifyStageOps:
             doa_valid_total += len(doa_valid)
             doa_invalid_total += len(doa_invalid)
 
-            LOGGER.info(
+            LOGGER.debug(
                 "  └─ %s 父簇 %d 复检小结：DOA 子簇通过=%d，未通过=%d，回收点=%d",
                 parent_dim_name,
                 cluster.cluster_idx,
@@ -350,7 +350,7 @@ class IdentifyStageOps:
             )
 
         # 输出维度级二次识别汇总，仅统计 DOA 拆分后再次识别的子簇通过/未通过。
-        LOGGER.info(
+        LOGGER.debug(
             "[%s] 二次识别完成：识别通过=%d，识别未通过=%d",
             parent_dim_name,
             doa_valid_total,

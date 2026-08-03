@@ -94,7 +94,7 @@ class MergeController(QObject):
         """
         slice_index = self.view._slice_controller.current_slice_index
         session = self.view._session
-        LOGGER.info(
+        LOGGER.debug(
             "开始刷新当前切片合并状态: slice_index=%d, reset_index=%s, "
             "is_recognized=%s",
             slice_index,
@@ -115,7 +115,7 @@ class MergeController(QObject):
             slice_index,
         )
         slice_state = session.get_slice_processing_state(slice_index)
-        LOGGER.info(
+        LOGGER.debug(
             "已读取当前切片合并派生状态: slice_index=%d, "
             "merge_judged=%s, prepared_groups=%s, result_count=%d, "
             "merge_judgment_suppressed=%s",
@@ -181,7 +181,7 @@ class MergeController(QObject):
             activation_reason = "当前切片已识别但没有可合并类"
         else:
             activation_reason = "当前切片未识别且没有合并结果"
-        LOGGER.info(
+        LOGGER.debug(
             "开始合并菜单可用性判别: slice_index=%d, "
             "规则=has_candidates OR has_results, is_recognized=%s, "
             "has_candidates=%s, has_results=%s, merge_judged=%s, "
@@ -205,7 +205,7 @@ class MergeController(QObject):
         if not can_open_merge and menu_button.isChecked():
             menu_button.setChecked(False)
         menu_button.setEnabled(can_open_merge)
-        LOGGER.info(
+        LOGGER.debug(
             "合并菜单可用性判别完成: slice_index=%d, can_open_merge=%s, "
             "activation_reason=%s, enabled=%s, checked=%s, "
             "checked_was_forced_off=%s",
@@ -247,7 +247,7 @@ class MergeController(QObject):
         button_bar.reset_button.setEnabled(
             not merge_running and (has_results or self._merge_judged)
         )
-        LOGGER.info(
+        LOGGER.debug(
             "合并操作按钮状态同步完成: slice_index=%d, merge_enabled=%s, "
             "previous_enabled=%s, next_enabled=%s, reset_enabled=%s, "
             "displayed_result_count=%s",
@@ -420,7 +420,7 @@ class MergeController(QObject):
         slice_index: int | None,
     ) -> None:
         """响应识别失效或合并线程启动事件。"""
-        LOGGER.info(
+        LOGGER.debug(
             "收到阶段开始事件并检查合并菜单状态: event_session_id=%s, "
             "event_stage=%s, event_slice_index=%s, current_slice_index=%d",
             session_id,
@@ -437,7 +437,7 @@ class MergeController(QObject):
             self._update_controls()
             return
         if not self._is_current_identify_event(session_id, stage, slice_index):
-            LOGGER.info(
+            LOGGER.debug(
                 "忽略阶段开始事件的合并菜单更新: event_session_id=%s, "
                 "event_stage=%s, event_slice_index=%s, "
                 "原因=不是当前Session当前切片的识别事件",
@@ -465,7 +465,7 @@ class MergeController(QObject):
         """响应识别完成或合并线程成功事件。"""
         current_session_id = self.view._session.session_id
         current_slice_index = self.view._slice_controller.current_slice_index
-        LOGGER.info(
+        LOGGER.debug(
             "收到阶段完成事件并开始合并菜单激活判别: event_session_id=%s, "
             "event_stage=%s, event_slice_index=%s, current_slice_index=%d",
             session_id,
@@ -475,7 +475,7 @@ class MergeController(QObject):
             extra={"session_id": current_session_id},
         )
         if session_id != current_session_id:
-            LOGGER.info(
+            LOGGER.debug(
                 "忽略阶段完成事件的合并菜单激活判别: "
                 "event_session_id=%s, 原因=事件不属于当前Session",
                 session_id,
@@ -488,7 +488,7 @@ class MergeController(QObject):
             return
         if stage == "merging":
             if slice_index != current_slice_index:
-                LOGGER.info(
+                LOGGER.debug(
                     "忽略合并完成事件: event_slice_index=%s, "
                     "current_slice_index=%d, 原因=不是当前展示切片",
                     slice_index,
@@ -500,7 +500,7 @@ class MergeController(QObject):
             self.refresh_current_slice_state(reset_index=True)
             return
         if stage != "identifying":
-            LOGGER.info(
+            LOGGER.debug(
                 "忽略阶段完成事件的合并菜单激活判别: event_stage=%s, "
                 "原因=事件不是identifying阶段",
                 stage,
@@ -508,14 +508,14 @@ class MergeController(QObject):
             )
             return
         if slice_index is None:
-            LOGGER.info(
+            LOGGER.debug(
                 "忽略阶段完成事件的合并菜单激活判别: "
                 "原因=事件没有切片索引",
                 extra={"session_id": current_session_id},
             )
             return
         if slice_index != current_slice_index:
-            LOGGER.info(
+            LOGGER.debug(
                 "忽略阶段完成事件的合并菜单激活判别: "
                 "event_slice_index=%d, current_slice_index=%d, "
                 "原因=识别完成的不是当前展示切片",
@@ -524,7 +524,7 @@ class MergeController(QObject):
                 extra={"session_id": current_session_id},
             )
             return
-        LOGGER.info(
+        LOGGER.debug(
             "识别完成事件通过合并菜单激活前置校验: slice_index=%d, "
             "后续动作=读取已有计划和结果并按识别状态同步按钮",
             slice_index,
@@ -534,7 +534,7 @@ class MergeController(QObject):
         menu_button = (
             self.view.right_panel.navigation_control_card.merge_menu_button
         )
-        LOGGER.info(
+        LOGGER.debug(
             "识别完成后的合并菜单激活流程结束: slice_index=%d, "
             "merge_menu_enabled=%s, merge_menu_checked=%s, "
             "merge_judged=%s, prepared_groups=%s, result_count=%d",
@@ -555,7 +555,7 @@ class MergeController(QObject):
         _error_message: str,
     ) -> None:
         """响应识别失败或合并线程失败事件。"""
-        LOGGER.info(
+        LOGGER.debug(
             "收到阶段失败事件并检查合并菜单状态: event_session_id=%s, "
             "event_stage=%s, event_slice_index=%s, error=%s",
             session_id,
@@ -572,7 +572,7 @@ class MergeController(QObject):
             self.refresh_current_slice_state()
             return
         if not self._is_current_identify_event(session_id, stage, slice_index):
-            LOGGER.info(
+            LOGGER.debug(
                 "忽略阶段失败事件的合并菜单更新: 原因=不是当前Session当前切片的识别事件",
                 extra={"session_id": self.view._session.session_id},
             )

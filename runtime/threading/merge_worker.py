@@ -93,7 +93,7 @@ class MergePlanWorker(QThread):
         """
         log_token = bind_session_log_context(self._session_id)
         try:
-            LOGGER.info(
+            LOGGER.debug(
                 "合并候选判别线程启动: slice_index=%d, strategy_id=%s",
                 self._slice_index,
                 self._strategy.strategy_id,
@@ -217,7 +217,7 @@ class MergeWorker(QThread):
             # 在线程内完成五维绘图验证，避免大图栅格化阻塞 GUI 线程。
             rendered_bundles: list[RenderedImageBundle] = []
             for merged in merged_results:
-                LOGGER.info(
+                LOGGER.debug(
                     "合并线程验证结果绘图: slice_index=%d, merge_index=%d, "
                     "source_cluster_indices=%s, band=%s",
                     self._slice_index,

@@ -305,7 +305,7 @@ def get_cached_inference_service(
 
     from infra.onnx_service import OnnxInferenceService
 
-    LOGGER.info("创建推理服务实例: PA=%s, DTOA=%s", pa_path, dtoa_path)
+    LOGGER.debug("创建推理服务实例: PA=%s, DTOA=%s", pa_path, dtoa_path)
     _cached_inference_service = OnnxInferenceService(
         dtoa_model_path=dtoa_path,
         pa_model_path=pa_path,
@@ -351,7 +351,7 @@ def initialize_model_runtime(write_log: bool = True) -> dict[str, str | None]:
                 enabled_path,
             )
         else:
-            LOGGER.info(
+            LOGGER.warning(
                 "模型初始化失败: type=%s, name=%s, enabled=%s",
                 model_type,
                 "未启用",

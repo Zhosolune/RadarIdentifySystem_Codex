@@ -295,7 +295,7 @@ def circular_mean(angles: np.ndarray) -> float:
     arith_mean = float(np.mean(angles))
     diff = abs(result - arith_mean)
     if diff > 5.0:
-        LOGGER.info(
+        LOGGER.debug(
             "[circular_mean] 角度可能跨越0°/360°边界，n=%d, min=%.2f°, max=%.2f°, 算术均值=%.2f°, 循环均值=%.2f°, 偏差=%.2f°",
             len(angles),
             float(np.min(angles)),

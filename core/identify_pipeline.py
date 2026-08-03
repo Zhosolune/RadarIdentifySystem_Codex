@@ -141,7 +141,7 @@ class SliceIdentifyPipeline:
         points = slice_data.data
         # 空切片直接返回空结果，避免后续聚类函数对空矩阵做无意义处理。
         if len(points) == 0:
-            LOGGER.info(
+            LOGGER.debug(
                 "切片 %s 输入点集为空，跳过识别流程",
                 slice_data.index,
             )
@@ -151,7 +151,7 @@ class SliceIdentifyPipeline:
             )
 
         # 记录切片入口概览，标出总点数和时间范围。
-        LOGGER.info(
+        LOGGER.debug(
             "切片 %s 识别流程启动，总点数=%d，时间范围=%s",
             slice_data.index,
             len(points),
@@ -179,7 +179,7 @@ class SliceIdentifyPipeline:
         )
 
         # 输出切片级最终统计，便于快速对齐 UI 显示的最终簇总数。
-        LOGGER.info(
+        LOGGER.debug(
             "切片 %s 识别流程结束：最终簇=%d（有效=%d，无效=%d），回收点=%d",
             slice_data.index + 1,
             len(builder.clusters) + 1,
@@ -205,7 +205,7 @@ class SliceIdentifyPipeline:
         """执行 CF 聚类、一次识别和 CF-DOA 复检。"""
         # 进入 CF 聚类阶段，后续若失败则可明确标记为 clustering 阶段失败。
         self.context.enter_clustering()
-        LOGGER.info("[CF] 阶段开始，输入点数=%d", len(points))
+        LOGGER.debug("[CF] 阶段开始，输入点数=%d", len(points))
         cf_clusters, cf_unprocessed_idx = process_dimension_clustering(
             points=points,
             dim_name="CF",
@@ -218,13 +218,13 @@ class SliceIdentifyPipeline:
             start_cluster_id=start_cluster_id,
         )
         # 记录 CF 聚类的簇数量、每簇点数和噪声点数，便于对齐 UI 展示。
-        LOGGER.info(
+        LOGGER.debug(
             "[CF] 聚类结果：%d 个候选簇，未聚类点=%d",
             len(cf_clusters),
             len(cf_unprocessed_idx),
         )
         for cluster in cf_clusters:
-            LOGGER.info(
+            LOGGER.debug(
                 "  ├─ CF 簇 %d：点数=%d",
                 cluster.cluster_idx,
                 cluster.cluster_size,
@@ -236,7 +236,7 @@ class SliceIdentifyPipeline:
             clusters=cf_clusters,
             start_index=len(builder.valid_recognitions),
         )
-        LOGGER.info(
+        LOGGER.debug(
             "[CF] 一次识别完成：识别通过=%d，识别未通过=%d",
             len(cf_valid),
             len(cf_invalid),
@@ -258,7 +258,7 @@ class SliceIdentifyPipeline:
         # 反映 CF 聚类 + DOA 复检后经过识别的最终簇数量。
         cf_stage_passed_total = cf_parent_kept + cf_doa_passed
         cf_stage_failed_total = len(cf_invalid) + cf_doa_failed
-        LOGGER.info(
+        LOGGER.debug(
             "[CF] 阶段整体识别汇总：识别通过=%d（未拆分父簇=%d + DOA 拆分通过=%d），"
             "识别未通过=%d（CF 一次未通过=%d + DOA 拆分未通过=%d）",
             cf_stage_passed_total,
@@ -274,7 +274,7 @@ class SliceIdentifyPipeline:
             invalid_clusters=cf_invalid,
             recycled_indices=cf_doa_recycled_indices,
         )
-        LOGGER.info(
+        LOGGER.debug(
             "[CF] 阶段结束，进入 PW 阶段的候选点=%d（CF 未聚类=%d + CF 无效簇点=%d + CF-DOA 回收=%d）",
             len(pw_input_indices),
             len(cf_unprocessed_idx),
@@ -295,14 +295,14 @@ class SliceIdentifyPipeline:
         """执行 PW 聚类、一次识别和 PW-DOA 复检。"""
         # 如果 CF 阶段已经吃掉全部有效点，则无需再进入 PW。
         if len(pw_input_indices) == 0:
-            LOGGER.info("[PW] 阶段跳过：CF 阶段已消化全部有效点")
+            LOGGER.debug("[PW] 阶段跳过：CF 阶段已消化全部有效点")
             return
 
         # 从原始切片点集中抽取 PW 需要继续处理的子集。
         pw_points = points[pw_input_indices]
         # 标记重新进入聚类阶段，便于异常时区分失败来源。
         self.context.enter_clustering()
-        LOGGER.info("[PW] 阶段开始，输入点数=%d", len(pw_points))
+        LOGGER.debug("[PW] 阶段开始，输入点数=%d", len(pw_points))
         pw_clusters, pw_unprocessed_idx = process_dimension_clustering(
             points=pw_points,
             dim_name="PW",
@@ -317,13 +317,13 @@ class SliceIdentifyPipeline:
         for cluster in pw_clusters:
             # PW 输入是回收点子集，需要把局部索引映射回原始切片数据索引。
             cluster.points_indices = pw_input_indices[cluster.points_indices]
-        LOGGER.info(
+        LOGGER.debug(
             "[PW] 聚类结果：%d 个候选簇，未聚类点=%d",
             len(pw_clusters),
             len(pw_unprocessed_idx),
         )
         for cluster in pw_clusters:
-            LOGGER.info(
+            LOGGER.debug(
                 "  ├─ PW 簇 %d：点数=%d",
                 cluster.cluster_idx,
                 cluster.cluster_size,
@@ -334,7 +334,7 @@ class SliceIdentifyPipeline:
             clusters=pw_clusters,
             start_index=len(builder.valid_recognitions),
         )
-        LOGGER.info(
+        LOGGER.debug(
             "[PW] 一次识别完成：识别通过=%d，识别未通过=%d",
             len(pw_valid),
             len(pw_invalid),
@@ -346,7 +346,7 @@ class SliceIdentifyPipeline:
             pw_invalid=pw_invalid,
             pw_recognitions=pw_recognitions,
         )
-        LOGGER.info("[PW] 阶段结束")
+        LOGGER.debug("[PW] 阶段结束")
 
     def _append_final_pw_results(
         self,
@@ -400,7 +400,7 @@ class SliceIdentifyPipeline:
         # PW 阶段整体识别汇总：包含 PW 一次识别失败簇、未拆分父簇与 DOA 拆分后的子簇。
         pw_stage_passed_total = pw_parent_kept_total + pw_doa_passed_total
         pw_stage_failed_total = len(pw_invalid) + pw_doa_failed_total
-        LOGGER.info(
+        LOGGER.debug(
             "[PW] 阶段整体识别汇总：识别通过=%d（未拆分父簇=%d + DOA 拆分通过=%d），"
             "识别未通过=%d（PW 一次未通过=%d + DOA 拆分未通过=%d）",
             pw_stage_passed_total,
