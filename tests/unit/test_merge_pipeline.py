@@ -953,7 +953,7 @@ def test_visibility_controls_update_merge_parameter_table(
     """类别及全局复选框变化时应按当前选中点云刷新参数表格。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     interface = _slice_interface(_session_with_source_results())
@@ -1001,7 +1001,7 @@ def test_reset_allows_rejudgment_with_same_strategy_id_and_new_parameters(
     """重置后应后台重判，并按同ID的新策略参数执行新计划。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     session = _session_with_four_source_results()
@@ -1066,7 +1066,7 @@ def test_empty_rejudgment_keeps_merge_menu_disabled_after_reset(
     """无候选计划应显示0，重置重判后仍不得激活合并菜单。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     session = _session_with_source_results()
@@ -1106,7 +1106,7 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
     """单结果合并后应支持全局显隐，并可重置后后台重判。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     interface = _slice_interface(_session_with_source_results())
@@ -1214,7 +1214,7 @@ def test_merge_menu_activation_follows_current_slice_candidates(
     """切换切片后，菜单应只按当前切片的策略候选状态激活。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     first_clusters, first_recognitions = _source_results()
@@ -1278,7 +1278,7 @@ def test_identify_finished_does_not_prepare_plan_for_non_current_slice(
     """识别完成事件不应提前判定非当前切片的可合并类。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     session = _session_with_source_results()
@@ -1308,7 +1308,7 @@ def test_identify_finished_logs_merge_menu_activation_judgment(
     """识别完成后应记录合并菜单激活判别的输入、规则和最终状态。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     session = _session_with_source_results()

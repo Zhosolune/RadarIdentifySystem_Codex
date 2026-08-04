@@ -9,6 +9,7 @@
 import os
 import logging
 import time
+from threading import RLock
 from typing import Optional, Tuple, Any
 import numpy as np
 
@@ -34,6 +35,24 @@ GPU_PROVIDER_PRIORITY = (
     "CoreMLExecutionProvider",
     "TensorrtExecutionProvider",
 )
+_SHARED_MODEL_SESSION_CACHE: dict[
+    tuple[str, tuple[str, ...], int | None],
+    Any,
+] = {}
+_SHARED_MODEL_SESSION_CACHE_LOCK = RLock()
+
+
+def clear_shared_model_session_cache() -> None:
+    """清空交互式预热使用的底层 ONNX 模型 Session 缓存。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        无。
+    """
+    with _SHARED_MODEL_SESSION_CACHE_LOCK:
+        _SHARED_MODEL_SESSION_CACHE.clear()
 
 
 def _emit_or_collect_message(
@@ -71,6 +90,7 @@ class OnnxInferenceService(InferenceService):
         temp_dir: str,
         device_preference: str = "CPU",
         intra_op_num_threads: int | None = None,
+        reuse_model_sessions: bool = False,
     ) -> None:
         """初始化 ONNX 推理服务。
 
@@ -80,6 +100,7 @@ class OnnxInferenceService(InferenceService):
             temp_dir: 用于存放临时中间图片的目录（如果使用文件系统转换）。
             device_preference: 推理设备偏好，取值为 AUTO、CPU 或 GPU。
             intra_op_num_threads: 单次 ONNX 算子内部线程数；为 None 时使用运行时默认值。
+            reuse_model_sessions: 是否按模型路径复用底层 ONNX Session，交互式预热场景使用。
 
         Raises:
             ValueError: 推理设备偏好不受支持或线程数小于 1 时抛出。
@@ -96,6 +117,7 @@ class OnnxInferenceService(InferenceService):
         if intra_op_num_threads is not None and intra_op_num_threads < 1:
             raise ValueError("ONNX 内部线程数必须大于 0")
         self._intra_op_num_threads = intra_op_num_threads
+        self._reuse_model_sessions = reuse_model_sessions
 
         # 预测阈值（旧版保留，当前不参与标签判定，供后续扩展使用）
         self.th_pa = 0.9
@@ -168,6 +190,25 @@ class OnnxInferenceService(InferenceService):
 
     def _create_session(self, model_path: str, model_name: str) -> Any:
         """创建模型 Session，并在 GPU 初始化失败时回退到 CPU。"""
+        if not self._reuse_model_sessions:
+            return self._create_uncached_session(model_path, model_name)
+
+        cache_key = (
+            os.path.normcase(os.path.abspath(model_path)),
+            tuple(self._providers),
+            self._intra_op_num_threads,
+        )
+        with _SHARED_MODEL_SESSION_CACHE_LOCK:
+            cached_session = _SHARED_MODEL_SESSION_CACHE.get(cache_key)
+            if cached_session is not None:
+                LOGGER.debug("复用已预热的 %s 模型 Session: %s", model_name, model_path)
+                return cached_session
+            session = self._create_uncached_session(model_path, model_name)
+            _SHARED_MODEL_SESSION_CACHE[cache_key] = session
+            return session
+
+    def _create_uncached_session(self, model_path: str, model_name: str) -> Any:
+        """创建不经过共享缓存的底层 ONNX Session。"""
         try:
             session = ort.InferenceSession(
                 model_path,

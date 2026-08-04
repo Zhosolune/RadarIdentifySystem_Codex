@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """模型管理界面。"""
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QLabel, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 
 from qfluentwidgets import (
@@ -28,6 +28,7 @@ class ModelManagerInterface(QWidget):
     """
 
     MAX_CONTENT_WIDTH = 860
+    enabledModelsChanged = pyqtSignal(str)
 
     def __init__(self, parent=None):
         """初始化模型管理界面。

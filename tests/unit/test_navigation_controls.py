@@ -164,7 +164,7 @@ def test_graphic_and_text_navigation_buttons_share_controller_slots(
         return slot
 
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     monkeypatch.setattr(SliceController, "_on_prev_slice", count("prev_slice"))
@@ -237,7 +237,7 @@ def test_navigation_buttons_are_disabled_in_initial_state(
     """初始状态下两组导航按钮和聚类标题应处于空态。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -273,7 +273,7 @@ def test_reset_current_slice_clears_identification_and_allows_recognition_again(
         auto_recognize_indices.append(target_slice_index)
 
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     monkeypatch.setattr(
@@ -388,7 +388,7 @@ def test_navigation_buttons_follow_slice_and_cluster_boundaries(
     """切片和类别导航按钮应根据边界索引同步禁用。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -467,7 +467,7 @@ def test_next_slice_auto_recognize_passes_target_slice_index(
         captured_indices.append(target_slice_index)
 
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     monkeypatch.setattr(
@@ -512,7 +512,7 @@ def test_prev_slice_auto_recognize_passes_target_slice_index(
         captured_indices.append(target_slice_index)
 
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     monkeypatch.setattr(
@@ -557,7 +557,7 @@ def test_redraw_auto_recognize_passes_target_slice_index(
         captured_indices.append(target_slice_index)
 
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     monkeypatch.setattr(
@@ -610,7 +610,7 @@ def test_manual_recognize_button_uses_current_slice_index(
         captured_indices.append(slice_index)
 
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     monkeypatch.setattr(
@@ -651,7 +651,7 @@ def test_slice_controller_uses_constructor_session(
     """切片控制器应复用 SliceInterface 构造时绑定的 session。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     session = ProcessingSession(session_id="constructor_session")
@@ -670,7 +670,7 @@ def test_data_package_parsed_does_not_replace_constructor_session(
     """全局数据包解析事件不应替换构造时绑定的 Session。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     constructor_session = ProcessingSession(session_id="constructor_session")
@@ -701,7 +701,7 @@ def test_plot_show_mode_switches_between_identified_and_all_clusters(
     """展示模式切换后应在有效簇和全部簇之间正确切换。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     monkeypatch.setattr(

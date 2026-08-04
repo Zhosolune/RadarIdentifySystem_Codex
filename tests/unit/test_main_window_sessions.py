@@ -118,7 +118,7 @@ def test_main_window_creates_independent_session_interfaces(
     """主窗口应为不同 session 创建独立切片页面并可按 id 查回。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -145,7 +145,7 @@ def test_main_window_reuses_existing_session_interface(
     """同一 session_id 重复创建时应复用并返回已有页面。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -168,7 +168,7 @@ def test_main_window_closes_session_interface(
     """关闭动态 session 页面后应移除索引并回到主页。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -195,7 +195,7 @@ def test_main_window_closes_background_session_without_switching_current_page(
     """关闭非当前动态 session 页面时应保留用户当前所在页面。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -232,7 +232,7 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
     """主窗口应注册解析结果、创建动态页并发出 session 生命周期信号。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -305,7 +305,7 @@ def test_main_window_add_session_from_import_stays_on_home_and_persists_remark(
     """导入面板创建 session 时应停留主页并持久化备注。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -380,7 +380,7 @@ def test_session_drawer_config_change_is_persisted(
     """动态 session 抽屉配置变更后应同步写入持久化子配置。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     store = SessionStore(tmp_path)
@@ -410,6 +410,69 @@ def test_session_drawer_config_change_is_persisted(
         _dispose_window(window)
 
 
+def test_main_window_restores_independent_session_model_snapshots(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """主窗口恢复两个 Session 时应分别保留其 PA/DTOA 模型快照。"""
+    _app()
+    enabled = {
+        "PA": [r"C:\models\pa-a.onnx", r"C:\models\pa-b.onnx"],
+        "DTOA": [r"C:\models\dtoa-a.onnx", r"C:\models\dtoa-b.onnx"],
+    }
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: list(enabled[model_type]),
+    )
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_display_name",
+        lambda path, model_type: Path(path).stem,
+    )
+    store = SessionStore(tmp_path)
+    first_session = ProcessingSession(session_id="model_snapshot_a")
+    first_session.model_selection.pa_model_path = enabled["PA"][0]
+    first_session.model_selection.dtoa_model_path = enabled["DTOA"][1]
+    second_session = ProcessingSession(session_id="model_snapshot_b")
+    second_session.model_selection.pa_model_path = enabled["PA"][1]
+    second_session.model_selection.dtoa_model_path = enabled["DTOA"][0]
+    store.upsert_session(first_session)
+    store.upsert_session(second_session)
+
+    window = MainWindow(session_registry=SessionRegistry(store))
+    try:
+        first_interface = window.session_interface("model_snapshot_a")
+        second_interface = window.session_interface("model_snapshot_b")
+
+        assert first_interface is not None
+        assert second_interface is not None
+        assert (
+            first_interface.slice_param_panel.model_selection_card.selected_model_path(
+                "PA"
+            )
+            == enabled["PA"][0]
+        )
+        assert (
+            first_interface.slice_param_panel.model_selection_card.selected_model_path(
+                "DTOA"
+            )
+            == enabled["DTOA"][1]
+        )
+        assert (
+            second_interface.slice_param_panel.model_selection_card.selected_model_path(
+                "PA"
+            )
+            == enabled["PA"][1]
+        )
+        assert (
+            second_interface.slice_param_panel.model_selection_card.selected_model_path(
+                "DTOA"
+            )
+            == enabled["DTOA"][0]
+        )
+    finally:
+        _dispose_window(window)
+
+
 def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home_by_default(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
@@ -417,7 +480,7 @@ def test_main_window_restores_session_interfaces_from_registry_and_stays_on_home
     """主窗口启动恢复已有 session 时应默认停留主页且不恢复历史 active 状态。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     store = SessionStore(tmp_path)
@@ -463,7 +526,7 @@ def test_main_window_ignores_legacy_restore_state_and_stays_on_home(
     """主窗口应忽略旧索引中的恢复状态并直接进入主页。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     _FakeMessageBox.accepted = True
@@ -508,7 +571,7 @@ def test_main_window_close_does_not_persist_home_exit_view(
     """在主页退出时不应保存用于下次启动恢复的界面状态。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     store = SessionStore(tmp_path)
@@ -559,7 +622,7 @@ def test_main_window_close_does_not_persist_session_exit_view(
     """在 session 页面退出时不应保存恢复提示所需的界面状态。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     store = SessionStore(tmp_path)
@@ -611,7 +674,7 @@ def test_main_window_restores_import_cache_for_sessions(
     """主窗口恢复 session 页面时应同步恢复导入缓存运行态。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     store = SessionStore(tmp_path)
@@ -667,7 +730,7 @@ def test_home_session_manager_lists_created_session(
     """创建 session 后主页 session 管理器应显示该 session。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -696,7 +759,7 @@ def test_main_window_close_session_keeps_card_and_registry_entry(
     """关闭 session 时应仅关闭动态页面，保留卡片与注册表数据。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     window = MainWindow(session_registry=SessionRegistry(SessionStore(tmp_path)))
@@ -735,7 +798,7 @@ def test_main_window_delete_session_removes_card_and_persisted_data(
     """删除 session 时应移除卡片、动态页面和持久化数据。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     _FakeMessageBox.accepted = True
@@ -771,7 +834,7 @@ def test_main_window_rolls_back_registration_when_session_page_creation_fails(
     """动态页面创建失败时主窗口应回滚 session 注册和持久化。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     registry = SessionRegistry(SessionStore(tmp_path))

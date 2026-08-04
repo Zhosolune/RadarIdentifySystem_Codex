@@ -1,5 +1,34 @@
 # 变更记录
 
+- 时间：2026-08-04 08:35
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将模型管理的单选启用状态改为可多选模型列表，并实现各 Session 独立 PA/DTOA 模型选择、快照持久化与按模型组合预热。
+- 原因：全局唯一模型选择会导致不同 Session 相互影响，无法支持每个 Session 独立冻结和恢复推理模型。
+- 计划清单：
+  - [x] 核对模型注册、Session 抽屉、快照持久化、识别工作流和推理预热现状。
+  - [x] 将模型条目改为组件库复选框，并把全局配置语义迁移为启用模型集合。
+  - [x] 在 Session 抽屉中提供仅包含启用模型的 PA/DTOA 下拉设置卡，并保持 Session 间状态隔离。
+  - [x] 贯通 Session 模型快照的创建、修改、保存、恢复及旧数据兼容。
+  - [x] 调整推理服务为按 Session 模型组合获取/预热，避免全局模型实例串用。
+  - [x] 补充跨层回归测试并执行语法、差异和聚焦测试。
+- 验证结果：
+  - 模型管理条目已由 `RadioButton` 改为 qfluentwidgets `CheckBox`；PA、DTOA 各自保存非空启用路径列表，旧版单路径配置首次读取时自动迁移为单元素列表。
+  - Session 抽屉的 PA/DTOA 下拉项只来自对应启用列表，优先恢复各自 `SessionModelSelection` 快照；修改后沿既有保存回调写入 SessionStore，不再覆盖其它 Session。
+  - 模型启用集合变化会由模型管理页通知主窗口刷新全部已挂载抽屉；仍有效的 Session 选择保持不变，已停用选择回退到首个候选并独立持久化。
+  - 交互式推理服务改为按 `PA 路径 + DTOA 路径 + 临时目录` 的线程安全组合缓存，不同 Session 的不同模型组合不再争用单例；启动时预热全部启用组合，底层 ONNX Session 按单模型路径共享，实际模型驻留量由笛卡尔积降为 PA 与 DTOA 启用模型数量之和。
+  - 模型集合、抽屉、快照、SessionStore、识别工作流和 ONNX 聚焦回归通过（83 passed，2 warnings）；主窗口 Session 创建、保存及恢复回归曾完整通过（17 passed，1 warning），后续重复运行仍显示 17 passed，但 Qt 测试进程在汇总后未自行退出并被 120 秒超时终止。
+  - 架构与页面职责回归分别通过（2 passed、5 passed）；切片与合并套件除 6 项既有 QSS、合并文案和快照标题断言外分别为 7 passed、19 passed，本次未修改相关逻辑或 QSS。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check` 通过；测试临时目录和字节码缓存已清理。
+- 测试状态：[已测试]
+
 - 时间：2026-08-03 11:47
 - 操作类型：[修改]
 - 影响文件：

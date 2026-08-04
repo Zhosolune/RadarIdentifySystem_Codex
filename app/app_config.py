@@ -264,6 +264,7 @@ class AppConfig(QConfig):
         name="userModelRootDir",
         default=str(Path.home() / ".RadarIdentifySystem" / "models"),
     )
+    # 旧版单选路径仅用于首次迁移，运行期只读写下方复数列表配置。
     modelPaEnabledPath = ConfigItem(
         group="model",
         name="paEnabledPath",
@@ -273,6 +274,16 @@ class AppConfig(QConfig):
         group="model",
         name="dtoaEnabledPath",
         default="",
+    )
+    modelPaEnabledPaths = ConfigItem(
+        group="model",
+        name="paEnabledPaths",
+        default=[],
+    )
+    modelDtoaEnabledPaths = ConfigItem(
+        group="model",
+        name="dtoaEnabledPaths",
+        default=[],
     )
 
     autoRecognizeNextSlice = ConfigItem(

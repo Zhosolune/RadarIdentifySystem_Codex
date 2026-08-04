@@ -18,11 +18,12 @@ from app.model_bootstrap import (
     ensure_user_model_dir,
     get_builtin_model_dir,
     get_display_name,
+    get_enabled_model_paths,
     get_user_model_dir,
     get_user_model_root_dir,
     is_builtin_model,
-    resolve_enabled_model,
-    set_enabled_model_path,
+    resolve_enabled_models,
+    set_model_enabled,
 )
 from ui.dialogs.import_model_dialog import ImportModelDialog
 from ui.dialogs.rename_model_dialog import RenameModelDialog
@@ -96,7 +97,7 @@ class ModelManagerController(QObject):
 
         try:
             model_files = self._sorted_model_files(model_type)
-            enabled_path = self._ensure_enabled_model_for_type(model_type)
+            enabled_paths = set(self._ensure_enabled_models_for_type(model_type))
 
             if not model_files:
                 # 显示当前页面空状态
@@ -111,7 +112,7 @@ class ModelManagerController(QObject):
                         file_path,
                         display_name,
                         remark_text=remark_text,
-                        is_enabled=os.path.normpath(file_path) == enabled_path,
+                        is_enabled=os.path.normpath(file_path) in enabled_paths,
                         is_system_default=is_system_default,
                         parent=page,
                     )
@@ -247,20 +248,20 @@ class ModelManagerController(QObject):
         resolved_type = model_type or self._infer_model_type(file_path)
         return get_display_name(file_path, resolved_type)
 
-    def _ensure_enabled_model_for_type(self, model_type: str) -> str | None:
-        """确保指定类型存在有效启用模型。
+    def _ensure_enabled_models_for_type(self, model_type: str) -> list[str]:
+        """确保指定类型存在有效启用模型列表。
 
         Args:
             model_type (str): 模型类型。
 
         Returns:
-            str | None: 生效的启用模型路径，无可用模型时返回 None。
+            list[str]: 生效的启用模型路径列表，无可用模型时返回空列表。
 
         Raises:
             ValueError: 模型类型不支持时抛出异常。
         """
         model_files = self._collect_model_files(model_type)
-        return resolve_enabled_model(model_type, model_files=model_files)
+        return resolve_enabled_models(model_type, model_files=model_files)
 
     def handle_import_model(self):
         """处理导入模型事件。
@@ -312,10 +313,11 @@ class ModelManagerController(QObject):
                     parent=self.view,
                 )
                 # 导入后刷新该类型启用状态
-                resolve_enabled_model(
+                resolve_enabled_models(
                     model_type,
                     model_files=self._collect_model_files(model_type),
                 )
+                self.view.enabledModelsChanged.emit(model_type)
                 self.load_models()
             except Exception as e:
                 LOGGER.error(f"导入模型失败 {src_path}: {e}")
@@ -361,7 +363,8 @@ class ModelManagerController(QObject):
             ensure_user_model_dir("DTOA")
             # 刷新两类模型启用状态
             for model_type in ("PA", "DTOA"):
-                resolve_enabled_model(model_type)
+                resolve_enabled_models(model_type)
+                self.view.enabledModelsChanged.emit(model_type)
             # 更新目录卡片内容
             self.view.set_user_model_root_path(normalized_root)
             # 刷新当前模型列表
@@ -499,30 +502,50 @@ class ModelManagerController(QObject):
         Raises:
             无。
         """
-        if not checked:
-            # 禁止取消当前类型唯一启用模型，直接刷新回滚状态
+        enabled_paths = get_enabled_model_paths(model_type)
+        normalized_path = os.path.normpath(file_path)
+        if (
+            not checked
+            and len(enabled_paths) == 1
+            and normalized_path in enabled_paths
+        ):
+            # 每种类型至少保留一个候选，避免全部 Session 失去可选模型。
+            InfoBar.warning(
+                title="无法停用",
+                content=f"{model_type} 至少需要保留一个启用模型",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2200,
+                parent=self.view,
+            )
             self.load_models()
             return
 
         try:
-            # 写入当前类型启用模型路径
-            set_enabled_model_path(model_type, file_path)
+            # 只修改目标模型在候选列表中的成员状态。
+            set_model_enabled(model_type, file_path, checked)
+            self.view.enabledModelsChanged.emit(model_type)
             LOGGER.info(
-                "模型启用状态已变更: type=%s, name=%s, enabled=%s",
+                "模型启用状态已变更: type=%s, name=%s, enabled=%s, path=%s",
                 model_type,
                 self._get_display_name(file_path, model_type),
+                checked,
                 file_path,
             )
             InfoBar.success(
-                title="启用成功",
-                content=f"已启用 {model_type} 模型: {self._get_display_name(file_path, model_type)}",
+                title="启用成功" if checked else "停用成功",
+                content=(
+                    f"已{'启用' if checked else '停用'} {model_type} 模型: "
+                    f"{self._get_display_name(file_path, model_type)}"
+                ),
                 orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=1800,
                 parent=self.view,
             )
-            # 刷新列表，确保同类型只有一个开关处于选中
+            # 刷新列表，确保复选状态与持久化候选集合一致。
             self.load_models()
         except Exception as e:
             LOGGER.error(f"切换启用模型失败: {e}")
@@ -582,10 +605,11 @@ class ModelManagerController(QObject):
             # 清理模型元数据映射
             ModelRegistry.remove_name(file_path)
             # 删除后重新解析该类型启用项
-            resolve_enabled_model(
+            resolve_enabled_models(
                 model_type,
                 model_files=self._collect_model_files(model_type),
             )
+            self.view.enabledModelsChanged.emit(model_type)
             InfoBar.success(
                 title="删除成功",
                 content=f"已删除模型: {os.path.basename(file_path)}",
@@ -633,6 +657,7 @@ class ModelManagerController(QObject):
 
         try:
             ModelRegistry.set_name(file_path, new_name)
+            self.view.enabledModelsChanged.emit(model_type)
             InfoBar.success(
                 title="重命名成功",
                 content=f"模型已重命名为: {new_name}",

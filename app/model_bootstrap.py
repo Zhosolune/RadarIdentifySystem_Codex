@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from threading import RLock
 
 from qfluentwidgets import qconfig
 
@@ -17,9 +17,8 @@ SYSTEM_DEFAULT_NAME = "系统默认"
 SUPPORTED_MODEL_TYPES = ("PA", "DTOA")
 VALID_MODEL_SUFFIXES = (".onnx", ".pkl", ".pt", ".pth")
 
-_cached_inference_service: Optional["OnnxInferenceService"] = None
-_cached_pa_path: str | None = None
-_cached_dtoa_path: str | None = None
+_inference_service_cache: dict[tuple[str, str, str], "OnnxInferenceService"] = {}
+_inference_service_cache_lock = RLock()
 
 
 def _normalize_model_type(model_type: str) -> str:
@@ -57,12 +56,36 @@ def _normalize_path(file_path: str | None) -> str | None:
     return os.path.normpath(file_path)
 
 
-def _get_enabled_path_config_item(model_type: str):
-    """获取启用模型路径配置项。"""
+def _get_enabled_paths_config_item(model_type: str):
+    """获取启用模型路径列表配置项。"""
+    normalized_type = _normalize_model_type(model_type)
+    if normalized_type == "PA":
+        return appConfig.modelPaEnabledPaths
+    return appConfig.modelDtoaEnabledPaths
+
+
+def _get_legacy_enabled_path_config_item(model_type: str):
+    """获取旧版单模型路径配置项。"""
     normalized_type = _normalize_model_type(model_type)
     if normalized_type == "PA":
         return appConfig.modelPaEnabledPath
     return appConfig.modelDtoaEnabledPath
+
+
+def _normalize_paths(value: object) -> list[str]:
+    """将外部配置值标准化为去重路径列表。"""
+    raw_paths = [value] if isinstance(value, str) else value
+    if not isinstance(raw_paths, (list, tuple)):
+        return []
+
+    normalized_paths: list[str] = []
+    for raw_path in raw_paths:
+        normalized_path = _normalize_path(
+            raw_path if isinstance(raw_path, str) else None
+        )
+        if normalized_path and normalized_path not in normalized_paths:
+            normalized_paths.append(normalized_path)
+    return normalized_paths
 
 
 def get_user_model_root_dir() -> Path:
@@ -197,28 +220,38 @@ def get_display_name(file_path: str, model_type: str) -> str:
     return ModelRegistry.get_name(file_path)
 
 
-def get_enabled_model_path(model_type: str) -> str | None:
-    """读取当前启用模型路径。
+def get_enabled_model_paths(model_type: str) -> list[str]:
+    """读取当前类型的启用模型路径列表。
 
     Args:
         model_type (str): 模型类型。
 
     Returns:
-        str | None: 当前启用模型路径，无值时返回 None。
+        list[str]: 去重后的启用模型路径列表，无值时返回空列表。
 
     Raises:
         ValueError: 模型类型不受支持时抛出异常。
     """
-    config_item = _get_enabled_path_config_item(model_type)
-    return _normalize_path(qconfig.get(config_item))
+    paths_item = _get_enabled_paths_config_item(model_type)
+    enabled_paths = _normalize_paths(qconfig.get(paths_item))
+    if enabled_paths:
+        return enabled_paths
+
+    # 首次升级时把旧版单选路径迁移为只含一个元素的启用列表。
+    legacy_item = _get_legacy_enabled_path_config_item(model_type)
+    legacy_path = _normalize_path(qconfig.get(legacy_item))
+    if legacy_path:
+        qconfig.set(paths_item, [legacy_path])
+        return [legacy_path]
+    return []
 
 
-def set_enabled_model_path(model_type: str, file_path: str | None) -> None:
-    """写入当前启用模型路径。
+def set_enabled_model_paths(model_type: str, file_paths: list[str]) -> None:
+    """写入当前类型的启用模型路径列表。
 
     Args:
         model_type (str): 模型类型。
-        file_path (str | None): 启用模型路径，无值时清空配置。
+        file_paths (list[str]): 目标启用模型路径列表。
 
     Returns:
         None: 无返回值。
@@ -226,24 +259,53 @@ def set_enabled_model_path(model_type: str, file_path: str | None) -> None:
     Raises:
         ValueError: 模型类型不受支持时抛出异常。
     """
+    normalized_paths = _normalize_paths(file_paths)
+    paths_item = _get_enabled_paths_config_item(model_type)
+    legacy_item = _get_legacy_enabled_path_config_item(model_type)
+    # 同步保留旧字段的首项值，保证旧版本配置仍可降级读取。
+    qconfig.set(paths_item, normalized_paths)
+    qconfig.set(legacy_item, normalized_paths[0] if normalized_paths else "")
+
+
+def set_model_enabled(model_type: str, file_path: str, enabled: bool) -> list[str]:
+    """切换单个模型在启用列表中的状态。
+
+    Args:
+        model_type (str): 模型类型。
+        file_path (str): 待切换的模型文件路径。
+        enabled (bool): 为 True 时加入列表，否则移出列表。
+
+    Returns:
+        list[str]: 更新后的启用模型路径列表。
+
+    Raises:
+        ValueError: 模型类型不受支持或路径为空时抛出异常。
+    """
     normalized_path = _normalize_path(file_path)
-    enabled_item = _get_enabled_path_config_item(model_type)
-    # 写入启用模型路径
-    qconfig.set(enabled_item, normalized_path or "")
+    if normalized_path is None:
+        raise ValueError("模型路径不能为空")
+
+    enabled_paths = get_enabled_model_paths(model_type)
+    if enabled and normalized_path not in enabled_paths:
+        enabled_paths.append(normalized_path)
+    elif not enabled:
+        enabled_paths = [path for path in enabled_paths if path != normalized_path]
+    set_enabled_model_paths(model_type, enabled_paths)
+    return enabled_paths
 
 
-def resolve_enabled_model(
+def resolve_enabled_models(
     model_type: str,
     model_files: list[str] | None = None,
-) -> str | None:
-    """解析并修正当前生效的启用模型。
+) -> list[str]:
+    """解析并修正当前类型的启用模型列表。
 
     Args:
         model_type (str): 模型类型。
         model_files (list[str] | None): 可用模型列表，未传入时自动收集。
 
     Returns:
-        str | None: 最终生效的启用模型路径，无可用模型时返回 None。
+        list[str]: 最终生效的启用模型路径列表，无可用模型时返回空列表。
 
     Raises:
         ValueError: 模型类型不受支持时抛出异常。
@@ -254,24 +316,26 @@ def resolve_enabled_model(
     ]
     if not normalized_files:
         # 无模型时清空启用状态
-        set_enabled_model_path(model_type, None)
-        return None
+        set_enabled_model_paths(model_type, [])
+        return []
 
-    current_enabled = get_enabled_model_path(model_type)
-    if current_enabled in normalized_files:
-        # 保留有效的当前启用模型
-        set_enabled_model_path(model_type, current_enabled)
-        return current_enabled
+    current_enabled = get_enabled_model_paths(model_type)
+    normalized_file_set = set(normalized_files)
+    valid_enabled = [path for path in current_enabled if path in normalized_file_set]
+    if valid_enabled:
+        # 丢弃已移除文件，同时保留用户启用顺序。
+        set_enabled_model_paths(model_type, valid_enabled)
+        return valid_enabled
 
     for file_path in normalized_files:
         if is_builtin_model(file_path, model_type):
             # 优先启用系统默认模型
-            set_enabled_model_path(model_type, file_path)
-            return file_path
+            set_enabled_model_paths(model_type, [file_path])
+            return [file_path]
 
     # 无系统默认模型时兜底启用首个可用模型
-    set_enabled_model_path(model_type, normalized_files[0])
-    return normalized_files[0]
+    set_enabled_model_paths(model_type, [normalized_files[0]])
+    return [normalized_files[0]]
 
 
 def get_cached_inference_service(
@@ -295,28 +359,46 @@ def get_cached_inference_service(
     Raises:
         无。
     """
-    global _cached_inference_service, _cached_pa_path, _cached_dtoa_path
-    if (
-        _cached_inference_service is not None
-        and _cached_pa_path == pa_path
-        and _cached_dtoa_path == dtoa_path
-    ):
-        return _cached_inference_service
-
-    from infra.onnx_service import OnnxInferenceService
-
-    LOGGER.debug("创建推理服务实例: PA=%s, DTOA=%s", pa_path, dtoa_path)
-    _cached_inference_service = OnnxInferenceService(
-        dtoa_model_path=dtoa_path,
-        pa_model_path=pa_path,
-        temp_dir=temp_dir,
+    cache_key = (
+        os.path.normcase(os.path.normpath(pa_path)),
+        os.path.normcase(os.path.normpath(dtoa_path)),
+        os.path.normcase(os.path.normpath(temp_dir)),
     )
-    _cached_pa_path = pa_path
-    _cached_dtoa_path = dtoa_path
-    return _cached_inference_service
+    with _inference_service_cache_lock:
+        cached_service = _inference_service_cache.get(cache_key)
+        if cached_service is not None:
+            return cached_service
+
+        from infra.onnx_service import OnnxInferenceService
+
+        LOGGER.debug("创建推理服务实例: PA=%s, DTOA=%s", pa_path, dtoa_path)
+        service = OnnxInferenceService(
+            dtoa_model_path=dtoa_path,
+            pa_model_path=pa_path,
+            temp_dir=temp_dir,
+            reuse_model_sessions=True,
+        )
+        _inference_service_cache[cache_key] = service
+        return service
 
 
-def initialize_model_runtime(write_log: bool = True) -> dict[str, str | None]:
+def clear_cached_inference_services() -> None:
+    """清空交互式推理服务组合缓存。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        无。
+    """
+    with _inference_service_cache_lock:
+        _inference_service_cache.clear()
+    from infra.onnx_service import clear_shared_model_session_cache
+
+    clear_shared_model_session_cache()
+
+
+def initialize_model_runtime(write_log: bool = True) -> dict[str, list[str]]:
     """初始化全部模型类型的启用配置并预热推理服务。
 
     在应用启动阶段调用，完成模型配置解析与 ONNX 模型预加载，
@@ -326,53 +408,47 @@ def initialize_model_runtime(write_log: bool = True) -> dict[str, str | None]:
         write_log (bool): 是否输出初始化日志。
 
     Returns:
-        dict[str, str | None]: 各模型类型最终生效的启用路径映射。
+        dict[str, list[str]]: 各模型类型最终生效的启用路径列表映射。
 
     Raises:
         ValueError: 模型类型不受支持时抛出异常。
     """
-    from infra.onnx_service import OnnxInferenceService
     from app.app_config import qconfig
 
-    global _cached_inference_service, _cached_pa_path, _cached_dtoa_path
-
-    enabled_mapping: dict[str, str | None] = {}
+    enabled_mapping: dict[str, list[str]] = {}
     for model_type in SUPPORTED_MODEL_TYPES:
         model_files = collect_available_model_files(model_type)
-        enabled_path = resolve_enabled_model(model_type, model_files=model_files)
-        enabled_mapping[model_type] = enabled_path
+        enabled_paths = resolve_enabled_models(model_type, model_files=model_files)
+        enabled_mapping[model_type] = enabled_paths
         if not write_log:
             continue
-        if enabled_path:
+        if enabled_paths:
             LOGGER.info(
-                "模型初始化成功: type=%s, name=%s, enabled=%s",
+                "模型初始化成功: type=%s, enabled_count=%d, enabled=%s",
                 model_type,
-                get_display_name(enabled_path, model_type),
-                enabled_path,
+                len(enabled_paths),
+                ", ".join(
+                    get_display_name(path, model_type) for path in enabled_paths
+                ),
             )
         else:
             LOGGER.warning(
-                "模型初始化失败: type=%s, name=%s, enabled=%s",
+                "模型初始化失败: type=%s, enabled_count=0",
                 model_type,
-                "未启用",
-                "",
             )
 
-    # 预加载推理服务，避免首次识别时主线程阻塞
-    pa_path = enabled_mapping.get("PA")
-    dtoa_path = enabled_mapping.get("DTOA")
+    # 预热全部可选组合；底层 ONNX Session 按单模型共享，避免组合数导致模型重复驻留。
+    pa_paths = enabled_mapping.get("PA", [])
+    dtoa_paths = enabled_mapping.get("DTOA", [])
     temp_dir = str(qconfig.get(appConfig.logDir))
-    if pa_path and dtoa_path:
-        LOGGER.info("开始预热推理服务...")
-        _cached_inference_service = OnnxInferenceService(
-            dtoa_model_path=dtoa_path,
-            pa_model_path=pa_path,
-            temp_dir=temp_dir,
-        )
-        _cached_pa_path = pa_path
-        _cached_dtoa_path = dtoa_path
-        LOGGER.info("推理服务预热完成")
+    if pa_paths and dtoa_paths:
+        combination_count = len(pa_paths) * len(dtoa_paths)
+        LOGGER.info("开始预热推理服务: combinations=%d", combination_count)
+        for pa_path in pa_paths:
+            for dtoa_path in dtoa_paths:
+                get_cached_inference_service(pa_path, dtoa_path, temp_dir)
+        LOGGER.info("推理服务预热完成: combinations=%d", combination_count)
     else:
-        LOGGER.warning("预热跳过：启用模型路径为空")
+        LOGGER.warning("预热跳过：PA 或 DTOA 启用模型列表为空")
 
     return enabled_mapping

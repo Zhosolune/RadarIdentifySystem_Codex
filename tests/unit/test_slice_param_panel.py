@@ -37,7 +37,7 @@ def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
     """参数面板应集中持有抽屉中的配置卡片。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     session = ProcessingSession()
@@ -79,7 +79,7 @@ def test_slice_param_panel_updates_session_auto_recognize_only(
     """自动识别卡片应只修改当前 session 子配置。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     changed: list[str] = []
@@ -104,7 +104,7 @@ def test_slice_param_panel_logs_auto_recognize_changes(
     """自动识别开关变更时应记录当前 session 的日志。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     payloads: list[tuple[str, str]] = []
@@ -128,7 +128,7 @@ def test_slice_param_panel_updates_session_clustering_params_only(
     """聚类参数卡片应只修改当前 session 子配置。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     changed: list[str] = []
@@ -158,7 +158,7 @@ def test_slice_param_panel_updates_session_merge_placeholder_only(
     """合并占位卡片应只修改当前Session快照而不修改全局配置。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     changed: list[str] = []
@@ -185,12 +185,8 @@ def test_slice_param_panel_binds_model_selection_to_session(
     pa_paths = [r"C:\models\pa-default.onnx", r"C:\models\pa-session.onnx"]
     dtoa_paths = [r"C:\models\dtoa-default.onnx", r"C:\models\dtoa-session.onnx"]
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: pa_paths if model_type == "PA" else dtoa_paths,
-    )
-    monkeypatch.setattr(
-        "ui.components.model_selection_card.get_enabled_model_path",
-        lambda model_type: pa_paths[0] if model_type == "PA" else dtoa_paths[0],
     )
     monkeypatch.setattr(
         "ui.components.model_selection_card.get_display_name",
@@ -214,3 +210,64 @@ def test_slice_param_panel_binds_model_selection_to_session(
     assert session.model_selection.pa_model_path == pa_paths[1]
     assert session.model_selection.dtoa_model_path == dtoa_paths[1]
     assert changed == ["saved", "saved"]
+
+
+def test_slice_param_panel_preserves_restored_model_snapshot(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """抽屉初始化应优先恢复 Session 模型快照，不得覆盖为全局首项。"""
+    _app()
+    pa_paths = [r"C:\models\pa-a.onnx", r"C:\models\pa-b.onnx"]
+    dtoa_paths = [r"C:\models\dtoa-a.onnx", r"C:\models\dtoa-b.onnx"]
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: pa_paths if model_type == "PA" else dtoa_paths,
+    )
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_display_name",
+        lambda path, model_type: Path(path).stem,
+    )
+    session = ProcessingSession()
+    session.model_selection.pa_model_path = pa_paths[1]
+    session.model_selection.dtoa_model_path = dtoa_paths[1]
+
+    panel = SliceParamPanel(session=session)
+
+    assert panel.model_selection_card.selected_model_path("PA") == pa_paths[1]
+    assert panel.model_selection_card.selected_model_path("DTOA") == dtoa_paths[1]
+    assert session.model_selection.pa_model_path == pa_paths[1]
+    assert session.model_selection.dtoa_model_path == dtoa_paths[1]
+
+
+def test_slice_param_panel_reconciles_disabled_snapshot_model(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """当前模型被停用后应回退到候选首项并保存该 Session 快照。"""
+    _app()
+    enabled = {
+        "PA": [r"C:\models\pa-a.onnx", r"C:\models\pa-b.onnx"],
+        "DTOA": [r"C:\models\dtoa-a.onnx"],
+    }
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: list(enabled[model_type]),
+    )
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_display_name",
+        lambda path, model_type: Path(path).stem,
+    )
+    session = ProcessingSession()
+    session.model_selection.pa_model_path = enabled["PA"][1]
+    session.model_selection.dtoa_model_path = enabled["DTOA"][0]
+    changed: list[str] = []
+    panel = SliceParamPanel(
+        session=session,
+        on_config_changed=lambda: changed.append("saved"),
+    )
+
+    enabled["PA"] = [enabled["PA"][0]]
+    panel.model_selection_card.refresh_enabled_models("PA")
+
+    assert session.model_selection.pa_model_path == enabled["PA"][0]
+    assert session.model_selection.dtoa_model_path == enabled["DTOA"][0]
+    assert changed == ["saved"]

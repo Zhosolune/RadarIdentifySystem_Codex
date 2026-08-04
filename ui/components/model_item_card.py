@@ -10,8 +10,8 @@ from qfluentwidgets import (
     CommandBar,
     Action,
     CaptionLabel,
+    CheckBox,
     FluentIcon,
-    RadioButton,
     ToolTipFilter,
     ToolTipPosition,
 )
@@ -90,10 +90,10 @@ class ModelItemCard(CardWidget):
         self.badgeLabel.setFixedSize(40, 40)
         self.badgeLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # 启用单选按钮
-        self.enableBtn = RadioButton("", self)
+        # 复选框表示该模型是否进入 Session 可选模型列表。
+        self.enableBtn = CheckBox("", self)
         self.enableBtn.setObjectName("modelEnableButton")
-        self.enableBtn.setFixedWidth(16)
+        self.enableBtn.setFixedWidth(30)
         self.enableBtn.setChecked(self.is_enabled)
         
         # 文本

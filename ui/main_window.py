@@ -103,6 +103,9 @@ class MainWindow(FluentWindow):
         self.paramsInterface = ParamsInterface(self)
         self.themeListener = SystemThemeListener(self)
         self._session_interfaces: dict[str, SliceInterface] = {}
+        self.modelManagerInterface.enabledModelsChanged.connect(
+            self._refresh_session_model_candidates
+        )
 
         self.session_manager_controller = SessionManagerController(
             self.homeInterface.session_manager_panel,
@@ -247,6 +250,13 @@ class MainWindow(FluentWindow):
         if activate:
             self.show_session_interface(session.session_id)
         return interface
+
+    def _refresh_session_model_candidates(self, model_type: str) -> None:
+        """刷新全部已挂载 Session 抽屉中的指定模型候选列表。"""
+        for interface in self._session_interfaces.values():
+            interface.slice_param_panel.model_selection_card.refresh_enabled_models(
+                model_type
+            )
 
     def session_interface(self, session_id: str) -> SliceInterface | None:
         """按 ID 查找动态切片页面。

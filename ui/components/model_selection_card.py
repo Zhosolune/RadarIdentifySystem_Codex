@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import ComboBox, ExpandGroupSettingCard, FluentIcon
 
 from app.model_bootstrap import (
-    collect_available_model_files,
     get_display_name,
-    get_enabled_model_path,
+    get_enabled_model_paths,
 )
 
 
 class ModelSelectionCard(ExpandGroupSettingCard):
     """保存当前切片页面的 PA 与 DTOA 模型选择。
 
-    组件仅在初始化时读取全局启用模型作为默认值。用户后续选择保存在当前
-    组件实例中，不会修改全局配置或推理服务。
+    下拉项只读取模型管理页勾选的启用模型。初始化优先恢复调用方传入的
+    Session 快照，用户后续选择只保存在当前组件实例中，不会修改全局配置。
 
     Attributes:
         modelChanged: 模型选择变化信号，依次传递模型类型和模型路径。
@@ -25,13 +27,18 @@ class ModelSelectionCard(ExpandGroupSettingCard):
         dtoa_model_combo: DTOA 模型下拉框。
     """
 
-    modelChanged = pyqtSignal(str, str)
+    modelChanged = pyqtSignal(str, object)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """创建两个模型下拉框并复制当前全局默认选择。
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        initial_model_paths: Mapping[str, str | None] | None = None,
+    ) -> None:
+        """创建两个模型下拉框并恢复当前 Session 模型快照。
 
         Args:
             parent [QWidget | None]: 父级控件，默认值为 ``None``。
+            initial_model_paths [Mapping[str, str | None] | None]: 当前 Session 的 PA、DTOA 模型路径。
 
         Returns:
             None: 无返回值。
@@ -53,6 +60,11 @@ class ModelSelectionCard(ExpandGroupSettingCard):
         self.setObjectName("modelSelectionCard")
         self._model_paths: dict[str, list[str]] = {}
         self._selected_paths: dict[str, str | None] = {"PA": None, "DTOA": None}
+        initial_paths = initial_model_paths or {}
+        self._initial_model_paths: dict[str, str | None] = {
+            "PA": initial_paths.get("PA"),
+            "DTOA": initial_paths.get("DTOA"),
+        }
 
         self.pa_model_combo: ComboBox = self._create_model_combo("PA")
         self.dtoa_model_combo: ComboBox = self._create_model_combo("DTOA")
@@ -84,19 +96,12 @@ class ModelSelectionCard(ExpandGroupSettingCard):
     def _create_model_combo(self, model_type: str) -> ComboBox:
         """创建并初始化指定类型的模型下拉框。"""
         combo = ComboBox(self)
-        model_paths = collect_available_model_files(model_type)
-        self._model_paths[model_type] = model_paths
-        combo.addItems([get_display_name(path, model_type) for path in model_paths])
-
-        if not model_paths:
-            combo.setEnabled(False)
-            return combo
-
-        # 全局配置只作为新建页面的初始选择，不接受组件反向写入。
-        enabled_path = get_enabled_model_path(model_type)
-        selected_index = model_paths.index(enabled_path) if enabled_path in model_paths else 0
-        combo.setCurrentIndex(selected_index)
-        self._selected_paths[model_type] = model_paths[selected_index]
+        self._reload_model_combo(
+            model_type,
+            combo,
+            preferred_path=self._initial_model_paths[model_type],
+            emit_change=False,
+        )
         combo.currentIndexChanged.connect(
             lambda index, current_type=model_type: self._on_model_changed(
                 current_type,
@@ -104,6 +109,72 @@ class ModelSelectionCard(ExpandGroupSettingCard):
             )
         )
         return combo
+
+    def refresh_enabled_models(self, model_type: str) -> None:
+        """按最新启用列表刷新指定类型下拉框并保留 Session 当前选择。
+
+        Args:
+            model_type [str]: 发生候选集合变化的模型类型。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            无。
+        """
+        normalized_type = model_type.upper()
+        combo_mapping = {
+            "PA": self.pa_model_combo,
+            "DTOA": self.dtoa_model_combo,
+        }
+        combo = combo_mapping.get(normalized_type)
+        if combo is None:
+            return
+        self._reload_model_combo(
+            normalized_type,
+            combo,
+            preferred_path=self._selected_paths[normalized_type],
+            emit_change=True,
+        )
+
+    def _reload_model_combo(
+        self,
+        model_type: str,
+        combo: ComboBox,
+        preferred_path: str | None,
+        emit_change: bool,
+    ) -> None:
+        """重建单个模型下拉框并在必要时发布有效选择变化。"""
+        previous_path = self._selected_paths[model_type]
+        model_paths = get_enabled_model_paths(model_type)
+        self._model_paths[model_type] = model_paths
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems([get_display_name(path, model_type) for path in model_paths])
+
+        if not model_paths:
+            combo.setEnabled(False)
+            self._selected_paths[model_type] = None
+            combo.blockSignals(False)
+            if emit_change and previous_path is not None:
+                self.modelChanged.emit(model_type, None)
+            return
+
+        combo.setEnabled(True)
+        normalized_preferred_path = (
+            os.path.normpath(preferred_path) if preferred_path else None
+        )
+        selected_index = (
+            model_paths.index(normalized_preferred_path)
+            if normalized_preferred_path in model_paths
+            else 0
+        )
+        combo.setCurrentIndex(selected_index)
+        selected_path = model_paths[selected_index]
+        self._selected_paths[model_type] = selected_path
+        combo.blockSignals(False)
+        if emit_change and selected_path != previous_path:
+            self.modelChanged.emit(model_type, selected_path)
 
     def _on_model_changed(self, model_type: str, index: int) -> None:
         """将下拉框变化保存到当前卡片实例。"""

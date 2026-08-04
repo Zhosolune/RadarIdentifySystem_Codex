@@ -79,7 +79,7 @@ def test_slice_param_panel_is_mounted_in_matching_drawer(
     """参数面板应挂载到与右栏同宽的独立抽屉中。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -105,7 +105,7 @@ def test_analysis_result_table_is_mounted_in_right_bottom_card(
     """分析结果表格应以卡片形式挂载到右侧面板底部。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -165,7 +165,7 @@ def test_header_title_length_does_not_change_image_column_width(
     """标题变长时图像展示列宽应保持稳定。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -211,7 +211,7 @@ def test_slice_interface_uses_session_scale_mode_for_image_updates(
     """切片界面重绘图像时应读取当前 session 的绘制模式。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     used_modes: list[str] = []
@@ -255,7 +255,7 @@ def test_right_panel_keeps_controls_fixed_and_hides_table_scrollbar_when_height_
     """右栏高度不足时应压缩结果表并保持表格滚动条隐藏。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -289,7 +289,7 @@ def test_slice_dimension_cards_have_explicit_snapshot_titles(
     """页面应为全部维度卡片提供明确的快照窗口标题。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -315,7 +315,7 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
     """横向工作区应等宽承载 A/B/C/D，并在初始状态锁定 A+B。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -573,7 +573,7 @@ def test_merge_menu_unlocks_workspace_and_moves_between_ab_and_cd(
     """合并菜单应解锁并定位 C+D，退出后返回并锁定 A+B。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()
@@ -633,7 +633,7 @@ def test_original_snapshot_titles_include_current_slice_number(
     """切片控制器刷新原始图像时应同步其 1-based 切片编号。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda model_type: [],
     )
     interface = _slice_interface()

@@ -130,3 +130,40 @@ def test_gpu_preference_falls_back_when_no_gpu_provider_is_available(
         ["CPUExecutionProvider"],
         ["CPUExecutionProvider"],
     ]
+
+
+def test_interactive_combinations_share_each_underlying_model_session(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """组合预热应按单模型复用底层 Session，避免 PA 与 DTOA 笛卡尔积重复加载。"""
+    model_paths = {
+        name: tmp_path / f"{name}.onnx"
+        for name in ("pa-a", "pa-b", "dtoa-a", "dtoa-b")
+    }
+    for model_path in model_paths.values():
+        model_path.touch()
+    _FakeInferenceSession.calls = []
+    _FakeOrt.available_providers = ["CPUExecutionProvider"]
+    monkeypatch.setattr(onnx_service_module, "ort", _FakeOrt)
+    onnx_service_module.clear_shared_model_session_cache()
+
+    for pa_name in ("pa-a", "pa-b"):
+        for dtoa_name in ("dtoa-a", "dtoa-b"):
+            OnnxInferenceService(
+                dtoa_model_path=str(model_paths[dtoa_name]),
+                pa_model_path=str(model_paths[pa_name]),
+                temp_dir=str(tmp_path),
+                reuse_model_sessions=True,
+            )
+
+    assert len(_FakeInferenceSession.calls) == 4
+    assert {
+        Path(str(call["model_path"])).name
+        for call in _FakeInferenceSession.calls
+    } == {
+        "pa-a.onnx",
+        "pa-b.onnx",
+        "dtoa-a.onnx",
+        "dtoa-b.onnx",
+    }

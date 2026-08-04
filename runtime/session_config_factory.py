@@ -116,9 +116,12 @@ def create_session_model_selection_from_global() -> SessionModelSelection:
         >>> isinstance(selection, SessionModelSelection)
         True
     """
-    from app.model_bootstrap import get_enabled_model_path
+    from app.model_bootstrap import get_enabled_model_paths
+
+    pa_paths = get_enabled_model_paths("PA")
+    dtoa_paths = get_enabled_model_paths("DTOA")
 
     return SessionModelSelection(
-        pa_model_path=get_enabled_model_path("PA"),
-        dtoa_model_path=get_enabled_model_path("DTOA"),
+        pa_model_path=pa_paths[0] if pa_paths else None,
+        dtoa_model_path=dtoa_paths[0] if dtoa_paths else None,
     )

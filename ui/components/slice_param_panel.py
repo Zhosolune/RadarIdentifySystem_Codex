@@ -100,7 +100,13 @@ class SliceParamPanel(QWidget):
         self.auto_recognize_item.valueChanged.connect(
             self._log_auto_recognize_changed
         )
-        self.model_selection_card: ModelSelectionCard = ModelSelectionCard(self)
+        self.model_selection_card: ModelSelectionCard = ModelSelectionCard(
+            self,
+            initial_model_paths={
+                "PA": self.session.model_selection.pa_model_path,
+                "DTOA": self.session.model_selection.dtoa_model_path,
+            },
+        )
         self._sync_initial_model_selection()
         self.model_selection_card.modelChanged.connect(self._on_model_changed)
         self.export_path_card: ExportOptionCard = ExportOptionCard(self)
@@ -323,7 +329,7 @@ class SliceParamPanel(QWidget):
             self.model_selection_card.selected_model_path("DTOA")
         )
 
-    def _on_model_changed(self, model_type: str, model_path: str) -> None:
+    def _on_model_changed(self, model_type: str, model_path: str | None) -> None:
         """将模型卡片选择写入当前 session 并触发保存回调。"""
         if model_type == "PA":
             self.session.model_selection.pa_model_path = model_path

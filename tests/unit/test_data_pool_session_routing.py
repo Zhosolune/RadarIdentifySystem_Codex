@@ -69,7 +69,7 @@ def test_main_window_routes_data_package_to_peer_session_systems(
     """处理模式只决定 Session 体系，不改变共享数据池输入。"""
     _app()
     monkeypatch.setattr(
-        "ui.components.model_selection_card.collect_available_model_files",
+        "ui.components.model_selection_card.get_enabled_model_paths",
         lambda _model_type: [],
     )
     data_pool_registry = DataPoolRegistry(
