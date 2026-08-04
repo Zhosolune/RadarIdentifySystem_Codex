@@ -1,5 +1,31 @@
 # 变更记录
 
+- 时间：2026-08-04 11:28
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\model_bootstrap.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\onnx_runtime_pool.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\model_manager_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\dialogs\import_model_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_model_import_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_onnx_service_performance.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在模型复制入库前校验 ONNX 输入类型与 PA/DTOA 生产维度，阻止错误类型模型导入。
+- 原因：现有导入流程只校验文件存在，PA 页面可导入 DTOA 模型，直到后台预热才暴露输入形状不匹配。
+- 计划清单：
+  - [x] 根据日志确认失败模型实际为 DTOA 输入契约，却被登记到 PA 启用列表。
+  - [x] 提取可复用且不执行推理的 ONNX 输入契约检查。
+  - [x] 在复制和元数据写入前执行校验，并给出明确的类型选择提示。
+  - [x] 收紧导入文件类型并补充匹配、错选及非法模型回归。
+- 验证结果：
+  - 导入弹窗的文件选择器仅接受 ONNX 文件；点击“确认导入”时先读取单输入节点的类型和形状，不执行 dummy inference，避免与后台真实预热重复。
+  - PA 要求 `tensor(float) [1, 1, 80, 400]`，DTOA 要求 `tensor(float) [1, 1, 250, 500]`；若形状恰好属于另一类型，会明确提示“符合 DTOA/PA 模型，但当前选择的是 PA/DTOA 模型”。
+  - 校验失败时弹窗保持打开，错误信息显示在文件路径下方；用户切换模型类型或重新选择文件后提示自动清除，无需重新填写名称和备注。
+  - 控制器在复制前再次校验，防止对话框确认后源文件被替换；不匹配模型不会复制、登记元数据或加入启用列表。
+  - 使用用户实际文件验证：`PA/3.onnx` 被正确拒绝并识别为 DTOA 输入形状，`DTOA/5.onnx` 通过 DTOA 校验。
+  - 导入弹窗、模型配置、单模型运行池、交互识别和全速运行聚焦回归通过（43 passed，2 warnings）；相关文件 `py_compile` 通过。
+- 测试状态：[已测试]
+
 - 时间：2026-08-04 10:35
 - 操作类型：[重构]
 - 影响文件：

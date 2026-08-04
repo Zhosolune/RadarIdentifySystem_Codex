@@ -13,7 +13,10 @@ from qfluentwidgets import qconfig
 from app.app_config import appConfig
 from core.models.session_model import SessionModelSelection
 from infra.model_registry import ModelRegistry
-from infra.onnx_runtime_pool import OnnxModelRuntimePool
+from infra.onnx_runtime_pool import (
+    OnnxModelRuntimePool,
+    validate_onnx_model_contract,
+)
 
 LOGGER = logging.getLogger(__name__)
 SYSTEM_DEFAULT_NAME = "系统默认"
@@ -203,6 +206,27 @@ def collect_available_model_files(model_type: str) -> list[str]:
             if file_name.endswith(VALID_MODEL_SUFFIXES):
                 model_files.append(str(model_dir / file_name))
     return sorted({os.path.normpath(path) for path in model_files})
+
+
+def validate_model_import(
+    model_type: str,
+    file_path: str,
+) -> tuple[int, int, int, int]:
+    """校验待导入模型是否符合用户选择的 PA/DTOA 输入契约。
+
+    Args:
+        model_type [str]: 用户在导入对话框中选择的 PA 或 DTOA 类型。
+        file_path [str]: 待导入模型源文件路径。
+
+    Returns:
+        tuple[int, int, int, int]: 校验通过后的生产输入张量形状。
+
+    Raises:
+        FileNotFoundError: 模型文件不存在时抛出。
+        RuntimeError: 当前环境无法执行 ONNX 元数据校验时抛出。
+        ValueError: 文件格式或输入契约与选择类型不匹配时抛出。
+    """
+    return validate_onnx_model_contract(model_type, file_path)
 
 
 def get_display_name(file_path: str, model_type: str) -> str:

@@ -12,6 +12,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 import logging
 import os
+from pathlib import Path
 from threading import RLock
 import time
 from typing import Any
@@ -184,31 +185,95 @@ def _build_dummy_input(
     model_type: str,
 ) -> tuple[str, np.ndarray, tuple[int, int, int, int]]:
     """校验输入契约并构造与真实推理一致的零值张量。"""
+    input_name, expected_shape = _validate_session_input(
+        session,
+        model_type,
+    )
+    return (
+        input_name,
+        np.zeros(expected_shape, dtype=np.float32),
+        expected_shape,
+    )
+
+
+def _validate_session_input(
+    session: Any,
+    model_type: str,
+) -> tuple[str, tuple[int, int, int, int]]:
+    """校验 Session 输入节点是否符合指定 PA/DTOA 生产契约。"""
+    normalized_type = _normalize_model_type(model_type)
     inputs = session.get_inputs()
     if len(inputs) != 1:
-        raise ValueError(f"{model_type} 模型必须只有一个输入节点")
+        raise ValueError(f"{normalized_type} 模型必须只有一个输入节点")
 
     input_meta = inputs[0]
     if input_meta.type != "tensor(float)":
         raise ValueError(
-            f"{model_type} 模型输入类型必须为 tensor(float)，实际为 {input_meta.type}"
+            f"{normalized_type} 模型输入类型必须为 tensor(float)，"
+            f"实际为 {input_meta.type}"
         )
-    expected_shape = _expected_input_shape(model_type)
+    expected_shape = _expected_input_shape(normalized_type)
     actual_shape = tuple(input_meta.shape)
     if len(actual_shape) != len(expected_shape):
         raise ValueError(
-            f"{model_type} 模型输入维度必须为 4，实际为 {actual_shape}"
+            f"{normalized_type} 模型输入维度必须为 4，实际为 {actual_shape}"
         )
     for actual, expected in zip(actual_shape, expected_shape):
         if isinstance(actual, int) and actual > 0 and actual != expected:
+            other_type = "DTOA" if normalized_type == "PA" else "PA"
+            other_shape = _expected_input_shape(other_type)
+            if actual_shape == other_shape:
+                raise ValueError(
+                    f"模型输入形状为 {actual_shape}，符合 {other_type} 模型，"
+                    f"但当前选择的是 {normalized_type} 模型；请检查模型类型是否选错"
+                )
             raise ValueError(
-                f"{model_type} 模型输入形状必须兼容 {expected_shape}，实际为 {actual_shape}"
+                f"{normalized_type} 模型输入形状必须兼容 {expected_shape}，"
+                f"实际为 {actual_shape}"
             )
-    return (
-        input_meta.name,
-        np.zeros(expected_shape, dtype=np.float32),
-        expected_shape,
-    )
+    return input_meta.name, expected_shape
+
+
+def validate_onnx_model_contract(
+    model_type: str,
+    model_path: str,
+) -> tuple[int, int, int, int]:
+    """在不执行推理的情况下校验待导入 ONNX 模型输入契约。
+
+    Args:
+        model_type [str]: 用户选择的模型类型，取值为 PA 或 DTOA。
+        model_path [str]: 待导入 ONNX 模型文件路径。
+
+    Returns:
+        tuple[int, int, int, int]: 校验通过后的生产输入张量形状。
+
+    Raises:
+        FileNotFoundError: 模型文件不存在时抛出。
+        RuntimeError: 当前环境没有安装 onnxruntime 时抛出。
+        ValueError: 文件格式、模型类型或输入契约不合法时抛出。
+    """
+    normalized_type = _normalize_model_type(model_type)
+    normalized_path = os.path.normcase(os.path.abspath(model_path))
+    if not os.path.isfile(normalized_path):
+        raise FileNotFoundError(f"找不到待导入模型文件: {model_path}")
+    if Path(normalized_path).suffix.lower() != ".onnx":
+        raise ValueError("当前 PA/DTOA 推理服务仅支持导入 .onnx 模型")
+    if ort is None:
+        raise RuntimeError("未检测到 onnxruntime，无法校验模型")
+
+    try:
+        # 只读取模型和输入元数据，不执行 run，避免在 UI 导入阶段做重复预热。
+        session = ort.InferenceSession(
+            normalized_path,
+            providers=["CPUExecutionProvider"],
+        )
+    except Exception as error:
+        raise ValueError(
+            f"无法读取 ONNX 模型，请确认文件完整且格式正确：{error}"
+        ) from error
+
+    _, input_shape = _validate_session_input(session, normalized_type)
+    return input_shape
 
 
 def load_onnx_model_runtime(

@@ -25,6 +25,7 @@ from app.model_bootstrap import (
     resolve_enabled_models,
     set_model_enabled,
     sync_enabled_model_runtimes,
+    validate_model_import,
 )
 from ui.dialogs.import_model_dialog import ImportModelDialog
 from ui.dialogs.rename_model_dialog import RenameModelDialog
@@ -264,7 +265,7 @@ class ModelManagerController(QObject):
         model_files = self._collect_model_files(model_type)
         return resolve_enabled_models(model_type, model_files=model_files)
 
-    def handle_import_model(self):
+    def handle_import_model(self) -> None:
         """处理导入模型事件。
 
         弹出自定义导入对话框，将选中的模型文件复制到用户模型目录。
@@ -272,11 +273,15 @@ class ModelManagerController(QObject):
         """
         default_type = self.view.current_model_type()
 
-        dialog = ImportModelDialog(default_type, self.view)
+        dialog = ImportModelDialog(
+            default_type,
+            self.view,
+            model_validator=validate_model_import,
+        )
         if dialog.exec():
             model_type, src_path, custom_name, remark_text = dialog.getModelInfo()
 
-            if not src_path or not os.path.exists(src_path):
+            if not src_path or not os.path.isfile(src_path):
                 InfoBar.error(
                     title="导入失败",
                     content="无效的模型文件路径",
@@ -284,6 +289,27 @@ class ModelManagerController(QObject):
                     isClosable=True,
                     position=InfoBarPosition.TOP,
                     duration=3000,
+                    parent=self.view,
+                )
+                return
+
+            try:
+                # 复制前读取 ONNX 输入元数据，避免把 DTOA 模型登记到 PA 目录或反之。
+                validate_model_import(model_type, src_path)
+            except (FileNotFoundError, RuntimeError, ValueError) as error:
+                LOGGER.warning(
+                    "模型导入契约校验未通过: type=%s, path=%s, error=%s",
+                    model_type,
+                    src_path,
+                    error,
+                )
+                InfoBar.error(
+                    title="模型校验失败",
+                    content=str(error),
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=5000,
                     parent=self.view,
                 )
                 return

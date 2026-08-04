@@ -8,7 +8,7 @@ from threading import Event
 from types import SimpleNamespace
 
 import numpy as np
-from pytest import MonkeyPatch
+from pytest import MonkeyPatch, raises
 
 import infra.onnx_runtime_pool as runtime_pool_module
 from infra.onnx_runtime_pool import OnnxModelRuntime, OnnxModelRuntimePool
@@ -167,6 +167,56 @@ def test_gpu_preference_falls_back_when_no_gpu_provider_is_available(
     ]
 
 
+def test_import_contract_rejects_dtoa_model_selected_as_pa(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """导入 DTOA 模型却选择 PA 时应在复制前给出明确类型提示。"""
+    _, dtoa_path = _model_paths(tmp_path)
+    _FakeInferenceSession.calls = []
+    monkeypatch.setattr(runtime_pool_module, "ort", _FakeOrt)
+
+    with raises(ValueError, match="符合 DTOA 模型.*当前选择的是 PA 模型"):
+        runtime_pool_module.validate_onnx_model_contract(
+            "PA",
+            str(dtoa_path),
+        )
+
+    assert len(_FakeInferenceSession.calls) == 1
+    assert not _FakeInferenceSession.calls[0]["session"].run_inputs
+
+
+def test_import_contract_accepts_matching_model_without_running_inference(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """导入类型匹配时只读取元数据，不应在 UI 校验阶段执行 run。"""
+    pa_path, _ = _model_paths(tmp_path)
+    _FakeInferenceSession.calls = []
+    monkeypatch.setattr(runtime_pool_module, "ort", _FakeOrt)
+
+    input_shape = runtime_pool_module.validate_onnx_model_contract(
+        "PA",
+        str(pa_path),
+    )
+
+    assert input_shape == (1, 1, 80, 400)
+    assert len(_FakeInferenceSession.calls) == 1
+    assert not _FakeInferenceSession.calls[0]["session"].run_inputs
+
+
+def test_import_contract_rejects_non_onnx_file(tmp_path: Path) -> None:
+    """当前推理链路不支持的模型文件应在导入阶段直接拒绝。"""
+    model_path = tmp_path / "model.pt"
+    model_path.touch()
+
+    with raises(ValueError, match="仅支持导入 .onnx 模型"):
+        runtime_pool_module.validate_onnx_model_contract(
+            "PA",
+            str(model_path),
+        )
+
+
 def test_runtime_pool_deduplicates_same_model_future_and_dummy_run(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -219,6 +269,17 @@ def test_interactive_combinations_share_single_model_runtime_pool(
                     runtime_pool=runtime_pool,
                 )
             )
+    model_futures = {
+        future
+        for service in services
+        for future in (
+            service._pa_runtime_future,
+            service._dtoa_runtime_future,
+        )
+        if future is not None
+    }
+    for future in model_futures:
+        future.result(timeout=5)
     runtime_pool.shutdown()
 
     assert len(services) == 4
