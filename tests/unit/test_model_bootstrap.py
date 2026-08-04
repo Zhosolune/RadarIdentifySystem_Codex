@@ -7,6 +7,7 @@ from pathlib import Path
 from pytest import MonkeyPatch
 
 from app import model_bootstrap
+from core.models.session_model import SessionModelSelection
 
 
 class _FakeQConfig:
@@ -129,32 +130,39 @@ def test_inference_service_cache_isolated_by_model_combination(
     )
     model_bootstrap.clear_cached_inference_services()
 
-    service_a = model_bootstrap.get_cached_inference_service(
-        "pa-a.onnx",
-        "dtoa-a.onnx",
-        str(tmp_path),
-    )
-    service_a_again = model_bootstrap.get_cached_inference_service(
-        "pa-a.onnx",
-        "dtoa-a.onnx",
-        str(tmp_path),
-    )
-    service_b = model_bootstrap.get_cached_inference_service(
-        "pa-b.onnx",
-        "dtoa-b.onnx",
-        str(tmp_path),
-    )
+    try:
+        service_a = model_bootstrap.get_cached_inference_service(
+            "pa-a.onnx",
+            "dtoa-a.onnx",
+            str(tmp_path),
+        )
+        service_a_again = model_bootstrap.get_cached_inference_service(
+            "pa-a.onnx",
+            "dtoa-a.onnx",
+            str(tmp_path),
+        )
+        service_b = model_bootstrap.get_cached_inference_service(
+            "pa-b.onnx",
+            "dtoa-b.onnx",
+            str(tmp_path),
+        )
 
-    assert service_a_again is service_a
-    assert service_b is not service_a
-    assert len(created) == 2
-    assert all(service.kwargs["reuse_model_sessions"] is True for service in created)
+        assert service_a_again is service_a
+        assert service_b is not service_a
+        assert len(created) == 2
+        runtime_pools = {
+            id(service.kwargs["runtime_pool"])
+            for service in created
+        }
+        assert len(runtime_pools) == 1
+    finally:
+        model_bootstrap.shutdown_model_runtime()
 
 
-def test_initialize_model_runtime_prewarms_all_enabled_combinations(
+def test_initialize_model_runtime_only_resolves_enabled_configuration(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """启动预热应覆盖 PA 与 DTOA 启用集合的全部可选组合。"""
+    """配置初始化不应在 Session 恢复前创建运行池或加载模型。"""
     enabled = {
         "PA": ["pa-a.onnx", "pa-b.onnx"],
         "DTOA": ["dtoa-a.onnx", "dtoa-b.onnx"],
@@ -170,25 +178,88 @@ def test_initialize_model_runtime_prewarms_all_enabled_combinations(
         lambda model_type, model_files: list(model_files),
     )
     monkeypatch.setattr(
-        model_bootstrap.qconfig,
-        "get",
-        lambda item: r"C:\logs",
-    )
-    warmed: list[tuple[str, str, str]] = []
-    monkeypatch.setattr(
         model_bootstrap,
-        "get_cached_inference_service",
-        lambda pa_path, dtoa_path, temp_dir: warmed.append(
-            (pa_path, dtoa_path, temp_dir)
-        ),
+        "_get_or_create_runtime_pool",
+        lambda: (_ for _ in ()).throw(AssertionError("不应创建运行池")),
     )
 
     mapping = model_bootstrap.initialize_model_runtime(write_log=False)
 
     assert mapping == enabled
-    assert warmed == [
-        ("pa-a.onnx", "dtoa-a.onnx", r"C:\logs"),
-        ("pa-a.onnx", "dtoa-b.onnx", r"C:\logs"),
-        ("pa-b.onnx", "dtoa-a.onnx", r"C:\logs"),
-        ("pa-b.onnx", "dtoa-b.onnx", r"C:\logs"),
+
+
+def test_start_preload_uses_session_default_and_remaining_priority(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """后台预热应按 Session、首项默认和其余启用模型顺序去重。"""
+    submitted: list[tuple[str, str]] = []
+
+    class _FakeRuntimePool:
+        """记录预热提交顺序的运行池替身。"""
+
+        def preload(self, model_type: str, model_path: str) -> object:
+            """记录单模型预热目标。"""
+            submitted.append((model_type, model_path))
+            return object()
+
+    monkeypatch.setattr(
+        model_bootstrap,
+        "_get_or_create_runtime_pool",
+        lambda: _FakeRuntimePool(),
+    )
+    enabled = {
+        "PA": ["pa-a.onnx", "pa-b.onnx"],
+        "DTOA": ["dtoa-a.onnx", "dtoa-b.onnx"],
+    }
+    selections = [
+        SessionModelSelection(
+            pa_model_path="pa-b.onnx",
+            dtoa_model_path="dtoa-b.onnx",
+        ),
+        SessionModelSelection(
+            pa_model_path="pa-b.onnx",
+            dtoa_model_path="dtoa-a.onnx",
+        ),
+    ]
+
+    model_bootstrap.start_model_runtime_preload(enabled, selections)
+
+    assert submitted == [
+        ("PA", "pa-b.onnx"),
+        ("DTOA", "dtoa-b.onnx"),
+        ("DTOA", "dtoa-a.onnx"),
+        ("PA", "pa-a.onnx"),
+    ]
+    assert len(submitted) == 4
+
+
+def test_sync_enabled_runtimes_retain_then_preload_candidates(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """启用集合变化应先淘汰旧索引，再预热当前全部候选。"""
+    calls: list[tuple[str, object]] = []
+
+    class _FakeRuntimePool:
+        """记录启用集合同步动作的运行池替身。"""
+
+        def retain_enabled(self, model_type: str, paths: list[str]) -> None:
+            """记录保留集合。"""
+            calls.append(("retain", (model_type, list(paths))))
+
+        def preload(self, model_type: str, path: str) -> object:
+            """记录预热目标。"""
+            calls.append(("preload", (model_type, path)))
+            return object()
+
+    monkeypatch.setattr(model_bootstrap, "_runtime_pool", _FakeRuntimePool())
+
+    model_bootstrap.sync_enabled_model_runtimes(
+        "PA",
+        ["pa-a.onnx", "pa-b.onnx"],
+    )
+
+    assert calls == [
+        ("retain", ("PA", ["pa-a.onnx", "pa-b.onnx"])),
+        ("preload", ("PA", "pa-a.onnx")),
+        ("preload", ("PA", "pa-b.onnx")),
     ]

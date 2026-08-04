@@ -24,6 +24,7 @@ from app.model_bootstrap import (
     is_builtin_model,
     resolve_enabled_models,
     set_model_enabled,
+    sync_enabled_model_runtimes,
 )
 from ui.dialogs.import_model_dialog import ImportModelDialog
 from ui.dialogs.rename_model_dialog import RenameModelDialog
@@ -313,10 +314,11 @@ class ModelManagerController(QObject):
                     parent=self.view,
                 )
                 # 导入后刷新该类型启用状态
-                resolve_enabled_models(
+                enabled_paths = resolve_enabled_models(
                     model_type,
                     model_files=self._collect_model_files(model_type),
                 )
+                sync_enabled_model_runtimes(model_type, enabled_paths)
                 self.view.enabledModelsChanged.emit(model_type)
                 self.load_models()
             except Exception as e:
@@ -363,7 +365,8 @@ class ModelManagerController(QObject):
             ensure_user_model_dir("DTOA")
             # 刷新两类模型启用状态
             for model_type in ("PA", "DTOA"):
-                resolve_enabled_models(model_type)
+                enabled_paths = resolve_enabled_models(model_type)
+                sync_enabled_model_runtimes(model_type, enabled_paths)
                 self.view.enabledModelsChanged.emit(model_type)
             # 更新目录卡片内容
             self.view.set_user_model_root_path(normalized_root)
@@ -524,7 +527,13 @@ class ModelManagerController(QObject):
 
         try:
             # 只修改目标模型在候选列表中的成员状态。
-            set_model_enabled(model_type, file_path, checked)
+            updated_paths = set_model_enabled(
+                model_type,
+                file_path,
+                checked,
+            )
+            # 新启用模型立即进入后台真实预热，停用模型从池索引安全淘汰。
+            sync_enabled_model_runtimes(model_type, updated_paths)
             self.view.enabledModelsChanged.emit(model_type)
             LOGGER.info(
                 "模型启用状态已变更: type=%s, name=%s, enabled=%s, path=%s",
@@ -605,10 +614,11 @@ class ModelManagerController(QObject):
             # 清理模型元数据映射
             ModelRegistry.remove_name(file_path)
             # 删除后重新解析该类型启用项
-            resolve_enabled_models(
+            enabled_paths = resolve_enabled_models(
                 model_type,
                 model_files=self._collect_model_files(model_type),
             )
+            sync_enabled_model_runtimes(model_type, enabled_paths)
             self.view.enabledModelsChanged.emit(model_type)
             InfoBar.success(
                 title="删除成功",

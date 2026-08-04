@@ -14,7 +14,11 @@ from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessag
 from qfluentwidgets import FluentTranslator
 from app.app_config import appConfig, qconfig
 from app.application import create_application_services
-from app.model_bootstrap import initialize_model_runtime
+from app.model_bootstrap import (
+    initialize_model_runtime,
+    shutdown_model_runtime,
+    start_model_runtime_preload,
+)
 from ui.main_window import MainWindow
 from app.logger import (
     configure_logging,
@@ -137,18 +141,30 @@ def main() -> None:
     translator = FluentTranslator(QLocale(QLocale.Language.Chinese, QLocale.Country.China))
     app.installTranslator(translator)
 
-    # 初始化模型启用配置（内部完成 ONNX 模型预加载）
-    initialize_model_runtime(write_log=True)
+    # 先解析启用配置；待 Session 恢复后再按真实使用优先级后台预热。
+    enabled_mapping = initialize_model_runtime(write_log=True)
 
     # 在应用入口完成运行期依赖装配，主窗口只接收已构造的共享服务。
-    window = MainWindow(create_application_services())
+    services = create_application_services()
+    window = MainWindow(services)
     window.show()
+
+    # 主窗口构造期间已恢复两类 Session，此时提交其快照可优先预热正在使用的模型。
+    restored_sessions = [
+        *services.session_coordinator.all_interactive_sessions(),
+        *services.full_speed_session_registry.all_sessions(),
+    ]
+    start_model_runtime_preload(
+        enabled_mapping,
+        (session.model_selection for session in restored_sessions),
+    )
 
     exit_code = 0
     try:
         exit_code = app.exec()
     finally:
-        # 主事件循环结束后显式关闭全局和各 Session 文件，避免残留句柄。
+        # 先关闭后台预热线程，再释放日志句柄，避免退出阶段继续写日志。
+        shutdown_model_runtime()
         shutdown_logging()
     sys.exit(exit_code)
 

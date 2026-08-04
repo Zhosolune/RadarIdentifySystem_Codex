@@ -6,11 +6,14 @@ import logging
 import os
 from pathlib import Path
 from threading import RLock
+from typing import Iterable
 
 from qfluentwidgets import qconfig
 
 from app.app_config import appConfig
+from core.models.session_model import SessionModelSelection
 from infra.model_registry import ModelRegistry
+from infra.onnx_runtime_pool import OnnxModelRuntimePool
 
 LOGGER = logging.getLogger(__name__)
 SYSTEM_DEFAULT_NAME = "系统默认"
@@ -19,6 +22,7 @@ VALID_MODEL_SUFFIXES = (".onnx", ".pkl", ".pt", ".pth")
 
 _inference_service_cache: dict[tuple[str, str, str], "OnnxInferenceService"] = {}
 _inference_service_cache_lock = RLock()
+_runtime_pool: OnnxModelRuntimePool | None = None
 
 
 def _normalize_model_type(model_type: str) -> str:
@@ -376,14 +380,154 @@ def get_cached_inference_service(
             dtoa_model_path=dtoa_path,
             pa_model_path=pa_path,
             temp_dir=temp_dir,
-            reuse_model_sessions=True,
+            runtime_pool=_get_or_create_runtime_pool(),
         )
         _inference_service_cache[cache_key] = service
         return service
 
 
+def _get_or_create_runtime_pool() -> OnnxModelRuntimePool:
+    """获取应用级单模型运行池，首次使用时延迟创建。"""
+    global _runtime_pool
+    with _inference_service_cache_lock:
+        if _runtime_pool is None:
+            # 单线程 FIFO 确保恢复 Session、默认项和其余模型的优先级稳定。
+            _runtime_pool = OnnxModelRuntimePool(max_workers=1)
+        return _runtime_pool
+
+
+def _append_preload_target(
+    targets: list[tuple[str, str]],
+    seen: set[tuple[str, str]],
+    model_type: str,
+    model_path: str | None,
+) -> None:
+    """向预热队列追加规范化且未重复的模型目标。"""
+    normalized_path = _normalize_path(model_path)
+    if normalized_path is None:
+        return
+    key = (
+        _normalize_model_type(model_type),
+        os.path.normcase(os.path.abspath(normalized_path)),
+    )
+    if key in seen:
+        return
+    seen.add(key)
+    targets.append((key[0], normalized_path))
+
+
+def start_model_runtime_preload(
+    enabled_mapping: dict[str, list[str]],
+    session_selections: Iterable[SessionModelSelection] = (),
+) -> None:
+    """按 Session、默认项、其余启用项的优先级提交后台真实预热。
+
+    Args:
+        enabled_mapping [dict[str, list[str]]]: PA、DTOA 当前启用模型路径映射。
+        session_selections [Iterable[SessionModelSelection]]: 已恢复 Session 的模型快照。
+
+    Returns:
+        None: 无返回值。
+
+    Raises:
+        RuntimeError: 运行池已关闭时抛出。
+    """
+    targets: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    # 首先保障已恢复 Session，降低用户继续既有任务时等待模型的概率。
+    for selection in session_selections:
+        _append_preload_target(
+            targets,
+            seen,
+            "PA",
+            selection.pa_model_path,
+        )
+        _append_preload_target(
+            targets,
+            seen,
+            "DTOA",
+            selection.dtoa_model_path,
+        )
+
+    # 启用列表首项是新 Session 默认值，应先于其余候选加载。
+    for model_type in SUPPORTED_MODEL_TYPES:
+        enabled_paths = enabled_mapping.get(model_type, [])
+        if enabled_paths:
+            _append_preload_target(
+                targets,
+                seen,
+                model_type,
+                enabled_paths[0],
+            )
+
+    for model_type in SUPPORTED_MODEL_TYPES:
+        for model_path in enabled_mapping.get(model_type, []):
+            _append_preload_target(
+                targets,
+                seen,
+                model_type,
+                model_path,
+            )
+
+    if not targets:
+        LOGGER.warning("模型后台预热跳过：没有可用目标")
+        return
+
+    runtime_pool = _get_or_create_runtime_pool()
+    for model_type, model_path in targets:
+        runtime_pool.preload(model_type, model_path)
+    LOGGER.info("模型后台预热已提交: model_count=%d", len(targets))
+
+
+def sync_enabled_model_runtimes(
+    model_type: str,
+    model_paths: list[str],
+) -> None:
+    """同步运行池中的启用候选，并立即预热新启用模型。
+
+    Args:
+        model_type [str]: PA 或 DTOA。
+        model_paths [list[str]]: 当前类型完整的启用模型路径列表。
+
+    Returns:
+        None: 无返回值；应用运行池尚未启动时不执行操作。
+
+    Raises:
+        ValueError: 模型类型不受支持时抛出。
+        RuntimeError: 已创建的运行池已经关闭时抛出。
+    """
+    normalized_type = _normalize_model_type(model_type)
+    with _inference_service_cache_lock:
+        runtime_pool = _runtime_pool
+    if runtime_pool is None:
+        return
+
+    normalized_paths = _normalize_paths(model_paths)
+    runtime_pool.retain_enabled(normalized_type, normalized_paths)
+    for model_path in normalized_paths:
+        runtime_pool.preload(normalized_type, model_path)
+
+
+def is_model_runtime_ready(model_type: str, model_path: str) -> bool:
+    """查询指定模型是否已完成真实预热。
+
+    Args:
+        model_type [str]: PA 或 DTOA。
+        model_path [str]: 待查询模型路径。
+
+    Returns:
+        bool: 已成功执行 dummy inference 时返回 True。
+    """
+    with _inference_service_cache_lock:
+        runtime_pool = _runtime_pool
+    if runtime_pool is None:
+        return False
+    return runtime_pool.is_ready(model_type, model_path)
+
+
 def clear_cached_inference_services() -> None:
-    """清空交互式推理服务组合缓存。
+    """清空交互式推理服务组合缓存并关闭模型运行池。
 
     Returns:
         None: 无返回值。
@@ -391,18 +535,30 @@ def clear_cached_inference_services() -> None:
     Raises:
         无。
     """
-    with _inference_service_cache_lock:
-        _inference_service_cache.clear()
-    from infra.onnx_service import clear_shared_model_session_cache
+    shutdown_model_runtime()
 
-    clear_shared_model_session_cache()
+
+def shutdown_model_runtime() -> None:
+    """关闭应用级模型运行池并释放全部组合缓存。
+
+    Returns:
+        None: 无返回值；重复调用安全。
+    """
+    global _runtime_pool
+    with _inference_service_cache_lock:
+        runtime_pool = _runtime_pool
+        _runtime_pool = None
+        _inference_service_cache.clear()
+    if runtime_pool is not None:
+        # 等待至多一个正在运行的加载任务，其余排队任务会被取消。
+        runtime_pool.shutdown(wait=True)
 
 
 def initialize_model_runtime(write_log: bool = True) -> dict[str, list[str]]:
-    """初始化全部模型类型的启用配置并预热推理服务。
+    """初始化全部模型类型的启用配置。
 
-    在应用启动阶段调用，完成模型配置解析与 ONNX 模型预加载，
-    避免首次识别时主线程阻塞导致加载动画延迟。
+    该函数只解析和修正配置，不执行模型加载。主窗口恢复 Session 后应调用
+    :func:`start_model_runtime_preload`，以便按真实使用优先级后台预热。
 
     Args:
         write_log (bool): 是否输出初始化日志。
@@ -413,8 +569,6 @@ def initialize_model_runtime(write_log: bool = True) -> dict[str, list[str]]:
     Raises:
         ValueError: 模型类型不受支持时抛出异常。
     """
-    from app.app_config import qconfig
-
     enabled_mapping: dict[str, list[str]] = {}
     for model_type in SUPPORTED_MODEL_TYPES:
         model_files = collect_available_model_files(model_type)
@@ -436,19 +590,5 @@ def initialize_model_runtime(write_log: bool = True) -> dict[str, list[str]]:
                 "模型初始化失败: type=%s, enabled_count=0",
                 model_type,
             )
-
-    # 预热全部可选组合；底层 ONNX Session 按单模型共享，避免组合数导致模型重复驻留。
-    pa_paths = enabled_mapping.get("PA", [])
-    dtoa_paths = enabled_mapping.get("DTOA", [])
-    temp_dir = str(qconfig.get(appConfig.logDir))
-    if pa_paths and dtoa_paths:
-        combination_count = len(pa_paths) * len(dtoa_paths)
-        LOGGER.info("开始预热推理服务: combinations=%d", combination_count)
-        for pa_path in pa_paths:
-            for dtoa_path in dtoa_paths:
-                get_cached_inference_service(pa_path, dtoa_path, temp_dir)
-        LOGGER.info("推理服务预热完成: combinations=%d", combination_count)
-    else:
-        LOGGER.warning("预热跳过：PA 或 DTOA 启用模型列表为空")
 
     return enabled_mapping

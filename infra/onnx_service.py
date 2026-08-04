@@ -9,14 +9,9 @@
 import os
 import logging
 import time
-from threading import RLock
-from typing import Optional, Tuple, Any
+from concurrent.futures import Future
+from typing import Optional, Any
 import numpy as np
-
-try:
-    import onnxruntime as ort
-except ImportError:
-    ort = None
 
 from core.recognition import InferenceService
 from core.recognition import TraceLogEntry
@@ -25,34 +20,14 @@ from core.models.pulse_batch import COL_TOA, COL_PA
 from core.models.recognition_result import NON_RADAR_LABEL, RECOGNITION_CLASS_COUNT
 from infra.plotting.engine import rasterize_dimension
 from infra.plotting.utils import _BASE_SPECS, build_dtoa_series, resolve_dtoa_spec
+from infra.onnx_runtime_pool import (
+    OnnxModelRuntime,
+    OnnxModelRuntimePool,
+    load_onnx_model_runtime,
+)
 
 
 LOGGER = logging.getLogger(__name__)
-GPU_PROVIDER_PRIORITY = (
-    "CUDAExecutionProvider",
-    "DmlExecutionProvider",
-    "ROCMExecutionProvider",
-    "CoreMLExecutionProvider",
-    "TensorrtExecutionProvider",
-)
-_SHARED_MODEL_SESSION_CACHE: dict[
-    tuple[str, tuple[str, ...], int | None],
-    Any,
-] = {}
-_SHARED_MODEL_SESSION_CACHE_LOCK = RLock()
-
-
-def clear_shared_model_session_cache() -> None:
-    """清空交互式预热使用的底层 ONNX 模型 Session 缓存。
-
-    Returns:
-        None: 无返回值。
-
-    Raises:
-        无。
-    """
-    with _SHARED_MODEL_SESSION_CACHE_LOCK:
-        _SHARED_MODEL_SESSION_CACHE.clear()
 
 
 def _emit_or_collect_message(
@@ -90,7 +65,7 @@ class OnnxInferenceService(InferenceService):
         temp_dir: str,
         device_preference: str = "CPU",
         intra_op_num_threads: int | None = None,
-        reuse_model_sessions: bool = False,
+        runtime_pool: OnnxModelRuntimePool | None = None,
     ) -> None:
         """初始化 ONNX 推理服务。
 
@@ -100,7 +75,7 @@ class OnnxInferenceService(InferenceService):
             temp_dir: 用于存放临时中间图片的目录（如果使用文件系统转换）。
             device_preference: 推理设备偏好，取值为 AUTO、CPU 或 GPU。
             intra_op_num_threads: 单次 ONNX 算子内部线程数；为 None 时使用运行时默认值。
-            reuse_model_sessions: 是否按模型路径复用底层 ONNX Session，交互式预热场景使用。
+            runtime_pool: 交互式后台单模型运行池；未传入时同步加载并真实预热。
 
         Raises:
             ValueError: 推理设备偏好不受支持或线程数小于 1 时抛出。
@@ -111,13 +86,11 @@ class OnnxInferenceService(InferenceService):
         self._temp_dir = temp_dir
         self._device_preference = device_preference.upper()
         if self._device_preference not in {"AUTO", "CPU", "GPU"}:
-            raise ValueError(
-                f"不支持的 ONNX 推理设备偏好: {device_preference}"
-            )
+            raise ValueError(f"不支持的 ONNX 推理设备偏好: {device_preference}")
         if intra_op_num_threads is not None and intra_op_num_threads < 1:
             raise ValueError("ONNX 内部线程数必须大于 0")
         self._intra_op_num_threads = intra_op_num_threads
-        self._reuse_model_sessions = reuse_model_sessions
+        self._runtime_pool = runtime_pool
 
         # 预测阈值（旧版保留，当前不参与标签判定，供后续扩展使用）
         self.th_pa = 0.9
@@ -125,145 +98,80 @@ class OnnxInferenceService(InferenceService):
 
         self._dtoa_model: Optional[Any] = None
         self._pa_model: Optional[Any] = None
-
-        if ort is None:
-            LOGGER.warning("未检测到 onnxruntime，推理功能将不可用！")
-
-        self._providers = self._resolve_execution_providers()
-        self._session_options = self._build_session_options()
+        self._dtoa_runtime_future: Future[OnnxModelRuntime] | None = None
+        self._pa_runtime_future: Future[OnnxModelRuntime] | None = None
         os.makedirs(self._temp_dir, exist_ok=True)
         self._load_models()
 
-    def _build_session_options(self) -> Any | None:
-        """按线程限制构造 ONNX Runtime Session 配置。"""
-        if ort is None:
-            return None
-        uses_directml = (
-            bool(self._providers)
-            and self._providers[0] == "DmlExecutionProvider"
+    def _load_models(self) -> None:
+        """加载模型，或绑定后台运行池中的共享加载任务。"""
+        model_specs = (
+            ("DTOA", self._dtoa_model_path),
+            ("PA", self._pa_model_path),
         )
-        if self._intra_op_num_threads is None and not uses_directml:
-            return None
-        options = ort.SessionOptions()
-        if self._intra_op_num_threads is not None:
-            options.intra_op_num_threads = self._intra_op_num_threads
-        options.inter_op_num_threads = 1
-        options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-        if uses_directml:
-            # DirectML 要求禁用内存模式并采用顺序执行。
-            options.enable_mem_pattern = False
-        return options
+        for model_type, model_path in model_specs:
+            if not os.path.isfile(model_path):
+                LOGGER.error("找不到 %s 模型文件: %s", model_type, model_path)
+                continue
+            try:
+                if self._runtime_pool is not None:
+                    # 仅保存共享 Future，不在创建轻量组合服务时阻塞 UI 线程。
+                    future = self._runtime_pool.preload(model_type, model_path)
+                    if model_type == "PA":
+                        self._pa_runtime_future = future
+                    else:
+                        self._dtoa_runtime_future = future
+                    continue
 
-    def _resolve_execution_providers(self) -> list[str]:
-        """根据设备偏好选择当前环境实际可用的执行 Provider。"""
-        if ort is None:
-            return []
-        available = set(ort.get_available_providers())
-        if self._device_preference == "CPU":
-            return ["CPUExecutionProvider"]
+                # 全速任务未使用共享池，在线程内同步完成加载与真实预热。
+                runtime = load_onnx_model_runtime(
+                    model_type,
+                    model_path,
+                    device_preference=self._device_preference,
+                    intra_op_num_threads=self._intra_op_num_threads,
+                )
+                if model_type == "PA":
+                    self._pa_model = runtime.session
+                else:
+                    self._dtoa_model = runtime.session
+            except Exception as error:
+                LOGGER.error(
+                    "%s 模型加载失败: %s",
+                    model_type,
+                    error,
+                    exc_info=True,
+                )
 
-        gpu_provider = next(
-            (
-                provider
-                for provider in GPU_PROVIDER_PRIORITY
-                if provider in available
-            ),
-            None,
-        )
-        if gpu_provider is not None:
-            providers = [gpu_provider]
-            if "CPUExecutionProvider" in available:
-                providers.append("CPUExecutionProvider")
-            LOGGER.info(
-                "全速推理将优先使用 GPU Provider: %s",
-                gpu_provider,
-            )
-            return providers
-
-        if self._device_preference == "GPU":
-            LOGGER.warning(
-                "未检测到可用 GPU Provider，全速推理回退到 CPU"
-            )
+    def _resolve_model_session(self, model_type: str) -> Any | None:
+        """解析已预热 Session，必要时在当前识别线程等待共享 Future。"""
+        if model_type == "PA":
+            if self._pa_model is not None:
+                return self._pa_model
+            future = self._pa_runtime_future
         else:
-            LOGGER.info("未检测到可用 GPU Provider，自动使用 CPU")
-        return ["CPUExecutionProvider"]
+            if self._dtoa_model is not None:
+                return self._dtoa_model
+            future = self._dtoa_runtime_future
 
-    def _create_session(self, model_path: str, model_name: str) -> Any:
-        """创建模型 Session，并在 GPU 初始化失败时回退到 CPU。"""
-        if not self._reuse_model_sessions:
-            return self._create_uncached_session(model_path, model_name)
-
-        cache_key = (
-            os.path.normcase(os.path.abspath(model_path)),
-            tuple(self._providers),
-            self._intra_op_num_threads,
-        )
-        with _SHARED_MODEL_SESSION_CACHE_LOCK:
-            cached_session = _SHARED_MODEL_SESSION_CACHE.get(cache_key)
-            if cached_session is not None:
-                LOGGER.debug("复用已预热的 %s 模型 Session: %s", model_name, model_path)
-                return cached_session
-            session = self._create_uncached_session(model_path, model_name)
-            _SHARED_MODEL_SESSION_CACHE[cache_key] = session
-            return session
-
-    def _create_uncached_session(self, model_path: str, model_name: str) -> Any:
-        """创建不经过共享缓存的底层 ONNX Session。"""
+        if future is None:
+            return None
         try:
-            session = ort.InferenceSession(
-                model_path,
-                sess_options=self._session_options,
-                providers=self._providers,
-            )
-        except Exception:
-            if self._providers == ["CPUExecutionProvider"]:
-                raise
-            LOGGER.warning(
-                "%s 模型 GPU Provider 初始化失败，正在回退 CPU",
-                model_name,
+            # 等待只发生在识别工作线程；Future 内已经执行过真实 dummy inference。
+            runtime = future.result()
+        except Exception as error:
+            LOGGER.error(
+                "%s 模型后台预热失败，无法执行预测: %s",
+                model_type,
+                error,
                 exc_info=True,
             )
-            session = ort.InferenceSession(
-                model_path,
-                sess_options=self._session_options,
-                providers=["CPUExecutionProvider"],
-            )
-        LOGGER.info(
-            "%s 模型加载成功: %s, providers=%s",
-            model_name,
-            model_path,
-            session.get_providers(),
-        )
-        return session
+            return None
 
-    def _load_models(self) -> None:
-        """加载 PA 和 DTOA 的 ONNX 模型。"""
-        if ort is None:
-            return
-
-        # 加载 DTOA
-        if os.path.exists(self._dtoa_model_path):
-            try:
-                self._dtoa_model = self._create_session(
-                    self._dtoa_model_path,
-                    "DTOA",
-                )
-            except Exception as e:
-                LOGGER.error(f"DTOA 模型加载失败: {e}")
+        if model_type == "PA":
+            self._pa_model = runtime.session
         else:
-            LOGGER.error(f"找不到 DTOA 模型文件: {self._dtoa_model_path}")
-
-        # 加载 PA
-        if os.path.exists(self._pa_model_path):
-            try:
-                self._pa_model = self._create_session(
-                    self._pa_model_path,
-                    "PA",
-                )
-            except Exception as e:
-                LOGGER.error(f"PA 模型加载失败: {e}")
-        else:
-            LOGGER.error(f"找不到 PA 模型文件: {self._pa_model_path}")
+            self._dtoa_model = runtime.session
+        return runtime.session
 
     def predict_pa(
         self,
@@ -281,7 +189,8 @@ class OnnxInferenceService(InferenceService):
         Returns:
             (类别标签, 置信度, 各类别置信度字典)
         """
-        if self._pa_model is None:
+        pa_model = self._resolve_model_session("PA")
+        if pa_model is None:
             LOGGER.debug("PA 模型未加载，跳过预测")
             return -1, 0.0, {}
 
@@ -300,9 +209,9 @@ class OnnxInferenceService(InferenceService):
             )
 
             # 3. ONNX 推理
-            input_name = self._pa_model.get_inputs()[0].name
+            input_name = pa_model.get_inputs()[0].name
             t0 = time.perf_counter()
-            raw_output = self._pa_model.run(None, {input_name: img_tensor})[0]
+            raw_output = pa_model.run(None, {input_name: img_tensor})[0]
             t1 = time.perf_counter()
 
             _emit_or_collect_message(
@@ -389,7 +298,8 @@ class OnnxInferenceService(InferenceService):
         Raises:
             无显式抛出异常。
         """
-        if self._dtoa_model is None:
+        dtoa_model = self._resolve_model_session("DTOA")
+        if dtoa_model is None:
             LOGGER.debug("DTOA 模型未加载，跳过预测")
             return -1, 0.0, {}
 
@@ -409,9 +319,9 @@ class OnnxInferenceService(InferenceService):
             )
 
             # ONNX 推理
-            input_name = self._dtoa_model.get_inputs()[0].name
+            input_name = dtoa_model.get_inputs()[0].name
             t0 = time.perf_counter()
-            raw_output = self._dtoa_model.run(None, {input_name: img_tensor})[0]
+            raw_output = dtoa_model.run(None, {input_name: img_tensor})[0]
             t1 = time.perf_counter()
 
             _emit_or_collect_message(

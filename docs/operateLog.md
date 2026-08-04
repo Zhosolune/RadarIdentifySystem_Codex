@@ -1,5 +1,35 @@
 # 变更记录
 
+- 时间：2026-08-04 10:35
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\model_bootstrap.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\onnx_runtime_pool.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\onnx_service.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\main.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\model_manager_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_model_bootstrap.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_onnx_service_performance.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将同步组合预热重构为后台分级单模型预热，并执行真实 dummy inference 消除首次推理冷启动延迟。
+- 原因：现有实现只创建 ONNX Runtime Session，仍可能把 Provider 内核初始化延迟留到第一次 `run()`；同时预创建全部 PA×DTOA 服务组合没有实际收益。
+- 计划清单：
+  - [x] 核对模型输入契约、应用启动顺序、Session 恢复顺序和识别任务获取服务的线程边界。
+  - [x] 拆分单模型 Runtime Session 池与轻量 PA/DTOA 推理服务组合。
+  - [x] 实现后台分级预热，优先恢复 Session 和默认模型，再加载其余启用模型。
+  - [x] 为每个模型执行与真实输入形状一致的 dummy inference，并复用并发加载任务。
+  - [x] 处理模型启停、失败状态、活动引用和识别前就绪等待。
+  - [x] 补充冷启动、去重、优先级、并发隔离和回归测试。
+- 验证结果：
+  - 新增应用级单模型运行池，以 `模型类型 + 规范化路径` 作为缓存键；单线程 FIFO 后台加载保证恢复 Session、启用列表首项和其余模型的分级顺序，同键请求共享同一 Future，不再构造 PA×DTOA 笛卡尔积。
+  - 每个 Session 创建的推理服务只保存 PA/DTOA Future；模型未就绪时仅由识别工作线程等待，UI 线程不阻塞，Future 返回前已完成输入契约校验和真实 dummy inference。
+  - PA 使用 `float32 [1, 1, 80, 400]`、DTOA 使用 `float32 [1, 1, 250, 500]` 执行 `session.run()`；使用仓库内两份真实 ONNX 模型验证均成功，Provider 为 CPUExecutionProvider。
+  - 全速任务的独立推理服务在工作线程内同步执行相同真实预热；GPU Provider 优先级、CPU 回退、DirectML 约束和全速单算子线程限制保持不变。
+  - 模型勾选、停用、删除及用户模型根目录变化会同步运行池；新启用项立即后台预热，停用项安全淘汰索引，已持有 Future 的任务不受影响。
+  - 应用退出显式关闭运行池并取消未开始任务；取消任务不再误记为预热失败，测试确认执行器线程完成退出。
+  - 模型配置、Session 路由、模型下拉、识别工作流、全速运行和 ONNX 聚焦回归通过（59 passed，2 warnings）；相关 Python 文件 `py_compile`、真实模型预热冒烟和 `git diff --check` 通过，临时测试目录已清理。
+- 测试状态：[已测试]
+
 - 时间：2026-08-04 08:35
 - 操作类型：[重构]
 - 影响文件：
