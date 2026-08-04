@@ -21,9 +21,11 @@ from qfluentwidgets import (
     ScrollArea,
     TextEdit,
 )
+from pytest import MonkeyPatch
 
 from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.session_config import SessionConfigSnapshot
+from core.models.session_model import SessionModelSelection
 from runtime.full_speed_session_registry import (
     FullSpeedExecutionState,
     FullSpeedStatus,
@@ -315,23 +317,53 @@ def test_full_speed_card_places_parameter_button_between_path_and_start() -> Non
     assert requested == [session.session_id]
 
 
-def test_full_speed_params_window_edits_isolated_two_column_draft() -> None:
-    """全速参数窗口应照搬全部参数组，并只在保存时提交独立草稿。"""
+def test_full_speed_params_window_edits_isolated_two_column_draft(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """全速参数窗口左列首位应编辑并提交独立参数与模型草稿。"""
     app = _app()
+    enabled_models = {
+        "PA": ["E:/models/pa-a.onnx", "E:/models/pa-b.onnx"],
+        "DTOA": [
+            "E:/models/dtoa-a.onnx",
+            "E:/models/dtoa-b.onnx",
+        ],
+    }
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: list(enabled_models[model_type]),
+    )
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_display_name",
+        lambda path, model_type: Path(path).stem,
+    )
     source_snapshot = SessionConfigSnapshot.default()
     source_snapshot.clustering.eps_cf = 3.25
+    source_selection = SessionModelSelection(
+        pa_model_path=enabled_models["PA"][0],
+        dtoa_model_path=enabled_models["DTOA"][0],
+    )
     window = FullSpeedParamsWindow(
         "fullspeed-params-window",
         "两栏参数任务",
         source_snapshot,
+        source_selection,
     )
-    submitted: list[SessionConfigSnapshot] = []
-    window.configSaved.connect(submitted.append)
+    submitted: list[tuple[SessionConfigSnapshot, SessionModelSelection]] = []
+    window.settingsSaved.connect(
+        lambda snapshot, selection: submitted.append(
+            (snapshot, selection)
+        )
+    )
 
     window.show()
     app.processEvents()
 
     assert len(window.parameter_items) == 25
+    assert window.left_column_widget.layout().itemAt(0).widget() is (
+        window.model_selection_card
+    )
+    assert window.model_selection_card.parent() is window.left_column_widget
     assert window.cluster_group.parent() is window.left_column_widget
     assert window.extract_pri_group.parent() is window.left_column_widget
     assert window.recognition_group.parent() is window.right_column_widget
@@ -342,14 +374,25 @@ def test_full_speed_params_window_edits_isolated_two_column_draft() -> None:
 
     eps_cf_card = window.parameter_cards["clustering.eps_cf"]
     eps_cf_card.spinBox.setValue(4.75)
+    window.model_selection_card.pa_model_combo.setCurrentIndex(1)
+    window.model_selection_card.dtoa_model_combo.setCurrentIndex(1)
     app.processEvents()
 
     assert source_snapshot.clustering.eps_cf == 3.25
+    assert source_selection.pa_model_path == enabled_models["PA"][0]
+    assert source_selection.dtoa_model_path == enabled_models["DTOA"][0]
     assert window.snapshot().clustering.eps_cf == 4.75
+    assert window.model_selection().pa_model_path == enabled_models["PA"][1]
+    assert (
+        window.model_selection().dtoa_model_path
+        == enabled_models["DTOA"][1]
+    )
 
     window.save_button.click()
     assert len(submitted) == 1
-    assert submitted[0].clustering.eps_cf == 4.75
+    assert submitted[0][0].clustering.eps_cf == 4.75
+    assert submitted[0][1].pa_model_path == enabled_models["PA"][1]
+    assert submitted[0][1].dtoa_model_path == enabled_models["DTOA"][1]
     window.close()
 
 

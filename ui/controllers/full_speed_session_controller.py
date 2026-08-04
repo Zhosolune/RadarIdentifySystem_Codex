@@ -17,6 +17,7 @@ from ui.components.full_speed_params_window import FullSpeedParamsWindow
 
 if TYPE_CHECKING:
     from core.models.session_config import SessionConfigSnapshot
+    from core.models.session_model import SessionModelSelection
     from ui.components.full_speed_session_panel import FullSpeedSessionPanel
 
 
@@ -160,10 +161,11 @@ class FullSpeedSessionController(QObject):
             session_id,
             session.display_name,
             session.config_snapshot,
+            session.model_selection,
         )
-        window.configSaved.connect(
-            lambda snapshot, target_id=session_id: (
-                self.save_parameters(target_id, snapshot)
+        window.settingsSaved.connect(
+            lambda snapshot, selection, target_id=session_id: (
+                self.save_settings(target_id, snapshot, selection)
             )
         )
         window.destroyed.connect(
@@ -176,24 +178,30 @@ class FullSpeedSessionController(QObject):
         window.raise_()
         window.activateWindow()
 
-    def save_parameters(
+    def save_settings(
         self,
         session_id: str,
         snapshot: SessionConfigSnapshot,
+        model_selection: SessionModelSelection,
     ) -> None:
-        """保存参数窗口提交的 Session 配置快照。
+        """保存参数窗口提交的配置快照与模型选择。
 
         Args:
             session_id [str]: 目标全速 Session ID。
             snapshot [SessionConfigSnapshot]: 参数窗口提交的配置快照。
+            model_selection [SessionModelSelection]: 参数窗口提交的模型选择快照。
 
         Returns:
             None: 无返回值。
         """
         try:
-            self.registry.set_config_snapshot(session_id, snapshot)
+            self.registry.set_settings(
+                session_id,
+                snapshot,
+                model_selection,
+            )
         except Exception as error:
-            self._show_warning("参数保存失败", str(error))
+            self._show_warning("设置保存失败", str(error))
             return
 
         window = self._param_windows.get(session_id)
@@ -201,8 +209,8 @@ class FullSpeedSessionController(QObject):
             window.close()
         self.refresh_panel(session_id)
         InfoBar.success(
-            title="参数已保存",
-            content="当前全速 Session 将使用这组参数执行。",
+            title="设置已保存",
+            content="当前全速 Session 将使用这组参数和模型执行。",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,

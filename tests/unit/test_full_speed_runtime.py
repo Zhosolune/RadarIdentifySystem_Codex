@@ -121,6 +121,51 @@ def test_registry_persists_session_parameter_snapshot_before_freeze(
         registry.set_config_snapshot(session.session_id, draft)
 
 
+def test_registry_atomically_persists_full_speed_params_and_models(
+    tmp_path,
+) -> None:
+    """全速设置保存应同时更新参数和模型，并保持业务与绘图配置。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    session.config_snapshot.plot.scale_mode = "KEEP_RATIO"
+    draft = SessionConfigSnapshot.default()
+    draft.clustering.eps_cf = 7.25
+    draft.business.export_dir_path = str(tmp_path / "stale")
+    draft.plot.scale_mode = "STRETCH"
+    selection = SessionModelSelection(
+        "E:/models/pa-new.onnx",
+        "E:/models/dtoa-new.onnx",
+    )
+
+    registry.set_settings(session.session_id, draft, selection)
+
+    assert session.config_snapshot.clustering.eps_cf == 7.25
+    assert (
+        session.config_snapshot.business.export_dir_path
+        == str(tmp_path / "out")
+    )
+    assert session.config_snapshot.plot.scale_mode == "KEEP_RATIO"
+    assert session.model_selection is not selection
+    assert session.model_selection.pa_model_path == "E:/models/pa-new.onnx"
+    assert (
+        session.model_selection.dtoa_model_path
+        == "E:/models/dtoa-new.onnx"
+    )
+    persisted = registry.session_registry.store.load_session(
+        session.session_id
+    )
+    assert persisted.config_snapshot.clustering.eps_cf == 7.25
+    assert persisted.model_selection.pa_model_path == "E:/models/pa-new.onnx"
+    assert (
+        persisted.model_selection.dtoa_model_path
+        == "E:/models/dtoa-new.onnx"
+    )
+
+    registry.begin(session.session_id)
+    with pytest.raises(RuntimeError, match="已冻结"):
+        registry.set_settings(session.session_id, draft, selection)
+
+
 def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
     tmp_path,
     monkeypatch,

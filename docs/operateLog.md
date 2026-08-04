@@ -1,5 +1,30 @@
 # 变更记录
 
+- 时间：2026-08-04 15:16
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_params_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\full_speed_session_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\full_speed_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在全速任务参数窗口左列首位增加当前 Session 独立的 PA/DTOA 模型选择卡，并与参数草稿一并保存。
+- 原因：全速 Session 已持有独立模型快照，但修改参数窗口没有提供模型选择入口。
+- 计划清单：
+  - [x] 核对全速参数窗口布局、保存信号、注册器冻结边界和持久化链路。
+  - [x] 在左列首位复用模型选择卡，并保持窗口草稿与原 Session 隔离。
+  - [x] 将参数与模型选择作为一次原子保存写入全速 Session 快照。
+  - [x] 保持首次启动后的冻结规则，并补充布局、隔离、保存和恢复回归。
+- 验证结果：
+  - 全速参数窗口左列首位新增既有 `ModelSelectionCard`，PA/DTOA 下拉候选只读取模型管理页当前勾选的模型，并优先恢复当前全速 Session 的模型快照。
+  - 参数窗口同时维护独立的 `SessionConfigSnapshot` 与 `SessionModelSelection` 草稿；修改下拉框不会提前污染 Session，保存按钮改为“保存设置”。
+  - 保存信号同时提交参数和模型，注册器在同一锁和同一次持久化中更新两者；业务配置、绘图配置仍使用 Session 最新值，持久化失败时参数和模型一起回滚。
+  - 全速任务首次开始后继续拒绝打开和保存设置，工作线程仍从冻结后的 `session.model_selection` 构建推理服务。
+  - 全速参数窗口布局、草稿隔离、模型保存、持久化恢复及冻结边界聚焦回归通过（8 passed，2 warnings）；完整全速 UI/运行套件除 2 项既有滚动区边距断言外为 15 passed，1 warning，本次未修改对应页面或 QSS。
+  - 相关 Python 文件 `py_compile` 通过。
+- 测试状态：[已测试]
+
 - 时间：2026-08-04 11:28
 - 操作类型：[修改]
 - 影响文件：

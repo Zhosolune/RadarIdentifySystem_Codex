@@ -31,9 +31,11 @@ from app.app_config import appConfig
 from app.session_config_item import SessionConfigItem, SessionConfigWriter
 from app.style_sheet import StyleSheet
 from core.models.session_config import SessionConfigSnapshot
+from core.models.session_model import SessionModelSelection
 from ui.components.double_spin_box_setting_card import (
     DoubleSpinBoxSettingCard,
 )
+from ui.components.model_selection_card import ModelSelectionCard
 from ui.components.spin_box_setting_card import SpinBoxSettingCard
 
 
@@ -317,19 +319,20 @@ class FullSpeedParamsWindow(FluentWidget):
     """编辑一个未冻结全速 Session 的独立参数快照。
 
     窗口复用全局参数页的字段、文案、单位和输入范围，但所有编辑只写入
-    窗口私有草稿；用户点击保存后才通过 ``configSaved`` 提交完整快照。
+    窗口私有草稿；用户点击保存后才通过 ``settingsSaved`` 一并提交。
 
     Attributes:
-        configSaved: 携带完整 ``SessionConfigSnapshot`` 草稿的保存信号。
+        settingsSaved: 携带参数快照和模型选择草稿的保存信号。
         parameter_items: 参数路径到 Session 配置项的映射。
         parameter_cards: 参数路径到设置卡的映射。
+        model_selection_card: 当前全速 Session 的 PA/DTOA 模型选择卡。
         left_column_widget: 两栏布局的左列容器。
         right_column_widget: 两栏布局的右列容器。
         save_button: 保存参数并关闭窗口的按钮。
         cancel_button: 放弃草稿并关闭窗口的按钮。
     """
 
-    configSaved = pyqtSignal(object)
+    settingsSaved = pyqtSignal(object, object)
     INPUT_BOX_WIDTH = 140
 
     def __init__(
@@ -337,6 +340,7 @@ class FullSpeedParamsWindow(FluentWidget):
         session_id: str,
         display_name: str,
         snapshot: SessionConfigSnapshot,
+        model_selection: SessionModelSelection,
     ) -> None:
         """初始化全速任务参数窗口。
 
@@ -344,6 +348,7 @@ class FullSpeedParamsWindow(FluentWidget):
             session_id [str]: 当前窗口绑定的全速 Session ID。
             display_name [str]: 当前 Session 展示名称。
             snapshot [SessionConfigSnapshot]: 打开窗口时的参数快照。
+            model_selection [SessionModelSelection]: 打开窗口时的模型选择快照。
 
         Returns:
             None: 无返回值。
@@ -357,6 +362,9 @@ class FullSpeedParamsWindow(FluentWidget):
         self.session_id = session_id
         self._draft_snapshot = SessionConfigSnapshot.from_dict(
             snapshot.to_dict()
+        )
+        self._draft_model_selection = SessionModelSelection.from_dict(
+            model_selection.to_dict()
         )
         self._config_writer = SessionConfigWriter()
         self.parameter_items: dict[str, SessionConfigItem] = {}
@@ -386,6 +394,16 @@ class FullSpeedParamsWindow(FluentWidget):
         """
         return SessionConfigSnapshot.from_dict(self._draft_snapshot.to_dict())
 
+    def model_selection(self) -> SessionModelSelection:
+        """返回与窗口内部草稿隔离的模型选择副本。
+
+        Returns:
+            SessionModelSelection: 当前 PA 与 DTOA 模型选择的独立副本。
+        """
+        return SessionModelSelection.from_dict(
+            self._draft_model_selection.to_dict()
+        )
+
     def _init_layout(self, display_name: str) -> None:
         """创建标题、两栏参数区和底部操作栏。"""
         root_layout = QVBoxLayout(self)
@@ -394,7 +412,7 @@ class FullSpeedParamsWindow(FluentWidget):
 
         title_label = SubtitleLabel("全速任务参数", self)
         hint_label = CaptionLabel(
-            f"{display_name} · 参数仅作用于当前任务，点击开始后不可修改",
+            f"{display_name} · 参数和模型仅作用于当前任务，点击开始后不可修改",
             self,
         )
         root_layout.addWidget(title_label)
@@ -434,6 +452,17 @@ class FullSpeedParamsWindow(FluentWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(20)
 
+        self.model_selection_card = ModelSelectionCard(
+            parent=self.left_column_widget,
+            initial_model_paths={
+                "PA": self._draft_model_selection.pa_model_path,
+                "DTOA": self._draft_model_selection.dtoa_model_path,
+            },
+        )
+        self._sync_initial_model_selection()
+        self.model_selection_card.modelChanged.connect(
+            self._on_model_changed
+        )
         self.cluster_group = self._create_numeric_group(
             "聚类参数配置",
             _CLUSTER_SPECS,
@@ -456,7 +485,8 @@ class FullSpeedParamsWindow(FluentWidget):
             _MERGE_SPECS,
         )
 
-        # 按设置卡数量平衡两列高度，同时保持每组内部字段顺序不变。
+        # 模型选择固定放在左列首位，其余参数组保持既有字段顺序。
+        left_layout.addWidget(self.model_selection_card)
         left_layout.addWidget(self.cluster_group)
         left_layout.addWidget(self.extract_pri_group)
         left_layout.addStretch(1)
@@ -476,7 +506,7 @@ class FullSpeedParamsWindow(FluentWidget):
         action_layout.setSpacing(8)
         action_layout.addStretch(1)
         self.cancel_button = PushButton("取消", self)
-        self.save_button = PrimaryPushButton("保存参数", self)
+        self.save_button = PrimaryPushButton("保存设置", self)
         action_layout.addWidget(self.cancel_button)
         action_layout.addWidget(self.save_button)
         root_layout.addLayout(action_layout)
@@ -567,6 +597,30 @@ class FullSpeedParamsWindow(FluentWidget):
         for spin_box in self.content_widget.findChildren(DoubleSpinBox):
             spin_box.setFixedWidth(self.INPUT_BOX_WIDTH)
 
+    def _sync_initial_model_selection(self) -> None:
+        """把候选列表解析后的有效初始选择写入窗口草稿。"""
+        self._draft_model_selection.pa_model_path = (
+            self.model_selection_card.selected_model_path("PA")
+        )
+        self._draft_model_selection.dtoa_model_path = (
+            self.model_selection_card.selected_model_path("DTOA")
+        )
+
+    def _on_model_changed(
+        self,
+        model_type: str,
+        model_path: object,
+    ) -> None:
+        """把当前窗口的下拉选择写入独立模型草稿。"""
+        normalized_path = model_path if isinstance(model_path, str) else None
+        if model_type == "PA":
+            self._draft_model_selection.pa_model_path = normalized_path
+        elif model_type == "DTOA":
+            self._draft_model_selection.dtoa_model_path = normalized_path
+
     def _save(self) -> None:
-        """提交完整草稿快照，由接收方在持久化成功后关闭窗口。"""
-        self.configSaved.emit(self.snapshot())
+        """提交参数和模型草稿，由接收方持久化成功后关闭窗口。"""
+        self.settingsSaved.emit(
+            self.snapshot(),
+            self.model_selection(),
+        )

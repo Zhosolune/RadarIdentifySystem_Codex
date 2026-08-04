@@ -17,6 +17,7 @@ from core.models.processing_session import (
     ProcessingStage,
 )
 from core.models.session_config import SessionConfigSnapshot
+from core.models.session_model import SessionModelSelection
 from infra.session_store import SessionStore
 from runtime.session_registry import SessionRegistry
 from utils.paths import get_session_config_dir
@@ -222,6 +223,64 @@ class FullSpeedSessionRegistry:
             except Exception:
                 # 持久化失败时恢复原对象，避免内存状态与磁盘记录不一致。
                 session.config_snapshot = current
+                raise
+
+    def set_settings(
+        self,
+        session_id: str,
+        snapshot: SessionConfigSnapshot,
+        model_selection: SessionModelSelection,
+    ) -> None:
+        """原子保存未冻结全速 Session 的参数与模型选择。
+
+        参数窗口只编辑算法参数和模型选择。业务配置及绘图配置继续沿用
+        Session 当前值，避免窗口打开期间其它入口的修改被旧草稿覆盖。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+            snapshot [SessionConfigSnapshot]: 参数窗口提交的配置草稿。
+            model_selection [SessionModelSelection]: 参数窗口提交的 PA/DTOA 模型草稿。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 不存在时抛出。
+            RuntimeError: 参数和模型已经冻结时抛出。
+            ValueError: PA 或 DTOA 模型没有有效选择时抛出。
+            OSError: Session 配置持久化失败时抛出。
+        """
+        submitted_snapshot = SessionConfigSnapshot.from_dict(
+            snapshot.to_dict()
+        )
+        submitted_selection = SessionModelSelection.from_dict(
+            model_selection.to_dict()
+        )
+        if not submitted_selection.pa_model_path:
+            raise ValueError("请选择 PA 模型")
+        if not submitted_selection.dtoa_model_path:
+            raise ValueError("请选择 DTOA 模型")
+
+        with self._lock:
+            session = self._require_session(session_id)
+            if session.full_speed_locked:
+                raise RuntimeError("全速任务参数与模型已冻结，不能修改设置")
+
+            current_snapshot = session.config_snapshot
+            current_selection = session.model_selection
+            current_copy = SessionConfigSnapshot.from_dict(
+                current_snapshot.to_dict()
+            )
+            submitted_snapshot.business = current_copy.business
+            submitted_snapshot.plot = current_copy.plot
+            session.config_snapshot = submitted_snapshot
+            session.model_selection = submitted_selection
+            try:
+                self.session_registry.persist_session(session_id)
+            except Exception:
+                # 参数与模型必须同时回滚，避免内存状态与持久化状态不一致。
+                session.config_snapshot = current_snapshot
+                session.model_selection = current_selection
                 raise
 
     def begin(self, session_id: str) -> ProcessingSession:
