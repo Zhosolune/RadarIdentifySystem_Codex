@@ -99,6 +99,8 @@ class MergeResultTableCard(SimpleCardWidget):
         self.table.verticalHeader().setDefaultSectionSize(self.ROW_HEIGHT)
         self.table.horizontalHeader().setFixedHeight(self.HEADER_HEIGHT)
         self.table.setWordWrap(True)
+        # PRI 已按结果列实际宽度插入显式换行，禁止视图再次把完整文本绘制为省略号。
+        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(TableWidget.SelectionMode.NoSelection)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)

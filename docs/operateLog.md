@@ -1,5 +1,30 @@
 # 变更记录
 
+- 时间：2026-08-05 09:25
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_result_table_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：统一合并结果表格与右侧分析结果表格的小数位规则，并修复窄列下 PRI 多行文本被省略的问题。
+- 原因：合并结果仅统一了 PRI 小数位，其余参数仍使用通用格式；同时表格默认省略模式会在动态换行和行高已生效时继续绘制省略号。
+- 计划清单：
+  - [x] 核对右侧分析结果表格的 CF、PW、PRI、DOA 小数位规则。
+  - [x] 复现合并表格列宽变化后的 PRI 文本分行、行高和省略模式状态。
+  - [x] 统一四类参数格式，并关闭合并表格单元格文本省略。
+  - [x] 补充窄列最多容纳实际宽度内值、列宽重排、行高回落和无省略回归。
+  - [x] 运行聚焦测试、编译和差异检查。
+- 验证结果：
+  - 合并呈现模型的 CF、PW、PRI、DOA 分别按 0、1、1、1 位小数格式化，与右侧分析结果表格一致，空值继续显示“——”。
+  - 确认原表头 `sectionResized` 监听能够在结果列变化时重新组织 PRI 文本并降低或增加行高；省略号的直接原因是表格仍使用默认 `ElideRight`，现已设置为 `ElideNone`。
+  - 404px 窄卡片回归中，PRI 按实际列宽每行最多显示 4 项，10 项值全部保留；扩大到 620px 后行数和行高同步减少，全部值仍完整保留。
+  - 聚焦回归两轮均通过：首次 2 passed；合并呈现及显隐参数回归 2 passed、20 deselected；仅有 scipy 弃用和 joblib 物理核心探测警告。
+  - 相关 Python 文件 `py_compile` 通过；首次与 pytest 并行编译时因同时写入同一 `__pycache__` 临时文件失败，改用独立临时缓存目录串行重跑后通过。
+  - `git diff --check` 通过，未修改用户 QSS 文件。
+- 测试状态：[已测试]
+
 - 时间：2026-08-04 15:16
 - 操作类型：[修改]
 - 影响文件：

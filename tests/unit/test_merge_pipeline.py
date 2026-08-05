@@ -885,8 +885,8 @@ def test_merge_image_column_displays_rgb_bundle_from_workflow() -> None:
         sip.delete(column)
 
 
-def test_merge_presentation_formats_pri_like_right_panel() -> None:
-    """合并呈现模型应与右侧表格一致保留一位小数并交由UI分行。"""
+def test_merge_presentation_formats_numeric_values_like_right_panel() -> None:
+    """合并呈现模型应沿用右侧表格的四类参数小数位规则。"""
     session = _session_with_source_results()
     workflow = MergeWorkflow(strategy=_FixedSingleStrategy())
     workflow.prepare_merge_plan(session, 0)
@@ -900,15 +900,28 @@ def test_merge_presentation_formats_pri_like_right_panel() -> None:
         merged,
         extracted_params=replace(
             merged.extracted_params,
-            pri_values=[float(value) for value in range(1, 9)],
+            cf_values=[1000.5],
+            pw_values=[1.25],
+            pri_values=[
+                10.04,
+                20.05,
+                30.05,
+                40.05,
+                50.05,
+                60.05,
+                70.05,
+            ],
+            doa_values=[359.95],
         ),
     )
 
     presentation = workflow.render_result(session, 0, 0)
 
-    assert presentation.table_rows[2] == (
-        "PRI",
-        "1.0、2.0、3.0、4.0、5.0、6.0、7.0、8.0",
+    assert presentation.table_rows == (
+        ("CF", "1001"),
+        ("PW", "1.3"),
+        ("PRI", "10.0、20.1、30.1、40.1、50.1、60.1、70.1"),
+        ("DOA", "360.0"),
     )
 
 

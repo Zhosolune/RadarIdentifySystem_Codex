@@ -500,7 +500,7 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
 
 
 def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
-    """合并结果PRI行应按实际窄列宽度分行并完整容纳文本。"""
+    """合并结果PRI行应随列宽重排、增高并禁止省略完整文本。"""
     _app()
     card = MergeResultTableCard()
 
@@ -516,8 +516,7 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
                 ("PW", "1"),
                 (
                     "PRI",
-                    "1234.6、2234.6、3234.6、4234.6、5234.6、6234.6、"
-                    "7234.6、8234.6",
+                    "1.0、2.0、3.0、4.0、5.0、6.0、7.0、8.0、9.0、10.0",
                 ),
                 ("DOA", "30"),
             )
@@ -536,15 +535,21 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
             card.ROW_VERTICAL_PADDING
             == AnalysisResultCard.ROW_VERTICAL_PADDING
         )
+        assert card.table.textElideMode() == Qt.TextElideMode.ElideNone
         assert len(pri_lines) >= 3
         assert all(
             font_metrics.horizontalAdvance(line) <= available_width
             for line in pri_lines
         )
         assert all(
-            len(line.split("、")) <= card.PRI_MAX_VALUES_PER_LINE
+            len(line.split("、")) <= 4
             for line in pri_lines
         )
+        assert [
+            token
+            for line in pri_lines
+            for token in line.split("、")
+        ] == [f"{value}.0" for value in range(1, 11)]
         assert card.table.rowHeight(pri_row) > card.ROW_HEIGHT
         assert card.table.rowHeight(pri_row) >= (
             len(pri_lines) * font_metrics.lineSpacing()
@@ -559,6 +564,11 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
         wide_lines = card.table.item(pri_row, 1).text().splitlines()
         assert len(wide_lines) < narrow_line_count
         assert card.table.rowHeight(pri_row) < narrow_row_height
+        assert [
+            token
+            for line in wide_lines
+            for token in line.split("、")
+        ] == [f"{value}.0" for value in range(1, 11)]
 
         card.clear_rows()
         assert card.table.rowHeight(pri_row) == base_pri_height

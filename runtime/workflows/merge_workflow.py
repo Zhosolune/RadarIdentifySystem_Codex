@@ -1075,10 +1075,22 @@ class MergeWorkflow(QObject):
             categories=categories,
             images=bundle.images,
             table_rows=(
-                ("CF", self._format_values(params.cf_values)),
-                ("PW", self._format_values(params.pw_values)),
-                ("PRI", self._format_values(params.pri_values, decimal_places=1)),
-                ("DOA", self._format_values(params.doa_values)),
+                (
+                    "CF",
+                    self._format_values(params.cf_values, decimal_places=0),
+                ),
+                (
+                    "PW",
+                    self._format_values(params.pw_values, decimal_places=1),
+                ),
+                (
+                    "PRI",
+                    self._format_values(params.pri_values, decimal_places=1),
+                ),
+                (
+                    "DOA",
+                    self._format_values(params.doa_values, decimal_places=1),
+                ),
             ),
         )
 
