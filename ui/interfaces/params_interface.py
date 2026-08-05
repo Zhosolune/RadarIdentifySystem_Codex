@@ -10,7 +10,6 @@ from qfluentwidgets import (
     FluentIcon,
     SpinBox,
     DoubleSpinBox,
-    SwitchSettingCard,
 )
 
 from app.app_config import appConfig
@@ -18,6 +17,9 @@ from app.style_sheet import StyleSheet
 from ui.adapters import ResponsiveContentWidthAdapter
 from ui.components.spin_box_setting_card import SpinBoxSettingCard
 from ui.components.double_spin_box_setting_card import DoubleSpinBoxSettingCard
+from ui.components.recognition_strategy_setting_card import (
+    RecognitionStrategySettingCard,
+)
 
 
 class ParamsInterface(ScrollArea):
@@ -137,69 +139,73 @@ class ParamsInterface(ScrollArea):
         self._recognizeGroup = SettingCardGroup(
             "识别参数配置", self.settingScrollWidget
         )
-        self._recognizeGroup.addSettingCard(
-            SwitchSettingCard(
-                configItem=appConfig.recognizeGreedyStrategy,
-                icon=FluentIcon.SEARCH,
-                title="识别策略",
-                content="开启为贪婪策略；关闭后仅对PA、DTOA均为雷达标签的结果执行严格门限判定",
-                parent=self._recognizeGroup,
-            )
+        self._recognitionStrategyCard = RecognitionStrategySettingCard(
+            configItem=appConfig.recognizeGreedyStrategy,
+            icon=FluentIcon.SEARCH,
+            title="识别策略",
+            content="开关拨向贪婪时忽略门限；拨向严格时启用下方门限与权重",
+            parent=self._recognizeGroup,
         )
-        self._recognizeGroup.addSettingCard(
-            DoubleSpinBoxSettingCard(
-                configItem=appConfig.recognizePaConfidenceThreshold,
-                icon=FluentIcon.SEARCH,
-                title="PA置信度门限",
-                content="严格门限策略中 PA 预测结果必须达到的最低置信度",
-                parent=self._recognizeGroup,
-                decimals=2,
-                singleStep=0.05,
-            )
+        self._recognitionPaThresholdCard = DoubleSpinBoxSettingCard(
+            configItem=appConfig.recognizePaConfidenceThreshold,
+            icon=FluentIcon.SEARCH,
+            title="PA置信度门限",
+            content="严格门限策略中 PA 预测结果必须达到的最低置信度",
+            parent=self._recognizeGroup,
+            decimals=2,
+            singleStep=0.05,
         )
-        self._recognizeGroup.addSettingCard(
-            DoubleSpinBoxSettingCard(
-                configItem=appConfig.recognizePaConfidenceWeight,
-                icon=FluentIcon.SEARCH,
-                title="PA置信度权重",
-                content="严格门限策略中 PA 置信度参与联合判别的相对权重",
-                parent=self._recognizeGroup,
-                decimals=2,
-                singleStep=0.05,
-            )
+        self._recognitionPaWeightCard = DoubleSpinBoxSettingCard(
+            configItem=appConfig.recognizePaConfidenceWeight,
+            icon=FluentIcon.SEARCH,
+            title="PA置信度权重",
+            content="严格门限策略中 PA 置信度参与联合判别的相对权重",
+            parent=self._recognizeGroup,
+            decimals=2,
+            singleStep=0.05,
         )
-        self._recognizeGroup.addSettingCard(
-            DoubleSpinBoxSettingCard(
-                configItem=appConfig.recognizeDtoaConfidenceThreshold,
-                icon=FluentIcon.SEARCH,
-                title="DTOA置信度门限",
-                content="严格门限策略中 DTOA 预测结果必须达到的最低置信度",
-                parent=self._recognizeGroup,
-                decimals=2,
-                singleStep=0.05,
-            )
+        self._recognitionDtoaThresholdCard = DoubleSpinBoxSettingCard(
+            configItem=appConfig.recognizeDtoaConfidenceThreshold,
+            icon=FluentIcon.SEARCH,
+            title="DTOA置信度门限",
+            content="严格门限策略中 DTOA 预测结果必须达到的最低置信度",
+            parent=self._recognizeGroup,
+            decimals=2,
+            singleStep=0.05,
         )
-        self._recognizeGroup.addSettingCard(
-            DoubleSpinBoxSettingCard(
-                configItem=appConfig.recognizeDtoaConfidenceWeight,
-                icon=FluentIcon.SEARCH,
-                title="DTOA置信度权重",
-                content="严格门限策略中 DTOA 置信度参与联合判别的相对权重",
-                parent=self._recognizeGroup,
-                decimals=2,
-                singleStep=0.05,
-            )
+        self._recognitionDtoaWeightCard = DoubleSpinBoxSettingCard(
+            configItem=appConfig.recognizeDtoaConfidenceWeight,
+            icon=FluentIcon.SEARCH,
+            title="DTOA置信度权重",
+            content="严格门限策略中 DTOA 置信度参与联合判别的相对权重",
+            parent=self._recognizeGroup,
+            decimals=2,
+            singleStep=0.05,
         )
-        self._recognizeGroup.addSettingCard(
-            DoubleSpinBoxSettingCard(
-                configItem=appConfig.recognizeJointConfidenceThreshold,
-                icon=FluentIcon.SEARCH,
-                title="联合判别门限",
-                content="严格门限策略中按 PA、DTOA 权重比例归一化后的联合概率门限",
-                parent=self._recognizeGroup,
-                decimals=2,
-                singleStep=0.05,
-            )
+        self._recognitionJointThresholdCard = DoubleSpinBoxSettingCard(
+            configItem=appConfig.recognizeJointConfidenceThreshold,
+            icon=FluentIcon.SEARCH,
+            title="联合判别门限",
+            content="严格门限策略中按 PA、DTOA 权重比例归一化后的联合概率门限",
+            parent=self._recognizeGroup,
+            decimals=2,
+            singleStep=0.05,
+        )
+        self._recognitionStrictCards = (
+            self._recognitionPaThresholdCard,
+            self._recognitionPaWeightCard,
+            self._recognitionDtoaThresholdCard,
+            self._recognitionDtoaWeightCard,
+            self._recognitionJointThresholdCard,
+        )
+        self._recognizeGroup.addSettingCard(self._recognitionStrategyCard)
+        for card in self._recognitionStrictCards:
+            self._recognizeGroup.addSettingCard(card)
+        self._recognitionStrategyCard.checkedChanged.connect(
+            self._sync_recognition_strict_cards_enabled
+        )
+        self._sync_recognition_strict_cards_enabled(
+            self._recognitionStrategyCard.isChecked()
         )
 
         # ── 提取参数组 ────────────────────────────────────────────────────────
@@ -359,6 +365,11 @@ class ParamsInterface(ScrollArea):
             self.cardGroupsLayout,
             max_content_width=self.MAX_CONTENT_WIDTH,
         )
+
+    def _sync_recognition_strict_cards_enabled(self, greedy: bool) -> None:
+        """贪婪策略下禁用仅供严格策略使用的门限与权重卡片。"""
+        for card in self._recognitionStrictCards:
+            card.setEnabled(not greedy)
 
     def _initWidget(self) -> None:
         """初始化控件外观与布局结构。

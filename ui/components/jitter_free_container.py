@@ -33,6 +33,7 @@ class JitterFreeCardGroup(SettingCardGroup):
         
         # 隐藏原生组标题
         self.titleLabel.hide()
+        # self.cardLayout.setSpacing(8)
         
         item = self.vBoxLayout.itemAt(1)
         if item and item.spacerItem():

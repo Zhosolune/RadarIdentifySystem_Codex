@@ -25,18 +25,18 @@ from .redraw_option_card import RedrawOptionCard
 
 
 class SliceRightPanel(QWidget):
-    """管理切片页右侧导航、绘图选项和分析结果区域。
+    """管理切片页右侧导航、分析结果和底部绘图选项区域。
 
     页面级参数抽屉不属于普通列布局，仍由 ``SliceInterface`` 管理。
 
     Attributes:
         slice_info_label [QLabel]: 切片数量信息标签。
-        operate_panel_card [SimpleCardWidget]: 固定在表格上方的操作卡片。
+        operate_panel_card [SimpleCardWidget]: 只承载导航操作的顶部卡片。
         navigation_control_card [NavigationControlCard]: 页面主操作与导航控件。
         option_cards_group [JitterFreeCardGroup]: 绘图与重绘选项容器。
         plot_option_card [PlotOptionCard]: 图像展示选项控件。
         redraw_option_card [RedrawOptionCard]: 图像重绘选项控件。
-        analysis_result_card [AnalysisResultCard]: 当前类别分析结果卡片。
+        analysis_result_card [AnalysisResultCard]: 无外层卡片背景的分析结果面板。
     """
 
     def __init__(
@@ -79,7 +79,7 @@ class SliceRightPanel(QWidget):
         self.navigation_control_card = NavigationControlCard(
             self.operate_panel_card
         )
-        self.option_cards_group = JitterFreeCardGroup(self.operate_panel_card)
+        self.option_cards_group = JitterFreeCardGroup(self)
         self.plot_option_card = PlotOptionCard(
             session=session,
             on_config_changed=on_config_changed,
@@ -91,7 +91,6 @@ class SliceRightPanel(QWidget):
         self.option_cards_group.addSettingCard(self.plot_option_card)
         self.option_cards_group.addSettingCard(self.redraw_option_card)
         operate_panel_layout.addWidget(self.navigation_control_card)
-        operate_panel_layout.addWidget(self.option_cards_group)
 
         self.analysis_result_card = AnalysisResultCard(self)
         addStyleSheet(self.analysis_result_card.table, StyleSheet.SLICE_INTERFACE)
@@ -99,7 +98,7 @@ class SliceRightPanel(QWidget):
         self._init_layout()
 
     def _init_layout(self) -> None:
-        """创建上部固定、结果表纵向伸缩的业务内容布局。"""
+        """创建顶部导航、伸缩结果表和底部绘图选项布局。"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
@@ -110,8 +109,10 @@ class SliceRightPanel(QWidget):
         header_layout.addWidget(self.slice_info_label, 1)
 
         layout.addLayout(header_layout)
-        # 操作区域始终固定在结果表上方，不参与右栏滚动。
+        # 主操作与导航控件。
         layout.addWidget(self.operate_panel_card)
-        # 结果卡优先使用完整内容高度，空间不足时收缩并保留无滚动条的滚轮浏览。
+        # 绘图选项和指定切片绘制
+        layout.addWidget(self.option_cards_group)
+        # 结果表
         layout.addWidget(self.analysis_result_card)
         layout.addStretch(1)

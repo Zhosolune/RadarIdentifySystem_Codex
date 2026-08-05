@@ -9,6 +9,7 @@ from .slice_dimension_card import SliceDimensionCard
 from .navigation_control_card import NavigationControlCard
 from .plot_option_card import PlotOptionCard
 from .redraw_option_card import RedrawOptionCard
+from .recognition_strategy_setting_card import RecognitionStrategySettingCard
 from .export_option_card import ExportOptionCard
 from .jitter_free_container import JitterFreeCardGroup
 from .model_list_page import ModelListPage
@@ -44,6 +45,7 @@ __all__ = [
     "NavigationControlCard", 
     "PlotOptionCard",
     "RedrawOptionCard",
+    "RecognitionStrategySettingCard",
     "ExportOptionCard",
     "JitterFreeCardGroup",
     "ModelListPage",

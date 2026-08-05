@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 import logging
 
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 from qfluentwidgets import (
     BoolValidator,
     FluentIcon,
+    FluentIconBase,
     RangeValidator,
     ScrollArea,
     SwitchSettingCard,
@@ -16,13 +18,168 @@ from qfluentwidgets import (
 )
 
 from app.session_config_item import SessionConfigItem, SessionConfigWriter
+from app.app_config import appConfig
 from core.models.processing_session import ProcessingSession
 from .double_spin_box_setting_card import DoubleSpinBoxSettingCard
 from .export_option_card import ExportOptionCard
 from .model_selection_card import ModelSelectionCard
+from .recognition_strategy_setting_card import RecognitionStrategySettingCard
 from .spin_box_setting_card import SpinBoxSettingCard
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class _SessionNumericSpec:
+    """描述一项绑定 Session 快照的数值设置卡。"""
+
+    path: str
+    config_attr: str
+    title: str
+    content: str
+    unit: str | None = None
+    decimals: int = 2
+    single_step: float = 1.0
+    integer: bool = False
+
+
+_RECOGNITION_SPECS = (
+    _SessionNumericSpec(
+        "recognition.pa_confidence_threshold",
+        "recognizePaConfidenceThreshold",
+        "PA置信度门限",
+        "严格门限策略中 PA 预测结果必须达到的最低置信度",
+        single_step=0.05,
+    ),
+    _SessionNumericSpec(
+        "recognition.pa_confidence_weight",
+        "recognizePaConfidenceWeight",
+        "PA置信度权重",
+        "严格门限策略中 PA 置信度参与联合判别的相对权重",
+        single_step=0.05,
+    ),
+    _SessionNumericSpec(
+        "recognition.dtoa_confidence_threshold",
+        "recognizeDtoaConfidenceThreshold",
+        "DTOA置信度门限",
+        "严格门限策略中 DTOA 预测结果必须达到的最低置信度",
+        single_step=0.05,
+    ),
+    _SessionNumericSpec(
+        "recognition.dtoa_confidence_weight",
+        "recognizeDtoaConfidenceWeight",
+        "DTOA置信度权重",
+        "严格门限策略中 DTOA 置信度参与联合判别的相对权重",
+        single_step=0.05,
+    ),
+    _SessionNumericSpec(
+        "recognition.joint_confidence_threshold",
+        "recognizeJointConfidenceThreshold",
+        "联合判别门限",
+        "严格门限策略中按 PA、DTOA 权重比例归一化后的联合概率门限",
+        single_step=0.05,
+    ),
+)
+
+_EXTRACT_CF_SPECS = (
+    _SessionNumericSpec(
+        "extract.eps_cf",
+        "extractEpsilonCF",
+        "CF邻域半径",
+        "CF 参数提取时的一维聚类邻域半径",
+        unit="MHz",
+        single_step=0.01,
+    ),
+    _SessionNumericSpec(
+        "extract.min_pts_cf",
+        "extractMinPtsCF",
+        "CF最小邻居点数",
+        "CF 参数提取时形成有效邻域所需的最少邻居点数",
+        unit="个",
+        integer=True,
+    ),
+    _SessionNumericSpec(
+        "extract.threshold_ratio_cf",
+        "extractThresholdRatioCF",
+        "CF门限率",
+        "CF 参数提取时过滤有效簇的点数比例门限",
+        unit="%",
+        decimals=1,
+        single_step=0.5,
+    ),
+)
+
+_EXTRACT_PW_SPECS = (
+    _SessionNumericSpec(
+        "extract.eps_pw",
+        "extractEpsilonPW",
+        "PW邻域半径",
+        "PW 参数提取时的一维聚类邻域半径",
+        unit="μs",
+        single_step=0.01,
+    ),
+    _SessionNumericSpec(
+        "extract.min_pts_pw",
+        "extractMinPtsPW",
+        "PW最小邻居点数",
+        "PW 参数提取时形成有效邻域所需的最少邻居点数",
+        unit="个",
+        integer=True,
+    ),
+    _SessionNumericSpec(
+        "extract.threshold_ratio_pw",
+        "extractThresholdRatioPW",
+        "PW门限率",
+        "PW 参数提取时过滤有效簇的点数比例门限",
+        unit="%",
+        decimals=1,
+        single_step=0.5,
+    ),
+)
+
+_EXTRACT_PRI_SPECS = (
+    _SessionNumericSpec(
+        "extract.eps_pri",
+        "extractEpsilonPRI",
+        "PRI邻域半径",
+        "PRI 参数提取时的一维聚类邻域半径",
+        unit="μs",
+        single_step=0.01,
+    ),
+    _SessionNumericSpec(
+        "extract.min_pts_pri",
+        "extractMinPtsPRI",
+        "PRI最小邻居点数",
+        "PRI 参数提取时形成有效邻域所需的最少邻居点数",
+        unit="个",
+        integer=True,
+    ),
+    _SessionNumericSpec(
+        "extract.threshold_ratio_pri",
+        "extractThresholdRatioPRI",
+        "PRI门限率",
+        "PRI 参数提取时过滤有效簇的点数比例门限",
+        unit="%",
+        decimals=1,
+        single_step=0.5,
+    ),
+    _SessionNumericSpec(
+        "extract.filter_threshold_pri",
+        "extractFilterThresholdPRI",
+        "PRI过滤门限",
+        "PRI 参数提取时过滤过小间隔的时间门限",
+        unit="μs",
+        single_step=0.01,
+    ),
+    _SessionNumericSpec(
+        "extract.harmonic_tolerance_pri",
+        "extractHarmonicTolerancePRI",
+        "PRI谐波抑制容差",
+        "PRI 参数提取时判断谐波关系的容差范围",
+        unit="μs",
+        single_step=0.01,
+    ),
+)
 
 
 class SliceParamPanel(QWidget):
@@ -41,6 +198,10 @@ class SliceParamPanel(QWidget):
         drawer_scroll_area: 支持内容溢出的滚动区域。
         drawer_scroll_widget: 滚动区域承载的内容控件。
         drawer_scroll_layout: 提供抽屉内容边距的布局。
+        recognition_group: 当前 Session 识别策略及严格门限设置组。
+        extract_cf_group: 当前 Session CF 参数提取设置组。
+        extract_pw_group: 当前 Session PW 参数提取设置组。
+        extract_pri_group: 当前 Session PRI 参数提取设置组。
         merge_group: 当前Session合并参数占位设置组。
         merge_placeholder_card: 绑定Session快照占位字段的设置卡。
         cards_group: 管理可展开卡片高度的无抖动卡片组。
@@ -110,7 +271,28 @@ class SliceParamPanel(QWidget):
         self._sync_initial_model_selection()
         self.model_selection_card.modelChanged.connect(self._on_model_changed)
         self.export_path_card: ExportOptionCard = ExportOptionCard(self)
+        self.session_parameter_items: dict[str, SessionConfigItem] = {}
+        self.session_parameter_cards: dict[
+            str,
+            SpinBoxSettingCard | DoubleSpinBoxSettingCard,
+        ] = {}
         self.clustering_group: SettingCardGroup = self._create_clustering_group()
+        self.recognition_group: SettingCardGroup = self._create_recognition_group()
+        self.extract_cf_group: SettingCardGroup = self._create_numeric_group(
+            "CF参数提取配置",
+            _EXTRACT_CF_SPECS,
+            FluentIcon.FILTER,
+        )
+        self.extract_pw_group: SettingCardGroup = self._create_numeric_group(
+            "PW参数提取配置",
+            _EXTRACT_PW_SPECS,
+            FluentIcon.FILTER,
+        )
+        self.extract_pri_group: SettingCardGroup = self._create_numeric_group(
+            "PRI参数提取配置",
+            _EXTRACT_PRI_SPECS,
+            FluentIcon.FILTER,
+        )
         self.merge_group: SettingCardGroup = self._create_merge_group()
 
         self._init_layout()
@@ -271,6 +453,113 @@ class SliceParamPanel(QWidget):
 
         return group
 
+    def _create_recognition_group(self) -> SettingCardGroup:
+        """创建绑定当前 Session 识别策略和严格门限的设置组。"""
+        group = SettingCardGroup("识别参数配置", self)
+        global_item = appConfig.recognizeGreedyStrategy
+        self.recognition_strategy_item = SessionConfigItem(
+            self.session.config_snapshot,
+            "recognition.greedy_strategy",
+            global_item.defaultValue,
+            validator=global_item.validator,
+            on_changed=self._on_config_changed,
+        )
+        self.recognition_strategy_card = RecognitionStrategySettingCard(
+            configItem=None,
+            icon=FluentIcon.SEARCH,
+            title="识别策略",
+            content="开关拨向贪婪时忽略门限；拨向严格时启用下方门限与权重",
+            parent=group,
+        )
+        self.recognition_strategy_card.setChecked(
+            bool(self.recognition_strategy_item.value)
+        )
+        self.recognition_strategy_card.checkedChanged.connect(
+            self.recognition_strategy_item.set
+        )
+        self.recognition_strategy_item.valueChanged.connect(
+            self.recognition_strategy_card.setChecked
+        )
+        group.addSettingCard(self.recognition_strategy_card)
+        self.session_parameter_items[self.recognition_strategy_item.path] = (
+            self.recognition_strategy_item
+        )
+
+        strict_cards = self._add_numeric_cards(
+            group,
+            _RECOGNITION_SPECS,
+            FluentIcon.SEARCH,
+        )
+        self._recognition_strict_cards = strict_cards
+        self.recognition_strategy_card.checkedChanged.connect(
+            self._sync_recognition_strict_cards_enabled
+        )
+        self._sync_recognition_strict_cards_enabled(
+            self.recognition_strategy_card.isChecked()
+        )
+        return group
+
+    def _create_numeric_group(
+        self,
+        title: str,
+        specs: tuple[_SessionNumericSpec, ...],
+        icon: FluentIconBase,
+    ) -> SettingCardGroup:
+        """根据描述创建绑定当前 Session 快照的数值设置组。"""
+        group = SettingCardGroup(title, self)
+        self._add_numeric_cards(group, specs, icon)
+        return group
+
+    def _add_numeric_cards(
+        self,
+        group: SettingCardGroup,
+        specs: tuple[_SessionNumericSpec, ...],
+        icon: FluentIconBase,
+    ) -> tuple[SpinBoxSettingCard | DoubleSpinBoxSettingCard, ...]:
+        """将数值描述转换为 Session 设置项和对应设置卡。"""
+        cards: list[SpinBoxSettingCard | DoubleSpinBoxSettingCard] = []
+        for spec in specs:
+            global_item = getattr(appConfig, spec.config_attr)
+            item = SessionConfigItem(
+                self.session.config_snapshot,
+                spec.path,
+                global_item.defaultValue,
+                validator=global_item.validator,
+                on_changed=self._on_config_changed,
+            )
+            if spec.integer:
+                card = SpinBoxSettingCard(
+                    configItem=item,
+                    icon=icon,
+                    title=spec.title,
+                    content=spec.content,
+                    unit=spec.unit,
+                    parent=group,
+                    config_writer=self._session_config_writer,
+                )
+            else:
+                card = DoubleSpinBoxSettingCard(
+                    configItem=item,
+                    icon=icon,
+                    title=spec.title,
+                    content=spec.content,
+                    unit=spec.unit,
+                    decimals=spec.decimals,
+                    singleStep=spec.single_step,
+                    parent=group,
+                    config_writer=self._session_config_writer,
+                )
+            group.addSettingCard(card)
+            self.session_parameter_items[spec.path] = item
+            self.session_parameter_cards[spec.path] = card
+            cards.append(card)
+        return tuple(cards)
+
+    def _sync_recognition_strict_cards_enabled(self, greedy: bool) -> None:
+        """贪婪策略下禁用仅由严格策略消费的数值卡片。"""
+        for card in self._recognition_strict_cards:
+            card.setEnabled(not greedy)
+
     def _create_merge_group(self) -> SettingCardGroup:
         """创建绑定当前Session快照的合并参数占位组。
 
@@ -377,10 +666,19 @@ class SliceParamPanel(QWidget):
         self.cards_group.addSettingCard(self.export_path_card)
 
         self.clustering_group.setParent(self.drawer_scroll_widget)
+        self.recognition_group.setParent(self.drawer_scroll_widget)
+        self.extract_cf_group.setParent(self.drawer_scroll_widget)
+        self.extract_pw_group.setParent(self.drawer_scroll_widget)
+        self.extract_pri_group.setParent(self.drawer_scroll_widget)
         self.merge_group.setParent(self.drawer_scroll_widget)
-        self.drawer_scroll_layout.addWidget(self.clustering_group)
-        self.drawer_scroll_layout.addWidget(self.merge_group)
+        # 额外配置作为最常用的 Session 入口固定在抽屉内容最顶端。
         self.drawer_scroll_layout.addWidget(self.cards_group)
+        self.drawer_scroll_layout.addWidget(self.clustering_group)
+        self.drawer_scroll_layout.addWidget(self.recognition_group)
+        self.drawer_scroll_layout.addWidget(self.extract_cf_group)
+        self.drawer_scroll_layout.addWidget(self.extract_pw_group)
+        self.drawer_scroll_layout.addWidget(self.extract_pri_group)
+        self.drawer_scroll_layout.addWidget(self.merge_group)
         self.drawer_scroll_layout.addStretch(1)
         self.drawer_scroll_area.setWidget(self.drawer_scroll_widget)
         root_layout.addWidget(self.drawer_scroll_area)

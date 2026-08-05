@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
 from pytest import MonkeyPatch
-from qfluentwidgets import ScrollArea, qconfig
+from qfluentwidgets import ScrollArea, SettingCard, qconfig
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -17,6 +17,9 @@ from ui.components import SliceParamPanel
 from ui.components.double_spin_box_setting_card import DoubleSpinBoxSettingCard
 from ui.components.export_option_card import ExportOptionCard
 from ui.components.model_selection_card import ModelSelectionCard
+from ui.components.recognition_strategy_setting_card import (
+    RecognitionStrategySettingCard,
+)
 from ui.components.spin_box_setting_card import SpinBoxSettingCard
 
 
@@ -65,12 +68,114 @@ def test_slice_param_panel_owns_drawer_cards(monkeypatch: MonkeyPatch) -> None:
     assert isinstance(panel.clustering_min_pts_cf_card, SpinBoxSettingCard)
     assert isinstance(panel.clustering_eps_doa_card, DoubleSpinBoxSettingCard)
     assert isinstance(panel.clustering_min_pts_doa_card, SpinBoxSettingCard)
+    assert isinstance(
+        panel.recognition_strategy_card,
+        RecognitionStrategySettingCard,
+    )
+    assert panel.recognition_group.parent() is panel.drawer_scroll_widget
+    assert panel.extract_cf_group.parent() is panel.drawer_scroll_widget
+    assert panel.extract_pw_group.parent() is panel.drawer_scroll_widget
+    assert panel.extract_pri_group.parent() is panel.drawer_scroll_widget
     assert panel.merge_group.parent() is panel.drawer_scroll_widget
     assert isinstance(panel.merge_placeholder_card, DoubleSpinBoxSettingCard)
     assert isinstance(panel.model_selection_card, ModelSelectionCard)
     assert panel.model_selection_card.parent() is panel.cards_group
     assert isinstance(panel.export_path_card, ExportOptionCard)
     assert panel.export_path_card.parent() is panel.cards_group
+    assert panel.drawer_scroll_layout.indexOf(panel.cards_group) == 0
+    assert panel.drawer_scroll_layout.indexOf(panel.clustering_group) == 1
+    assert panel.drawer_scroll_layout.indexOf(panel.recognition_group) == 2
+    assert panel.drawer_scroll_layout.indexOf(panel.extract_cf_group) == 3
+    assert panel.drawer_scroll_layout.indexOf(panel.extract_pw_group) == 4
+    assert panel.drawer_scroll_layout.indexOf(panel.extract_pri_group) == 5
+    assert panel.drawer_scroll_layout.indexOf(panel.merge_group) == 6
+
+    assert [
+        card.titleLabel.text()
+        for card in panel.recognition_group.findChildren(SettingCard)
+    ] == [
+        "识别策略",
+        "PA置信度门限",
+        "PA置信度权重",
+        "DTOA置信度门限",
+        "DTOA置信度权重",
+        "联合判别门限",
+    ]
+    assert [
+        card.titleLabel.text()
+        for group in (
+            panel.extract_cf_group,
+            panel.extract_pw_group,
+            panel.extract_pri_group,
+        )
+        for card in group.findChildren(SettingCard)
+    ] == [
+        "CF邻域半径",
+        "CF最小邻居点数",
+        "CF门限率",
+        "PW邻域半径",
+        "PW最小邻居点数",
+        "PW门限率",
+        "PRI邻域半径",
+        "PRI最小邻居点数",
+        "PRI门限率",
+        "PRI过滤门限",
+        "PRI谐波抑制容差",
+    ]
+
+
+def test_slice_param_panel_updates_recognition_and_extract_snapshot_only(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """识别与提取卡应只写入当前 Session，并联动严格参数可用状态。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: [],
+    )
+    current_session = ProcessingSession()
+    other_session = ProcessingSession()
+    global_strategy = qconfig.get(appConfig.recognizeGreedyStrategy)
+    global_pa_threshold = qconfig.get(appConfig.recognizePaConfidenceThreshold)
+    global_eps_cf = qconfig.get(appConfig.extractEpsilonCF)
+    global_min_pts_pw = qconfig.get(appConfig.extractMinPtsPW)
+    global_filter_pri = qconfig.get(appConfig.extractFilterThresholdPRI)
+    changed: list[str] = []
+    panel = SliceParamPanel(
+        session=current_session,
+        on_config_changed=lambda: changed.append("saved"),
+    )
+
+    assert panel.recognition_strategy_card.isChecked()
+    assert all(not card.isEnabled() for card in panel._recognition_strict_cards)
+
+    panel.recognition_strategy_card.setChecked(False)
+    panel.session_parameter_cards[
+        "recognition.pa_confidence_threshold"
+    ].spinBox.setValue(0.75)
+    panel.session_parameter_cards["extract.eps_cf"].spinBox.setValue(3.25)
+    panel.session_parameter_cards["extract.min_pts_pw"].spinBox.setValue(7)
+    panel.session_parameter_cards[
+        "extract.filter_threshold_pri"
+    ].spinBox.setValue(2.5)
+
+    assert current_session.config_snapshot.recognition.greedy_strategy is False
+    assert current_session.config_snapshot.recognition.pa_confidence_threshold == 0.75
+    assert current_session.config_snapshot.extract.eps_cf == 3.25
+    assert current_session.config_snapshot.extract.min_pts_pw == 7
+    assert current_session.config_snapshot.extract.filter_threshold_pri == 2.5
+    assert all(card.isEnabled() for card in panel._recognition_strict_cards)
+    assert other_session.config_snapshot.recognition.greedy_strategy is True
+    assert other_session.config_snapshot.recognition.pa_confidence_threshold == 0.5
+    assert other_session.config_snapshot.extract.eps_cf == 2.0
+    assert other_session.config_snapshot.extract.min_pts_pw == 4
+    assert other_session.config_snapshot.extract.filter_threshold_pri == 2.0
+    assert changed == ["saved"] * 5
+    assert qconfig.get(appConfig.recognizeGreedyStrategy) == global_strategy
+    assert qconfig.get(appConfig.recognizePaConfidenceThreshold) == global_pa_threshold
+    assert qconfig.get(appConfig.extractEpsilonCF) == global_eps_cf
+    assert qconfig.get(appConfig.extractMinPtsPW) == global_min_pts_pw
+    assert qconfig.get(appConfig.extractFilterThresholdPRI) == global_filter_pri
 
 
 def test_slice_param_panel_updates_session_auto_recognize_only(

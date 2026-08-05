@@ -1,5 +1,36 @@
 # 变更记录
 
+- 时间：2026-08-05 15:28
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\recognition_strategy_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\interfaces\params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\slice_right_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_params_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_param_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：重构识别策略开关、补齐切片抽屉的 Session 识别/提取参数，并调整右侧结果表与绘图选项布局。
+- 原因：全局策略开关语义不直观，切片抽屉尚未暴露已有 Session 快照中的识别和提取参数，右栏操作卡及结果表外层卡片层级也需简化。
+- 计划清单：
+  - [x] 核对全局参数链、Session 快照字段、切片抽屉和右侧面板现状。
+  - [x] 实现“严格 / 开关 / 贪婪”双标签策略控件，贪婪模式禁用严格门限卡。
+  - [x] 在切片抽屉中绑定 Session 独立的识别及 CF/PW/PRI 提取参数。
+  - [x] 将额外配置项置顶，并按“导航卡 → 结果表 → 绘图/指定切片绘制”重排右栏。
+  - [x] 移除分析结果表的外层卡片视觉容器，保持表格业务接口和样式。
+  - [x] 补充全局配置、Session 隔离、抽屉排序和右栏结构回归。
+  - [x] 运行聚焦测试、编译和差异检查。
+- 验证结果：
+  - 聚焦功能回归：18 passed。
+  - 导航控制、Session 快照序列化与持久化回归：62 passed。
+  - 完整相关文件回归：27 passed、3 failed；失败均为既有契约漂移，分别是合并结果数量空格、快照标题措辞、用户已调整 QSS 中不存在旧的 `QTableView#analysisResultTable` 选择器，本次未修改对应实现或 QSS。
+  - Qt offscreen 几何检查通过：标签实际顺序为“严格 → 开关 → 贪婪”，右栏实际顺序为“导航卡 → 结果表 → 绘图选项组”。
+  - 产品文件 `py_compile` 通过；`git diff --check` 通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-05 09:44
 - 操作类型：[修改]
 - 影响文件：

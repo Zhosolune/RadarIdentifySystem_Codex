@@ -1,4 +1,4 @@
-"""分析结果表格卡片组件。"""
+"""分析结果表格面板组件。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from PyQt6.QtGui import (
     QResizeEvent,
 )
 from PyQt6.QtWidgets import QHeaderView, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget
-from qfluentwidgets import SimpleCardWidget, SmoothScrollBar, TableWidget, qconfig, themeColor
+from qfluentwidgets import SmoothScrollBar, TableWidget, qconfig, themeColor
 from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.style_sheet import isDarkTheme
 
@@ -294,10 +294,10 @@ class AnalysisResultTableWidget(TableWidget):
         vertical_bar._adjustHandlePos()
 
 
-class AnalysisResultCard(SimpleCardWidget):
-    """分析结果表格卡片。
+class AnalysisResultCard(QWidget):
+    """不带外层卡片背景的分析结果表格面板。
 
-    使用 Fluent 卡片承载固定的 2 列分析结果表格。表格左列展示雷达信号指标，
+    直接承载固定的 2 列分析结果表格。表格左列展示雷达信号指标，
     右列展示当前浏览类别的缓存参数、实际预测类别名和分类概率汇总。
 
     Attributes:
@@ -321,7 +321,7 @@ class AnalysisResultCard(SimpleCardWidget):
     TABLE_BORDER_RADIUS = 4
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """初始化分析结果表格卡片。
+        """初始化分析结果表格面板。
 
         Args:
             parent [QWidget | None]: 父级控件，默认值为 None。
@@ -350,7 +350,7 @@ class AnalysisResultCard(SimpleCardWidget):
         self._init_table()
 
     def _init_layout(self) -> None:
-        """初始化卡片内部布局。
+        """初始化表格面板内部布局。
 
         Args:
             无。
@@ -362,7 +362,8 @@ class AnalysisResultCard(SimpleCardWidget):
             无显式抛出异常。
         """
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        # 表格自身已经绘制边框与圆角，不再保留额外卡片背景和内边距。
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.table)
 
@@ -426,10 +427,10 @@ class AnalysisResultCard(SimpleCardWidget):
         self.table._sync_vertical_scrollbar_geometry()
 
     def sizeHint(self) -> QSize:
-        """返回可完整展示当前表格内容的首选卡片尺寸。
+        """返回可完整展示当前表格内容的首选面板尺寸。
 
         Returns:
-            QSize: 宽度沿用卡片默认建议值，高度包含表格内容和卡片边距。
+            QSize: 宽度沿用面板默认建议值，高度包含表格内容和布局边距。
 
         Raises:
             无显式抛出异常。

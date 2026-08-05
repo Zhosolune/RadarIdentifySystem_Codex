@@ -99,10 +99,10 @@ def test_slice_param_panel_is_mounted_in_matching_drawer(
     sip.delete(interface)
 
 
-def test_analysis_result_table_is_mounted_in_right_bottom_card(
+def test_analysis_result_table_is_unwrapped_above_bottom_option_cards(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """分析结果表格应以卡片形式挂载到右侧面板底部。"""
+    """分析结果表应取消外层卡片，并位于底部绘图选项上方。"""
     _app()
     monkeypatch.setattr(
         "ui.components.model_selection_card.get_enabled_model_paths",
@@ -128,10 +128,16 @@ def test_analysis_result_table_is_mounted_in_right_bottom_card(
 
         assert card is interface.right_panel.analysis_result_card
         assert table is interface.right_panel.analysis_result_card.table
-        assert interface.right_panel.layout().indexOf(
-            card
-        ) > interface.right_panel.layout().indexOf(
-            interface.right_panel.operate_panel_card
+        panel = interface.right_panel
+        assert not isinstance(card, SimpleCardWidget)
+        assert card.layout().contentsMargins().isNull()
+        assert panel.option_cards_group.parent() is panel
+        assert panel.plot_option_card.parent() is panel.option_cards_group
+        assert panel.redraw_option_card.parent() is panel.option_cards_group
+        assert panel.operate_panel_card.layout().indexOf(panel.option_cards_group) == -1
+        assert panel.layout().indexOf(panel.operate_panel_card) < panel.layout().indexOf(card)
+        assert panel.layout().indexOf(card) < panel.layout().indexOf(
+            panel.option_cards_group
         )
         assert (
             interface.right_panel.findChild(ScrollArea, "rightPanelScrollArea")
@@ -154,7 +160,6 @@ def test_analysis_result_table_is_mounted_in_right_bottom_card(
         )
         assert table.verticalHeader().isHidden()
         assert "selection-background-color: transparent" in table.styleSheet()
-        assert "QTableView#analysisResultTable" in table.styleSheet()
     finally:
         sip.delete(interface)
 
