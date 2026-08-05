@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 from PyQt6 import sip
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtGui import QWheelEvent
+from PyQt6.QtWidgets import QApplication, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, RangeValidator
 
 import app.session_config_item as session_config_item_module
@@ -174,3 +176,79 @@ def test_double_spin_box_setting_card_writes_session_item() -> None:
     assert snapshot.clustering.eps_cf == 3.3
     sip.delete(card)
     QApplication.processEvents()
+
+
+def test_numeric_setting_cards_route_wheel_to_outer_scroll_area() -> None:
+    """整数和浮点设置卡应禁止滚轮改值，并继续滚动外层页面。"""
+    _app()
+    snapshot = SessionConfigSnapshot.default()
+    writer = SessionConfigWriter()
+    integer_item = SessionConfigItem(
+        snapshot,
+        "clustering.min_pts_cf",
+        2,
+        validator=RangeValidator(1, 10),
+    )
+    double_item = SessionConfigItem(
+        snapshot,
+        "clustering.eps_cf",
+        2.0,
+        validator=RangeValidator(0.1, 10.0),
+    )
+    integer_card = SpinBoxSettingCard(
+        integer_item,
+        FluentIcon.SETTING,
+        "整数参数",
+        config_writer=writer,
+    )
+    double_card = DoubleSpinBoxSettingCard(
+        double_item,
+        FluentIcon.SETTING,
+        "浮点参数",
+        config_writer=writer,
+    )
+    scroll_area = QScrollArea()
+    scroll_area.resize(500, 240)
+    content = QWidget()
+    content.setMinimumHeight(1000)
+    layout = QVBoxLayout(content)
+    layout.addWidget(integer_card)
+    layout.addWidget(double_card)
+    layout.addStretch(1)
+    scroll_area.setWidget(content)
+    scroll_area.setWidgetResizable(True)
+    scroll_area.show()
+    QApplication.processEvents()
+
+    def wheel_down() -> QWheelEvent:
+        """构造向下滚动一步的滚轮事件。"""
+        return QWheelEvent(
+            QPointF(10, 10),
+            QPointF(10, 10),
+            QPoint(),
+            QPoint(0, -120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.ScrollUpdate,
+            False,
+        )
+
+    try:
+        original_values = (
+            integer_card.spinBox.value(),
+            double_card.spinBox.value(),
+        )
+        for card in (integer_card, double_card):
+            scroll_area.verticalScrollBar().setValue(0)
+            QApplication.sendEvent(card.spinBox, wheel_down())
+            QApplication.processEvents()
+
+            assert scroll_area.verticalScrollBar().value() > 0
+
+        assert integer_card.spinBox.value() == original_values[0]
+        assert double_card.spinBox.value() == original_values[1]
+        assert snapshot.clustering.min_pts_cf == original_values[0]
+        assert snapshot.clustering.eps_cf == original_values[1]
+    finally:
+        sip.delete(scroll_area)
+        QApplication.processEvents()

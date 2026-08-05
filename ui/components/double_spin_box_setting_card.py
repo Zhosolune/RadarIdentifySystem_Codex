@@ -6,8 +6,11 @@ import logging
 from typing import Protocol
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import SettingCard, FluentIconBase, DoubleSpinBox, BodyLabel, qconfig
+
+from .spin_box_setting_card import _forward_wheel_to_scroll_area
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,12 +27,21 @@ class ConfigWriterProtocol(Protocol):
         ...
 
 
+class _WheelDisabledDoubleSpinBox(DoubleSpinBox):
+    """忽略滚轮改值并将事件交还外层滚动区域。"""
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        """忽略滚轮事件，避免滚动参数页时误修改浮点值。"""
+        _forward_wheel_to_scroll_area(self, event)
+
+
 class DoubleSpinBoxSettingCard(SettingCard):
     """浮点数配置卡片。
 
     功能描述：
         包含一个 DoubleSpinBox 的设置卡片，用于配置浮点型数值。
         自动与全局配置项绑定，并根据配置项的校验器设定输入范围。
+        滚轮事件仅用于滚动外层参数页面，不会修改当前数值。
 
     Attributes:
         configItem (ConfigItem): 绑定的配置项对象。
@@ -80,7 +92,7 @@ class DoubleSpinBoxSettingCard(SettingCard):
         super().__init__(icon, title, content, parent)
         self.configItem = configItem
         self.config_writer: ConfigWriterProtocol = config_writer
-        self.spinBox = DoubleSpinBox(self)
+        self.spinBox = _WheelDisabledDoubleSpinBox(self)
         self.unit = BodyLabel(self)
         self.unit.setFixedWidth(40)
         self.unit.setText(unit or " ")

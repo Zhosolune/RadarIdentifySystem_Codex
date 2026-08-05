@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-08-05 16:06
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\double_spin_box_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_config_item.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：统一禁用参数配置数值框的滚轮改值行为，并允许滚轮事件继续交给外层页面滚动。
+- 原因：用户滚动参数配置页面时，鼠标经过数值框会误修改配置值。
+- 计划清单：
+  - [x] 核对全局参数页、Session 抽屉和全速参数窗口的共用数值设置卡入口。
+  - [x] 为整数与浮点数值框统一屏蔽滚轮改值。
+  - [x] 验证数值保持不变且页面仍能继续滚动。
+- 验证结果：
+  - 共用整数、浮点设置卡的滚轮事件均不再修改数值，并转交最近的外层滚动区域。
+  - Qt 实际页面检查：浮点值保持 `0.5`，参数页纵向滚动值由 `0` 变为 `60`。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest -q tests/unit/test_session_config_item.py tests/unit/test_params_interface.py tests/unit/test_slice_param_panel.py tests/unit/test_interface_responsibilities.py tests/unit/test_full_speed_ui.py::test_full_speed_params_window_edits_isolated_two_column_draft`：32 passed。
+  - 扩大运行 `test_full_speed_ui.py` 时另有 2 个既有滚动条边距断言失败，与本次数值框滚轮行为无关。
+  - `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-05 15:59
 - 操作类型：[修改]
 - 影响文件：

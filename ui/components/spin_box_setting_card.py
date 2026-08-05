@@ -4,7 +4,8 @@
 from typing import Protocol
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtGui import QWheelEvent
+from PyQt6.QtWidgets import QAbstractScrollArea, QWidget
 from qfluentwidgets import SettingCard, FluentIconBase, SpinBox, BodyLabel, qconfig
 
 
@@ -20,12 +21,36 @@ class ConfigWriterProtocol(Protocol):
         ...
 
 
+def _forward_wheel_to_scroll_area(widget: QWidget, event: QWheelEvent) -> None:
+    """将数值框收到的滚轮事件转交给最近的外层滚动区域。"""
+    parent = widget.parentWidget()
+    while parent is not None:
+        if isinstance(parent, QAbstractScrollArea):
+            # 直接调用滚动区域基类处理克隆事件，避免再次路由回子控件。
+            QAbstractScrollArea.wheelEvent(parent, event.clone())
+            event.accept()
+            return
+        parent = parent.parentWidget()
+
+    # 独立使用设置卡时同样禁止滚轮改值。
+    event.ignore()
+
+
+class _WheelDisabledSpinBox(SpinBox):
+    """忽略滚轮改值并将事件交还外层滚动区域。"""
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        """忽略滚轮事件，避免滚动参数页时误修改整数值。"""
+        _forward_wheel_to_scroll_area(self, event)
+
+
 class SpinBoxSettingCard(SettingCard):
     """整数配置卡片。
 
     功能描述：
         包含一个 SpinBox  的设置卡片，用于配置整型数值。
         自动与全局配置项绑定，并根据配置项的校验器设定输入范围。
+        滚轮事件仅用于滚动外层参数页面，不会修改当前数值。
 
     Attributes:
         configItem (ConfigItem): 绑定的配置项对象。
@@ -75,7 +100,7 @@ class SpinBoxSettingCard(SettingCard):
         self.unit = BodyLabel(self)
         self.unit.setFixedWidth(40)
         self.unit.setText(unit or " ")
-        self.spinBox = SpinBox(self)
+        self.spinBox = _WheelDisabledSpinBox(self)
 
         # 从配置项提取合法范围并设置
         if hasattr(configItem, "validator") and configItem.validator is not None:

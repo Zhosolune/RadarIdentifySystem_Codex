@@ -59,13 +59,13 @@ class AppConfig(QConfig):
     fullSpeedMaxConcurrentTasks = ConfigItem(
         "performance.fullSpeed",
         "maxConcurrentTasks",
-        1,
+        2,
         validator=RangeValidator(1, 4),
     )
     fullSpeedRecognitionWorkers = ConfigItem(
         "performance.fullSpeed",
         "recognitionWorkers",
-        2,
+        4,
         validator=RangeValidator(1, 8),
     )
 
