@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-08-05 15:59
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\navigation_control_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_navigation_controls.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：按组件库“图标 + 4 个中文字符”按钮的建议宽度，统一固定上/下一类和上/下一片按钮宽度。
+- 原因：四个导航按钮当前文本只有 3 个中文字符，组件库建议宽度较窄，需要与四字图标按钮保持一致的稳定尺寸。
+- 计划清单：
+  - [x] 核对四个导航按钮及组件库 PushButton 的尺寸计算结果。
+  - [x] 使用组件库实际建议宽度固定四个导航按钮。
+  - [x] 补充尺寸回归并运行聚焦验证。
+- 验证结果：
+  - 组件库当前环境计算结果：图标尺寸 16px、四个中文字符文本宽度 56px、按钮 `sizeHint` 宽度 106px。
+  - Qt 几何检查确认上/下一片、上/下一类四个按钮的最小宽度、最大宽度和实际宽度均为 106px。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest -q tests/unit/test_navigation_controls.py`：12 passed。
+  - `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-05 15:28
 - 操作类型：[重构]
 - 影响文件：

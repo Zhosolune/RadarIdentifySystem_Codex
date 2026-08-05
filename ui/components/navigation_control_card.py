@@ -118,6 +118,17 @@ class NavigationControlCard(QWidget):
             self,
         )
 
+        # 组件库“16px 图标 + 4 个中文字符”按钮的建议宽度当前为 106px。
+        # 复用真实四字按钮的 sizeHint，确保字体或 DPI 变化时仍按组件库规则计算。
+        navigation_button_width = self.start_slicing_button.sizeHint().width()
+        for button in (
+            self.prev_slice_button,
+            self.next_slice_button,
+            self.prev_cluster_button,
+            self.next_cluster_button,
+        ):
+            button.setFixedWidth(navigation_button_width)
+
         self._init_layout()
 
     def _init_layout(self) -> None:

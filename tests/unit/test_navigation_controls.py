@@ -69,7 +69,7 @@ def _layout_widgets(layout: QLayout) -> list[object]:
 
 
 def test_navigation_card_uses_requested_two_row_button_order() -> None:
-    """导航卡应按切片行和类别行固定排列按钮。"""
+    """导航卡应固定排列按钮并统一采用四字图标按钮宽度。"""
     _app()
     card = NavigationControlCard()
 
@@ -85,6 +85,17 @@ def test_navigation_card_uses_requested_two_row_button_order() -> None:
             card.next_cluster_button,
             card.reset_cur_slice_button,
         ]
+        expected_width = card.start_slicing_button.sizeHint().width()
+        assert expected_width == card.start_recognition_button.sizeHint().width()
+        assert all(
+            button.minimumWidth() == button.maximumWidth() == expected_width
+            for button in (
+                card.prev_slice_button,
+                card.next_slice_button,
+                card.prev_cluster_button,
+                card.next_cluster_button,
+            )
+        )
     finally:
         sip.delete(card)
 
