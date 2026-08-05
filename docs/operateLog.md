@@ -1,5 +1,26 @@
 # 变更记录
 
+- 时间：2026-08-05 09:44
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_result_table_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：改用 Fluent 表格样式的真实文本绘制矩形计算 PRI 分行宽度，修复窄合并表格末值仍显示省略号的问题。
+- 原因：上一轮仅关闭省略模式，但分行算法仍将“列宽减 16px”误当作可绘制宽度；截图场景中实际样式左右留白共 32px，导致每行文本仍可能超出绘制矩形。
+- 计划清单：
+  - [x] 根据用户截图复现窄列中行文本宽度大于样式文本矩形的场景。
+  - [x] 由当前表格样式和委托动态计算结果列真实文本宽度。
+  - [x] 使用截图对应的窄卡片尺寸补充完整值、无溢出和行高回归。
+  - [x] 运行聚焦测试、编译、差异检查并完成记录。
+- 验证结果：
+  - 370px 卡片中结果列宽为 206px，但 Fluent 样式返回的实际文本矩形仅 173px；旧算法按 190px 分行，能够稳定复现一行宽于绘制区域并产生省略号。
+  - 分行逻辑现通过 `QStyle.SE_ItemViewItemText`、当前委托和字体取得真实文本矩形，不再硬编码样式留白；列宽变化后仍重新执行该计算并同步 PRI 行高。
+  - 使用截图同量级 PRI 数据验证，10 个值被分为 6 行，所有行宽均不超过 173px，行高增长到 112px，10 个值完整保留且无省略号。
+  - 小数位与右侧表格一致的回归及窄列动态行高回归通过（2 passed，2 warnings）。
+  - 相关 Python 文件 `py_compile` 和 `git diff --check` 通过，未修改 QSS。
+- 测试状态：[已测试]
+
 - 时间：2026-08-05 09:25
 - 操作类型：[修改]
 - 影响文件：

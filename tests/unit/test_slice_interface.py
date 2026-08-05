@@ -505,7 +505,8 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
     card = MergeResultTableCard()
 
     try:
-        card.resize(404, card.height())
+        # 370px 与缺陷截图中的窄卡片接近，能覆盖 Fluent 样式额外留白。
+        card.resize(370, card.height())
         card.show()
         QApplication.processEvents()
         base_height = card.height()
@@ -516,7 +517,8 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
                 ("PW", "1"),
                 (
                     "PRI",
-                    "1.0、2.0、3.0、4.0、5.0、6.0、7.0、8.0、9.0、10.0",
+                    "1234.6、2234.6、3234.6、4234.6、5234.6、6234.6、"
+                    "7234.6、8234.6",
                 ),
                 ("DOA", "30"),
             )
@@ -527,8 +529,8 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
         pri_item = card.table.item(pri_row, 1)
         pri_lines = pri_item.text().splitlines()
         font_metrics = QFontMetrics(pri_item.font())
-        available_width = (
-            card.table.columnWidth(1) - card.CELL_HORIZONTAL_PADDING
+        available_width = card._result_text_available_width(
+            result_column_width=card.table.columnWidth(1),
         )
         assert card.ROW_HEIGHT == AnalysisResultCard.DEFAULT_ROW_HEIGHT
         assert (
@@ -549,7 +551,7 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
             token
             for line in pri_lines
             for token in line.split("、")
-        ] == [f"{value}.0" for value in range(1, 11)]
+        ] == [f"{value}234.6" for value in range(1, 9)]
         assert card.table.rowHeight(pri_row) > card.ROW_HEIGHT
         assert card.table.rowHeight(pri_row) >= (
             len(pri_lines) * font_metrics.lineSpacing()
@@ -568,7 +570,7 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
             token
             for line in wide_lines
             for token in line.split("、")
-        ] == [f"{value}.0" for value in range(1, 11)]
+        ] == [f"{value}234.6" for value in range(1, 9)]
 
         card.clear_rows()
         assert card.table.rowHeight(pri_row) == base_pri_height

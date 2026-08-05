@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import (
     QHeaderView,
     QSizePolicy,
+    QStyle,
+    QStyleOptionViewItem,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -44,7 +46,6 @@ class MergeResultTableCard(SimpleCardWidget):
     HEADER_HEIGHT = 36
     PRI_MAX_VALUES_PER_LINE = AnalysisResultCard.PRI_VALUES_PER_LINE
     ROW_VERTICAL_PADDING = AnalysisResultCard.ROW_VERTICAL_PADDING
-    CELL_HORIZONTAL_PADDING = 16
     TABLE_BORDER_RADIUS = 4
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -190,14 +191,8 @@ class MergeResultTableCard(SimpleCardWidget):
         item = self.table.item(0, 1)
         font = item.font() if item is not None else self.table.font()
         metrics = QFontMetrics(font)
-        available_width = max(
-            1,
-            (
-                result_column_width
-                if result_column_width is not None
-                else self.table.columnWidth(1)
-            )
-            - self.CELL_HORIZONTAL_PADDING,
+        available_width = self._result_text_available_width(
+            result_column_width=result_column_width,
         )
         lines: list[str] = []
         current_tokens: list[str] = []
@@ -218,6 +213,30 @@ class MergeResultTableCard(SimpleCardWidget):
         if current_tokens:
             lines.append("、".join(current_tokens))
         return "\n".join(lines)
+
+    def _result_text_available_width(
+        self,
+        *,
+        result_column_width: int | None = None,
+    ) -> int:
+        """返回 Fluent 委托在结果列单元格内实际可绘制的文本宽度。"""
+        column_width = (
+            result_column_width
+            if result_column_width is not None
+            else self.table.columnWidth(1)
+        )
+        option = QStyleOptionViewItem()
+        self.table.initViewItemOption(option)
+        index = self.table.model().index(0, 1)
+        self.table.itemDelegate().initStyleOption(option, index)
+        # 单元格视觉宽度比表头分区少 1px；文本矩形还会扣除当前样式留白。
+        option.rect = QRect(0, 0, max(1, column_width - 1), self.ROW_HEIGHT)
+        text_rect = self.table.style().subElementRect(
+            QStyle.SubElement.SE_ItemViewItemText,
+            option,
+            self.table,
+        )
+        return max(1, text_rect.width())
 
     def _on_header_section_resized(
         self,
