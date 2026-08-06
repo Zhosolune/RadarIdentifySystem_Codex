@@ -1,62 +1,51 @@
 """全速处理结果 Excel 导出器。
 
-导出器接收纯结果模型并生成单个 ``.xlsx`` 文件，不依赖 Qt、线程或界面。
-识别结果和合并结果写入独立工作表，合并结果保留来源簇编号，不修改或替代
-原识别结果。
+一次生成“雷达结果”和“原始脉冲明细”两个工作簿。结果工作簿只保存有效
+识别结果与冻结配置；脉冲工作簿按切片保存算法预处理前的原始六维数据。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-import json
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 import re
 from typing import Any, Iterable
 
+import numpy as np
 import pandas as pd
 
 from core.models.cluster_result import ClusteringResult
 from core.models.merge_result import MergeResult
-from core.models.recognition_result import RecognitionResult
+from core.models.pulse_batch import (
+    COL_CF,
+    COL_DOA,
+    COL_PA,
+    COL_PDOA,
+    COL_PW,
+    COL_TOA,
+    PulseBatch,
+)
+from core.models.recognition_result import (
+    DTOA_LABEL_NAMES,
+    PA_LABEL_NAMES,
+    RecognitionResult,
+)
 from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
-from core.models.slice_result import SliceResult
+from core.models.slice_result import PreprocessResult, SingleSlice, SliceResult
 
 
 _INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-_RECOGNITION_COLUMNS = [
-    "切片编号",
-    "类簇编号",
-    "有效类编号",
-    "聚类维度",
-    "识别结论",
-    "脉冲数量",
-    "PA类别",
-    "PA置信度",
-    "DTOA类别",
-    "DTOA置信度",
-    "联合置信度",
-    "CF典型值(MHz)",
-    "PW典型值(us)",
-    "PRI典型值(us)",
-    "DOA典型值(度)",
-    "TOA起点(0.1us)",
-    "TOA终点(0.1us)",
+_RESULT_COLUMNS = [
+    "切片编号", "雷达索引", "类簇编号", "聚类维度", "脉冲数量",
+    "PA类别", "PA置信度", "DTOA类别", "DTOA置信度", "联合置信度",
+    "CF典型值(MHz)", "PW典型值(us)", "PRI典型值(us)", "DOA典型值(度)",
 ]
-_MERGE_COLUMNS = [
-    "切片编号",
-    "合并结果编号",
-    "合并策略",
-    "来源类簇编号",
-    "来源聚类维度",
-    "脉冲数量",
-    "CF典型值(MHz)",
-    "PW典型值(us)",
-    "PRI典型值(us)",
-    "DOA典型值(度)",
-    "TOA起点(0.1us)",
-    "TOA终点(0.1us)",
+_PULSE_COLUMNS = [
+    "雷达索引", "CF(MHz)", "PW(us)", "PA(dB)", "DOA(度)",
+    "PDOA(度)", "TOA(0.1us)",
 ]
 
 
@@ -69,8 +58,11 @@ class FullSpeedExportData:
         display_name: Session 展示名称。
         source_path: 数据包原始来源路径。
         source_type: 数据包来源类型。
+        data_format: 来源数据格式，例如 Excel 的 ``old`` / ``new``。
         data_package_id: 数据池数据包 ID。
         created_at: Session 创建时间。
+        raw_batch: 归一化导入后、算法预处理前的原始六维脉冲。
+        preprocess_result: 清洗及 TOA 翻折修复后的算法输入。
         config_snapshot: 首次启动时冻结的参数快照。
         model_selection: 首次启动时冻结的模型选择。
         slice_result: 本次执行的切片结果。
@@ -83,8 +75,11 @@ class FullSpeedExportData:
     display_name: str
     source_path: str
     source_type: str
+    data_format: str | None
     data_package_id: str | None
     created_at: datetime
+    raw_batch: PulseBatch
+    preprocess_result: PreprocessResult
     config_snapshot: SessionConfigSnapshot
     model_selection: SessionModelSelection
     slice_result: SliceResult
@@ -93,91 +88,139 @@ class FullSpeedExportData:
     merge_result: MergeResult
 
 
+@dataclass(frozen=True, slots=True)
+class ExcelExportPaths:
+    """一次导出生成的两个工作簿路径。
+
+    Attributes:
+        result_file: 雷达结果与元数据工作簿。
+        pulse_file: 按切片组织的原始脉冲明细工作簿。
+    """
+
+    result_file: Path
+    pulse_file: Path
+
+
 class ExcelResultExporter:
-    """将全速处理结果原子保存为 Excel 工作簿。"""
+    """将全速处理结果原子保存为两个 Excel 工作簿。"""
 
     def export(
         self,
         data: FullSpeedExportData,
         output_dir: str | Path,
-    ) -> Path:
-        """生成任务信息、识别结果和合并结果工作表。
+    ) -> ExcelExportPaths:
+        """生成雷达结果工作簿和原始脉冲明细工作簿。
 
         Args:
-            data [FullSpeedExportData]: 已完成全速处理的纯结果数据。
+            data [FullSpeedExportData]: 已完成全速处理的完整纯结果数据。
             output_dir [str | Path]: 本地保存目录；不存在时自动创建。
 
         Returns:
-            Path: 成功生成的 Excel 文件绝对路径。
+            ExcelExportPaths: 结果文件与脉冲明细文件绝对路径。
 
         Raises:
-            ValueError: 保存目录为空时抛出。
+            ValueError: 保存目录为空或原始数据无法与算法切片对齐时抛出。
             OSError: 目录创建、临时文件替换或清理失败时抛出。
             ImportError: pandas Excel 引擎不可用时抛出。
 
         Example:
-            >>> exporter = ExcelResultExporter()
-            >>> exporter.__class__.__name__
+            >>> ExcelResultExporter().__class__.__name__
             'ExcelResultExporter'
         """
         if not str(output_dir).strip():
             raise ValueError("Excel 保存目录不能为空")
-
         target_dir = Path(output_dir).expanduser().resolve()
         target_dir.mkdir(parents=True, exist_ok=True)
-        output_path = self._build_output_path(data, target_dir)
-        temp_path = output_path.with_name(f".{output_path.stem}.tmp.xlsx")
-
-        task_frame = pd.DataFrame(
-            self._build_task_rows(data),
-            columns=["项目", "内容"],
+        paths = self._build_output_paths(data, target_dir)
+        result_temp = paths.result_file.with_name(
+            f".{paths.result_file.stem}.tmp.xlsx"
         )
-        recognition_frame = pd.DataFrame(
-            self._build_recognition_rows(data),
-            columns=_RECOGNITION_COLUMNS,
+        pulse_temp = paths.pulse_file.with_name(
+            f".{paths.pulse_file.stem}.tmp.xlsx"
         )
-        merge_frame = pd.DataFrame(
-            self._build_merge_rows(data),
-            columns=_MERGE_COLUMNS,
-        )
-
         try:
-            with pd.ExcelWriter(temp_path, engine="openpyxl") as writer:
-                task_frame.to_excel(writer, sheet_name="任务信息", index=False)
-                recognition_frame.to_excel(
-                    writer,
-                    sheet_name="识别结果",
-                    index=False,
-                )
-                merge_frame.to_excel(writer, sheet_name="合并结果", index=False)
-                self._format_workbook(writer)
-            temp_path.replace(output_path)
+            self._write_result_workbook(data, result_temp)
+            self._write_pulse_workbook(data, pulse_temp)
+            # 目标名带微秒时间戳；任一替换失败时删除本次产物，避免半套结果。
+            result_temp.replace(paths.result_file)
+            pulse_temp.replace(paths.pulse_file)
         except Exception:
-            # 仅清理本次任务生成的同目录临时文件，不触碰已有结果。
-            if temp_path.exists():
-                temp_path.unlink()
+            for path in (
+                result_temp, pulse_temp, paths.result_file, paths.pulse_file
+            ):
+                if path.exists():
+                    path.unlink()
             raise
-        return output_path
+        return paths
 
     @staticmethod
-    def _build_output_path(
+    def _build_output_paths(
         data: FullSpeedExportData,
         output_dir: Path,
-    ) -> Path:
-        """生成不会覆盖历史结果的文件路径。"""
+    ) -> ExcelExportPaths:
+        """生成共享任务前缀且不会覆盖历史结果的两个文件路径。"""
         safe_name = _INVALID_FILENAME_CHARS.sub("_", data.display_name).strip(
             " ."
-        )
-        if not safe_name:
-            safe_name = "全速处理结果"
+        ) or "全速处理结果"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        return output_dir / (
-            f"{safe_name}_{data.session_id}_{timestamp}.xlsx"
+        prefix = f"{safe_name}_{data.session_id}_{timestamp}"
+        return ExcelExportPaths(
+            output_dir / f"{prefix}_雷达结果.xlsx",
+            output_dir / f"{prefix}_脉冲明细.xlsx",
         )
 
+    @classmethod
+    def _write_result_workbook(
+        cls,
+        data: FullSpeedExportData,
+        output_path: Path,
+    ) -> None:
+        """写入雷达结果和可读元数据两个工作表。"""
+        result_frame = pd.DataFrame(
+            cls._build_result_rows(data), columns=_RESULT_COLUMNS
+        )
+        metadata_frame = pd.DataFrame(
+            cls._build_metadata_rows(data), columns=["类别", "项目", "内容"]
+        )
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+            result_frame.to_excel(writer, sheet_name="雷达结果", index=False)
+            metadata_frame.to_excel(writer, sheet_name="元数据", index=False)
+            cls._format_workbook(writer)
+
+    @classmethod
+    def _write_pulse_workbook(
+        cls,
+        data: FullSpeedExportData,
+        output_path: Path,
+    ) -> None:
+        """按切片写入原始脉冲值及其识别雷达索引。"""
+        raw_slices = cls._build_raw_slice_data(data)
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+            if not data.slice_result.slices:
+                pd.DataFrame(columns=_PULSE_COLUMNS).to_excel(
+                    writer, sheet_name="无切片", index=False
+                )
+            for current_slice in data.slice_result.slices:
+                pulse_frame = pd.DataFrame(
+                    cls._build_pulse_rows(
+                        data,
+                        current_slice,
+                        raw_slices[current_slice.index],
+                    ),
+                    columns=_PULSE_COLUMNS,
+                )
+                pulse_frame.to_excel(
+                    writer,
+                    sheet_name=f"切片_{current_slice.index + 1}",
+                    index=False,
+                )
+            cls._format_workbook(writer)
+
     @staticmethod
-    def _build_task_rows(data: FullSpeedExportData) -> list[tuple[str, Any]]:
-        """构造任务审计信息行。"""
+    def _build_metadata_rows(
+        data: FullSpeedExportData,
+    ) -> list[tuple[str, str, Any]]:
+        """构造任务、模型、统计及冻结参数元数据行。"""
         valid_count = sum(
             len(result.valid_clusters)
             for result in data.recognition_result.slice_results.values()
@@ -190,136 +233,182 @@ class ExcelResultExporter:
             len(result.merged_clusters)
             for result in data.merge_result.slice_results.values()
         )
-        return [
-            ("Session ID", data.session_id),
-            ("数据包 ID", data.data_package_id or ""),
-            ("Session 名称", data.display_name),
-            ("来源文件", data.source_path),
-            ("来源类型", data.source_type),
-            ("Session 创建时间", data.created_at.isoformat(timespec="seconds")),
-            ("结果保存时间", datetime.now().isoformat(timespec="seconds")),
-            ("切片数量", data.slice_result.slice_count),
-            ("有效识别类数量", valid_count),
-            ("无效识别类数量", invalid_count),
-            ("合并结果数量", merge_count),
-            ("PA 模型", data.model_selection.pa_model_path or ""),
-            ("DTOA 模型", data.model_selection.dtoa_model_path or ""),
+        rows: list[tuple[str, str, Any]] = [
+            ("任务信息", "Session ID", data.session_id),
+            ("任务信息", "数据包 ID", data.data_package_id or ""),
+            ("任务信息", "Session 名称", data.display_name),
+            ("任务信息", "来源文件", data.source_path),
+            ("任务信息", "来源类型", data.source_type),
+            ("任务信息", "数据格式", data.data_format or ""),
             (
-                "冻结参数",
-                json.dumps(
-                    data.config_snapshot.to_dict(),
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                ),
+                "任务信息", "Session 创建时间",
+                data.created_at.isoformat(timespec="seconds"),
+            ),
+            (
+                "任务信息", "结果保存时间",
+                datetime.now().isoformat(timespec="seconds"),
+            ),
+            ("结果统计", "切片数量", data.slice_result.slice_count),
+            ("结果统计", "有效识别类数量", valid_count),
+            ("结果统计", "无效识别类数量", invalid_count),
+            ("结果统计", "合并结果数量", merge_count),
+            ("输入统计", "原始脉冲数量", data.raw_batch.n_pulses),
+            (
+                "输入统计", "预处理过滤脉冲数量",
+                data.preprocess_result.filtered_pulses,
+            ),
+            ("模型配置", "PA 模型", data.model_selection.pa_model_path or ""),
+            (
+                "模型配置", "DTOA 模型",
+                data.model_selection.dtoa_model_path or "",
             ),
         ]
-
-    @staticmethod
-    def _build_recognition_rows(
-        data: FullSpeedExportData,
-    ) -> list[dict[str, Any]]:
-        """构造有效与无效识别结果行。"""
-        rows: list[dict[str, Any]] = []
-        for slice_index in sorted(data.recognition_result.slice_results):
-            recognition_slice = data.recognition_result.slice_results[
-                slice_index
-            ]
-            cluster_slice = data.clustering_result.slice_results.get(
-                slice_index
-            )
-            cluster_map = (
-                {}
-                if cluster_slice is None
-                else {
-                    cluster.cluster_idx: cluster
-                    for cluster in cluster_slice.clusters
-                }
-            )
-            recognitions = [
-                *recognition_slice.valid_clusters,
-                *recognition_slice.invalid_clusters,
-            ]
-            for recognition in recognitions:
-                cluster = cluster_map.get(recognition.cluster_index)
-                params = recognition.extracted_params
-                time_range = (
-                    cluster.time_ranges
-                    if cluster is not None
-                    else (None, None)
-                )
-                rows.append(
-                    {
-                        "切片编号": slice_index + 1,
-                        "类簇编号": recognition.cluster_index,
-                        "有效类编号": (
-                            ""
-                            if recognition.valid_cluster_index is None
-                            else recognition.valid_cluster_index + 1
-                        ),
-                        "聚类维度": recognition.dim_name,
-                        "识别结论": "有效" if recognition.is_valid else "无效",
-                        "脉冲数量": (
-                            0 if cluster is None else cluster.cluster_size
-                        ),
-                        "PA类别": recognition.pa_label,
-                        "PA置信度": recognition.pa_confidence,
-                        "DTOA类别": recognition.dtoa_label,
-                        "DTOA置信度": recognition.dtoa_confidence,
-                        "联合置信度": recognition.joint_prob,
-                        "CF典型值(MHz)": _format_values(
-                            () if params is None else params.cf_values
-                        ),
-                        "PW典型值(us)": _format_values(
-                            () if params is None else params.pw_values
-                        ),
-                        "PRI典型值(us)": _format_values(
-                            () if params is None else params.pri_values
-                        ),
-                        "DOA典型值(度)": _format_values(
-                            () if params is None else params.doa_values
-                        ),
-                        "TOA起点(0.1us)": time_range[0],
-                        "TOA终点(0.1us)": time_range[1],
-                    }
-                )
+        for name, value in _flatten_mapping(data.config_snapshot.to_dict()):
+            rows.append(("参数配置", name, value))
         return rows
 
     @staticmethod
-    def _build_merge_rows(
+    def _build_result_rows(
         data: FullSpeedExportData,
     ) -> list[dict[str, Any]]:
-        """构造独立合并结果行并保留来源类簇引用。"""
+        """仅构造各切片有效识别雷达结果行。"""
         rows: list[dict[str, Any]] = []
-        for slice_index in sorted(data.merge_result.slice_results):
-            slice_result = data.merge_result.slice_results[slice_index]
-            for result in slice_result.merged_clusters:
-                rows.append(
-                    {
-                        "切片编号": slice_index + 1,
-                        "合并结果编号": result.merge_index,
-                        "合并策略": result.strategy_id,
-                        "来源类簇编号": "、".join(
-                            str(index)
-                            for index in result.source_cluster_indices
-                        ),
-                        "来源聚类维度": "、".join(result.source_dim_names),
-                        "脉冲数量": len(result.merged_points),
-                        "CF典型值(MHz)": _format_values(
-                            result.extracted_params.cf_values
-                        ),
-                        "PW典型值(us)": _format_values(
-                            result.extracted_params.pw_values
-                        ),
-                        "PRI典型值(us)": _format_values(
-                            result.extracted_params.pri_values
-                        ),
-                        "DOA典型值(度)": _format_values(
-                            result.extracted_params.doa_values
-                        ),
-                        "TOA起点(0.1us)": result.time_range[0],
-                        "TOA终点(0.1us)": result.time_range[1],
-                    }
+        for slice_index in sorted(data.recognition_result.slice_results):
+            recognition_slice = data.recognition_result.slice_results[slice_index]
+            cluster_slice = data.clustering_result.slice_results.get(slice_index)
+            cluster_map = {} if cluster_slice is None else {
+                cluster.cluster_idx: cluster for cluster in cluster_slice.clusters
+            }
+            for recognition in recognition_slice.valid_clusters:
+                cluster = cluster_map.get(recognition.cluster_index)
+                params = recognition.extracted_params
+                rows.append({
+                    "切片编号": slice_index + 1,
+                    "雷达索引": "" if recognition.valid_cluster_index is None
+                    else recognition.valid_cluster_index + 1,
+                    "类簇编号": recognition.cluster_index,
+                    "聚类维度": recognition.dim_name,
+                    "脉冲数量": 0 if cluster is None else cluster.cluster_size,
+                    "PA类别": PA_LABEL_NAMES.get(
+                        recognition.pa_label,
+                        f"未知类别{recognition.pa_label}",
+                    ),
+                    "PA置信度": _format_probability(
+                        recognition.pa_confidence
+                    ),
+                    "DTOA类别": DTOA_LABEL_NAMES.get(
+                        recognition.dtoa_label,
+                        f"未知类别{recognition.dtoa_label}",
+                    ),
+                    "DTOA置信度": _format_probability(
+                        recognition.dtoa_confidence
+                    ),
+                    "联合置信度": _format_probability(recognition.joint_prob),
+                    "CF典型值(MHz)": _format_values(
+                        () if params is None else params.cf_values,
+                        decimal_places=0,
+                    ),
+                    "PW典型值(us)": _format_values(
+                        () if params is None else params.pw_values,
+                        decimal_places=1,
+                    ),
+                    "PRI典型值(us)": _format_values(
+                        () if params is None else params.pri_values,
+                        decimal_places=1,
+                    ),
+                    "DOA典型值(度)": _format_values(
+                        () if params is None else params.doa_values,
+                        decimal_places=1,
+                    ),
+                })
+        return rows
+
+    @staticmethod
+    def _build_raw_slice_data(
+        data: FullSpeedExportData,
+    ) -> dict[int, np.ndarray]:
+        """用算法切片掩码提取同一批行的原始六维值。"""
+        # 预处理只会删除 PA=255 行并修改 TOA，先按相同删除规则恢复行对齐。
+        raw_after_pa_filter = data.raw_batch.data[
+            data.raw_batch.data[:, COL_PA] != 255
+        ]
+        processed = data.preprocess_result.data
+        if len(raw_after_pa_filter) != len(processed):
+            raise ValueError("原始脉冲与预处理结果行数不一致，无法可靠导出原始值")
+        if not np.array_equal(
+            raw_after_pa_filter[:, :COL_TOA],
+            processed[:, :COL_TOA],
+            equal_nan=True,
+        ):
+            raise ValueError("原始脉冲与预处理结果行顺序不一致，无法可靠建立映射")
+
+        raw_slices: dict[int, np.ndarray] = {}
+        processed_toa = processed[:, COL_TOA]
+        for current_slice in data.slice_result.slices:
+            start, end = current_slice.time_range
+            mask = (processed_toa >= start) & (processed_toa < end)
+            if not np.array_equal(
+                processed[mask], current_slice.data, equal_nan=True
+            ):
+                raise ValueError(
+                    f"切片 {current_slice.index + 1} 与预处理结果无法可靠对齐"
                 )
+            raw_slices[current_slice.index] = raw_after_pa_filter[mask]
+        return raw_slices
+
+    @staticmethod
+    def _build_pulse_rows(
+        data: FullSpeedExportData,
+        current_slice: SingleSlice,
+        raw_points: np.ndarray,
+    ) -> list[dict[str, Any]]:
+        """为单个切片标注有效雷达索引，其余脉冲统一标记 invalid。"""
+        radar_indices = np.full(len(raw_points), "invalid", dtype=object)
+        cluster_slice = data.clustering_result.slice_results.get(
+            current_slice.index
+        )
+        recognition_slice = data.recognition_result.slice_results.get(
+            current_slice.index
+        )
+        cluster_map = {} if cluster_slice is None else {
+            cluster.cluster_idx: cluster for cluster in cluster_slice.clusters
+        }
+        if recognition_slice is not None:
+            for recognition in recognition_slice.valid_clusters:
+                if recognition.valid_cluster_index is None:
+                    raise ValueError("有效雷达结果缺少切片内雷达索引")
+                cluster = cluster_map.get(recognition.cluster_index)
+                if cluster is None:
+                    raise ValueError(
+                        f"切片 {current_slice.index + 1} 缺少类簇 "
+                        f"{recognition.cluster_index}"
+                    )
+                point_indices = np.asarray(cluster.points_indices, dtype=int)
+                if np.any(point_indices < 0) or np.any(
+                    point_indices >= len(raw_points)
+                ):
+                    raise ValueError("类簇脉冲索引超出所属切片范围")
+                if np.any(radar_indices[point_indices] != "invalid"):
+                    raise ValueError("同一脉冲被分配给多个有效雷达结果")
+                radar_indices[point_indices] = str(
+                    recognition.valid_cluster_index + 1
+                )
+
+        rows: list[dict[str, Any]] = []
+        for radar_index, point in zip(radar_indices, raw_points, strict=True):
+            rows.append({
+                "雷达索引": radar_index,
+                "CF(MHz)": point[COL_CF],
+                "PW(us)": point[COL_PW],
+                "PA(dB)": point[COL_PA],
+                "DOA(度)": point[COL_DOA],
+                "PDOA(度)": (
+                    "——"
+                    if data.data_format == "old"
+                    else point[COL_PDOA]
+                ),
+                "TOA(0.1us)": point[COL_TOA],
+            })
         return rows
 
     @staticmethod
@@ -334,13 +423,61 @@ class ExcelResultExporter:
                     "" if cell.value is None else str(cell.value)
                     for cell in column_cells
                 ]
-                width = min(60, max((len(value) for value in values), default=8) + 2)
+                width = min(
+                    60,
+                    max((len(value) for value in values), default=8) + 2,
+                )
                 worksheet.column_dimensions[
                     column_cells[0].column_letter
                 ].width = width
 
 
-def _format_values(values: Iterable[float]) -> str:
-    """把参数值列表格式化为 Excel 单元格文本。"""
-    normalized = [f"{float(value):g}" for value in values]
+def _flatten_mapping(
+    payload: dict[str, Any],
+    prefix: str = "",
+) -> list[tuple[str, Any]]:
+    """把嵌套配置字典展开为稳定的点分路径和值。"""
+    rows: list[tuple[str, Any]] = []
+    for key, value in payload.items():
+        name = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            rows.extend(_flatten_mapping(value, name))
+        else:
+            rows.append((name, value))
+    return rows
+
+
+def _format_values(
+    values: Iterable[float],
+    decimal_places: int,
+) -> str:
+    """按结果表格规则格式化参数值列表。"""
+    normalized = [
+        _format_decimal(value, decimal_places)
+        for value in values
+    ]
     return "、".join(normalized) if normalized else "——"
+
+
+def _format_probability(value: float) -> str:
+    """按结果表格规则把置信度格式化为四位小数。"""
+    rounded = _rounded_decimal(value, decimal_places=4)
+    return "0" if rounded == Decimal("0") else f"{rounded:.4f}"
+
+
+def _format_decimal(value: float, decimal_places: int) -> str:
+    """使用 ROUND_HALF_UP 保留指定小数位。"""
+    rounded = _rounded_decimal(value, decimal_places)
+    if rounded == Decimal("0"):
+        rounded = Decimal("0")
+    return f"{rounded:.{decimal_places}f}"
+
+
+def _rounded_decimal(value: float, decimal_places: int) -> Decimal:
+    """返回按展示精度量化后的 Decimal。"""
+    quantizer = (
+        Decimal("1")
+        if decimal_places == 0
+        else Decimal(f"1e-{decimal_places}")
+    )
+    return Decimal(str(value)).quantize(quantizer, rounding=ROUND_HALF_UP)

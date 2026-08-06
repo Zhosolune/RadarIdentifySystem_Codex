@@ -26,6 +26,7 @@ from core.models.processing_session import (
     ProcessingSession,
     SliceProcessStatus,
 )
+from core.models.pulse_batch import PulseBatch
 from core.models.recognition_result import (
     ClusterRecognition,
     RecognitionResult,
@@ -38,6 +39,7 @@ from core.models.slice_result import (
     SingleSlice,
     SliceResult,
 )
+from infra.excel_result_exporter import ExcelExportPaths
 from runtime.full_speed_session_registry import (
     FullSpeedSessionRegistry,
     FullSpeedStatus,
@@ -53,19 +55,27 @@ import runtime.workflows.full_speed_workflow as workflow_module
 
 def _build_full_speed_session(output_dir: Path) -> ProcessingSession:
     """构造具备执行前置条件的全速 Session。"""
+    raw_data = np.array(
+        [
+            [5000.0, 1.0, 90.0, 10.0, 11.0, 0.0],
+            [5000.0, 1.0, 91.0, 10.0, 11.0, 3_000_000.0],
+        ]
+    )
     session = ProcessingSession(
         data_package_id="package1",
         processing_mode=ProcessingMode.FULL_SPEED,
         source_path="E:/data/demo.xlsx",
         source_type="excel",
+        data_format="new",
         display_name="测试全速任务",
+        raw_batch=PulseBatch(
+            raw_data,
+            source_path="E:/data/demo.xlsx",
+            source_type="excel",
+            total_pulses=2,
+        ),
         preprocess_result=PreprocessResult(
-            np.array(
-                [
-                    [5000.0, 1.0, 90.0, 10.0, 11.0, 0.0],
-                    [5000.0, 1.0, 91.0, 10.0, 11.0, 3_000_000.0],
-                ]
-            )
+            raw_data.copy()
         ),
     )
     session.config_snapshot.business.export_dir_path = str(output_dir)
@@ -241,7 +251,13 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
         def export(self, data, output_dir):
             """返回测试结果文件路径。"""
             assert data.slice_result.slice_count == 2
-            return Path(output_dir) / "result.xlsx"
+            assert data.raw_batch is session.raw_batch
+            assert data.preprocess_result is session.preprocess_result
+            assert data.data_format == "new"
+            return ExcelExportPaths(
+                Path(output_dir) / "result.xlsx",
+                Path(output_dir) / "pulses.xlsx",
+            )
 
     monkeypatch.setattr(worker_module, "OnnxInferenceService", _InferenceStub)
     monkeypatch.setattr(
@@ -266,8 +282,10 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
         display_name=session.display_name,
         source_path=session.source_path,
         source_type=session.source_type,
+        data_format=session.data_format,
         created_at=session.created_at,
         preprocess_result=session.preprocess_result,
+        raw_batch=session.raw_batch,
         config_snapshot=SessionConfigSnapshot.from_dict(
             session.config_snapshot.to_dict()
         ),
@@ -361,6 +379,8 @@ def test_full_speed_request_snapshots_global_performance_settings(
 
     assert request.compute_device == "GPU"
     assert request.recognition_workers == 3
+    assert request.raw_batch is session.raw_batch
+    assert request.data_format == "new"
     assert request.config_snapshot is not session.config_snapshot
     assert request.config_snapshot.clustering.eps_cf == 6.25
     assert request.config_snapshot.recognition.greedy_strategy is False

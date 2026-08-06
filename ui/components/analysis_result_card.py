@@ -20,26 +20,11 @@ from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.style_sheet import isDarkTheme
 
 from core.models.extraction_result import ExtractedClusterParams
-from core.models.recognition_result import ClusterRecognition, NON_RADAR_LABEL
-
-
-PA_LABEL_NAMES: dict[int, str] = {
-    0: "完整包络",
-    1: "残缺包络",
-    2: "部分包络",
-    3: "相扫",
-    4: "旁瓣",
-    NON_RADAR_LABEL: "非雷达信号",
-}
-
-DTOA_LABEL_NAMES: dict[int, str] = {
-    0: "常规",
-    1: "脉间参差",
-    2: "脉组参差",
-    3: "脉间脉组参差",
-    4: "组变脉间",
-    NON_RADAR_LABEL: "非雷达信号",
-}
+from core.models.recognition_result import (
+    ClusterRecognition,
+    DTOA_LABEL_NAMES,
+    PA_LABEL_NAMES,
+)
 
 ANALYSIS_FONT_FAMILIES: list[str] = ["Microsoft YaHei", "Microsoft YaHei UI"]
 

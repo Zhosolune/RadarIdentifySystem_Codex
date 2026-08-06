@@ -13,6 +13,24 @@ NON_RADAR_LABEL = 5
 # 归一化后的模型类别总数由最大类别标签推导，避免重复硬编码切片上界。
 RECOGNITION_CLASS_COUNT = NON_RADAR_LABEL + 1
 
+# 模型标签到业务类别名称的映射由 core 统一定义，供 UI 与导出共同使用。
+PA_LABEL_NAMES: dict[int, str] = {
+    0: "完整包络",
+    1: "残缺包络",
+    2: "部分包络",
+    3: "相扫",
+    4: "旁瓣",
+    NON_RADAR_LABEL: "非雷达信号",
+}
+DTOA_LABEL_NAMES: dict[int, str] = {
+    0: "常规",
+    1: "脉间参差",
+    2: "脉组参差",
+    3: "脉间脉组参差",
+    4: "组变脉间",
+    NON_RADAR_LABEL: "非雷达信号",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class ClusterRecognition:

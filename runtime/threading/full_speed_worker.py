@@ -24,6 +24,7 @@ from core.models.merge_result import (
     MergeResult,
     SliceMergeResult,
 )
+from core.models.pulse_batch import PulseBatch
 from core.models.recognition_result import RecognitionResult
 from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
@@ -50,8 +51,10 @@ class FullSpeedExecutionRequest:
         display_name: Session 展示名称。
         source_path: 原始文件路径。
         source_type: 原始文件类型。
+        data_format: 来源数据格式，例如 Excel 的 ``old`` / ``new``。
         created_at: Session 创建时间。
         preprocess_result: 数据池共享的只读预处理结果。
+        raw_batch: 数据池共享的只读原始六维脉冲批次。
         config_snapshot: 首次启动时冻结的参数快照。
         model_selection: 首次启动时冻结的模型路径。
         output_dir: Excel 保存目录。
@@ -65,8 +68,10 @@ class FullSpeedExecutionRequest:
     display_name: str
     source_path: str
     source_type: str
+    data_format: str | None
     created_at: datetime
     preprocess_result: PreprocessResult
+    raw_batch: PulseBatch
     config_snapshot: SessionConfigSnapshot
     model_selection: SessionModelSelection
     output_dir: str
@@ -306,8 +311,11 @@ class FullSpeedWorker(QThread):
             display_name=request.display_name,
             source_path=request.source_path,
             source_type=request.source_type,
+            data_format=request.data_format,
             data_package_id=request.data_package_id,
             created_at=request.created_at,
+            raw_batch=request.raw_batch,
+            preprocess_result=request.preprocess_result,
             config_snapshot=request.config_snapshot,
             model_selection=request.model_selection,
             slice_result=slice_result,
@@ -315,17 +323,21 @@ class FullSpeedWorker(QThread):
             recognition_result=recognition_result,
             merge_result=merge_result,
         )
-        output_path = ExcelResultExporter().export(
+        output_paths = ExcelResultExporter().export(
             export_data,
             Path(request.output_dir),
         )
-        LOGGER.info("全速任务结果已保存: %s", output_path)
+        LOGGER.info(
+            "全速任务结果已保存: result=%s, pulses=%s",
+            output_paths.result_file,
+            output_paths.pulse_file,
+        )
         self._emit_progress(
             "保存完成",
             total_slices,
             total_slices,
             100,
-            str(output_path),
+            str(output_paths.result_file),
             exporting=True,
         )
         return FullSpeedWorkerResult(
@@ -335,7 +347,7 @@ class FullSpeedWorker(QThread):
             recognition_result=recognition_result,
             merge_plan=merge_plan,
             merge_result=merge_result,
-            output_file=str(output_path),
+            output_file=str(output_paths.result_file),
         )
 
     def _create_inference_service(self) -> OnnxInferenceService:

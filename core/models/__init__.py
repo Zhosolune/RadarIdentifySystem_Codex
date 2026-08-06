@@ -31,7 +31,9 @@ from .merge_result import (
     SliceMergeResult,
 )
 from .recognition_result import (
+    DTOA_LABEL_NAMES,
     NON_RADAR_LABEL,
+    PA_LABEL_NAMES,
     RECOGNITION_CLASS_COUNT,
     ClusterRecognition,
     SliceRecognitionResult,
@@ -67,7 +69,9 @@ __all__ = [
     "MergeResult",
     "MergedClusterResult",
     "SliceMergeResult",
+    "DTOA_LABEL_NAMES",
     "NON_RADAR_LABEL",
+    "PA_LABEL_NAMES",
     "RECOGNITION_CLASS_COUNT",
     "ClusterRecognition",
     "SliceRecognitionResult",

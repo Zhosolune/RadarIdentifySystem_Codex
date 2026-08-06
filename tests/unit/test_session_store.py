@@ -600,6 +600,7 @@ def test_session_store_round_trips_full_speed_reference_and_lock(
     session = ProcessingSession(
         session_id="full_speed_store",
         data_package_id="package1",
+        data_format="old",
         processing_mode=ProcessingMode.FULL_SPEED,
         full_speed_locked=True,
         exported_file_path="E:/output/result.xlsx",
@@ -610,6 +611,7 @@ def test_session_store_round_trips_full_speed_reference_and_lock(
     restored = store.load_session(session.session_id)
 
     assert restored.data_package_id == "package1"
+    assert restored.data_format == "old"
     assert restored.processing_mode is ProcessingMode.FULL_SPEED
     assert restored.full_speed_locked
     assert restored.exported_file_path == "E:/output/result.xlsx"

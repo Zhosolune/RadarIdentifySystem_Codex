@@ -338,6 +338,7 @@ class SessionCoordinator:
         session.raw_batch = package.raw_batch
         session.preprocess_result = package.preprocess_result
         session.dashboard_info = package.dashboard_info
+        session.data_format = package.data_format
         # 已成功导出的全速记录只恢复审计状态和结果路径，其余 Session
         # 从可重新执行的预处理阶段继续。
         if (

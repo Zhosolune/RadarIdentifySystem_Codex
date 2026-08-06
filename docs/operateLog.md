@@ -1,5 +1,68 @@
 # 变更记录
 
+- 时间：2026-08-06 09:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\recognition_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\excel_result_exporter.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\session_coordinator.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\full_speed_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_exporter.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：精简雷达结果与元数据列，并按来源 Excel 格式如实导出原始 PDOA。
+- 原因：结果文件只应包含有效识别雷达及业务展示值；旧格式没有原始 PDOA，不能导出由 DOA 补齐的算法兼容值。
+- 计划清单：
+  - [x] 核对右侧分析表格的小数格式、PA/DTOA 实际类别映射及数据格式来源。
+  - [x] 将类别名称映射下沉到 core 并由 UI/导出共同复用。
+  - [x] 精简雷达结果列、过滤无效结果并删除元数据导出说明。
+  - [x] 把数据包格式接入 Session/全速请求，旧格式 PDOA 写为 `——`。
+  - [x] 补充聚焦回归并运行语法、测试及差异检查。
+- 验证结果：
+  - `雷达结果` 只写有效识别结果，已删除结果类型、识别结论、全部合并字段/行、无效结果及 TOA 起止列。
+  - PA/DTOA 类别改为“残缺包络”“脉间参差”等业务名称；CF 按 0 位、PW/PRI/DOA 按 1 位、三类置信度按 4 位小数并沿用表格的 `ROUND_HALF_UP` 规则。
+  - `元数据` 已删除三条“导出说明”，并记录来源数据格式以便审计旧/新 Excel。
+  - `DataPackage.data_format` 已传入并持久化到 Session、全速请求及导出数据；仅 `old` 格式的 PDOA 明细写 `——`，`new` 格式继续保存原始 PDOA。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest -q --basetemp .test-tmp\excel-adjust-20260806-0950 tests\unit\test_full_speed_exporter.py tests\unit\test_full_speed_runtime.py tests\unit\test_data_pool.py tests\unit\test_session_store.py tests\unit\test_infra_parsers.py tests\unit\test_session_event_isolation.py tests\unit\test_analysis_result_card.py -k "not applies_theme_aware_table_styles"`：74 passed，1 deselected，1 个第三方 scipy 弃用警告。
+  - 扩大检查 `test_analysis_result_card.py` 时，既有 QSS 中缺少 `QTableView#analysisResultTable` 导致 1 个样式断言失败；扩大检查 `test_data_pool_session_routing.py` 时，既有全速参数窗口测试未把 `eps_cf` 写成 `7.25` 导致 1 个后续断言失败，均与本次 Excel 数据和格式链路无关。
+  - 相关 Python 文件 `py_compile`：通过；`ProcessingSession` 全仓 AST 检查无位置参数构造，新增字段不改变调用语义。
+  - `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
+- 时间：2026-08-05 17:03
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\excel_result_exporter.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\full_speed_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_exporter.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：调整全速处理 Excel 导出为结果与原始脉冲明细两个文件。
+- 原因：结果文件需要独立记录雷达结果和参数元数据，脉冲文件需要按切片保存全部原始六维数据及雷达索引。
+- 计划清单：
+  - [x] 核对全速导出、原始数据、预处理切片与类簇点索引的真实链路。
+  - [x] 定义两文件工作簿结构及原始脉冲到切片/雷达结果的映射。
+  - [x] 接通全速请求中的原始批次并原子生成两个文件。
+  - [x] 补充导出结构、原始值、invalid 标记和运行时传参回归。
+  - [x] 运行聚焦测试、类型/语法检查与差异检查。
+- 验证结果：
+  - 结果文件固定包含 `雷达结果`、`元数据` 两个 sheet；原识别结果与独立合并结果通过“结果类型”区分，未相互覆盖。
+  - 脉冲明细文件按 `切片_1`、`切片_2` 等名称逐切片建 sheet，保存 CF、PW、PA、DOA、PDOA、TOA 六维原始值。
+  - 有效雷达脉冲使用切片内 1-based 雷达索引，其余切片内脉冲标注 `invalid`；测试确认导出的 TOA 为算法归零前原始值。
+  - 全速工作流现在校验并冻结原始脉冲批次，两个工作簿任一生成失败时清理本次临时文件和不完整产物。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest -q --basetemp .test-tmp\excel-export-20260805-1720 tests\unit\test_full_speed_exporter.py tests\unit\test_full_speed_runtime.py tests\unit\test_session_store.py`：51 passed，1 个第三方 scipy 弃用警告。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m py_compile infra\excel_result_exporter.py runtime\threading\full_speed_worker.py runtime\workflows\full_speed_workflow.py tests\unit\test_full_speed_exporter.py tests\unit\test_full_speed_runtime.py`：通过。
+  - `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-05 16:06
 - 操作类型：[修改]
 - 影响文件：

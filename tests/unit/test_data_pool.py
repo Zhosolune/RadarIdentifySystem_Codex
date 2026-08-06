@@ -66,6 +66,7 @@ def test_data_package_is_shared_read_only_between_sessions() -> None:
     assert interactive.raw_batch is full_speed.raw_batch
     assert interactive.preprocess_result is full_speed.preprocess_result
     assert interactive.data_package_id == full_speed.data_package_id
+    assert interactive.data_format == full_speed.data_format == "new"
     assert interactive.slice_result is None
     assert full_speed.slice_result is None
     with pytest.raises(ValueError):

@@ -276,6 +276,8 @@ class FullSpeedWorkflow(QObject):
         """校验构造全速执行请求所需的固定输入。"""
         if session.preprocess_result is None:
             raise ValueError("全速 Session 缺少数据池预处理结果")
+        if session.raw_batch is None:
+            raise ValueError("全速 Session 缺少数据池原始脉冲")
         if not session.config_snapshot.business.export_dir_path.strip():
             raise ValueError("请先设置 Excel 保存目录")
         selection = session.model_selection
@@ -299,8 +301,8 @@ class FullSpeedWorkflow(QObject):
         session: ProcessingSession,
     ) -> FullSpeedExecutionRequest:
         """从 Session 创建与后续 UI 变更隔离的深拷贝快照。"""
-        if session.preprocess_result is None:
-            raise ValueError("全速 Session 缺少预处理结果")
+        if session.preprocess_result is None or session.raw_batch is None:
+            raise ValueError("全速 Session 缺少原始脉冲或预处理结果")
         configured_temp_dir = str(qconfig.get(appConfig.logDir)).strip()
         return FullSpeedExecutionRequest(
             session_id=session.session_id,
@@ -308,8 +310,10 @@ class FullSpeedWorkflow(QObject):
             display_name=session.display_name,
             source_path=session.source_path,
             source_type=session.source_type,
+            data_format=session.data_format,
             created_at=session.created_at,
             preprocess_result=session.preprocess_result,
+            raw_batch=session.raw_batch,
             config_snapshot=SessionConfigSnapshot.from_dict(
                 session.config_snapshot.to_dict()
             ),
