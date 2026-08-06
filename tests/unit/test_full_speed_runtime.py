@@ -255,8 +255,9 @@ def test_full_speed_worker_reuses_slice_pipeline_for_every_slice(
             assert data.preprocess_result is session.preprocess_result
             assert data.data_format == "new"
             return ExcelExportPaths(
-                Path(output_dir) / "result.xlsx",
-                Path(output_dir) / "pulses.xlsx",
+                result_file=Path(output_dir) / "result.xlsx",
+                comprehensive_file=Path(output_dir) / "comprehensive.xlsx",
+                pulse_file=Path(output_dir) / "pulses.xlsx",
             )
 
     monkeypatch.setattr(worker_module, "OnnxInferenceService", _InferenceStub)

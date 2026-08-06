@@ -328,8 +328,9 @@ class FullSpeedWorker(QThread):
             Path(request.output_dir),
         )
         LOGGER.info(
-            "全速任务结果已保存: result=%s, pulses=%s",
+            "全速任务结果已保存: result=%s, comprehensive=%s, pulses=%s",
             output_paths.result_file,
+            output_paths.comprehensive_file,
             output_paths.pulse_file,
         )
         self._emit_progress(

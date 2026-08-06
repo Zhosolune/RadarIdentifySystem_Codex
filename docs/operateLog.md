@@ -1,5 +1,34 @@
 # 变更记录
 
+- 时间：2026-08-06 17:04
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\excel_result_exporter.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\full_speed_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_exporter.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：新增剔除合并子类后的综合结果工作簿，并让脉冲明细使用综合类别索引。
+- 原因：全速结果需要同时保留原始识别结果和最终综合结果，脉冲详情必须与综合结果的一类一索引保持一致。
+- 计划清单：
+  - [x] 核对合并结果的来源类、原切片点索引、重提取参数和识别信息边界。
+  - [x] 核对现有雷达结果、脉冲明细、原子落盘和全速保存日志链路。
+  - [x] 从雷达结果中删除联合置信度并新增综合结果文件结构。
+  - [x] 构建按来源簇位置排序的最终类别映射，合并结果替换其全部子结果。
+  - [x] 让综合结果和脉冲明细复用同一份最终类别索引。
+  - [x] 补充三文件、合并替换、索引顺序与原始脉冲回归并完成验证。
+- 验证结果：
+  - 雷达结果已删除“联合置信度”，仍按原有效识别类保存合并前结果。
+  - 新增 `*_综合结果.xlsx`，固定包含“综合结果”和“元数据”两个 sheet；综合类别按最小来源类簇编号排序后连续编号。
+  - 示例类簇 `2、4、5、8` 且 `4、5` 合并时，综合结果稳定输出类别索引 `1、2、3` 与切片内索引 `2、4+5、8`，并剔除来源子结果 `4`、`5`。
+  - 合并类别使用合并后重新提取的 CF/PW/PRI/DOA 参数；当前未重新推理，PA/DTOA 类别如实组合来源类别，两个置信度写为 `——`。
+  - 脉冲明细复用综合类别映射，来源类簇 `4`、`5` 的原始脉冲均标为类别 `2`，未归属最终雷达类别的数据仍标记 `invalid`；旧格式 PDOA 仍写 `——`。
+  - 三个工作簿先完整写入临时文件再统一替换目标文件，任一环节失败会清理本次三组产物；全速保存日志已同时记录雷达、综合和脉冲明细路径。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest -q --basetemp .test-tmp\excel-expanded-20260806 tests\unit\test_full_speed_exporter.py tests\unit\test_full_speed_runtime.py tests\unit\test_data_pool.py tests\unit\test_session_store.py tests\unit\test_infra_parsers.py tests\unit\test_session_event_isolation.py tests\unit\test_analysis_result_card.py -k "not applies_theme_aware_table_styles"`：74 passed，1 deselected，1 个第三方 scipy 弃用警告。
+  - 相关 Python 文件 `py_compile`：通过；三个实际测试工作簿经结构检查和逐 sheet 渲染，字段、索引、原始值及列宽显示均符合预期。
+  - `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-06 09:20
 - 操作类型：[修改]
 - 影响文件：
