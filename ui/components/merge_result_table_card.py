@@ -44,7 +44,8 @@ class MergeResultTableCard(SimpleCardWidget):
     ROW_COUNT = 4
     ROW_HEIGHT = AnalysisResultCard.DEFAULT_ROW_HEIGHT
     HEADER_HEIGHT = 36
-    PRI_MAX_VALUES_PER_LINE = AnalysisResultCard.PRI_VALUES_PER_LINE
+    MULTILINE_LABELS = frozenset({"CF", "PW", "PRI"})
+    MAX_VALUES_PER_LINE = AnalysisResultCard.PRI_VALUES_PER_LINE
     ROW_VERTICAL_PADDING = AnalysisResultCard.ROW_VERTICAL_PADDING
     TABLE_BORDER_RADIUS = 4
 
@@ -100,7 +101,7 @@ class MergeResultTableCard(SimpleCardWidget):
         self.table.verticalHeader().setDefaultSectionSize(self.ROW_HEIGHT)
         self.table.horizontalHeader().setFixedHeight(self.HEADER_HEIGHT)
         self.table.setWordWrap(True)
-        # PRI 已按结果列实际宽度插入显式换行，禁止视图再次把完整文本绘制为省略号。
+        # CF、PW、PRI 已按结果列实际宽度换行，禁止视图再次绘制省略号。
         self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(TableWidget.SelectionMode.NoSelection)
@@ -147,8 +148,8 @@ class MergeResultTableCard(SimpleCardWidget):
         for row_index, (label, value) in enumerate(rows):
             self.table.item(row_index, 0).setText(label)
             display_value = (
-                self._wrap_pri_text(value)
-                if label == "PRI"
+                self._wrap_value_text(value)
+                if label in self.MULTILINE_LABELS
                 else value
             )
             self.table.item(row_index, 1).setText(display_value)
@@ -172,13 +173,13 @@ class MergeResultTableCard(SimpleCardWidget):
                 if item is not None:
                     item.setText("")
 
-    def _wrap_pri_text(
+    def _wrap_value_text(
         self,
         text: str,
         *,
         result_column_width: int | None = None,
     ) -> str:
-        """按结果列实际宽度和最多六项规则重新组织PRI文本。"""
+        """按结果列实际宽度和最多六项规则重新组织参数值文本。"""
         tokens = [
             token
             for source_line in text.splitlines() or [text]
@@ -202,7 +203,7 @@ class MergeResultTableCard(SimpleCardWidget):
             if (
                 current_tokens
                 and (
-                    len(candidate_tokens) > self.PRI_MAX_VALUES_PER_LINE
+                    len(candidate_tokens) > self.MAX_VALUES_PER_LINE
                     or metrics.horizontalAdvance(candidate) > available_width
                 )
             ):
@@ -244,7 +245,7 @@ class MergeResultTableCard(SimpleCardWidget):
         _old_size: int,
         new_size: int,
     ) -> None:
-        """结果列宽变化时按新宽度重新分行并计算PRI行高。"""
+        """结果列宽变化时重新组织 CF、PW、PRI 文本并计算行高。"""
         if (
             logical_index != 1
             or not self._raw_rows
@@ -253,23 +254,15 @@ class MergeResultTableCard(SimpleCardWidget):
             return
         self._is_adjusting_layout = True
         try:
-            pri_row = next(
-                (
-                    row_index
-                    for row_index, (label, _value) in enumerate(self._raw_rows)
-                    if label == "PRI"
-                ),
-                None,
-            )
-            if pri_row is None:
-                return
-            raw_value = self._raw_rows[pri_row][1]
-            self.table.item(pri_row, 1).setText(
-                self._wrap_pri_text(
-                    raw_value,
-                    result_column_width=new_size,
+            for row_index, (label, raw_value) in enumerate(self._raw_rows):
+                if label not in self.MULTILINE_LABELS:
+                    continue
+                self.table.item(row_index, 1).setText(
+                    self._wrap_value_text(
+                        raw_value,
+                        result_column_width=new_size,
+                    )
                 )
-            )
             self._adjust_table_height_to_contents()
         finally:
             self._is_adjusting_layout = False
@@ -283,19 +276,21 @@ class MergeResultTableCard(SimpleCardWidget):
                 max(self.ROW_HEIGHT, self.table.rowHeight(row)),
             )
 
-        pri_row = self._find_row("PRI")
-        if pri_row is not None:
-            pri_item = self.table.item(pri_row, 1)
-            if pri_item is not None:
-                line_count = max(1, pri_item.text().count("\n") + 1)
-                line_height = QFontMetrics(pri_item.font()).lineSpacing()
+        for label in self.MULTILINE_LABELS:
+            row = self._find_row(label)
+            if row is None:
+                continue
+            item = self.table.item(row, 1)
+            if item is not None:
+                line_count = max(1, item.text().count("\n") + 1)
+                line_height = QFontMetrics(item.font()).lineSpacing()
                 target_height = max(
                     self.ROW_HEIGHT,
                     line_count * line_height + self.ROW_VERTICAL_PADDING,
                 )
                 self.table.setRowHeight(
-                    pri_row,
-                    max(target_height, self.table.rowHeight(pri_row)),
+                    row,
+                    max(target_height, self.table.rowHeight(row)),
                 )
         self._resize_card_to_table()
 

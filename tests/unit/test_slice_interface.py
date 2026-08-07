@@ -504,8 +504,8 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         sip.delete(interface)
 
 
-def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
-    """合并结果PRI行应随列宽重排、增高并禁止省略完整文本。"""
+def test_merge_result_table_numeric_rows_reflow_with_column_width() -> None:
+    """合并结果 CF、PW、PRI 行应随列宽重排并完整显示所有值。"""
     _app()
     card = MergeResultTableCard()
 
@@ -515,25 +515,26 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
         card.show()
         QApplication.processEvents()
         base_height = card.height()
-        base_pri_height = card.table.rowHeight(2)
+        labels = ("CF", "PW", "PRI")
+        raw_values = {
+            "CF": [f"{value}2345" for value in range(1, 13)],
+            "PW": [f"{value}23.4" for value in range(1, 13)],
+            "PRI": [f"{value}234.6" for value in range(1, 13)],
+        }
+        base_row_heights = {
+            label: card.table.rowHeight(row)
+            for row, label in enumerate(labels)
+        }
         card.update_rows(
             (
-                ("CF", "100"),
-                ("PW", "1"),
-                (
-                    "PRI",
-                    "1234.6、2234.6、3234.6、4234.6、5234.6、6234.6、"
-                    "7234.6、8234.6",
-                ),
+                ("CF", "、".join(raw_values["CF"])),
+                ("PW", "、".join(raw_values["PW"])),
+                ("PRI", "、".join(raw_values["PRI"])),
                 ("DOA", "30"),
             )
         )
         QApplication.processEvents()
 
-        pri_row = 2
-        pri_item = card.table.item(pri_row, 1)
-        pri_lines = pri_item.text().splitlines()
-        font_metrics = QFontMetrics(pri_item.font())
         available_width = card._result_text_available_width(
             result_column_width=card.table.columnWidth(1),
         )
@@ -543,42 +544,53 @@ def test_merge_result_table_pri_row_grows_with_multiline_content() -> None:
             == AnalysisResultCard.ROW_VERTICAL_PADDING
         )
         assert card.table.textElideMode() == Qt.TextElideMode.ElideNone
-        assert len(pri_lines) >= 3
-        assert all(
-            font_metrics.horizontalAdvance(line) <= available_width
-            for line in pri_lines
-        )
-        assert all(
-            len(line.split("、")) <= 4
-            for line in pri_lines
-        )
-        assert [
-            token
-            for line in pri_lines
-            for token in line.split("、")
-        ] == [f"{value}234.6" for value in range(1, 9)]
-        assert card.table.rowHeight(pri_row) > card.ROW_HEIGHT
-        assert card.table.rowHeight(pri_row) >= (
-            len(pri_lines) * font_metrics.lineSpacing()
-            + card.ROW_VERTICAL_PADDING
-        )
+        narrow_line_counts: dict[str, int] = {}
+        narrow_row_heights: dict[str, int] = {}
+        for row, label in enumerate(labels):
+            item = card.table.item(row, 1)
+            lines = item.text().splitlines()
+            font_metrics = QFontMetrics(item.font())
+            narrow_line_counts[label] = len(lines)
+            narrow_row_heights[label] = card.table.rowHeight(row)
+
+            assert len(lines) >= 3
+            assert all(
+                font_metrics.horizontalAdvance(line) <= available_width
+                for line in lines
+            )
+            assert all(
+                len(line.split("、")) <= card.MAX_VALUES_PER_LINE
+                for line in lines
+            )
+            assert [
+                token
+                for line in lines
+                for token in line.split("、")
+            ] == raw_values[label]
+            assert card.table.rowHeight(row) > card.ROW_HEIGHT
+            assert card.table.rowHeight(row) >= (
+                len(lines) * font_metrics.lineSpacing()
+                + card.ROW_VERTICAL_PADDING
+            )
         assert card.height() > base_height
 
-        narrow_line_count = len(pri_lines)
-        narrow_row_height = card.table.rowHeight(pri_row)
         card.resize(620, card.height())
         QApplication.processEvents()
-        wide_lines = card.table.item(pri_row, 1).text().splitlines()
-        assert len(wide_lines) < narrow_line_count
-        assert card.table.rowHeight(pri_row) < narrow_row_height
-        assert [
-            token
-            for line in wide_lines
-            for token in line.split("、")
-        ] == [f"{value}234.6" for value in range(1, 9)]
+        for row, label in enumerate(labels):
+            wide_lines = card.table.item(row, 1).text().splitlines()
+            assert len(wide_lines) < narrow_line_counts[label]
+            assert card.table.rowHeight(row) < narrow_row_heights[label]
+            assert [
+                token
+                for line in wide_lines
+                for token in line.split("、")
+            ] == raw_values[label]
 
         card.clear_rows()
-        assert card.table.rowHeight(pri_row) == base_pri_height
+        assert all(
+            card.table.rowHeight(row) == base_row_heights[label]
+            for row, label in enumerate(labels)
+        )
         assert card.height() == base_height
     finally:
         sip.delete(card)

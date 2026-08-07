@@ -301,7 +301,7 @@ class AnalysisResultCard(QWidget):
         "联合预测概率",
     )
     DEFAULT_ROW_HEIGHT = 36
-    PRI_VALUES_PER_LINE = 6
+    PRI_VALUES_PER_LINE = 8
     ROW_VERTICAL_PADDING = 16
     TABLE_BORDER_RADIUS = 4
 

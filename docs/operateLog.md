@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-08-06 17:27
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_result_table_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将合并结果表的列宽自适应多行策略从 PRI 扩展到 CF、PW。
+- 原因：合并结果中的 CF、PW 典型值数量较多时也会超出单行可绘制宽度，需要完整显示全部数据。
+- 计划清单：
+  - [x] 核对 PRI 的真实文本宽度、列宽监听和行高调整链路。
+  - [x] 复用同一算法处理 CF、PW、PRI 三行。
+  - [x] 补充三行在窄列、宽列和清空状态下的几何回归。
+- 验证结果：
+  - CF、PW、PRI 均按结果列真实文本矩形和每行最多六项规则分行，列宽变化时三行同步重排并重算行高。
+  - 窄列、宽列、完整值保留、无省略和清空后行高恢复的聚焦回归：1 passed。
+  - 合并工作流及分析表格扩大回归：25 passed、4 failed；失败均为既有文案或旧 QSS 选择器断言漂移，与本次分行逻辑无关。
+  - 产品文件与测试文件 `py_compile` 通过；`git diff --check` 通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-06 17:04
 - 操作类型：[修改]
 - 影响文件：
