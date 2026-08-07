@@ -1262,7 +1262,7 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
         assert not button_bar.prev_cluster_button.isEnabled()
         assert not button_bar.next_cluster_button.isEnabled()
         operation_card = interface.merge_operation_panel.operation_card
-        assert operation_card.result_count_label.text() == "共获得1个合并结果"
+        assert operation_card.result_count_label.text() == "共获得 1 个合并结果"
         category_card = (
             operation_card.category_display_card
         )
@@ -1305,6 +1305,15 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
 
         recognition_result = interface._session.recognition_result
         button_bar.reset_button.click()
+        QApplication.processEvents()
+
+        # 重置只清空合并派生结果与呈现，不得把用户从 C+D 导航回 A+B。
+        assert interface._session.merge_result is None
+        assert interface.merge_image_column.title_label.text() == "合并结果"
+        assert menu_button.isEnabled()
+        assert menu_button.isChecked()
+        assert interface.image_workspace.is_merge_active()
+        assert interface.image_workspace.current_pair_index() == 2
         _wait_for_merge_plan(interface._merge_controller._workflow)
 
         assert interface._session.recognition_result is recognition_result
@@ -1322,10 +1331,16 @@ def test_single_result_uses_global_visibility_and_resets_merge_state(
         assert interface.image_workspace.current_pair_index() == 2
         assert button_bar.merge_button.isEnabled()
         assert button_bar.reset_button.isEnabled()
-        assert operation_card.result_count_label.text() == "共获得？个合并结果"
+        assert operation_card.result_count_label.text() == "共获得 ？ 个合并结果"
         assert not operation_card.global_visibility_checkbox.isEnabled()
         assert not category_card.category_checkboxes
         assert category_card.skeleton.isVisible()
+
+        menu_button.click()
+        QApplication.processEvents()
+        assert not menu_button.isChecked()
+        assert not interface.image_workspace.is_merge_active()
+        assert interface.image_workspace.current_pair_index() == 0
     finally:
         sip.delete(interface)
 

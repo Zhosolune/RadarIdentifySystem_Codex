@@ -174,12 +174,18 @@ class MergeController(QObject):
         previous_enabled = menu_button.isEnabled()
         previous_checked = menu_button.isChecked()
 
-        # 菜单只在当前切片存在策略候选或已有结果时开放，识别完成本身不再等价于可合并。
-        can_open_merge = has_candidates or has_results
+        # 已经打开的合并界面属于用户导航状态。重置只清空派生数据，即使后台
+        # 正在重新判别或最终没有候选，也必须保留菜单选中和 C+D，直到用户主动退出。
+        keep_merge_workspace_open = menu_button.isChecked()
+        can_open_merge = (
+            has_candidates or has_results or keep_merge_workspace_open
+        )
         if has_results:
             activation_reason = "当前切片已有合并结果"
         elif has_candidates:
             activation_reason = "当前切片存在策略判定的可合并类"
+        elif keep_merge_workspace_open:
+            activation_reason = "合并界面已打开，保持C+D等待用户主动退出"
         elif merge_judging:
             activation_reason = "当前切片正在后台判别可合并类"
         elif is_recognized:
@@ -188,7 +194,8 @@ class MergeController(QObject):
             activation_reason = "当前切片未识别且没有合并结果"
         LOGGER.debug(
             "开始合并菜单可用性判别: slice_index=%d, "
-            "规则=has_candidates OR has_results, is_recognized=%s, "
+            "规则=has_candidates OR has_results OR menu_checked, "
+            "is_recognized=%s, "
             "has_candidates=%s, has_results=%s, merge_judged=%s, "
             "prepared_group_count=%d, prepared_groups=%s, result_count=%d, "
             "merge_judging=%s, merge_running=%s, previous_enabled=%s, "
