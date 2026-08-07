@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
+from PyQt6.QtCore import (
+    QAbstractAnimation,
+    QEvent,
+    QObject,
+    QSize,
+    Qt,
+    pyqtSignal,
+)
 from PyQt6.QtGui import QColor, QFont, QResizeEvent
 from PyQt6.QtWidgets import (
     QGridLayout,
@@ -17,6 +24,7 @@ from qfluentwidgets import (
     CaptionLabel,
     FluentIcon,
     IconInfoBadge,
+    IndeterminateProgressRing,
     InfoLevel,
     PrimaryPushButton,
     ProgressBar,
@@ -84,19 +92,19 @@ _STATUS_VISUALS = {
         "#fce100",
     ),
     FullSpeedStatus.SUCCEEDED: (
-        FluentIcon.COMPLETED,
+        FluentIcon.ACCEPT,
         InfoLevel.SUCCESS,
         "#107c10",
         "#6ccb5f",
     ),
     FullSpeedStatus.FAILED: (
-        FluentIcon.CANCEL,
+        FluentIcon.CANCEL_MEDIUM,
         InfoLevel.ERROR,
         "#c42b1c",
         "#ff99a4",
     ),
     FullSpeedStatus.CANCELLED: (
-        FluentIcon.CANCEL,
+        FluentIcon.CANCEL_MEDIUM,
         InfoLevel.WARNING,
         "#9d5d00",
         "#fce100",
@@ -165,11 +173,19 @@ class FullSpeedSessionCard(CardWidget):
             self,
             InfoLevel.INFOAMTION,
         )
-        self.status_label = CaptionLabel("等待启动", self)
+        self.status_badge.setFixedSize(20, 20)
+        self.status_badge.setIconSize(QSize(11, 11))
+        self.status_spinner = IndeterminateProgressRing(self, start=False)
+        self.status_spinner.setFixedSize(20, 20)
+        self.status_spinner.setStrokeWidth(2)
+        self.status_spinner.hide()
+        self.status_label = StrongBodyLabel("等待启动", self)
         self.status_label.setObjectName("fullSpeedSessionStatus")
+        setFont(self.status_label, 14, QFont.Weight.DemiBold)
         title_layout.addWidget(self.title_label)
         title_layout.addStretch(1)
         title_layout.addWidget(self.status_badge)
+        title_layout.addWidget(self.status_spinner)
         title_layout.addWidget(self.status_label)
         root_layout.addLayout(title_layout)
 
@@ -327,6 +343,19 @@ class FullSpeedSessionCard(CardWidget):
         icon, level, light_color, dark_color = _STATUS_VISUALS[status]
         self.status_badge.setIcon(icon)
         self.status_badge.setLevel(level)
+        if status is FullSpeedStatus.RUNNING:
+            self.status_badge.hide()
+            self.status_spinner.setCustomBarColor(light_color, dark_color)
+            self.status_spinner.show()
+            if (
+                self.status_spinner.aniGroup.state()
+                is not QAbstractAnimation.State.Running
+            ):
+                self.status_spinner.start()
+        else:
+            self.status_spinner.stop()
+            self.status_spinner.hide()
+            self.status_badge.show()
         for label in (
             self.status_label,
             self.stage_label,

@@ -1,5 +1,27 @@
 # 变更记录
 
+- 时间：2026-08-07 10:53
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：放大全速任务卡片右上角状态信息，并为执行中状态增加持续旋转指示动画。
+- 原因：状态信息需要更清晰的视觉层级，运行中的任务也需要持续、直观的动态反馈。
+- 计划清单：
+  - [x] 核对当前状态徽标、文字样式、组件库动画组件及既有状态映射。
+  - [x] 放大状态文字和状态指示区域。
+  - [x] 仅在执行中状态启动持续旋转动画，离开该状态立即停止并恢复普通徽标。
+  - [x] 补充状态尺寸、动画生命周期和原状态视觉回归。
+- 验证结果：
+  - 状态文字由 Caption 调整为 14px DemiBold，状态徽标及运行指示器统一放大到 20px。
+  - 执行中状态使用 qfluentwidgets `IndeterminateProgressRing`，动画组持续循环且角度会随时间变化；进度刷新不会重启动画，切换到任意非运行状态后立即停止、归零并恢复普通状态徽标。
+  - 保留现有 `_STATUS_VISUALS` 图标、颜色和进度条状态映射，未修改用户已调整的成功/失败/取消图标。
+  - `tests\unit\test_full_speed_ui.py` 聚焦状态与其余非滚动条回归：8 passed，2 deselected，1 个第三方 scipy 弃用警告。
+  - 完整文件回归：8 passed、2 failed；失败仍为既有滚动条沟槽宽度和卡片间距断言，与本次右上角状态区无关。
+  - 相关 Python 文件 `py_compile`：通过；离屏截图检查状态区布局正常。
+- 测试状态：[已测试]
+
 - 时间：2026-08-07 10:10
 - 操作类型：[修改]
 - 影响文件：
