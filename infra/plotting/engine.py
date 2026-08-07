@@ -6,7 +6,11 @@ import numpy as np
 
 from core.models.pulse_batch import COL_TOA
 from .types import MergePalette, PlotProfile, PlotSpec
-from .utils import extract_dimension_series, _DEFAULT_MERGE_PALETTE
+from .utils import (
+    _DEFAULT_MERGE_PALETTE,
+    build_merged_dtoa_series,
+    extract_dimension_series,
+)
 
 
 def rasterize_dimension(
@@ -176,6 +180,83 @@ def rasterize_merge_dimension(
             color_value = color_indices[cluster_idx % len(color_indices)]
             image[scaled_y[valid_mask] - 1, scaled_x[valid_mask] - 1] = color_value
             
+    return image
+
+
+def rasterize_recomputed_merge_dtoa(
+    cluster_data_list: list[np.ndarray],
+    profile: PlotProfile,
+    time_range: tuple[float, float],
+    visible_cluster_indices: list[int] | None = None,
+    palette: MergePalette | None = None,
+) -> np.ndarray:
+    """将合并完整序列重算的 DTOA 栅格化为颜色索引图。
+
+    每个差值点使用较大 TOA 对应脉冲的固定来源颜色。该函数只负责
+    DTOA 派生维度，其它维度仍由 :func:`rasterize_merge_dimension` 绘制。
+
+    Args:
+        cluster_data_list [list[np.ndarray]]: 按稳定来源顺序排列的脉冲点云。
+        profile [PlotProfile]: 当前绘图规格集合。
+        time_range [tuple[float, float]]: 画布横轴显示范围。
+        visible_cluster_indices [list[int] | None]: 参与重算的来源位置；
+            ``None`` 表示全部来源。
+        palette [MergePalette | None]: 来源位置对应的调色板。
+
+    Returns:
+        np.ndarray: DTOA 二维颜色索引图，零值像素表示黑色背景。
+
+    Raises:
+        ValueError: DTOA 纵轴范围无效时抛出。
+
+    Example:
+        >>> profile = PlotProfile({"DTOA": PlotSpec(0, 10, 10, 10)})
+        >>> points = np.array([[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 10]])
+        >>> rasterize_recomputed_merge_dtoa([points], profile, (0, 10)).shape
+        (10, 10)
+    """
+    spec = profile.get_spec("DTOA")
+    image = np.zeros((spec.img_height, spec.img_width), dtype=np.uint8)
+    xdata, ydata, source_indices = build_merged_dtoa_series(
+        cluster_data_list,
+        visible_cluster_indices,
+    )
+    if len(xdata) == 0:
+        return image
+
+    x_min, x_max = float(time_range[0]), float(time_range[1])
+    if x_max <= x_min:
+        x_max = x_min + 1.0
+    y_span = spec.y_max - spec.y_min
+    if y_span <= 0:
+        raise ValueError("y_max 必须大于 y_min")
+
+    # 横坐标与较大 TOA 对齐，颜色也取同一脉冲的来源位置。
+    scaled_y = spec.img_height - np.round(
+        (ydata - spec.y_min) / y_span * (spec.img_height - 1)
+    ).astype(np.int32)
+    scaled_x = np.round(
+        (xdata - x_min) / (x_max - x_min) * (spec.img_width - 1)
+    ).astype(np.int32) + 1
+    valid_mask = (
+        (scaled_x > 0)
+        & (scaled_x <= spec.img_width)
+        & (scaled_y > 0)
+        & (scaled_y <= spec.img_height)
+    )
+
+    palette_obj = palette or _DEFAULT_MERGE_PALETTE
+    color_indices = (
+        sorted(index for index in palette_obj.colors if index > 0) or [1]
+    )
+    for row, column, source_index in zip(
+        scaled_y[valid_mask] - 1,
+        scaled_x[valid_mask] - 1,
+        source_indices[valid_mask],
+        strict=True,
+    ):
+        # 逐点赋值可保证多个 DTOA 落在同一像素时，排序靠后的点稳定覆盖。
+        image[row, column] = color_indices[int(source_index) % len(color_indices)]
     return image
 
 

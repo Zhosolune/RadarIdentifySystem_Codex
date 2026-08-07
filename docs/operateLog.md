@@ -1,5 +1,34 @@
 # 变更记录
 
+- 时间：2026-08-07 08:58
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\utils.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\engine.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\facades.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\plotting\__init__.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\merge_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为合并界面的 PRI 图新增来源类簇叠加与合并完整序列重算两种显示模式，并按较大 TOA 所属来源稳定着色。
+- 原因：原图只叠加各来源类簇独立计算的 PRI，无法观察合并后完整脉冲序列产生的跨类簇相邻间隔。
+- 计划清单：
+  - [x] 核对合并点云、来源点云、后台图像缓存和类别显隐重绘链路。
+  - [x] 新增完整可见脉冲序列的 TOA 稳定排序与 PRI 重算算法。
+  - [x] 将差值横坐标和颜色绑定到较大 TOA 对应脉冲的固定来源位置。
+  - [x] 在合并操作卡增加组件库下拉框，并由当前 Session 控制器独立保存显示模式。
+  - [x] 保持默认旧模式、现有后台缓存及 CF/PW/PA/DOA 图像逻辑不变。
+  - [x] 补充跨类簇差值、稳定颜色、类别显隐、空序列和 UI 切换回归。
+- 验证结果：
+  - 算法样例 `TOA=[0,10,20,30]` 正确得到 `PRI=[1,1,1]us`，来源位置为 `[1,0,1]`；隐藏来源后会按剩余脉冲重新计算。
+  - 聚焦算法、图像和控制器交互回归：3 passed；模式控件信号回归：1 passed。
+  - 合并流程完整回归：21 passed、3 failed；失败均为既有“组/类”标题和结果数量空格文案断言漂移，与 PRI 模式变更无关。
+  - 新增公共绘图函数 doctest：7 attempted、0 failed；相关文件 `py_compile` 通过；`git diff --check` 通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-06 17:27
 - 操作类型：[修改]
 - 影响文件：

@@ -42,6 +42,8 @@ class MergeController(QObject):
         self._result_count = 0
         self._current_result_index = 0
         self._visible_cluster_indices: set[int] = set()
+        # 图像模式只属于当前Session页面控制器，不写回全局或参数快照。
+        self._recompute_merged_dtoa: bool = False
         self._connect_signals()
         self.refresh_current_slice_state(reset_index=True)
 
@@ -58,6 +60,9 @@ class MergeController(QObject):
         )
         operation_card.global_visibility_changed.connect(
             self._on_global_visibility_changed
+        )
+        operation_card.pri_image_mode_changed.connect(
+            self._on_pri_image_mode_changed
         )
         signal_bus.stage_started.connect(self._on_stage_started)
         signal_bus.stage_finished.connect(self._on_stage_finished)
@@ -301,6 +306,7 @@ class MergeController(QObject):
             self.view._slice_controller.current_slice_index,
             self._current_result_index,
             visible_indices,
+            recompute_merged_dtoa=self._recompute_merged_dtoa,
         )
         if reset_visibility:
             self._visible_cluster_indices = {
@@ -346,6 +352,7 @@ class MergeController(QObject):
             self.view._slice_controller.current_slice_index,
             self._current_result_index,
             self._visible_cluster_indices,
+            recompute_merged_dtoa=self._recompute_merged_dtoa,
         )
         self.view.merge_image_column.update_images(
             presentation.images,
@@ -370,6 +377,7 @@ class MergeController(QObject):
             self.view._slice_controller.current_slice_index,
             self._current_result_index,
             self._visible_cluster_indices,
+            recompute_merged_dtoa=self._recompute_merged_dtoa,
         )
         self.view.merge_image_column.update_images(
             presentation.images,
@@ -378,6 +386,12 @@ class MergeController(QObject):
         self.view.merge_operation_panel.result_table_card.update_rows(
             presentation.table_rows
         )
+
+    def _on_pri_image_mode_changed(self, recompute_merged_dtoa: bool) -> None:
+        """切换 PRI 图像算法并保留当前结果的来源显隐状态。"""
+        self._recompute_merged_dtoa = bool(recompute_merged_dtoa)
+        if self._result_count:
+            self._present_current_result(reset_visibility=False)
 
     def _reset_merge_state(self) -> None:
         """清除当前切片合并计划和结果并回到未判别状态。"""

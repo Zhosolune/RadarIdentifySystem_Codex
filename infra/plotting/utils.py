@@ -111,6 +111,81 @@ def build_dtoa_series(toa: np.ndarray) -> np.ndarray:
     return np.append(dtoa, fill_value).astype(np.float64)
 
 
+def build_merged_dtoa_series(
+    cluster_data_list: list[np.ndarray],
+    visible_cluster_indices: list[int] | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """基于合并后的完整脉冲序列重新计算 DTOA。
+
+    先合并当前可见来源的有效 TOA，再使用稳定排序构造完整时间序列。
+    每个 DTOA 与较大的后一项 TOA 对齐，并返回该脉冲在完整来源列表中的
+    固定位置，使显隐变化不会导致颜色重新分配。相邻 TOA 相等时，颜色归属
+    稳定排序后位于后一项的脉冲。
+
+    Args:
+        cluster_data_list [list[np.ndarray]]: 按稳定来源顺序排列的脉冲点云。
+        visible_cluster_indices [list[int] | None]: 需要参与重算的来源位置；
+            ``None`` 表示全部来源。
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray]: 依次为较大 TOA 横坐标、
+        重算 DTOA 值（微秒）以及每个差值对应的来源位置。
+
+    Raises:
+        无显式抛出异常；结构无效的来源点云会被忽略。
+
+    Example:
+        >>> first = np.array([[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 20]])
+        >>> second = np.array([[0, 0, 0, 0, 0, 10], [0, 0, 0, 0, 0, 30]])
+        >>> x, dtoa, sources = build_merged_dtoa_series([first, second])
+        >>> x.tolist(), dtoa.tolist(), sources.tolist()
+        ([10.0, 20.0, 30.0], [1.0, 1.0, 1.0], [1, 0, 1])
+    """
+    target_indices = (
+        list(range(len(cluster_data_list)))
+        if visible_cluster_indices is None
+        else visible_cluster_indices
+    )
+    toa_parts: list[np.ndarray] = []
+    source_parts: list[np.ndarray] = []
+
+    # 来源位置始终引用完整结果中的下标，隐藏来源后其它来源仍保持原颜色。
+    for cluster_index in target_indices:
+        if cluster_index < 0 or cluster_index >= len(cluster_data_list):
+            continue
+        points = np.asarray(cluster_data_list[cluster_index], dtype=np.float64)
+        if points.ndim != 2 or points.shape[1] <= COL_TOA or len(points) == 0:
+            continue
+        toa = points[:, COL_TOA]
+        finite_mask = np.isfinite(toa)
+        if not np.any(finite_mask):
+            continue
+        valid_toa = toa[finite_mask]
+        toa_parts.append(valid_toa)
+        source_parts.append(
+            np.full(len(valid_toa), cluster_index, dtype=np.int32)
+        )
+
+    # 相邻差值至少需要两个有效脉冲，不为首尾补造虚拟 PRI 点。
+    if sum(len(part) for part in toa_parts) < 2:
+        return (
+            np.array([], dtype=np.float64),
+            np.array([], dtype=np.float64),
+            np.array([], dtype=np.int32),
+        )
+
+    merged_toa = np.concatenate(toa_parts)
+    merged_sources = np.concatenate(source_parts)
+    order = np.argsort(merged_toa, kind="stable")
+    sorted_toa = merged_toa[order]
+    sorted_sources = merged_sources[order]
+    return (
+        sorted_toa[1:].astype(np.float64, copy=False),
+        (np.diff(sorted_toa) * 0.1).astype(np.float64, copy=False),
+        sorted_sources[1:].astype(np.int32, copy=False),
+    )
+
+
 def validate_points(points: np.ndarray) -> np.ndarray:
     """校验脉冲点数组结构。
 

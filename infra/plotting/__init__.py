@@ -1,8 +1,13 @@
 """绘图子包入口。"""
 
 from .types import MergePalette, PlotProfile, PlotSpec, RenderedImageBundle
-from .utils import build_dtoa_series, build_plot_profile
-from .engine import convert_color_index_to_rgb, rasterize_dimension, rasterize_merge_dimension
+from .utils import build_dtoa_series, build_merged_dtoa_series, build_plot_profile
+from .engine import (
+    convert_color_index_to_rgb,
+    rasterize_dimension,
+    rasterize_merge_dimension,
+    rasterize_recomputed_merge_dtoa,
+)
 from .facades import (
     render_cluster_images,
     render_merge_images,
@@ -17,10 +22,12 @@ __all__ = [
     "PlotSpec",
     "RenderedImageBundle",
     "build_dtoa_series",
+    "build_merged_dtoa_series",
     "build_plot_profile",
     "convert_color_index_to_rgb",
     "rasterize_dimension",
     "rasterize_merge_dimension",
+    "rasterize_recomputed_merge_dtoa",
     "render_cluster_images",
     "render_merge_images",
     "render_predict_images",

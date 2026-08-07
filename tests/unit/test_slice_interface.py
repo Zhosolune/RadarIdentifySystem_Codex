@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
 from qfluentwidgets import (
     CheckBox,
+    ComboBox,
     PrimaryPushButton,
     PushButton,
     ScrollArea,
@@ -419,18 +420,25 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             for index in range(4)
         ] == ["合并", "上一类", "下一类", "重置"]
         assert operation_card.layout().indexOf(operation_card.button_bar) == 0
+        assert operation_card.pri_mode_label.text() == "PRI 图像模式"
+        assert isinstance(operation_card.pri_mode_combo, ComboBox)
+        assert operation_card.pri_mode_combo.currentIndex() == 0
+        assert operation_card.pri_mode_combo.currentText() == (
+            operation_card.SOURCE_STACK_MODE_TEXT
+        )
+        assert operation_card.layout().indexOf(operation_card.pri_mode_row) == 2
         assert operation_card.result_count_label.text() == "共获得？个合并结果"
         assert operation_card.result_count_label.objectName() == "sliceInfoLabel"
         assert operation_card.result_count_label.height() == 25
         assert operation_card.layout().indexOf(
             operation_card.result_count_label
-        ) == 2
+        ) == 4
         assert operation_card.category_title_label.text() == "类别显示控制"
         assert operation_card.category_title_label.font().pixelSize() == 16
         assert operation_card.category_title_label.alignment() == (
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
-        assert operation_card.layout().indexOf(operation_card.category_header) == 4
+        assert operation_card.layout().indexOf(operation_card.category_header) == 6
         assert isinstance(operation_card.global_visibility_checkbox, CheckBox)
         assert operation_card.global_visibility_checkbox.isTristate()
         assert not operation_card.global_visibility_checkbox.isEnabled()
@@ -442,8 +450,14 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             operation_card.category_display_card,
             MergeCategoryDisplayCard,
         )
-        assert operation_card.layout().indexOf(operation_card.category_display_card) == 6
+        assert operation_card.layout().indexOf(operation_card.category_display_card) == 8
         assert operation_card.button_bar.parent() is operation_card
+        assert operation_card.pri_mode_row.parent() is operation_card
+        assert operation_card.pri_mode_label.parent() is operation_card.pri_mode_row
+        assert (
+            operation_card.pri_mode_combo.parent()
+            is operation_card.pri_mode_row
+        )
         assert operation_card.result_count_label.parent() is operation_card
         assert operation_card.category_title_label.parent() is operation_card.category_header
         assert (
@@ -502,6 +516,29 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         assert merge_panel.layout().indexOf(merge_panel.result_table_card) == 2
     finally:
         sip.delete(interface)
+
+
+def test_merge_operation_card_switches_pri_image_mode() -> None:
+    """合并操作卡应默认使用来源叠加，并可切换完整序列重算模式。"""
+    _app()
+    card = MergeOperationCard()
+    emitted_modes: list[bool] = []
+    card.pri_image_mode_changed.connect(emitted_modes.append)
+
+    try:
+        assert card.pri_mode_combo.currentIndex() == 0
+        assert card.pri_mode_combo.currentText() == card.SOURCE_STACK_MODE_TEXT
+
+        card.pri_mode_combo.setCurrentIndex(1)
+        QApplication.processEvents()
+        assert card.pri_mode_combo.currentText() == card.MERGED_RECOMPUTE_MODE_TEXT
+        assert emitted_modes == [True]
+
+        card.pri_mode_combo.setCurrentIndex(0)
+        QApplication.processEvents()
+        assert emitted_modes == [True, False]
+    finally:
+        sip.delete(card)
 
 
 def test_merge_result_table_numeric_rows_reflow_with_column_width() -> None:

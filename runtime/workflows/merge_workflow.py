@@ -987,6 +987,8 @@ class MergeWorkflow(QObject):
         slice_index: int,
         result_index: int,
         visible_cluster_indices: Iterable[int] | None = None,
+        *,
+        recompute_merged_dtoa: bool = False,
     ) -> MergeResultPresentation:
         """按稳定颜色渲染一个合并结果及其界面数据。
 
@@ -995,6 +997,8 @@ class MergeWorkflow(QObject):
             slice_index [int]: 目标切片索引。
             result_index [int]: 需要呈现的0-based结果索引。
             visible_cluster_indices [Iterable[int] | None]: 当前可见的原类簇编号。
+            recompute_merged_dtoa [bool]: 是否基于合并后的完整脉冲序列
+                重新计算 PRI/DTOA 图，默认保持来源类簇分别计算后叠加。
 
         Returns:
             MergeResultPresentation: 图像、颜色、标题和参数表数据。
@@ -1039,7 +1043,11 @@ class MergeWorkflow(QObject):
             (session.session_id, slice_index),
             (),
         )
-        if visible_positions is None and result_index < len(cached_bundles):
+        if (
+            not recompute_merged_dtoa
+            and visible_positions is None
+            and result_index < len(cached_bundles)
+        ):
             # 初次呈现及结果浏览直接复用Worker产出的图像，避免回到GUI线程重复栅格化。
             bundle = cached_bundles[result_index]
         else:
@@ -1049,6 +1057,7 @@ class MergeWorkflow(QObject):
                 time_range=result.time_range,
                 visible_cluster_indices=visible_positions,
                 palette=palette,
+                recompute_merged_dtoa=recompute_merged_dtoa,
             )
         title = (
             f"合并结果 第{result_index + 1}/{len(slice_result.merged_clusters)}类"

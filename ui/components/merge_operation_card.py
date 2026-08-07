@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import CheckBox, SimpleCardWidget, BodyLabel
+from qfluentwidgets import BodyLabel, CheckBox, ComboBox, SimpleCardWidget
 
 from .merge_action_button_bar import MergeActionButtonBar
 from .merge_category_display_card import MergeCategoryDisplayCard
@@ -23,6 +23,9 @@ class MergeOperationCard(SimpleCardWidget):
 
     Attributes:
         button_bar [MergeActionButtonBar]: 水平排列的四按钮操作区。
+        pri_mode_row [QWidget]: 承载 PRI 图像模式标签与下拉框的容器。
+        pri_mode_label [BodyLabel]: PRI 图像模式标题。
+        pri_mode_combo [ComboBox]: 来源叠加与合并序列重算的切换控件。
         result_count_label [QLabel]: 显示当前切片独立合并结果数量的标签。
         category_header [QWidget]: 同行承载类别标题和全局复选框的容器。
         category_title_label [StrongBodyLabel]: 类别控制标题。
@@ -38,6 +41,10 @@ class MergeOperationCard(SimpleCardWidget):
     """
 
     global_visibility_changed = pyqtSignal(bool)
+    pri_image_mode_changed = pyqtSignal(bool)
+
+    SOURCE_STACK_MODE_TEXT = "来源类簇 PRI 叠加"
+    MERGED_RECOMPUTE_MODE_TEXT = "合并序列 PRI 重算"
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """初始化按钮区和类别显示控制区。
@@ -58,6 +65,26 @@ class MergeOperationCard(SimpleCardWidget):
             QSizePolicy.Policy.Fixed,
         )
         self.button_bar = MergeActionButtonBar(self)
+
+        self.pri_mode_row = QWidget(self)
+        self.pri_mode_label = BodyLabel("PRI 图像模式", self.pri_mode_row)
+        self.pri_mode_combo = ComboBox(self.pri_mode_row)
+        self.pri_mode_combo.addItems(
+            [
+                self.SOURCE_STACK_MODE_TEXT,
+                self.MERGED_RECOMPUTE_MODE_TEXT,
+            ]
+        )
+        self.pri_mode_combo.setCurrentIndex(0)
+        self.pri_mode_combo.setMinimumWidth(190)
+        self.pri_mode_combo.setToolTip(
+            "重算模式按 TOA 合并全部可见脉冲，PRI 使用较大 TOA 所属类别颜色"
+        )
+        self.pri_mode_combo.currentIndexChanged.connect(
+            self._on_pri_mode_changed
+        )
+        self._init_pri_mode_row()
+
         self.result_count_label = QLabel("共获得 ？个合并结果", self)
         self.result_count_label.setObjectName("sliceInfoLabel")
         self.result_count_label.setFixedHeight(25)
@@ -101,11 +128,22 @@ class MergeOperationCard(SimpleCardWidget):
         layout.setSpacing(0)
         layout.addWidget(self.button_bar)
         layout.addSpacing(10)
+        layout.addWidget(self.pri_mode_row)
+        layout.addSpacing(10)
         layout.addWidget(self.result_count_label)
         layout.addSpacing(10)
         layout.addWidget(self.category_header)
         layout.addSpacing(5)
         layout.addWidget(self.category_display_card)
+
+    def _init_pri_mode_row(self) -> None:
+        """将 PRI 图像模式标签和下拉框排列在同一行。"""
+        layout = QHBoxLayout(self.pri_mode_row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self.pri_mode_label)
+        layout.addStretch()
+        layout.addWidget(self.pri_mode_combo)
 
     def _init_category_header(self) -> None:
         """将类别标题和全局三态复选框排列在同一行。"""
@@ -183,6 +221,10 @@ class MergeOperationCard(SimpleCardWidget):
         self.category_display_card.set_all_visible(checked)
         self.sync_global_visibility_checkbox()
         self.global_visibility_changed.emit(checked)
+
+    def _on_pri_mode_changed(self, mode_index: int) -> None:
+        """把下拉框索引转换为是否重算完整合并序列的状态。"""
+        self.pri_image_mode_changed.emit(mode_index == 1)
 
     def _sync_height(self) -> None:
         """根据动态类别控制卡片更新操作卡片高度。"""

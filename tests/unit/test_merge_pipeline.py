@@ -37,6 +37,7 @@ from core.models.recognition_result import (
     SliceRecognitionResult,
 )
 from infra.plotting.facades import render_merge_images, resolve_merge_source_colors
+from infra.plotting.utils import build_merged_dtoa_series
 from runtime.workflows.merge_workflow import MergeWorkflow
 from ui.components.merge_image_column import MergeImageColumn
 from ui.controllers.merge_controller import MergeController
@@ -634,6 +635,7 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
             self.button_bar = button_bar
             self.category_display_card = category_card
             self.global_visibility_changed = FakeSignal()
+            self.pri_image_mode_changed = FakeSignal()
             self.result_count: int | None = None
 
         def set_result_count(self, result_count: int | None) -> None:
@@ -960,6 +962,97 @@ def test_merge_palette_assigns_distinct_colors_beyond_default_capacity() -> None
     assert len(set(colors)) == 12
 
 
+def test_recomputed_merge_dtoa_uses_larger_toa_source_color() -> None:
+    """完整序列 PRI 应包含跨来源差值并使用较大 TOA 的来源位置。"""
+    first = np.array(
+        [
+            [5000.0, 1.0, 20.0, 50.0, 50.0, 0.0],
+            [5000.0, 1.0, 20.0, 50.0, 50.0, 20.0],
+        ]
+    )
+    second = np.array(
+        [
+            [6000.0, 2.0, 30.0, 60.0, 60.0, 10.0],
+            [6000.0, 2.0, 30.0, 60.0, 60.0, 30.0],
+        ]
+    )
+
+    xdata, dtoa, source_positions = build_merged_dtoa_series([first, second])
+
+    assert xdata.tolist() == [10.0, 20.0, 30.0]
+    assert dtoa.tolist() == [1.0, 1.0, 1.0]
+    assert source_positions.tolist() == [1, 0, 1]
+
+    # 隐藏来源0后应基于剩余可见脉冲重算，而不是保留原跨来源差值。
+    hidden_x, hidden_dtoa, hidden_sources = build_merged_dtoa_series(
+        [first, second],
+        visible_cluster_indices=[1],
+    )
+    assert hidden_x.tolist() == [30.0]
+    assert hidden_dtoa.tolist() == [2.0]
+    assert hidden_sources.tolist() == [1]
+
+
+def test_recomputed_merge_dtoa_only_changes_dtoa_image() -> None:
+    """切换完整序列重算时仅 DTOA 图变化且继续使用稳定来源颜色。"""
+    first = np.array(
+        [
+            [5000.0, 1.0, 20.0, 50.0, 50.0, 0.0],
+            [5000.0, 1.0, 20.0, 50.0, 50.0, 20.0],
+        ]
+    )
+    second = np.array(
+        [
+            [6000.0, 2.0, 30.0, 60.0, 60.0, 10.0],
+            [6000.0, 2.0, 30.0, 60.0, 60.0, 30.0],
+        ]
+    )
+    colors = resolve_merge_source_colors(2)
+
+    source_stack = render_merge_images([first, second])
+    recomputed = render_merge_images(
+        [first, second],
+        recompute_merged_dtoa=True,
+    )
+
+    assert not np.array_equal(
+        source_stack.images["DTOA"],
+        recomputed.images["DTOA"],
+    )
+    assert all(
+        np.array_equal(
+            source_stack.images[dimension],
+            recomputed.images[dimension],
+        )
+        for dimension in ("CF", "PW", "PA", "DOA")
+    )
+    assert all(
+        np.any(
+            np.all(
+                recomputed.images["DTOA"] == np.asarray(color, dtype=np.uint8),
+                axis=2,
+            )
+        )
+        for color in colors
+    )
+
+    hidden = render_merge_images(
+        [first, second],
+        visible_cluster_indices=[1],
+        recompute_merged_dtoa=True,
+    )
+    first_color = np.asarray(colors[0], dtype=np.uint8)
+    second_color = np.asarray(colors[1], dtype=np.uint8)
+    assert not np.any(np.all(hidden.images["DTOA"] == first_color, axis=2))
+    assert np.any(np.all(hidden.images["DTOA"] == second_color, axis=2))
+
+    empty = render_merge_images(
+        [first[:1], second[:0]],
+        recompute_merged_dtoa=True,
+    )
+    assert not np.any(empty.images["DTOA"])
+
+
 def test_visibility_controls_update_merge_parameter_table(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -991,6 +1084,17 @@ def test_visibility_controls_update_merge_parameter_table(
         QApplication.processEvents()
         assert category_card.visible_cluster_indices() == (2,)
         assert result_table.item(3, 1).text() == "60.5"
+
+        # 模式属于当前Session控制器，切换后保留当前来源显隐状态。
+        assert operation_card.pri_mode_combo.currentIndex() == 0
+        operation_card.pri_mode_combo.setCurrentIndex(1)
+        QApplication.processEvents()
+        assert controller._recompute_merged_dtoa is True
+        assert category_card.visible_cluster_indices() == (2,)
+        operation_card.pri_mode_combo.setCurrentIndex(0)
+        QApplication.processEvents()
+        assert controller._recompute_merged_dtoa is False
+        assert category_card.visible_cluster_indices() == (2,)
 
         global_checkbox.click()
         QApplication.processEvents()

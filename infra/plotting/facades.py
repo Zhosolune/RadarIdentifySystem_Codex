@@ -17,7 +17,12 @@ from .utils import (
     resolve_time_range,
     validate_points,
 )
-from .engine import convert_color_index_to_rgb, rasterize_dimension, rasterize_merge_dimension
+from .engine import (
+    convert_color_index_to_rgb,
+    rasterize_dimension,
+    rasterize_merge_dimension,
+    rasterize_recomputed_merge_dtoa,
+)
 
 
 def resolve_merge_source_colors(
@@ -255,6 +260,7 @@ def render_merge_images(
     time_range: tuple[float, float] | None = None,
     visible_cluster_indices: list[int] | None = None,
     palette: MergePalette | None = None,
+    recompute_merged_dtoa: bool = False,
 ) -> RenderedImageBundle:
     """渲染合并可视化图像。
 
@@ -267,8 +273,11 @@ def render_merge_images(
         band (str | None, optional): 频段类型标识字符串。
         profile (PlotProfile | None, optional): 描述规格范围的对象实例。
         time_range (tuple[float, float] | None, optional): 指定时间的绝对跨度（微秒级浮点）。
-        visible_cluster_indices (list[int] | None, optional): 一个包含要渲染的数据集索引位整数列表，传入空则全部重绘。
+        visible_cluster_indices (list[int] | None, optional): 一个包含要渲染的
+            数据集索引位整数列表；``None`` 表示全部来源。
         palette (MergePalette | None, optional): 用于多类分配不同色彩的三通道调色板映射对象。
+        recompute_merged_dtoa (bool, optional): 是否基于当前可见来源的完整
+            脉冲序列重新计算 DTOA；默认保持各来源分别计算后叠加。
 
     Returns:
         RenderedImageBundle: 输出五维的彩色（RGB）图像数组封装字典。
@@ -291,17 +300,29 @@ def render_merge_images(
     # 逐维度绘制颜色索引图并转换为 RGB 图
     images: dict[str, np.ndarray] = {}
     for dim_name in _DIMENSION_ORDER:
-        # 首先生成单维度的类别颜色索引矩阵
-        color_index_image = rasterize_merge_dimension(
-            cluster_data_list=cluster_data_list,
-            dim_name=dim_name,
-            profile=profile_obj,
-            time_range=target_time_range,
-            visible_cluster_indices=visible_cluster_indices,
+        # 新模式只替换 PRI/DTOA 图，其它维度继续沿用来源点云叠加逻辑。
+        if dim_name == "DTOA" and recompute_merged_dtoa:
+            color_index_image = rasterize_recomputed_merge_dtoa(
+                cluster_data_list=cluster_data_list,
+                profile=profile_obj,
+                time_range=target_time_range,
+                visible_cluster_indices=visible_cluster_indices,
+                palette=palette,
+            )
+        else:
+            color_index_image = rasterize_merge_dimension(
+                cluster_data_list=cluster_data_list,
+                dim_name=dim_name,
+                profile=profile_obj,
+                time_range=target_time_range,
+                visible_cluster_indices=visible_cluster_indices,
+                palette=palette,
+            )
+        # 通过调色板将索引转换为可直接显示的 RGB 三通道矩阵
+        images[dim_name] = convert_color_index_to_rgb(
+            color_index_image,
             palette=palette,
         )
-        # 通过调色板将索引转换为可直接显示的 RGB 三通道矩阵
-        images[dim_name] = convert_color_index_to_rgb(color_index_image, palette=palette)
         
     # 封装渲染结果并附带时间与波段元数据
     return RenderedImageBundle(images=images, metadata={"time_range": target_time_range, "band": band})
