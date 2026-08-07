@@ -6,19 +6,20 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
 from PyQt6 import sip
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFontMetrics, QImage
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QColor, QFontMetrics, QImage
 from PyQt6.QtWidgets import QApplication, QLabel, QSizePolicy, QWidget
 from pytest import MonkeyPatch
 from qfluentwidgets import (
     CheckBox,
-    ComboBox,
     PrimaryPushButton,
     PushButton,
     ScrollArea,
     SimpleCardWidget,
     TableWidget,
+    TransparentToolButton,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -420,25 +421,18 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             for index in range(4)
         ] == ["合并", "上一类", "下一类", "重置"]
         assert operation_card.layout().indexOf(operation_card.button_bar) == 0
-        assert operation_card.pri_mode_label.text() == "PRI 图像模式"
-        assert isinstance(operation_card.pri_mode_combo, ComboBox)
-        assert operation_card.pri_mode_combo.currentIndex() == 0
-        assert operation_card.pri_mode_combo.currentText() == (
-            operation_card.SOURCE_STACK_MODE_TEXT
-        )
-        assert operation_card.layout().indexOf(operation_card.pri_mode_row) == 2
         assert operation_card.result_count_label.text() == "共获得？个合并结果"
         assert operation_card.result_count_label.objectName() == "sliceInfoLabel"
         assert operation_card.result_count_label.height() == 25
         assert operation_card.layout().indexOf(
             operation_card.result_count_label
-        ) == 4
+        ) == 2
         assert operation_card.category_title_label.text() == "类别显示控制"
         assert operation_card.category_title_label.font().pixelSize() == 16
         assert operation_card.category_title_label.alignment() == (
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
-        assert operation_card.layout().indexOf(operation_card.category_header) == 6
+        assert operation_card.layout().indexOf(operation_card.category_header) == 4
         assert isinstance(operation_card.global_visibility_checkbox, CheckBox)
         assert operation_card.global_visibility_checkbox.isTristate()
         assert not operation_card.global_visibility_checkbox.isEnabled()
@@ -450,14 +444,8 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
             operation_card.category_display_card,
             MergeCategoryDisplayCard,
         )
-        assert operation_card.layout().indexOf(operation_card.category_display_card) == 8
+        assert operation_card.layout().indexOf(operation_card.category_display_card) == 6
         assert operation_card.button_bar.parent() is operation_card
-        assert operation_card.pri_mode_row.parent() is operation_card
-        assert operation_card.pri_mode_label.parent() is operation_card.pri_mode_row
-        assert (
-            operation_card.pri_mode_combo.parent()
-            is operation_card.pri_mode_row
-        )
         assert operation_card.result_count_label.parent() is operation_card
         assert operation_card.category_title_label.parent() is operation_card.category_header
         assert (
@@ -518,27 +506,154 @@ def test_merge_workspace_has_four_equal_panels_and_starts_locked_at_ab(
         sip.delete(interface)
 
 
-def test_merge_operation_card_switches_pri_image_mode() -> None:
-    """合并操作卡应默认使用来源叠加，并可切换完整序列重算模式。"""
+def test_merge_pri_image_hover_button_requests_mode_toggle() -> None:
+    """合并 PRI 图像应在 hover 时显示半透明右上角切换按钮。"""
     _app()
-    card = MergeOperationCard()
-    emitted_modes: list[bool] = []
-    card.pri_image_mode_changed.connect(emitted_modes.append)
+    column = MergeImageColumn()
+    toggle_requests: list[bool] = []
+    column.pri_mode_toggle_requested.connect(
+        lambda: toggle_requests.append(True)
+    )
 
     try:
-        assert card.pri_mode_combo.currentIndex() == 0
-        assert card.pri_mode_combo.currentText() == card.SOURCE_STACK_MODE_TEXT
-
-        card.pri_mode_combo.setCurrentIndex(1)
+        column.resize(400, 800)
+        column.show()
+        column.update_images(
+            {"DTOA": np.zeros((20, 40, 3), dtype=np.uint8)},
+            "合并结果 第1/1类",
+        )
         QApplication.processEvents()
-        assert card.pri_mode_combo.currentText() == card.MERGED_RECOMPUTE_MODE_TEXT
-        assert emitted_modes == [True]
 
-        card.pri_mode_combo.setCurrentIndex(0)
-        QApplication.processEvents()
-        assert emitted_modes == [True, False]
+        image_card = column.merge_dtoa_card.image_card
+        image_label = column.merge_dtoa_card.image_label
+        button = column.pri_mode_toggle_button
+        assert isinstance(button, TransparentToolButton)
+        assert button.parent() is image_card
+        assert button.objectName() == "mergePriModeToggleButton"
+        assert all(
+            not card.image_card.findChildren(TransparentToolButton)
+            for card in (
+                column.merge_cf_card,
+                column.merge_pw_card,
+                column.merge_pa_card,
+                column.merge_doa_card,
+            )
+        )
+
+        QApplication.sendEvent(image_card, QEvent(QEvent.Type.Leave))
+        assert button.isHidden()
+        QApplication.sendEvent(image_label, QEvent(QEvent.Type.Enter))
+        assert not button.isHidden()
+        assert button.x() == (
+            image_card.width()
+            - button.width()
+            - column.PRI_TOGGLE_MARGIN
+        )
+        assert button.y() == column.PRI_TOGGLE_MARGIN
+
+        normal_render = QImage(
+            button.size(),
+            QImage.Format.Format_ARGB32_Premultiplied,
+        )
+        normal_render.fill(Qt.GlobalColor.transparent)
+        button.render(normal_render)
+        normal_background = normal_render.pixelColor(4, button.height() // 2)
+        assert normal_background.red() == 255
+        assert normal_background.green() == 255
+        assert normal_background.blue() == 255
+        assert normal_background.alpha() == button.BACKGROUND_ALPHA
+
+        icon_image = button.icon().pixmap(button.iconSize()).toImage()
+        assert any(
+            icon_image.pixelColor(x, y).alpha() > 0
+            and icon_image.pixelColor(x, y).value() < 64
+            for x in range(icon_image.width())
+            for y in range(icon_image.height())
+        )
+
+        QApplication.sendEvent(button, QEvent(QEvent.Type.Enter))
+        hover_render = QImage(
+            button.size(),
+            QImage.Format.Format_ARGB32_Premultiplied,
+        )
+        hover_render.fill(Qt.GlobalColor.transparent)
+        button.render(hover_render)
+        hover_background = hover_render.pixelColor(4, button.height() // 2)
+        assert hover_background.alpha() == button.HOVER_BACKGROUND_ALPHA
+        QApplication.sendEvent(button, QEvent(QEvent.Type.Leave))
+
+        button.click()
+        assert toggle_requests == [True]
+        column.set_pri_recompute_mode(True)
+        assert "来源类簇" in button.toolTip()
+
+        QApplication.sendEvent(image_card, QEvent(QEvent.Type.Leave))
+        assert button.isHidden()
+        column.clear_images()
+        QApplication.sendEvent(image_label, QEvent(QEvent.Type.Enter))
+        assert button.isHidden()
     finally:
-        sip.delete(card)
+        sip.delete(column)
+
+
+def test_merge_pri_modes_can_open_two_snapshot_windows_simultaneously() -> None:
+    """合并 PRI 转换前后应分别复用窗口，并允许两个窗口同时展开。"""
+    _app()
+    column = MergeImageColumn()
+    card = column.merge_dtoa_card
+    red = QImage(20, 10, QImage.Format.Format_RGB32)
+    red.fill(Qt.GlobalColor.red)
+    blue = QImage(20, 10, QImage.Format.Format_RGB32)
+    blue.fill(Qt.GlobalColor.blue)
+
+    try:
+        card.set_snapshot_window_title("合并结果 第1/1类 - 一级差")
+        card.set_image(red)
+        card._show_snapshot_window()
+        source_window = card._snapshot_windows_by_mode[card.SOURCE_MODE_KEY]
+        card._show_snapshot_window()
+        assert card._snapshot_windows_by_mode[card.SOURCE_MODE_KEY] is source_window
+
+        column.set_pri_recompute_mode(True)
+        card.set_image(blue)
+        card._show_snapshot_window()
+        recomputed_window = card._snapshot_windows_by_mode[
+            card.RECOMPUTED_MODE_KEY
+        ]
+        QApplication.processEvents()
+
+        assert recomputed_window is not source_window
+        assert source_window.isVisible()
+        assert recomputed_window.isVisible()
+        assert source_window.parent() is None
+        assert recomputed_window.parent() is None
+        assert card.SOURCE_MODE_TITLE in source_window.image_name_label.text()
+        assert (
+            card.RECOMPUTED_MODE_TITLE
+            in recomputed_window.image_name_label.text()
+        )
+        assert source_window.snapshot_image.pixelColor(0, 0) == QColor(
+            Qt.GlobalColor.red
+        )
+        assert recomputed_window.snapshot_image.pixelColor(0, 0) == QColor(
+            Qt.GlobalColor.blue
+        )
+
+        # 切回原模式后仍复用原窗口，不覆盖转换前保存的红色快照。
+        column.set_pri_recompute_mode(False)
+        card._show_snapshot_window()
+        assert card._snapshot_windows_by_mode[card.SOURCE_MODE_KEY] is source_window
+        assert source_window.snapshot_image.pixelColor(0, 0) == QColor(
+            Qt.GlobalColor.red
+        )
+    finally:
+        for window in tuple(card._snapshot_windows_by_mode.values()):
+            if not sip.isdeleted(window):
+                window.close()
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QApplication.processEvents()
+        assert card._snapshot_windows_by_mode == {}
+        sip.delete(column)
 
 
 def test_merge_result_table_numeric_rows_reflow_with_column_width() -> None:

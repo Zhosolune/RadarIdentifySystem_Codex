@@ -1,5 +1,71 @@
 # 变更记录
 
+- 时间：2026-08-07 10:10
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：允许合并 PRI 图像的来源叠加模式和完整序列重算模式同时展开为两个独立快照窗口。
+- 原因：转换前后的 PRI 图像是需要并排观察的两个不同结果，不能沿用普通维度卡片仅持有一个展开窗口的规则。
+- 计划清单：
+  - [x] 仅为合并 PRI 图像卡增加模式级快照窗口管理。
+  - [x] 来源叠加和完整序列重算分别创建、持有和销毁独立窗口。
+  - [x] 同一模式重复展开仍激活已有窗口，避免同图重复多开。
+  - [x] 快照标题追加 PRI 模式名称，便于同时展开时区分。
+  - [x] 保持其它合并维度及原始、聚类图像的一卡一窗口逻辑不变。
+- 验证结果：
+  - 转换前后的两个独立顶层窗口可同时显示，并分别保存红色、蓝色测试快照。
+  - 切回原模式后复用原窗口且不覆盖其固定快照，关闭后两种模式引用均被清理。
+  - 模式双窗口及 hover 按钮聚焦回归：2 passed。
+  - 图像卡展开与控制器扩大回归：11 passed、1 failed；失败为既有“独立显示/展开”菜单文案断言漂移。
+- 测试状态：[已测试]
+
+- 时间：2026-08-07 10:00
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复合并 PRI 图像 hover 切换按钮存在但在黑色图像背景上不可见的问题。
+- 原因：组件库透明工具按钮没有常驻白色底，整体透明度效果只降低控件透明度；主题图标颜色也无法保证在黑底和白色按钮底上同时可辨识。
+- 计划清单：
+  - [x] 移除仅改变控件整体透明度的图形效果。
+  - [x] 为 PRI 切换按钮直接绘制半透明白色圆角背景。
+  - [x] 固定使用深色同步图标，避免图标随主题颜色融入背景。
+  - [x] 保留图像 hover 显示、移出隐藏、点击切换和右上角定位逻辑。
+  - [x] 增加白色背景透明度与深色图标的像素级回归。
+- 验证结果：
+  - 普通状态背景像素为半透明白色，按钮自身 hover 时提高白色背景不透明度。
+  - 图标图像包含有效深色像素，黑色 PRI 图像上可以稳定辨识。
+  - 聚焦 hover、渲染和点击交互回归：1 passed。
+- 测试状态：[已测试]
+
+- 时间：2026-08-07 09:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_operation_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\merge_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_merge_pipeline.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：移除合并操作卡的 PRI 模式下拉框，改为合并 PRI 图像右上角的 hover 半透明切换按钮。
+- 原因：PRI 图像模式属于局部图像交互，入口应贴近目标图像并减少合并操作面板的常驻控件。
+- 计划清单：
+  - [x] 删除操作卡中的 PRI 模式标签、下拉框和对应信号。
+  - [x] 仅在合并 PRI 图像容器内增加右上角覆盖按钮。
+  - [x] 无 PRI 图像时保持隐藏，hover 图像时显示，移出后隐藏。
+  - [x] 设置按钮默认 72% 不透明度，hover 按钮时恢复全不透明。
+  - [x] 由按钮提示文字展示当前模式及点击后的目标模式。
+  - [x] 控制器改接局部按钮信号并保持来源显隐、Session 模式和重绘链路不变。
+- 验证结果：
+  - hover 显隐、右上角定位、透明度、无图空态、点击信号和模式提示回归通过。
+  - PRI 算法、稳定来源颜色和类别显隐后重算逻辑保持不变。
+  - 聚焦交互与算法回归：4 passed；合并流程完整回归：21 passed、3 个既有文案断言失败。
+  - 相关文件 `py_compile` 与 `git diff --check` 通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-07 08:58
 - 操作类型：[新增]
 - 影响文件：

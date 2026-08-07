@@ -635,7 +635,6 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
             self.button_bar = button_bar
             self.category_display_card = category_card
             self.global_visibility_changed = FakeSignal()
-            self.pri_image_mode_changed = FakeSignal()
             self.result_count: int | None = None
 
         def set_result_count(self, result_count: int | None) -> None:
@@ -698,6 +697,8 @@ def test_merge_controller_executes_full_plan_and_browses_results() -> None:
                     (images, title)
                 ),
                 clear_images=lambda: image_updates.clear(),
+                pri_mode_toggle_requested=FakeSignal(),
+                set_pri_recompute_mode=lambda _enabled: None,
             )
 
     view = FakeView()
@@ -1086,15 +1087,19 @@ def test_visibility_controls_update_merge_parameter_table(
         assert result_table.item(3, 1).text() == "60.5"
 
         # 模式属于当前Session控制器，切换后保留当前来源显隐状态。
-        assert operation_card.pri_mode_combo.currentIndex() == 0
-        operation_card.pri_mode_combo.setCurrentIndex(1)
+        pri_toggle_button = (
+            interface.merge_image_column.pri_mode_toggle_button
+        )
+        pri_toggle_button.click()
         QApplication.processEvents()
         assert controller._recompute_merged_dtoa is True
         assert category_card.visible_cluster_indices() == (2,)
-        operation_card.pri_mode_combo.setCurrentIndex(0)
+        assert "来源类簇" in pri_toggle_button.toolTip()
+        pri_toggle_button.click()
         QApplication.processEvents()
         assert controller._recompute_merged_dtoa is False
         assert category_card.visible_cluster_indices() == (2,)
+        assert "合并序列" in pri_toggle_button.toolTip()
 
         global_checkbox.click()
         QApplication.processEvents()

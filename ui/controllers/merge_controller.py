@@ -61,8 +61,8 @@ class MergeController(QObject):
         operation_card.global_visibility_changed.connect(
             self._on_global_visibility_changed
         )
-        operation_card.pri_image_mode_changed.connect(
-            self._on_pri_image_mode_changed
+        self.view.merge_image_column.pri_mode_toggle_requested.connect(
+            self._toggle_pri_image_mode
         )
         signal_bus.stage_started.connect(self._on_stage_started)
         signal_bus.stage_finished.connect(self._on_stage_finished)
@@ -387,9 +387,12 @@ class MergeController(QObject):
             presentation.table_rows
         )
 
-    def _on_pri_image_mode_changed(self, recompute_merged_dtoa: bool) -> None:
-        """切换 PRI 图像算法并保留当前结果的来源显隐状态。"""
-        self._recompute_merged_dtoa = bool(recompute_merged_dtoa)
+    def _toggle_pri_image_mode(self) -> None:
+        """响应 PRI 图像覆盖按钮并切换算法，保留来源显隐状态。"""
+        self._recompute_merged_dtoa = not self._recompute_merged_dtoa
+        self.view.merge_image_column.set_pri_recompute_mode(
+            self._recompute_merged_dtoa
+        )
         if self._result_count:
             self._present_current_result(reset_visibility=False)
 

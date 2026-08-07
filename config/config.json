@@ -39,7 +39,7 @@
             "PingFang SC"
         ],
         "ThemeColor": "#ff4772c3",
-        "ThemeMode": "Auto"
+        "ThemeMode": "Dark"
     },
     "performance.fullSpeed": {
         "computeDevice": "AUTO",
