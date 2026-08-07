@@ -1,5 +1,33 @@
 # 变更记录
 
+- 时间：2026-08-07 11:47
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\full_speed_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：把用户取消改为可重新编辑配置后从头开始的终止语义，并区分正在取消与软件退出停机。
+- 原因：取消不应继续冻结首次启动配置；用户需要在任务真正停止后修改参数、模型和保存路径，再以新快照重新执行。
+- 计划清单：
+  - [x] 核对取消请求、安全检查点、冻结标志、重试入口和停机路径。
+  - [x] 增加正在取消状态，避免等待安全检查点期间误开放配置。
+  - [x] 用户取消完成后持久化解锁，退出停机仍保留冻结配置。
+  - [x] 取消状态允许修改设置并使用“重新开始”文案。
+  - [x] 补充注册器、工作流、卡片状态和持久化回归。
+- 验证结果：
+  - 用户点击取消后先进入 `CANCELLING`，等待安全检查点期间参数、模型、保存路径、开始和删除入口均保持禁用，重复进度信号不会覆盖取消状态。
+  - Worker 真正返回取消终态后，将 `full_speed_locked` 持久化为 `False`；当前进程可以修改参数、模型和保存路径，重启软件后也恢复为可配置状态。
+  - 取消后的开始按钮显示“重新开始”，再次启动会冻结修改后的新快照并从第一个切片重新处理，不复用已取消任务的局部结果。
+  - 软件关闭流程直接请求 Worker 停止时不会登记为用户取消，因此仍保留冻结配置和中断恢复语义。
+  - 全速运行时、卡片、Session 持久化及事件隔离扩大回归：70 passed，2 deselected，1 个第三方 scipy 弃用警告。
+  - `test_full_speed_ui.py` 完整回归：9 passed、2 failed；失败仍为既有滚动条沟槽宽度和卡片间距断言，与本次取消状态无关。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-07 10:53
 - 操作类型：[修改]
 - 影响文件：

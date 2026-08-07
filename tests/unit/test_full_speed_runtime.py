@@ -99,6 +99,132 @@ def test_registry_freezes_configuration_on_first_start(tmp_path) -> None:
     assert registry.state(session.session_id).output_dir == str(tmp_path / "out")
 
 
+def test_registry_user_cancel_unlocks_and_refreezes_new_settings(
+    tmp_path,
+) -> None:
+    """用户取消完成后应允许修改设置，并在重新开始时冻结新快照。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    registry.begin(session.session_id)
+
+    registry.mark_cancelling(session.session_id)
+    registry.update_progress(
+        session.session_id,
+        current_stage="旧进度",
+        current_slice=1,
+        total_slices=2,
+        progress=50,
+        message="旧进度消息",
+    )
+    assert (
+        registry.state(session.session_id).status
+        is FullSpeedStatus.CANCELLING
+    )
+
+    registry.mark_cancelled(session.session_id)
+    cancelled_state = registry.state(session.session_id)
+    assert cancelled_state.status is FullSpeedStatus.CANCELLED
+    assert "修改参数" in cancelled_state.message
+    assert not session.full_speed_locked
+    persisted = registry.session_registry.store.load_session(
+        session.session_id
+    )
+    assert not persisted.full_speed_locked
+    restored_registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    restored_session = restored_registry.restore()[0]
+    assert not restored_session.full_speed_locked
+    assert (
+        restored_registry.state(restored_session.session_id).status
+        is FullSpeedStatus.CONFIGURING
+    )
+
+    draft = SessionConfigSnapshot.default()
+    draft.clustering.eps_cf = 8.5
+    selection = SessionModelSelection("pa-new.onnx", "dtoa-new.onnx")
+    new_output_dir = tmp_path / "new-out"
+    registry.set_settings(session.session_id, draft, selection)
+    registry.set_output_dir(session.session_id, str(new_output_dir))
+    registry.begin(session.session_id)
+
+    assert session.full_speed_locked
+    assert session.config_snapshot.clustering.eps_cf == 8.5
+    assert session.model_selection.pa_model_path == "pa-new.onnx"
+    assert registry.state(session.session_id).output_dir == str(new_output_dir)
+
+
+def test_registry_non_user_cancel_keeps_frozen_settings(tmp_path) -> None:
+    """软件退出等非用户停机不得解锁已经冻结的配置。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    registry.begin(session.session_id)
+
+    registry.mark_cancelled(session.session_id, unlock_settings=False)
+
+    assert session.full_speed_locked
+    persisted = registry.session_registry.store.load_session(
+        session.session_id
+    )
+    assert persisted.full_speed_locked
+    with pytest.raises(RuntimeError, match="已冻结"):
+        registry.set_settings(
+            session.session_id,
+            SessionConfigSnapshot.default(),
+            SessionModelSelection("pa-new.onnx", "dtoa-new.onnx"),
+        )
+
+
+def test_workflow_user_cancel_marks_cancelling_and_unlocks_on_finish(
+    tmp_path,
+) -> None:
+    """工作流应仅在用户取消的 Worker 真正退出后解锁设置。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    registry.begin(session.session_id)
+    workflow = FullSpeedWorkflow(registry)
+
+    class _WorkerStub:
+        """记录取消请求和清理调用的运行中 Worker。"""
+
+        def __init__(self) -> None:
+            """初始化调用记录。"""
+            self.cancel_requested = False
+            self.deleted = False
+
+        def isRunning(self) -> bool:
+            """模拟仍在运行的线程。"""
+            return True
+
+        def request_cancel(self) -> None:
+            """记录协作式取消请求。"""
+            self.cancel_requested = True
+
+        def deleteLater(self) -> None:
+            """记录 Qt 延迟销毁请求。"""
+            self.deleted = True
+
+    worker = _WorkerStub()
+    workflow._workers[session.session_id] = worker
+
+    assert workflow.cancel(session.session_id)
+    assert worker.cancel_requested
+    assert (
+        registry.state(session.session_id).status
+        is FullSpeedStatus.CANCELLING
+    )
+    assert session.full_speed_locked
+
+    workflow._on_finished(
+        session.session_id,
+        FullSpeedWorkerResult(success=False, cancelled=True),
+    )
+
+    assert not session.full_speed_locked
+    assert registry.state(session.session_id).status is FullSpeedStatus.CANCELLED
+    assert session.session_id not in workflow._user_cancel_requests
+    assert session.session_id not in workflow._workers
+    assert worker.deleted
+
+
 def test_registry_persists_session_parameter_snapshot_before_freeze(
     tmp_path,
 ) -> None:

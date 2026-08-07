@@ -28,6 +28,7 @@ class FullSpeedStatus(Enum):
 
     CONFIGURING = "configuring"
     RUNNING = "running"
+    CANCELLING = "cancelling"
     EXPORTING = "exporting"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -286,8 +287,8 @@ class FullSpeedSessionRegistry:
     def begin(self, session_id: str) -> ProcessingSession:
         """冻结配置并把任务切换为运行状态。
 
-        首次开始时会持久化 ``full_speed_locked``。失败、取消或中断后的重试
-        不再修改快照，确保同一任务始终使用第一次启动时的配置。
+        开始时会持久化 ``full_speed_locked``。失败或中断后的重试继续使用
+        冻结快照；用户主动取消完成后可以修改设置，再次开始时重新冻结。
 
         Args:
             session_id [str]: 目标 Session ID。
@@ -306,6 +307,7 @@ class FullSpeedSessionRegistry:
             state = self._require_state(session_id)
             if state.status in {
                 FullSpeedStatus.RUNNING,
+                FullSpeedStatus.CANCELLING,
                 FullSpeedStatus.EXPORTING,
             }:
                 raise RuntimeError("全速任务正在执行")
@@ -359,6 +361,9 @@ class FullSpeedSessionRegistry:
         """
         with self._lock:
             state = self._require_state(session_id)
+            if state.status is FullSpeedStatus.CANCELLING:
+                # 取消请求发出后忽略已排队的旧进度，不能把状态覆盖回运行中。
+                return
             if state.status not in {
                 FullSpeedStatus.RUNNING,
                 FullSpeedStatus.EXPORTING,
@@ -374,6 +379,27 @@ class FullSpeedSessionRegistry:
             state.total_slices = max(0, int(total_slices))
             state.progress = max(0, min(100, int(progress)))
             state.message = message
+
+    def mark_cancelling(self, session_id: str) -> None:
+        """记录任务正在等待安全检查点取消。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 状态不存在时抛出。
+            RuntimeError: 任务当前不在可取消的运行状态时抛出。
+        """
+        with self._lock:
+            state = self._require_state(session_id)
+            if state.status is not FullSpeedStatus.RUNNING:
+                raise RuntimeError("当前全速任务不在可取消状态")
+            state.status = FullSpeedStatus.CANCELLING
+            state.current_stage = "正在取消"
+            state.message = "正在等待当前步骤完成后取消"
 
     def mark_succeeded(self, session_id: str, output_file: str) -> None:
         """记录成功状态并持久化输出文件。
@@ -420,23 +446,44 @@ class FullSpeedSessionRegistry:
             state.current_stage = "处理失败"
             state.message = message
 
-    def mark_cancelled(self, session_id: str) -> None:
-        """记录任务取消状态。
+    def mark_cancelled(
+        self,
+        session_id: str,
+        *,
+        unlock_settings: bool = True,
+    ) -> None:
+        """记录任务取消状态，并按取消来源决定是否解锁设置。
 
         Args:
             session_id [str]: 目标 Session ID。
+            unlock_settings [bool]: 用户主动取消时为 True，允许修改设置；
+                软件退出停机时为 False，继续保留首次冻结配置。
 
         Returns:
             None: 无返回值。
 
         Raises:
-            KeyError: Session 状态不存在时抛出。
+            KeyError: Session 或状态不存在时抛出。
+            OSError: 解锁状态持久化失败时抛出。
         """
         with self._lock:
+            session = self._require_session(session_id)
             state = self._require_state(session_id)
+            previous_locked = session.full_speed_locked
+            if unlock_settings and previous_locked:
+                session.full_speed_locked = False
+                try:
+                    self.session_registry.persist_session(session_id)
+                except Exception:
+                    session.full_speed_locked = previous_locked
+                    raise
             state.status = FullSpeedStatus.CANCELLED
             state.current_stage = "已取消"
-            state.message = "任务已在安全检查点停止"
+            state.message = (
+                "任务已停止，可修改参数后重新开始"
+                if unlock_settings
+                else "任务已在安全检查点停止"
+            )
 
     def delete(self, session_id: str) -> None:
         """删除非运行中的全速 Session 及其元数据。
@@ -456,6 +503,7 @@ class FullSpeedSessionRegistry:
             state = self._require_state(session_id)
             if state.status in {
                 FullSpeedStatus.RUNNING,
+                FullSpeedStatus.CANCELLING,
                 FullSpeedStatus.EXPORTING,
             }:
                 raise RuntimeError("全速任务执行期间不能删除")

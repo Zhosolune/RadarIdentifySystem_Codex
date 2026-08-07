@@ -152,7 +152,7 @@ class ProcessingSession:
         recognition_result (Any | None): 识别与参数提取结果（P05 落地后替换）。
         merge_plan (MergePlan | None): 用户点击合并后按当前策略生成的切片计划。
         merge_result (MergeResult | None): 与识别结果独立保存的合并结果。
-        full_speed_locked (bool): 全速任务是否已经启动并冻结配置。
+        full_speed_locked (bool): 全速任务当前是否冻结配置；用户主动取消完成后解锁。
         exported_file_path (str): 全速任务成功写出的 Excel 文件路径。
 
     参数说明：
@@ -202,7 +202,7 @@ class ProcessingSession:
     merge_result: Optional[MergeResult] = field(default=None)
 
     # ── 全速处理持久化状态 ─────────────────────────────────────────────
-    # 一旦开始执行就保持锁定；失败、取消和重启后的重试仍使用同一份参数快照。
+    # 开始执行时冻结；用户主动取消完成后解锁，失败和中断仍保留冻结快照。
     full_speed_locked: bool = False
     exported_file_path: str = ""
 

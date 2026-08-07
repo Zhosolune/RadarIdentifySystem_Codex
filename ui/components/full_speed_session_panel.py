@@ -46,6 +46,7 @@ from ui.components.scrolling_name_label import ScrollingNameLabel
 _STATUS_TEXT = {
     FullSpeedStatus.CONFIGURING: "等待启动",
     FullSpeedStatus.RUNNING: "执行中",
+    FullSpeedStatus.CANCELLING: "正在取消",
     FullSpeedStatus.EXPORTING: "正在保存",
     FullSpeedStatus.SUCCEEDED: "已完成",
     FullSpeedStatus.FAILED: "失败",
@@ -56,10 +57,11 @@ _STATUS_TEXT = {
 _START_ACTION_TEXT = {
     FullSpeedStatus.CONFIGURING: "开始",
     FullSpeedStatus.RUNNING: "执行中",
+    FullSpeedStatus.CANCELLING: "取消中",
     FullSpeedStatus.EXPORTING: "保存中",
     FullSpeedStatus.SUCCEEDED: "已完成",
     FullSpeedStatus.FAILED: "重试",
-    FullSpeedStatus.CANCELLED: "重试",
+    FullSpeedStatus.CANCELLED: "重新开始",
     FullSpeedStatus.INTERRUPTED: "重试",
 }
 
@@ -84,6 +86,12 @@ _STATUS_VISUALS = {
         InfoLevel.ATTENTION,
         "#0078d4",
         "#4cc2ff",
+    ),
+    FullSpeedStatus.CANCELLING: (
+        FluentIcon.SYNC,
+        InfoLevel.WARNING,
+        "#9d5d00",
+        "#fce100",
     ),
     FullSpeedStatus.EXPORTING: (
         FluentIcon.SAVE,
@@ -244,9 +252,13 @@ class FullSpeedSessionCard(CardWidget):
         self.output_button = PushButton("保存路径", self)
         self.params_button = PushButton("修改参数", self)
         self.start_button = PrimaryPushButton("开始", self)
-        # 用组件库自身的 sizeHint 计算三个中文字的完整宽度（当前样式下为 68px）。
+        # 用组件库自身的 sizeHint 按最长状态文案计算按钮完整宽度。
         start_text = self.start_button.text()
-        self.start_button.setText(_START_ACTION_TEXT[FullSpeedStatus.SUCCEEDED])
+        widest_action_text = max(
+            _START_ACTION_TEXT.values(),
+            key=self.start_button.fontMetrics().horizontalAdvance,
+        )
+        self.start_button.setText(widest_action_text)
         self.start_button.setFixedWidth(self.start_button.sizeHint().width())
         self.start_button.setText(start_text)
         self.cancel_button = PushButton("取消", self)
@@ -323,12 +335,19 @@ class FullSpeedSessionCard(CardWidget):
         )
 
         running = state.status is FullSpeedStatus.RUNNING
+        cancelling = state.status is FullSpeedStatus.CANCELLING
         exporting = state.status is FullSpeedStatus.EXPORTING
         self.output_button.setEnabled(
-            not session.full_speed_locked and not running and not exporting
+            not session.full_speed_locked
+            and not running
+            and not cancelling
+            and not exporting
         )
         self.params_button.setEnabled(
-            not session.full_speed_locked and not running and not exporting
+            not session.full_speed_locked
+            and not running
+            and not cancelling
+            and not exporting
         )
         # 只有尚未启动或未成功结束的任务可以进入执行流程；成功任务由运行时禁止重启。
         self.start_button.setEnabled(state.status in _STARTABLE_STATUSES)
@@ -336,14 +355,19 @@ class FullSpeedSessionCard(CardWidget):
         # Excel 写入阶段不接受取消，避免原子替换完成后产生“已取消但文件存在”的歧义。
         self.cancel_button.setEnabled(running)
         self.open_button.setEnabled(bool(state.output_file))
-        self.delete_button.setEnabled(not running and not exporting)
+        self.delete_button.setEnabled(
+            not running and not cancelling and not exporting
+        )
 
     def _apply_status_visuals(self, status: FullSpeedStatus) -> None:
         """同步状态图标、文字颜色及组件库进度条状态。"""
         icon, level, light_color, dark_color = _STATUS_VISUALS[status]
         self.status_badge.setIcon(icon)
         self.status_badge.setLevel(level)
-        if status is FullSpeedStatus.RUNNING:
+        if status in {
+            FullSpeedStatus.RUNNING,
+            FullSpeedStatus.CANCELLING,
+        }:
             self.status_badge.hide()
             self.status_spinner.setCustomBarColor(light_color, dark_color)
             self.status_spinner.show()
@@ -372,6 +396,7 @@ class FullSpeedSessionCard(CardWidget):
             self.progress_bar.error()
         elif status in {
             FullSpeedStatus.EXPORTING,
+            FullSpeedStatus.CANCELLING,
             FullSpeedStatus.CANCELLED,
             FullSpeedStatus.INTERRUPTED,
         }:

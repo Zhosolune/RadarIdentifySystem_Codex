@@ -52,9 +52,10 @@ class FullSpeedWorkflow(QObject):
         super().__init__(parent)
         self.registry = registry
         self._workers: dict[str, WorkerType] = {}
+        self._user_cancel_requests: set[str] = set()
 
     def start(self, session_id: str) -> None:
-        """启动或按已冻结参数重试一个全速 Session。
+        """启动、取消后重新开始或按冻结参数重试全速 Session。
 
         Args:
             session_id [str]: 目标 Session ID。
@@ -123,15 +124,9 @@ class FullSpeedWorkflow(QObject):
             or state.status is not FullSpeedStatus.RUNNING
         ):
             return False
+        self.registry.mark_cancelling(session_id)
+        self._user_cancel_requests.add(session_id)
         worker.request_cancel()
-        self.registry.update_progress(
-            session_id,
-            current_stage=state.current_stage,
-            current_slice=state.current_slice,
-            total_slices=state.total_slices,
-            progress=state.progress,
-            message="正在等待当前步骤完成后取消",
-        )
         signal_bus.full_speed_session_changed.emit(session_id)
         return True
 
@@ -207,7 +202,12 @@ class FullSpeedWorkflow(QObject):
                     None,
                 )
             elif result.cancelled:
-                self.registry.mark_cancelled(session_id)
+                self.registry.mark_cancelled(
+                    session_id,
+                    unlock_settings=(
+                        session_id in self._user_cancel_requests
+                    ),
+                )
                 signal_bus.stage_failed.emit(
                     session_id,
                     "full_speed",
@@ -232,6 +232,7 @@ class FullSpeedWorkflow(QObject):
             )
             self.registry.mark_failed(session_id, str(error))
         finally:
+            self._user_cancel_requests.discard(session_id)
             worker = self._workers.pop(session_id, None)
             if worker is not None:
                 worker.deleteLater()
