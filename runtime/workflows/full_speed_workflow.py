@@ -52,10 +52,11 @@ class FullSpeedWorkflow(QObject):
         super().__init__(parent)
         self.registry = registry
         self._workers: dict[str, WorkerType] = {}
-        self._user_cancel_requests: set[str] = set()
+        self._restart_requests: set[str] = set()
+        self._delete_requests: set[str] = set()
 
     def start(self, session_id: str) -> None:
-        """启动、取消后重新开始或按冻结参数重试全速 Session。
+        """启动新任务或按冻结参数重试已中断的全速 Session。
 
         Args:
             session_id [str]: 目标 Session ID。
@@ -94,6 +95,7 @@ class FullSpeedWorkflow(QObject):
         request = self._build_request(session)
         worker = FullSpeedWorker(request, parent=self)
         worker.progress_signal.connect(self._on_progress)
+        worker.paused_signal.connect(self._on_paused)
         worker.finished_signal.connect(self._on_finished)
         self._workers[session_id] = worker
         signal_bus.full_speed_session_changed.emit(session_id)
@@ -106,14 +108,14 @@ class FullSpeedWorkflow(QObject):
             signal_bus.full_speed_session_changed.emit(session_id)
             raise
 
-    def cancel(self, session_id: str) -> bool:
-        """请求运行中的任务在安全检查点取消。
+    def pause(self, session_id: str) -> bool:
+        """请求运行中的任务在安全检查点暂停。
 
         Args:
             session_id [str]: 目标 Session ID。
 
         Returns:
-            bool: 已发送取消请求返回 True；当前不可取消返回 False。
+            bool: 已发送暂停请求返回 True；当前不可暂停返回 False。
         """
         worker = self._workers.get(session_id)
         state = self.registry.state(session_id)
@@ -124,9 +126,89 @@ class FullSpeedWorkflow(QObject):
             or state.status is not FullSpeedStatus.RUNNING
         ):
             return False
-        self.registry.mark_cancelling(session_id)
-        self._user_cancel_requests.add(session_id)
+        self.registry.mark_pausing(session_id)
+        worker.request_pause()
+        signal_bus.full_speed_session_changed.emit(session_id)
+        return True
+
+    def resume(self, session_id: str) -> bool:
+        """从原 Worker 现场继续未修改设置的暂停任务。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            bool: 已唤醒暂停 Worker 返回 True；当前不可继续返回 False。
+        """
+        worker = self._workers.get(session_id)
+        state = self.registry.state(session_id)
+        if (
+            worker is None
+            or not worker.isRunning()
+            or state is None
+            or state.status is not FullSpeedStatus.PAUSED
+            or state.restart_required
+        ):
+            return False
+        self.registry.mark_resumed(session_id)
+        worker.request_resume()
+        signal_bus.full_speed_session_changed.emit(session_id)
+        return True
+
+    def restart_paused(self, session_id: str) -> bool:
+        """终止暂停现场，并在清理后使用当前设置从头执行。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            bool: 已登记重新执行返回 True；当前不可重新执行返回 False。
+        """
+        worker = self._workers.get(session_id)
+        state = self.registry.state(session_id)
+        if (
+            worker is None
+            or not worker.isRunning()
+            or state is None
+            or state.status is not FullSpeedStatus.PAUSED
+            or session_id in self._restart_requests
+        ):
+            return False
+        self.registry.mark_restarting(session_id)
+        self._restart_requests.add(session_id)
         worker.request_cancel()
+        signal_bus.full_speed_session_changed.emit(session_id)
+        return True
+
+    def delete(self, session_id: str) -> bool:
+        """删除停止任务，或先终止暂停 Worker 再异步删除。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            bool: 已完成删除或已登记安全删除返回 True；任务当前不可删除
+                返回 False。
+
+        Raises:
+            KeyError: Session 不存在时抛出。
+            OSError: 持久化删除失败时抛出。
+        """
+        state = self.registry.state(session_id)
+        if state is None:
+            raise KeyError(f"全速 Session 不存在: {session_id}")
+        worker = self._workers.get(session_id)
+        if state.status is FullSpeedStatus.PAUSED:
+            if worker is None or not worker.isRunning():
+                return False
+            self.registry.mark_deleting(session_id)
+            self._delete_requests.add(session_id)
+            worker.request_cancel()
+            signal_bus.full_speed_session_changed.emit(session_id)
+            return True
+        if worker is not None and worker.isRunning():
+            return False
+        self.registry.delete(session_id)
         signal_bus.full_speed_session_changed.emit(session_id)
         return True
 
@@ -186,13 +268,28 @@ class FullSpeedWorkflow(QObject):
         )
         signal_bus.full_speed_session_changed.emit(session_id)
 
+    @pyqtSlot(str)
+    def _on_paused(self, session_id: str) -> None:
+        """接收 Worker 安全暂停信号并刷新任务卡片。"""
+        state = self.registry.state(session_id)
+        if state is None or state.status is not FullSpeedStatus.PAUSING:
+            return
+        self.registry.mark_paused(session_id)
+        signal_bus.full_speed_session_changed.emit(session_id)
+
     @pyqtSlot(str, object)
     def _on_finished(
         self,
         session_id: str,
         result: FullSpeedWorkerResult,
     ) -> None:
-        """提交完整结果或记录失败/取消终态。"""
+        """提交完整结果，或处理内部终止与失败终态。"""
+        should_restart = (
+            result.cancelled and session_id in self._restart_requests
+        )
+        should_delete = (
+            result.cancelled and session_id in self._delete_requests
+        )
         try:
             if result.success:
                 self._commit_success(session_id, result)
@@ -202,18 +299,14 @@ class FullSpeedWorkflow(QObject):
                     None,
                 )
             elif result.cancelled:
-                self.registry.mark_cancelled(
-                    session_id,
-                    unlock_settings=(
-                        session_id in self._user_cancel_requests
-                    ),
-                )
-                signal_bus.stage_failed.emit(
-                    session_id,
-                    "full_speed",
-                    None,
-                    "任务已取消",
-                )
+                if not should_restart and not should_delete:
+                    self.registry.mark_interrupted(session_id)
+                    signal_bus.stage_failed.emit(
+                        session_id,
+                        "full_speed",
+                        None,
+                        "任务已中断",
+                    )
             else:
                 error_message = result.error_message or "未知错误"
                 self.registry.mark_failed(session_id, error_message)
@@ -232,11 +325,53 @@ class FullSpeedWorkflow(QObject):
             )
             self.registry.mark_failed(session_id, str(error))
         finally:
-            self._user_cancel_requests.discard(session_id)
+            self._restart_requests.discard(session_id)
+            self._delete_requests.discard(session_id)
             worker = self._workers.pop(session_id, None)
             if worker is not None:
                 worker.deleteLater()
+
+        if should_delete:
+            try:
+                self.registry.finalize_delete(session_id)
+            except Exception as error:
+                LOGGER.error(
+                    "删除暂停任务失败: %s",
+                    error,
+                    exc_info=True,
+                    extra={"session_id": session_id},
+                )
+                self.registry.mark_failed(session_id, str(error))
+                signal_bus.stage_failed.emit(
+                    session_id,
+                    "full_speed",
+                    None,
+                    str(error),
+                )
             signal_bus.full_speed_session_changed.emit(session_id)
+            return
+
+        signal_bus.full_speed_session_changed.emit(session_id)
+
+        if should_restart:
+            try:
+                self.registry.prepare_restart(session_id)
+                self.start(session_id)
+            except Exception as error:
+                LOGGER.error(
+                    "重新执行暂停任务失败: %s",
+                    error,
+                    exc_info=True,
+                    extra={"session_id": session_id},
+                )
+                self.registry.mark_failed(session_id, str(error))
+                signal_bus.stage_failed.emit(
+                    session_id,
+                    "full_speed",
+                    None,
+                    str(error),
+                )
+                signal_bus.full_speed_session_changed.emit(session_id)
 
     def _commit_success(
         self,

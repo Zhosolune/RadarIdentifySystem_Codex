@@ -116,7 +116,8 @@ def test_full_speed_card_locks_configuration_and_shows_progress() -> None:
     assert card.output_label.primary_label.darkColor == QColor("#d2d2d2")
     assert not card.output_button.isEnabled()
     assert not card.params_button.isEnabled()
-    assert card.cancel_button.isEnabled()
+    assert card.pause_button.isEnabled()
+    assert card.pause_button.text() == "暂停"
     assert not card.open_button.isEnabled()
 
 
@@ -145,7 +146,28 @@ def test_full_speed_card_maps_status_to_badge_text_and_progress_state() -> None:
             False,
             False,
         ),
-        FullSpeedStatus.CANCELLING: (
+        FullSpeedStatus.PAUSING: (
+            FluentIcon.SYNC,
+            InfoLevel.WARNING,
+            "#9d5d00",
+            True,
+            False,
+        ),
+        FullSpeedStatus.PAUSED: (
+            FluentIcon.PAUSE,
+            InfoLevel.WARNING,
+            "#9d5d00",
+            True,
+            False,
+        ),
+        FullSpeedStatus.RESTARTING: (
+            FluentIcon.SYNC,
+            InfoLevel.ATTENTION,
+            "#0078d4",
+            True,
+            False,
+        ),
+        FullSpeedStatus.DELETING: (
             FluentIcon.SYNC,
             InfoLevel.WARNING,
             "#9d5d00",
@@ -172,13 +194,6 @@ def test_full_speed_card_maps_status_to_badge_text_and_progress_state() -> None:
             "#c42b1c",
             False,
             True,
-        ),
-        FullSpeedStatus.CANCELLED: (
-            FluentIcon.CANCEL_MEDIUM,
-            InfoLevel.WARNING,
-            "#9d5d00",
-            True,
-            False,
         ),
         FullSpeedStatus.INTERRUPTED: (
             FluentIcon.PAUSE,
@@ -219,7 +234,9 @@ def test_full_speed_card_maps_status_to_badge_text_and_progress_state() -> None:
 
         if status in {
             FullSpeedStatus.RUNNING,
-            FullSpeedStatus.CANCELLING,
+            FullSpeedStatus.PAUSING,
+            FullSpeedStatus.RESTARTING,
+            FullSpeedStatus.DELETING,
         }:
             assert card.status_badge.isHidden()
             assert not card.status_spinner.isHidden()
@@ -265,10 +282,10 @@ def test_full_speed_card_maps_status_to_badge_text_and_progress_state() -> None:
 
 
 def test_full_speed_card_maps_start_action_to_execution_status() -> None:
-    """全速任务应按初始、取消或失败状态提供对应启动操作。"""
+    """全速任务应按初始、暂停或失败状态提供对应启动操作。"""
     _app()
     panel = FullSpeedSessionPanel()
-    reference_button = PrimaryPushButton("重新开始")
+    reference_button = PrimaryPushButton("重新执行中")
     expected_width = reference_button.sizeHint().width()
     session = ProcessingSession(
         session_id="fullspeed-action-state",
@@ -279,11 +296,13 @@ def test_full_speed_card_maps_start_action_to_execution_status() -> None:
     expected_actions = {
         FullSpeedStatus.CONFIGURING: ("开始", True),
         FullSpeedStatus.RUNNING: ("执行中", False),
-        FullSpeedStatus.CANCELLING: ("取消中", False),
+        FullSpeedStatus.PAUSING: ("暂停中", False),
+        FullSpeedStatus.PAUSED: ("重新执行", True),
+        FullSpeedStatus.RESTARTING: ("重新执行中", False),
+        FullSpeedStatus.DELETING: ("删除中", False),
         FullSpeedStatus.EXPORTING: ("保存中", False),
         FullSpeedStatus.SUCCEEDED: ("已完成", False),
         FullSpeedStatus.FAILED: ("重试", True),
-        FullSpeedStatus.CANCELLED: ("重新开始", True),
         FullSpeedStatus.INTERRUPTED: ("重试", True),
     }
 
@@ -302,46 +321,74 @@ def test_full_speed_card_maps_start_action_to_execution_status() -> None:
         assert card.start_button.width() == expected_width
 
 
-def test_full_speed_cancel_lifecycle_unlocks_actions_only_after_stopped() -> None:
-    """正在取消时保持锁定，取消完成后应开放设置并允许重新开始。"""
+def test_full_speed_pause_lifecycle_supports_continue_or_restart() -> None:
+    """暂停后应开放设置，未修改可继续，修改后只能重新执行。"""
     _app()
     panel = FullSpeedSessionPanel()
     session = ProcessingSession(
-        session_id="fullspeed-cancel-actions",
+        session_id="fullspeed-pause-actions",
         processing_mode=ProcessingMode.FULL_SPEED,
-        display_name="取消语义任务",
-        data_package_id="package-cancel-actions",
+        display_name="暂停语义任务",
+        data_package_id="package-pause-actions",
         full_speed_locked=True,
     )
     panel.set_sessions(
         [session],
         {
             session.session_id: FullSpeedExecutionState(
-                status=FullSpeedStatus.CANCELLING,
+                status=FullSpeedStatus.PAUSING,
             )
         },
     )
     card = panel._cards[session.session_id]
 
-    assert card.status_label.text() == "正在取消"
+    assert card.status_label.text() == "正在暂停"
     assert not card.output_button.isEnabled()
     assert not card.params_button.isEnabled()
     assert not card.start_button.isEnabled()
-    assert not card.cancel_button.isEnabled()
+    assert not card.pause_button.isEnabled()
+    assert card.pause_button.text() == "暂停中"
     assert not card.delete_button.isEnabled()
 
-    session.full_speed_locked = False
     card.update_state(
         session,
-        FullSpeedExecutionState(status=FullSpeedStatus.CANCELLED),
+        FullSpeedExecutionState(status=FullSpeedStatus.PAUSED),
     )
 
-    assert card.status_label.text() == "已取消"
+    assert card.status_label.text() == "已暂停"
     assert card.output_button.isEnabled()
     assert card.params_button.isEnabled()
     assert card.start_button.isEnabled()
-    assert card.start_button.text() == "重新开始"
-    assert not card.cancel_button.isEnabled()
+    assert card.start_button.text() == "重新执行"
+    assert card.pause_button.isEnabled()
+    assert card.pause_button.text() == "继续"
+    assert card.delete_button.isEnabled()
+
+    card.update_state(
+        session,
+        FullSpeedExecutionState(status=FullSpeedStatus.DELETING),
+    )
+
+    assert card.status_label.text() == "正在删除"
+    assert not card.output_button.isEnabled()
+    assert not card.params_button.isEnabled()
+    assert not card.start_button.isEnabled()
+    assert not card.pause_button.isEnabled()
+    assert not card.delete_button.isEnabled()
+
+    card.update_state(
+        session,
+        FullSpeedExecutionState(
+            status=FullSpeedStatus.PAUSED,
+            restart_required=True,
+        ),
+    )
+
+    assert card.output_button.isEnabled()
+    assert card.params_button.isEnabled()
+    assert card.start_button.isEnabled()
+    assert not card.pause_button.isEnabled()
+    assert card.pause_button.text() == "继续"
     assert card.delete_button.isEnabled()
 
 

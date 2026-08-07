@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
 
 import numpy as np
 import pytest
+from PyQt6.QtCore import Qt
 
 from app.app_config import appConfig
 from core.models.cluster_result import (
@@ -99,15 +101,15 @@ def test_registry_freezes_configuration_on_first_start(tmp_path) -> None:
     assert registry.state(session.session_id).output_dir == str(tmp_path / "out")
 
 
-def test_registry_user_cancel_unlocks_and_refreezes_new_settings(
+def test_registry_paused_settings_require_restart(
     tmp_path,
 ) -> None:
-    """用户取消完成后应允许修改设置，并在重新开始时冻结新快照。"""
+    """暂停后允许修改设置，但旧 Worker 不得携带旧快照继续。"""
     registry = FullSpeedSessionRegistry(tmp_path / "sessions")
     session = registry.register(_build_full_speed_session(tmp_path / "out"))
     registry.begin(session.session_id)
 
-    registry.mark_cancelling(session.session_id)
+    registry.mark_pausing(session.session_id)
     registry.update_progress(
         session.session_id,
         current_stage="旧进度",
@@ -118,25 +120,14 @@ def test_registry_user_cancel_unlocks_and_refreezes_new_settings(
     )
     assert (
         registry.state(session.session_id).status
-        is FullSpeedStatus.CANCELLING
+        is FullSpeedStatus.PAUSING
     )
 
-    registry.mark_cancelled(session.session_id)
-    cancelled_state = registry.state(session.session_id)
-    assert cancelled_state.status is FullSpeedStatus.CANCELLED
-    assert "修改参数" in cancelled_state.message
-    assert not session.full_speed_locked
-    persisted = registry.session_registry.store.load_session(
-        session.session_id
-    )
-    assert not persisted.full_speed_locked
-    restored_registry = FullSpeedSessionRegistry(tmp_path / "sessions")
-    restored_session = restored_registry.restore()[0]
-    assert not restored_session.full_speed_locked
-    assert (
-        restored_registry.state(restored_session.session_id).status
-        is FullSpeedStatus.CONFIGURING
-    )
+    registry.mark_paused(session.session_id)
+    paused_state = registry.state(session.session_id)
+    assert paused_state.status is FullSpeedStatus.PAUSED
+    assert not paused_state.restart_required
+    assert session.full_speed_locked
 
     draft = SessionConfigSnapshot.default()
     draft.clustering.eps_cf = 8.5
@@ -144,6 +135,16 @@ def test_registry_user_cancel_unlocks_and_refreezes_new_settings(
     new_output_dir = tmp_path / "new-out"
     registry.set_settings(session.session_id, draft, selection)
     registry.set_output_dir(session.session_id, str(new_output_dir))
+    changed_state = registry.state(session.session_id)
+
+    assert changed_state.status is FullSpeedStatus.PAUSED
+    assert changed_state.restart_required
+    assert "重新执行" in changed_state.message
+    with pytest.raises(RuntimeError, match="重新执行"):
+        registry.mark_resumed(session.session_id)
+
+    registry.mark_restarting(session.session_id)
+    registry.prepare_restart(session.session_id)
     registry.begin(session.session_id)
 
     assert session.full_speed_locked
@@ -152,38 +153,96 @@ def test_registry_user_cancel_unlocks_and_refreezes_new_settings(
     assert registry.state(session.session_id).output_dir == str(new_output_dir)
 
 
-def test_registry_non_user_cancel_keeps_frozen_settings(tmp_path) -> None:
-    """软件退出等非用户停机不得解锁已经冻结的配置。"""
+def test_restored_paused_task_keeps_frozen_snapshot_as_interrupted(
+    tmp_path,
+) -> None:
+    """暂停现场不跨进程恢复，重启后应按冻结快照显示为已中断。"""
     registry = FullSpeedSessionRegistry(tmp_path / "sessions")
     session = registry.register(_build_full_speed_session(tmp_path / "out"))
     registry.begin(session.session_id)
+    registry.mark_pausing(session.session_id)
+    registry.mark_paused(session.session_id)
 
-    registry.mark_cancelled(session.session_id, unlock_settings=False)
+    restored_registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    restored_session = restored_registry.restore()[0]
 
-    assert session.full_speed_locked
-    persisted = registry.session_registry.store.load_session(
-        session.session_id
+    assert restored_session.full_speed_locked
+    assert (
+        restored_registry.state(restored_session.session_id).status
+        is FullSpeedStatus.INTERRUPTED
     )
-    assert persisted.full_speed_locked
     with pytest.raises(RuntimeError, match="已冻结"):
-        registry.set_settings(
-            session.session_id,
+        restored_registry.set_settings(
+            restored_session.session_id,
             SessionConfigSnapshot.default(),
             SessionModelSelection("pa-new.onnx", "dtoa-new.onnx"),
         )
 
 
-def test_workflow_user_cancel_marks_cancelling_and_unlocks_on_finish(
+def test_workflow_pauses_and_resumes_same_worker(
     tmp_path,
 ) -> None:
-    """工作流应仅在用户取消的 Worker 真正退出后解锁设置。"""
+    """暂停与继续应复用同一 Worker，并保持原冻结执行现场。"""
     registry = FullSpeedSessionRegistry(tmp_path / "sessions")
     session = registry.register(_build_full_speed_session(tmp_path / "out"))
     registry.begin(session.session_id)
     workflow = FullSpeedWorkflow(registry)
 
     class _WorkerStub:
-        """记录取消请求和清理调用的运行中 Worker。"""
+        """记录暂停、继续和清理调用的运行中 Worker。"""
+
+        def __init__(self) -> None:
+            """初始化调用记录。"""
+            self.pause_requested = False
+            self.resume_requested = False
+
+        def isRunning(self) -> bool:
+            """模拟仍在运行的线程。"""
+            return True
+
+        def request_pause(self) -> None:
+            """记录协作式暂停请求。"""
+            self.pause_requested = True
+
+        def request_resume(self) -> None:
+            """记录继续请求。"""
+            self.resume_requested = True
+
+    worker = _WorkerStub()
+    workflow._workers[session.session_id] = worker
+
+    assert workflow.pause(session.session_id)
+    assert worker.pause_requested
+    assert (
+        registry.state(session.session_id).status
+        is FullSpeedStatus.PAUSING
+    )
+    assert session.full_speed_locked
+
+    workflow._on_paused(session.session_id)
+    assert registry.state(session.session_id).status is FullSpeedStatus.PAUSED
+    assert workflow.resume(session.session_id)
+
+    assert worker.resume_requested
+    assert registry.state(session.session_id).status is FullSpeedStatus.RUNNING
+    assert workflow._workers[session.session_id] is worker
+    assert session.full_speed_locked
+
+
+def test_workflow_restarts_paused_worker_from_current_settings(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """重新执行应先终止暂停 Worker，再从头创建新任务。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    registry.begin(session.session_id)
+    registry.mark_pausing(session.session_id)
+    registry.mark_paused(session.session_id)
+    workflow = FullSpeedWorkflow(registry)
+
+    class _WorkerStub:
+        """记录暂停 Worker 的终止与销毁。"""
 
         def __init__(self) -> None:
             """初始化调用记录。"""
@@ -191,11 +250,11 @@ def test_workflow_user_cancel_marks_cancelling_and_unlocks_on_finish(
             self.deleted = False
 
         def isRunning(self) -> bool:
-            """模拟仍在运行的线程。"""
+            """模拟仍在等待的暂停线程。"""
             return True
 
         def request_cancel(self) -> None:
-            """记录协作式取消请求。"""
+            """记录终止及唤醒请求。"""
             self.cancel_requested = True
 
         def deleteLater(self) -> None:
@@ -203,26 +262,131 @@ def test_workflow_user_cancel_marks_cancelling_and_unlocks_on_finish(
             self.deleted = True
 
     worker = _WorkerStub()
+    started: list[str] = []
     workflow._workers[session.session_id] = worker
+    monkeypatch.setattr(workflow, "start", started.append)
 
-    assert workflow.cancel(session.session_id)
+    assert workflow.restart_paused(session.session_id)
     assert worker.cancel_requested
     assert (
         registry.state(session.session_id).status
-        is FullSpeedStatus.CANCELLING
+        is FullSpeedStatus.RESTARTING
     )
-    assert session.full_speed_locked
+    workflow._on_finished(
+        session.session_id,
+        FullSpeedWorkerResult(success=False, cancelled=True),
+    )
+
+    assert worker.deleted
+    assert session.session_id not in workflow._workers
+    assert session.session_id not in workflow._restart_requests
+    assert started == [session.session_id]
+    assert (
+        registry.state(session.session_id).status
+        is FullSpeedStatus.INTERRUPTED
+    )
+
+
+def test_workflow_safely_deletes_paused_session_after_worker_stops(
+    tmp_path,
+) -> None:
+    """暂停任务应先终止并清理 Worker，再删除 Session。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    registry.begin(session.session_id)
+    registry.mark_pausing(session.session_id)
+    registry.mark_paused(session.session_id)
+    workflow = FullSpeedWorkflow(registry)
+
+    class _WorkerStub:
+        """记录暂停 Worker 的终止和销毁调用。"""
+
+        def __init__(self) -> None:
+            """初始化调用记录。"""
+            self.cancel_requested = False
+            self.deleted = False
+
+        def isRunning(self) -> bool:
+            """模拟仍在暂停等待的 Worker。"""
+            return True
+
+        def request_cancel(self) -> None:
+            """记录终止暂停现场的请求。"""
+            self.cancel_requested = True
+
+        def deleteLater(self) -> None:
+            """记录 Worker 延迟销毁。"""
+            self.deleted = True
+
+    worker = _WorkerStub()
+    workflow._workers[session.session_id] = worker
+
+    assert workflow.delete(session.session_id)
+    assert worker.cancel_requested
+    assert registry.get(session.session_id) is session
+    assert (
+        registry.state(session.session_id).status
+        is FullSpeedStatus.DELETING
+    )
 
     workflow._on_finished(
         session.session_id,
         FullSpeedWorkerResult(success=False, cancelled=True),
     )
 
-    assert not session.full_speed_locked
-    assert registry.state(session.session_id).status is FullSpeedStatus.CANCELLED
-    assert session.session_id not in workflow._user_cancel_requests
-    assert session.session_id not in workflow._workers
     assert worker.deleted
+    assert session.session_id not in workflow._workers
+    assert session.session_id not in workflow._delete_requests
+    assert registry.get(session.session_id) is None
+    assert registry.state(session.session_id) is None
+
+
+def test_worker_pause_wait_can_resume_or_be_cancelled(tmp_path) -> None:
+    """Worker 暂停等待应保留线程，并可由继续或停机请求唤醒。"""
+    session = _build_full_speed_session(tmp_path / "out")
+    request = FullSpeedWorkflow._build_request(session)
+    worker = FullSpeedWorker(request)
+    paused = threading.Event()
+    resumed = threading.Event()
+    worker.paused_signal.connect(
+        lambda _session_id: paused.set(),
+        type=Qt.ConnectionType.DirectConnection,
+    )
+
+    worker.request_pause()
+    resume_thread = threading.Thread(
+        target=lambda: (worker._wait_if_paused(), resumed.set()),
+        daemon=True,
+    )
+    resume_thread.start()
+
+    assert paused.wait(1)
+    assert resume_thread.is_alive()
+    worker.request_resume()
+    assert resumed.wait(1)
+    resume_thread.join(1)
+    assert not resume_thread.is_alive()
+
+    cancelled = threading.Event()
+    worker.request_pause()
+
+    def wait_until_cancelled() -> None:
+        """等待暂停被内部终止请求唤醒。"""
+        try:
+            worker._wait_if_paused()
+        except RuntimeError:
+            cancelled.set()
+
+    cancel_thread = threading.Thread(
+        target=wait_until_cancelled,
+        daemon=True,
+    )
+    cancel_thread.start()
+    worker.request_cancel()
+
+    assert cancelled.wait(1)
+    cancel_thread.join(1)
+    assert not cancel_thread.is_alive()
 
 
 def test_registry_persists_session_parameter_snapshot_before_freeze(

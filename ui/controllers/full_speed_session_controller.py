@@ -10,7 +10,10 @@ from PyQt6.QtWidgets import QFileDialog, QWidget
 from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox
 
 from app.signal_bus import signal_bus
-from runtime.full_speed_session_registry import FullSpeedSessionRegistry
+from runtime.full_speed_session_registry import (
+    FullSpeedSessionRegistry,
+    FullSpeedStatus,
+)
 from runtime.session_coordinator import SessionCoordinator
 from runtime.workflows.full_speed_workflow import FullSpeedWorkflow
 from ui.components.full_speed_params_window import FullSpeedParamsWindow
@@ -65,7 +68,7 @@ class FullSpeedSessionController(QObject):
         self.view.outputDirectoryRequested.connect(self.select_output_directory)
         self.view.parametersRequested.connect(self.open_parameters)
         self.view.startRequested.connect(self.start_session)
-        self.view.cancelRequested.connect(self.cancel_session)
+        self.view.pauseRequested.connect(self.toggle_pause_session)
         self.view.deleteRequested.connect(self.delete_session)
         self.view.openOutputRequested.connect(self.open_output)
         signal_bus.full_speed_session_changed.connect(self.refresh_panel)
@@ -103,7 +106,7 @@ class FullSpeedSessionController(QObject):
         )
 
     def select_output_directory(self, session_id: str) -> None:
-        """为尚未启动的全速 Session 选择独立保存目录。
+        """为配置中或已暂停的全速 Session 选择独立保存目录。
 
         Args:
             session_id [str]: 目标全速 Session ID。
@@ -131,7 +134,7 @@ class FullSpeedSessionController(QObject):
         self.refresh_panel(session_id)
 
     def open_parameters(self, session_id: str) -> None:
-        """打开未冻结全速 Session 的参数编辑窗口。
+        """打开配置中或已暂停全速 Session 的参数编辑窗口。
 
         Args:
             session_id [str]: 目标全速 Session ID。
@@ -143,10 +146,17 @@ class FullSpeedSessionController(QObject):
         if session is None:
             self._show_warning("设置失败", "全速 Session 不存在")
             return
-        if session.full_speed_locked:
+        state = self.registry.state(session_id)
+        if (
+            session.full_speed_locked
+            and (
+                state is None
+                or state.status is not FullSpeedStatus.PAUSED
+            )
+        ):
             self._show_warning(
                 "参数已冻结",
-                "全速任务首次开始后不能再修改参数",
+                "请先暂停全速任务，再修改参数",
             )
             return
 
@@ -208,9 +218,19 @@ class FullSpeedSessionController(QObject):
         if window is not None:
             window.close()
         self.refresh_panel(session_id)
+        state = self.registry.state(session_id)
+        paused_and_changed = (
+            state is not None
+            and state.status is FullSpeedStatus.PAUSED
+            and state.restart_required
+        )
         InfoBar.success(
             title="设置已保存",
-            content="当前全速 Session 将使用这组参数和模型执行。",
+            content=(
+                "设置已修改，请点击“重新执行”从第一个切片开始。"
+                if paused_and_changed
+                else "当前全速 Session 将使用这组参数和模型执行。"
+            ),
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,
@@ -219,7 +239,7 @@ class FullSpeedSessionController(QObject):
         )
 
     def start_session(self, session_id: str) -> None:
-        """冻结参数与模型并启动全速任务。
+        """启动任务，或终止暂停现场后使用当前设置重新执行。
 
         Args:
             session_id [str]: 目标全速 Session ID。
@@ -232,11 +252,16 @@ class FullSpeedSessionController(QObject):
             self._show_warning("启动失败", "全速 Session 不存在")
             return
         try:
+            state = self.registry.state(session_id)
             if not session.config_snapshot.business.export_dir_path.strip():
                 self.select_output_directory(session_id)
                 if not session.config_snapshot.business.export_dir_path.strip():
                     return
-            self.workflow.start(session_id)
+            if state is not None and state.status is FullSpeedStatus.PAUSED:
+                if not self.workflow.restart_paused(session_id):
+                    raise RuntimeError("当前暂停任务无法重新执行")
+            else:
+                self.workflow.start(session_id)
             params_window = self._param_windows.get(session_id)
             if params_window is not None:
                 params_window.close()
@@ -244,8 +269,8 @@ class FullSpeedSessionController(QObject):
             self._show_warning("启动失败", str(error))
             self.refresh_panel(session_id)
 
-    def cancel_session(self, session_id: str) -> None:
-        """请求正在运行的全速任务安全取消。
+    def toggle_pause_session(self, session_id: str) -> None:
+        """根据当前状态暂停任务或从原执行现场继续。
 
         Args:
             session_id [str]: 目标全速 Session ID。
@@ -253,14 +278,34 @@ class FullSpeedSessionController(QObject):
         Returns:
             None: 无返回值。
         """
-        if not self.workflow.cancel(session_id):
+        state = self.registry.state(session_id)
+        if state is None:
+            self._show_warning("操作失败", "全速 Session 不存在")
+            return
+        if state.status is FullSpeedStatus.RUNNING:
+            succeeded = self.workflow.pause(session_id)
+            title = "无法暂停"
+            message = "当前任务不在可暂停的执行阶段"
+        elif state.status is FullSpeedStatus.PAUSED:
+            succeeded = self.workflow.resume(session_id)
+            title = "无法继续"
+            message = (
+                "设置已修改，请点击“重新执行”让新设置生效"
+                if state.restart_required
+                else "当前任务无法从暂停现场继续"
+            )
+        else:
+            succeeded = False
+            title = "操作失败"
+            message = "当前任务不支持暂停或继续"
+        if not succeeded:
             self._show_warning(
-                "无法取消",
-                "当前任务不在可取消的执行阶段",
+                title,
+                message,
             )
 
     def delete_session(self, session_id: str) -> None:
-        """确认后删除非运行中的全速 Session。
+        """确认后删除停止任务，或安全终止暂停现场后删除。
 
         Args:
             session_id [str]: 目标全速 Session ID。
@@ -271,15 +316,23 @@ class FullSpeedSessionController(QObject):
         session = self.registry.get(session_id)
         if session is None:
             return
+        state = self.registry.state(session_id)
+        paused_hint = (
+            "暂停处理现场将先终止并清理。"
+            if state is not None and state.status is FullSpeedStatus.PAUSED
+            else ""
+        )
         dialog = MessageBox(
             "删除全速 Session",
-            f"确认删除“{session.display_name}”吗？已生成的 Excel 文件不会删除。",
+            f"确认删除“{session.display_name}”吗？{paused_hint}"
+            "已生成的 Excel 文件不会删除。",
             self._message_parent,
         )
         if not dialog.exec():
             return
         try:
-            self.registry.delete(session_id)
+            if not self.workflow.delete(session_id):
+                raise RuntimeError("当前全速任务仍在执行，暂时不能删除")
         except Exception as error:
             self._show_warning("删除失败", str(error))
             return

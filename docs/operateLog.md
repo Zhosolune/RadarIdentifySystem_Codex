@@ -1,5 +1,68 @@
 # 变更记录
 
+- 时间：2026-08-07 15:51
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\full_speed_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\full_speed_session_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：允许删除已暂停的全速任务，并在删除 Session 前安全终止及清理仍然存活的暂停 Worker。
+- 原因：暂停 Worker 保留执行现场，不能直接删除注册器状态；用户确认删除后应自动完成“终止现场—清理线程—删除 Session”的完整流程。
+- 计划清单：
+  - [x] 核对暂停 Worker、注册器删除保护、控制器确认框和卡片入口。
+  - [x] 增加正在删除状态和暂停任务删除请求。
+  - [x] Worker 退出并从工作流移除后再删除 Session 持久化数据。
+  - [x] 开放暂停卡片删除按钮并调整确认提示。
+  - [x] 补充安全删除、重复操作隔离和 UI 状态回归。
+  - [x] 执行聚焦测试、Python 编译和差异检查。
+- 验证结果：
+  - 已暂停任务的删除按钮可用，确认框明确提示会先终止并清理暂停处理现场，既有 Excel 文件仍保留。
+  - 用户确认后状态切换为 `DELETING`，参数、保存路径、继续、重新执行和重复删除入口全部禁用，并显示旋转状态指示器。
+  - 工作流使用内部终止请求唤醒暂停 Worker；只有 Worker 发出终态、从运行表移除并调用 `deleteLater()` 后，注册器才删除 Session 及其持久化记录。
+  - 正常停止的任务仍通过原同步删除路径处理；运行中、暂停中、导出中和重新执行中的任务仍禁止删除。
+  - 运行时与卡片聚焦回归：22 passed，2 deselected，1 个第三方 scipy 弃用警告。
+  - 两个测试文件完整回归：22 passed、2 failed；失败仍为既有滚动条右侧沟槽宽度和卡片间距断言，本次未修改相关布局或 QSS。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
+- 时间：2026-08-07 15:16
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\full_speed_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\full_speed_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\full_speed_session_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将全速任务的用户取消语义重构为安全检查点暂停，并支持原现场继续或修改设置后从头重新执行。
+- 原因：用户需要把临时停止与终止任务区分开；未修改设置时必须保留当前执行现场，修改参数、模型或保存路径后则必须让新设置从第一个切片生效。
+- 计划清单：
+  - [x] 核对现有取消状态、Worker 安全检查点、冻结快照、卡片入口和软件停机路径。
+  - [x] 增加暂停请求、暂停等待、继续唤醒和停机唤醒机制。
+  - [x] 增加暂停中、已暂停、正在重新执行及设置修改后需重新执行的状态转换。
+  - [x] 调整卡片按钮、设置入口和控制器行为，保留现有状态放大及旋转动画。
+  - [x] 补充暂停、继续、修改后重启、退出停机和 UI 生命周期回归。
+  - [x] 执行聚焦测试、Python 编译和差异检查。
+- 验证结果：
+  - 运行中按钮已由“取消”改为“暂停”；暂停请求会等待当前完整切片的聚类、识别和自动合并结束，再进入 `PAUSED`，不会在算法内部强停。
+  - 未修改设置时，“暂停”按钮切换为“继续”，唤醒同一个 Worker 并复用已完成切片及当前局部结果；暂停 Worker 保持运行线程并继续占用并发名额。
+  - 暂停后允许修改参数、PA/DTOA 模型和保存路径，任一保存操作都会设置 `restart_required`，禁用“继续”并要求点击“重新执行”。
+  - “重新执行”会先唤醒并终止旧暂停 Worker，清理后使用当前设置创建新 Worker，从第一个切片开始；清理期间进入 `RESTARTING`，所有重复交互入口保持锁定。
+  - 软件退出仍使用内部终止请求，能够唤醒暂停等待并退出线程；暂停现场不跨进程恢复，重启软件后按冻结快照显示为已中断。
+  - 运行时与卡片聚焦回归：21 passed，2 deselected，1 个第三方 scipy 弃用警告。
+  - 两个测试文件完整回归：21 passed、2 failed；失败仍为既有滚动条右侧沟槽宽度和卡片间距断言，本次未修改相关布局或 QSS。
+  - 全速相关扩大回归：93 passed、2 deselected、1 failed；失败为既有模型列表为空时参数窗口无法保存的路由测试，与暂停状态链无关。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check`：通过（仅换行符提示）。
+  - 2026-08-07 11:47 的“取消后解锁”实现已被本次暂停/继续语义完整取代，不再作为用户操作入口。
+- 测试状态：[已测试]
+
 - 时间：2026-08-07 11:47
 - 操作类型：[修改]
 - 影响文件：

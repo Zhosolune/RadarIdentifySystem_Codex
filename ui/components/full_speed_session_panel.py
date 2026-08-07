@@ -46,29 +46,33 @@ from ui.components.scrolling_name_label import ScrollingNameLabel
 _STATUS_TEXT = {
     FullSpeedStatus.CONFIGURING: "等待启动",
     FullSpeedStatus.RUNNING: "执行中",
-    FullSpeedStatus.CANCELLING: "正在取消",
+    FullSpeedStatus.PAUSING: "正在暂停",
+    FullSpeedStatus.PAUSED: "已暂停",
+    FullSpeedStatus.RESTARTING: "正在重新执行",
+    FullSpeedStatus.DELETING: "正在删除",
     FullSpeedStatus.EXPORTING: "正在保存",
     FullSpeedStatus.SUCCEEDED: "已完成",
     FullSpeedStatus.FAILED: "失败",
-    FullSpeedStatus.CANCELLED: "已取消",
     FullSpeedStatus.INTERRUPTED: "已中断",
 }
 
 _START_ACTION_TEXT = {
     FullSpeedStatus.CONFIGURING: "开始",
     FullSpeedStatus.RUNNING: "执行中",
-    FullSpeedStatus.CANCELLING: "取消中",
+    FullSpeedStatus.PAUSING: "暂停中",
+    FullSpeedStatus.PAUSED: "重新执行",
+    FullSpeedStatus.RESTARTING: "重新执行中",
+    FullSpeedStatus.DELETING: "删除中",
     FullSpeedStatus.EXPORTING: "保存中",
     FullSpeedStatus.SUCCEEDED: "已完成",
     FullSpeedStatus.FAILED: "重试",
-    FullSpeedStatus.CANCELLED: "重新开始",
     FullSpeedStatus.INTERRUPTED: "重试",
 }
 
 _STARTABLE_STATUSES = {
     FullSpeedStatus.CONFIGURING,
     FullSpeedStatus.FAILED,
-    FullSpeedStatus.CANCELLED,
+    FullSpeedStatus.PAUSED,
     FullSpeedStatus.INTERRUPTED,
 }
 
@@ -87,7 +91,25 @@ _STATUS_VISUALS = {
         "#0078d4",
         "#4cc2ff",
     ),
-    FullSpeedStatus.CANCELLING: (
+    FullSpeedStatus.PAUSING: (
+        FluentIcon.SYNC,
+        InfoLevel.WARNING,
+        "#9d5d00",
+        "#fce100",
+    ),
+    FullSpeedStatus.PAUSED: (
+        FluentIcon.PAUSE,
+        InfoLevel.WARNING,
+        "#9d5d00",
+        "#fce100",
+    ),
+    FullSpeedStatus.RESTARTING: (
+        FluentIcon.SYNC,
+        InfoLevel.ATTENTION,
+        "#0078d4",
+        "#4cc2ff",
+    ),
+    FullSpeedStatus.DELETING: (
         FluentIcon.SYNC,
         InfoLevel.WARNING,
         "#9d5d00",
@@ -111,12 +133,6 @@ _STATUS_VISUALS = {
         "#c42b1c",
         "#ff99a4",
     ),
-    FullSpeedStatus.CANCELLED: (
-        FluentIcon.CANCEL_MEDIUM,
-        InfoLevel.WARNING,
-        "#9d5d00",
-        "#fce100",
-    ),
     FullSpeedStatus.INTERRUPTED: (
         FluentIcon.PAUSE,
         InfoLevel.WARNING,
@@ -133,7 +149,7 @@ class FullSpeedSessionCard(CardWidget):
         outputDirectoryRequested: 请求修改保存目录的信号。
         parametersRequested: 请求修改 Session 参数快照的信号。
         startRequested: 请求开始或重试的信号。
-        cancelRequested: 请求取消的信号。
+        pauseRequested: 请求暂停或继续的信号。
         deleteRequested: 请求删除 Session 的信号。
         openOutputRequested: 请求打开结果文件的信号。
     """
@@ -141,7 +157,7 @@ class FullSpeedSessionCard(CardWidget):
     outputDirectoryRequested = pyqtSignal(str)
     parametersRequested = pyqtSignal(str)
     startRequested = pyqtSignal(str)
-    cancelRequested = pyqtSignal(str)
+    pauseRequested = pyqtSignal(str)
     deleteRequested = pyqtSignal(str)
     openOutputRequested = pyqtSignal(str)
 
@@ -261,13 +277,13 @@ class FullSpeedSessionCard(CardWidget):
         self.start_button.setText(widest_action_text)
         self.start_button.setFixedWidth(self.start_button.sizeHint().width())
         self.start_button.setText(start_text)
-        self.cancel_button = PushButton("取消", self)
+        self.pause_button = PushButton("暂停", self)
         self.open_button = PushButton("打开结果", self)
         self.delete_button = PushButton("删除", self)
         for button in (
             self.output_button,
             self.params_button,
-            self.cancel_button,
+            self.pause_button,
             self.open_button,
             self.delete_button,
         ):
@@ -276,7 +292,7 @@ class FullSpeedSessionCard(CardWidget):
         action_layout.addWidget(self.output_button)
         action_layout.addWidget(self.params_button)
         action_layout.addWidget(self.start_button)
-        action_layout.addWidget(self.cancel_button)
+        action_layout.addWidget(self.pause_button)
         action_layout.addWidget(self.open_button)
         action_layout.addStretch(1)
         action_layout.addWidget(self.delete_button)
@@ -291,8 +307,8 @@ class FullSpeedSessionCard(CardWidget):
         self.start_button.clicked.connect(
             lambda: self.startRequested.emit(self.session_id)
         )
-        self.cancel_button.clicked.connect(
-            lambda: self.cancelRequested.emit(self.session_id)
+        self.pause_button.clicked.connect(
+            lambda: self.pauseRequested.emit(self.session_id)
         )
         self.delete_button.clicked.connect(
             lambda: self.deleteRequested.emit(self.session_id)
@@ -335,28 +351,48 @@ class FullSpeedSessionCard(CardWidget):
         )
 
         running = state.status is FullSpeedStatus.RUNNING
-        cancelling = state.status is FullSpeedStatus.CANCELLING
+        pausing = state.status is FullSpeedStatus.PAUSING
+        paused = state.status is FullSpeedStatus.PAUSED
+        restarting = state.status is FullSpeedStatus.RESTARTING
+        deleting = state.status is FullSpeedStatus.DELETING
         exporting = state.status is FullSpeedStatus.EXPORTING
+        settings_editable = not session.full_speed_locked or paused
         self.output_button.setEnabled(
-            not session.full_speed_locked
+            settings_editable
             and not running
-            and not cancelling
+            and not pausing
+            and not restarting
+            and not deleting
             and not exporting
         )
         self.params_button.setEnabled(
-            not session.full_speed_locked
+            settings_editable
             and not running
-            and not cancelling
+            and not pausing
+            and not restarting
+            and not deleting
             and not exporting
         )
         # 只有尚未启动或未成功结束的任务可以进入执行流程；成功任务由运行时禁止重启。
         self.start_button.setEnabled(state.status in _STARTABLE_STATUSES)
         self.start_button.setText(_START_ACTION_TEXT[state.status])
-        # Excel 写入阶段不接受取消，避免原子替换完成后产生“已取消但文件存在”的歧义。
-        self.cancel_button.setEnabled(running)
+        # 暂停后只有未修改设置时可继续原 Worker；修改后必须重新执行。
+        self.pause_button.setText(
+            "继续" if paused else ("暂停中" if pausing else "暂停")
+        )
+        self.pause_button.setEnabled(
+            running or (paused and not state.restart_required)
+        )
         self.open_button.setEnabled(bool(state.output_file))
         self.delete_button.setEnabled(
-            not running and not cancelling and not exporting
+            paused
+            or not (
+                running
+                or pausing
+                or restarting
+                or deleting
+                or exporting
+            )
         )
 
     def _apply_status_visuals(self, status: FullSpeedStatus) -> None:
@@ -366,7 +402,9 @@ class FullSpeedSessionCard(CardWidget):
         self.status_badge.setLevel(level)
         if status in {
             FullSpeedStatus.RUNNING,
-            FullSpeedStatus.CANCELLING,
+            FullSpeedStatus.PAUSING,
+            FullSpeedStatus.RESTARTING,
+            FullSpeedStatus.DELETING,
         }:
             self.status_badge.hide()
             self.status_spinner.setCustomBarColor(light_color, dark_color)
@@ -396,8 +434,10 @@ class FullSpeedSessionCard(CardWidget):
             self.progress_bar.error()
         elif status in {
             FullSpeedStatus.EXPORTING,
-            FullSpeedStatus.CANCELLING,
-            FullSpeedStatus.CANCELLED,
+            FullSpeedStatus.PAUSING,
+            FullSpeedStatus.PAUSED,
+            FullSpeedStatus.RESTARTING,
+            FullSpeedStatus.DELETING,
             FullSpeedStatus.INTERRUPTED,
         }:
             self.progress_bar.pause()
@@ -410,7 +450,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         outputDirectoryRequested: 携带 Session ID 的保存目录请求。
         parametersRequested: 携带 Session ID 的参数编辑请求。
         startRequested: 携带 Session ID 的开始请求。
-        cancelRequested: 携带 Session ID 的取消请求。
+        pauseRequested: 携带 Session ID 的暂停或继续请求。
         deleteRequested: 携带 Session ID 的删除请求。
         openOutputRequested: 携带 Session ID 的打开结果请求。
     """
@@ -418,7 +458,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
     outputDirectoryRequested = pyqtSignal(str)
     parametersRequested = pyqtSignal(str)
     startRequested = pyqtSignal(str)
-    cancelRequested = pyqtSignal(str)
+    pauseRequested = pyqtSignal(str)
     deleteRequested = pyqtSignal(str)
     openOutputRequested = pyqtSignal(str)
 
@@ -497,7 +537,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         content_layout.setSpacing(0)
 
         self.empty_label = BodyLabel(
-            "从数据池创建“全速处理（自动）”Session",
+            "从数据池创建全速处理Session",
             self.content_widget,
         )
         self.empty_label.setObjectName("homeFullSpeedEmptyLabel")
@@ -556,7 +596,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
                 )
                 card.parametersRequested.connect(self.parametersRequested)
                 card.startRequested.connect(self.startRequested)
-                card.cancelRequested.connect(self.cancelRequested)
+                card.pauseRequested.connect(self.pauseRequested)
                 card.deleteRequested.connect(self.deleteRequested)
                 card.openOutputRequested.connect(self.openOutputRequested)
                 self._cards[session.session_id] = card

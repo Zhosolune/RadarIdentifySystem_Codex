@@ -28,11 +28,13 @@ class FullSpeedStatus(Enum):
 
     CONFIGURING = "configuring"
     RUNNING = "running"
-    CANCELLING = "cancelling"
+    PAUSING = "pausing"
+    PAUSED = "paused"
+    RESTARTING = "restarting"
+    DELETING = "deleting"
     EXPORTING = "exporting"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
-    CANCELLED = "cancelled"
     INTERRUPTED = "interrupted"
 
 
@@ -49,6 +51,7 @@ class FullSpeedExecutionState:
         message: 面向用户的状态说明或错误信息。
         output_dir: 配置中的保存目录。
         output_file: 成功写出的结果文件。
+        restart_required: 暂停后设置已改变、必须从头重新执行时为 True。
     """
 
     status: FullSpeedStatus = FullSpeedStatus.CONFIGURING
@@ -59,6 +62,7 @@ class FullSpeedExecutionState:
     message: str = "启动时将冻结当前 Session 参数和模型选择"
     output_dir: str = ""
     output_file: str = ""
+    restart_required: bool = False
 
 
 class FullSpeedSessionRegistry:
@@ -179,11 +183,25 @@ class FullSpeedSessionRegistry:
             raise ValueError("保存目录不能为空")
         with self._lock:
             session = self._require_session(session_id)
-            if session.full_speed_locked:
-                raise RuntimeError("全速任务参数已冻结，不能修改保存目录")
+            state = self._require_state(session_id)
+            self._ensure_settings_editable(
+                session,
+                state,
+                "全速任务参数已冻结，不能修改保存目录",
+            )
+            previous_output_dir = (
+                session.config_snapshot.business.export_dir_path
+            )
             session.config_snapshot.business.export_dir_path = normalized
-            self.session_registry.persist_session(session_id)
-            self._require_state(session_id).output_dir = normalized
+            try:
+                self.session_registry.persist_session(session_id)
+            except Exception:
+                session.config_snapshot.business.export_dir_path = (
+                    previous_output_dir
+                )
+                raise
+            state.output_dir = normalized
+            self._mark_restart_required(state)
 
     def set_config_snapshot(
         self,
@@ -211,8 +229,12 @@ class FullSpeedSessionRegistry:
         submitted = SessionConfigSnapshot.from_dict(snapshot.to_dict())
         with self._lock:
             session = self._require_session(session_id)
-            if session.full_speed_locked:
-                raise RuntimeError("全速任务参数已冻结，不能修改参数")
+            state = self._require_state(session_id)
+            self._ensure_settings_editable(
+                session,
+                state,
+                "全速任务参数已冻结，不能修改参数",
+            )
 
             current = session.config_snapshot
             current_copy = SessionConfigSnapshot.from_dict(current.to_dict())
@@ -225,6 +247,7 @@ class FullSpeedSessionRegistry:
                 # 持久化失败时恢复原对象，避免内存状态与磁盘记录不一致。
                 session.config_snapshot = current
                 raise
+            self._mark_restart_required(state)
 
     def set_settings(
         self,
@@ -264,8 +287,12 @@ class FullSpeedSessionRegistry:
 
         with self._lock:
             session = self._require_session(session_id)
-            if session.full_speed_locked:
-                raise RuntimeError("全速任务参数与模型已冻结，不能修改设置")
+            state = self._require_state(session_id)
+            self._ensure_settings_editable(
+                session,
+                state,
+                "全速任务参数与模型已冻结，不能修改设置",
+            )
 
             current_snapshot = session.config_snapshot
             current_selection = session.model_selection
@@ -283,12 +310,13 @@ class FullSpeedSessionRegistry:
                 session.config_snapshot = current_snapshot
                 session.model_selection = current_selection
                 raise
+            self._mark_restart_required(state)
 
     def begin(self, session_id: str) -> ProcessingSession:
         """冻结配置并把任务切换为运行状态。
 
         开始时会持久化 ``full_speed_locked``。失败或中断后的重试继续使用
-        冻结快照；用户主动取消完成后可以修改设置，再次开始时重新冻结。
+        冻结快照；暂停现场不能通过本入口重复启动。
 
         Args:
             session_id [str]: 目标 Session ID。
@@ -307,7 +335,10 @@ class FullSpeedSessionRegistry:
             state = self._require_state(session_id)
             if state.status in {
                 FullSpeedStatus.RUNNING,
-                FullSpeedStatus.CANCELLING,
+                FullSpeedStatus.PAUSING,
+                FullSpeedStatus.PAUSED,
+                FullSpeedStatus.RESTARTING,
+                FullSpeedStatus.DELETING,
                 FullSpeedStatus.EXPORTING,
             }:
                 raise RuntimeError("全速任务正在执行")
@@ -361,8 +392,13 @@ class FullSpeedSessionRegistry:
         """
         with self._lock:
             state = self._require_state(session_id)
-            if state.status is FullSpeedStatus.CANCELLING:
-                # 取消请求发出后忽略已排队的旧进度，不能把状态覆盖回运行中。
+            if state.status in {
+                FullSpeedStatus.PAUSING,
+                FullSpeedStatus.PAUSED,
+                FullSpeedStatus.RESTARTING,
+                FullSpeedStatus.DELETING,
+            }:
+                # 暂停请求发出后忽略已排队的旧进度，不能覆盖暂停状态。
                 return
             if state.status not in {
                 FullSpeedStatus.RUNNING,
@@ -380,8 +416,8 @@ class FullSpeedSessionRegistry:
             state.progress = max(0, min(100, int(progress)))
             state.message = message
 
-    def mark_cancelling(self, session_id: str) -> None:
-        """记录任务正在等待安全检查点取消。
+    def mark_pausing(self, session_id: str) -> None:
+        """记录任务正在等待安全检查点暂停。
 
         Args:
             session_id [str]: 目标 Session ID。
@@ -391,15 +427,127 @@ class FullSpeedSessionRegistry:
 
         Raises:
             KeyError: Session 状态不存在时抛出。
-            RuntimeError: 任务当前不在可取消的运行状态时抛出。
+            RuntimeError: 任务当前不在可暂停的运行状态时抛出。
         """
         with self._lock:
             state = self._require_state(session_id)
             if state.status is not FullSpeedStatus.RUNNING:
-                raise RuntimeError("当前全速任务不在可取消状态")
-            state.status = FullSpeedStatus.CANCELLING
-            state.current_stage = "正在取消"
-            state.message = "正在等待当前步骤完成后取消"
+                raise RuntimeError("当前全速任务不在可暂停状态")
+            state.status = FullSpeedStatus.PAUSING
+            state.current_stage = "正在暂停"
+            state.message = "正在等待当前切片完整处理后暂停"
+
+    def mark_paused(self, session_id: str) -> None:
+        """记录 Worker 已经进入安全暂停等待。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 状态不存在时抛出。
+            RuntimeError: 任务没有处于暂停请求状态时抛出。
+        """
+        with self._lock:
+            state = self._require_state(session_id)
+            if state.status is not FullSpeedStatus.PAUSING:
+                raise RuntimeError("当前全速任务没有等待暂停")
+            state.status = FullSpeedStatus.PAUSED
+            state.current_stage = "已暂停"
+            state.message = "可继续当前处理，或修改设置后重新执行"
+
+    def mark_resumed(self, session_id: str) -> None:
+        """把未修改设置的暂停任务恢复为运行状态。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 状态不存在时抛出。
+            RuntimeError: 任务未暂停或设置已改变时抛出。
+        """
+        with self._lock:
+            state = self._require_state(session_id)
+            if state.status is not FullSpeedStatus.PAUSED:
+                raise RuntimeError("当前全速任务不在暂停状态")
+            if state.restart_required:
+                raise RuntimeError("设置已修改，请重新执行")
+            state.status = FullSpeedStatus.RUNNING
+            state.current_stage = "继续执行"
+            state.message = "正在使用暂停前的参数继续处理"
+
+    def prepare_restart(self, session_id: str) -> None:
+        """在旧暂停 Worker 退出后把任务准备为从头重新执行。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 状态不存在时抛出。
+            RuntimeError: 任务当前没有处于重新执行准备状态时抛出。
+        """
+        with self._lock:
+            state = self._require_state(session_id)
+            if state.status is not FullSpeedStatus.RESTARTING:
+                raise RuntimeError("当前全速任务不在可重新执行状态")
+            state.status = FullSpeedStatus.INTERRUPTED
+            state.current_stage = "准备重新执行"
+            state.current_slice = 0
+            state.total_slices = 0
+            state.progress = 0
+            state.message = "正在使用当前设置从第一个切片重新执行"
+            state.output_file = ""
+            state.restart_required = False
+
+    def mark_restarting(self, session_id: str) -> None:
+        """锁定暂停任务的交互入口并等待旧 Worker 退出。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 状态不存在时抛出。
+            RuntimeError: 任务当前不是已暂停状态时抛出。
+        """
+        with self._lock:
+            state = self._require_state(session_id)
+            if state.status is not FullSpeedStatus.PAUSED:
+                raise RuntimeError("当前全速任务不在可重新执行状态")
+            state.status = FullSpeedStatus.RESTARTING
+            state.current_stage = "正在重新执行"
+            state.message = "正在清理暂停现场，随后将从第一个切片开始"
+
+    def mark_deleting(self, session_id: str) -> None:
+        """锁定暂停任务入口并等待 Worker 安全终止。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 状态不存在时抛出。
+            RuntimeError: 任务当前不是已暂停状态时抛出。
+        """
+        with self._lock:
+            state = self._require_state(session_id)
+            if state.status is not FullSpeedStatus.PAUSED:
+                raise RuntimeError("当前全速任务不在可删除的暂停状态")
+            state.status = FullSpeedStatus.DELETING
+            state.current_stage = "正在删除"
+            state.message = "正在终止暂停现场并清理 Worker"
 
     def mark_succeeded(self, session_id: str, output_file: str) -> None:
         """记录成功状态并持久化输出文件。
@@ -446,44 +594,23 @@ class FullSpeedSessionRegistry:
             state.current_stage = "处理失败"
             state.message = message
 
-    def mark_cancelled(
-        self,
-        session_id: str,
-        *,
-        unlock_settings: bool = True,
-    ) -> None:
-        """记录任务取消状态，并按取消来源决定是否解锁设置。
+    def mark_interrupted(self, session_id: str) -> None:
+        """记录软件停机等内部终止产生的中断状态。
 
         Args:
             session_id [str]: 目标 Session ID。
-            unlock_settings [bool]: 用户主动取消时为 True，允许修改设置；
-                软件退出停机时为 False，继续保留首次冻结配置。
 
         Returns:
             None: 无返回值。
 
         Raises:
-            KeyError: Session 或状态不存在时抛出。
-            OSError: 解锁状态持久化失败时抛出。
+            KeyError: Session 状态不存在时抛出。
         """
         with self._lock:
-            session = self._require_session(session_id)
             state = self._require_state(session_id)
-            previous_locked = session.full_speed_locked
-            if unlock_settings and previous_locked:
-                session.full_speed_locked = False
-                try:
-                    self.session_registry.persist_session(session_id)
-                except Exception:
-                    session.full_speed_locked = previous_locked
-                    raise
-            state.status = FullSpeedStatus.CANCELLED
-            state.current_stage = "已取消"
-            state.message = (
-                "任务已停止，可修改参数后重新开始"
-                if unlock_settings
-                else "任务已在安全检查点停止"
-            )
+            state.status = FullSpeedStatus.INTERRUPTED
+            state.current_stage = "执行已中断"
+            state.message = "任务已在安全检查点停止，可按冻结参数重试"
 
     def delete(self, session_id: str) -> None:
         """删除非运行中的全速 Session 及其元数据。
@@ -503,10 +630,38 @@ class FullSpeedSessionRegistry:
             state = self._require_state(session_id)
             if state.status in {
                 FullSpeedStatus.RUNNING,
-                FullSpeedStatus.CANCELLING,
+                FullSpeedStatus.PAUSING,
+                FullSpeedStatus.PAUSED,
+                FullSpeedStatus.RESTARTING,
+                FullSpeedStatus.DELETING,
                 FullSpeedStatus.EXPORTING,
             }:
                 raise RuntimeError("全速任务执行期间不能删除")
+            self.session_registry.close(session_id, delete_persisted=True)
+            self._states.pop(session_id, None)
+
+    def finalize_delete(self, session_id: str) -> None:
+        """在暂停 Worker 已退出后完成 Session 删除。
+
+        本入口只供工作流在线程清理完成后调用，避免仍存活的 Worker 向已删除
+        Session 回写进度或终态。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            None: 无返回值。
+
+        Raises:
+            KeyError: Session 或状态不存在时抛出。
+            RuntimeError: 任务没有处于正在删除状态时抛出。
+            OSError: 持久化删除失败时抛出。
+        """
+        with self._lock:
+            state = self._require_state(session_id)
+            if state.status is not FullSpeedStatus.DELETING:
+                raise RuntimeError("当前全速任务没有等待安全删除")
+            self._require_session(session_id)
             self.session_registry.close(session_id, delete_persisted=True)
             self._states.pop(session_id, None)
 
@@ -521,6 +676,26 @@ class FullSpeedSessionRegistry:
             for session in self.all_sessions()
             if session.data_package_id is not None
         }
+
+    @staticmethod
+    def _ensure_settings_editable(
+        session: ProcessingSession,
+        state: FullSpeedExecutionState,
+        frozen_message: str,
+    ) -> None:
+        """校验配置入口当前可编辑，暂停状态允许覆盖待重启配置。"""
+        if (
+            session.full_speed_locked
+            and state.status is not FullSpeedStatus.PAUSED
+        ):
+            raise RuntimeError(frozen_message)
+
+    @staticmethod
+    def _mark_restart_required(state: FullSpeedExecutionState) -> None:
+        """暂停时记录设置变更，阻止旧 Worker 携带旧快照继续。"""
+        if state.status is FullSpeedStatus.PAUSED:
+            state.restart_required = True
+            state.message = "设置已修改，请从第一个切片重新执行"
 
     def _require_session(self, session_id: str) -> ProcessingSession:
         """读取必需 Session，不存在时抛出。"""

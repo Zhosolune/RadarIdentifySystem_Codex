@@ -86,7 +86,7 @@ class FullSpeedWorkerResult:
 
     Attributes:
         success: 是否完整执行并保存成功。
-        cancelled: 是否由用户取消。
+        cancelled: 是否因软件停机或暂停任务重启而提前终止。
         slice_result: 成功时的切片结果。
         clustering_result: 成功时的全量聚类结果。
         recognition_result: 成功时的全量识别结果。
@@ -108,7 +108,7 @@ class FullSpeedWorkerResult:
 
 
 class _FullSpeedCancelled(RuntimeError):
-    """表示任务在安全检查点响应了取消请求。"""
+    """表示任务在安全检查点响应了内部终止请求。"""
 
 
 class FullSpeedWorker(QThread):
@@ -117,11 +117,13 @@ class FullSpeedWorker(QThread):
     Attributes:
         progress_signal: 进度信号，依次携带 Session ID、阶段、当前切片、
             总切片、百分比、说明和是否处于导出阶段。
+        paused_signal: Worker 到达安全检查点并进入暂停等待时发出的信号。
         finished_signal: 终态信号，携带 Session ID 与
             :class:`FullSpeedWorkerResult`。
     """
 
     progress_signal = pyqtSignal(str, str, int, int, int, str, bool)
+    paused_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(str, object)
 
     def __init__(
@@ -141,14 +143,36 @@ class FullSpeedWorker(QThread):
         super().__init__(parent)
         self._request = request
         self._cancel_event = threading.Event()
+        self._pause_event = threading.Event()
+        self._resume_event = threading.Event()
+
+    def request_pause(self) -> None:
+        """请求任务在下一个完整阶段边界进入暂停等待。
+
+        Returns:
+            None: 无返回值。
+        """
+        self._resume_event.clear()
+        self._pause_event.set()
+
+    def request_resume(self) -> None:
+        """唤醒已经暂停的任务并继续使用原执行现场。
+
+        Returns:
+            None: 无返回值。
+        """
+        self._pause_event.clear()
+        self._resume_event.set()
 
     def request_cancel(self) -> None:
-        """请求任务在下一个安全检查点停止。
+        """请求任务在下一个安全检查点终止，并唤醒暂停等待。
 
         Returns:
             None: 无返回值。
         """
         self._cancel_event.set()
+        self._pause_event.clear()
+        self._resume_event.set()
 
     def run(self) -> None:
         """连续执行全速流水线并通过信号返回终态。
@@ -175,7 +199,7 @@ class FullSpeedWorker(QThread):
             result = self._execute()
             self.finished_signal.emit(request.session_id, result)
         except _FullSpeedCancelled:
-            LOGGER.info("全速任务已在安全检查点取消")
+            LOGGER.info("全速任务已在安全检查点终止")
             self.finished_signal.emit(
                 request.session_id,
                 FullSpeedWorkerResult(success=False, cancelled=True),
@@ -195,7 +219,7 @@ class FullSpeedWorker(QThread):
     def _execute(self) -> FullSpeedWorkerResult:
         """执行同步流水线并返回完整结果。"""
         request = self._request
-        self._check_cancelled()
+        self._wait_if_paused()
         self._emit_progress("切片处理", 0, 0, 1, "正在按 250ms 窗口切片")
         slice_result = slice_from_preprocess(
             request.preprocess_result,
@@ -210,6 +234,7 @@ class FullSpeedWorker(QThread):
             5,
             f"生成 {total_slices} 个有效切片",
         )
+        self._wait_if_paused()
 
         clustering_result = ClusteringResult()
         recognition_result = RecognitionResult()
@@ -226,7 +251,7 @@ class FullSpeedWorker(QThread):
             merge_pipeline = MergePipeline(pipeline_params.extract)
 
             for offset, current_slice in enumerate(slice_result.slices):
-                self._check_cancelled()
+                self._wait_if_paused()
                 current_number = offset + 1
                 start_progress = 5 + int(85 * offset / total_slices)
                 self._emit_progress(
@@ -296,8 +321,9 @@ class FullSpeedWorker(QThread):
                     end_progress,
                     f"第 {current_number}/{total_slices} 个切片处理完成",
                 )
+                self._wait_if_paused()
 
-        self._check_cancelled()
+        self._wait_if_paused()
         self._emit_progress(
             "保存 Excel",
             total_slices,
@@ -395,6 +421,20 @@ class FullSpeedWorker(QThread):
         )
 
     def _check_cancelled(self) -> None:
-        """在阶段边界检查协作式取消标志。"""
+        """在阶段边界检查内部协作式终止标志。"""
         if self._cancel_event.is_set():
             raise _FullSpeedCancelled()
+
+    def _wait_if_paused(self) -> None:
+        """在安全检查点响应暂停，并等待继续或内部终止请求。"""
+        self._check_cancelled()
+        if not self._pause_event.is_set():
+            return
+
+        LOGGER.info("全速任务已到达安全检查点，进入暂停")
+        self.paused_signal.emit(self._request.session_id)
+        while self._pause_event.is_set() and not self._cancel_event.is_set():
+            self._resume_event.wait()
+            self._resume_event.clear()
+        self._check_cancelled()
+        LOGGER.info("全速任务已从暂停现场继续")
