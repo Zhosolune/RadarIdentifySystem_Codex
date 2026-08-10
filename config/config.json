@@ -48,7 +48,7 @@
     },
     "System": {
         "LogDir": "E:\\myProjects_Trae\\RadarIdentifySystem_Codex\\logs",
-        "LogLevel": "INFO"
+        "LogLevel": "DEBUG"
     },
     "algorithm.merge": {
         "placeholderValue": 0.0

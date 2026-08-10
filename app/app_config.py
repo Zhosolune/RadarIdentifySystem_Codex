@@ -45,7 +45,7 @@ class AppConfig(QConfig):
     logLevel = OptionsConfigItem(
         "System",
         "LogLevel",
-        "INFO",
+        "DEBUG",
         validator=OptionsValidator(["DEBUG", "INFO", "WARN", "ERROR"]),
     )
 
