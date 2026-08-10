@@ -15,6 +15,7 @@ from qfluentwidgets import (
     ToolTipFilter,
     ToolTipPosition,
 )
+from app.custom_icon import CustomIcon
 from ui.components.scrolling_name_label import ScrollingNameLabel
 
 class ModelItemCard(CardWidget):
@@ -125,8 +126,8 @@ class ModelItemCard(CardWidget):
         self.commandBar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         
         # 仅为可编辑模型创建命令动作
-        self.renameAction = Action(FluentIcon.EDIT, "重命名")
-        self.remarkAction = Action(FluentIcon.EDIT, "编辑备注")
+        self.renameAction = Action(CustomIcon.RENAME, "重命名")
+        self.remarkAction = Action(CustomIcon.EDIT, "编辑备注")
         self.deleteAction = Action(FluentIcon.DELETE, "删除")
         self.deleteAction.setProperty("danger", True)
 

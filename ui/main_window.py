@@ -20,6 +20,7 @@ from qfluentwidgets import (
 from qfluentwidgets.common.router import qrouter
 
 from app.application import ApplicationServices, create_application_services
+from app.custom_icon import CustomIcon
 from runtime.data_pool_registry import DataPoolRegistry
 from runtime.full_speed_session_registry import FullSpeedSessionRegistry
 from runtime.session_coordinator import ProcessingSession
@@ -191,7 +192,7 @@ class MainWindow(FluentWindow):
         )
         self.addSubInterface(
             self.modelManagerInterface,
-            FluentIcon.SETTING,
+            CustomIcon.MODELS,
             "模型管理",
             position=NavigationItemPosition.BOTTOM,
         )

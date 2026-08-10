@@ -23,6 +23,9 @@ class CustomIcon(FluentIconBase, Enum):
     BINARYFILE = "BinaryFile"
     MATRIXFILE = "MatrixFile"
     ARROW_LEFTRIGHT = "Arrow_LeftRight"
+    MODELS = "Models"
+    RENAME = "Rename"
+    EDIT = "Edit"
 
     def path(self, theme=Theme.AUTO) -> str:
         """获取图标的 QRC 资源路径。
