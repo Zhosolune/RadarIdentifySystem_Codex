@@ -1,11 +1,13 @@
-"""模型导入对话框输入契约校验测试。"""
+"""模型管理相关对话框输入契约校验测试。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication, QWidget
+from qfluentwidgets import TextEdit
 
+from ui.dialogs.edit_model_remark_dialog import EditModelRemarkDialog
 from ui.dialogs.import_model_dialog import ImportModelDialog
 
 
@@ -74,5 +76,21 @@ def test_dialog_accepts_matching_model_contract(tmp_path: Path) -> None:
 
     assert dialog.validate() is True
     assert dialog.validationLabel.isHidden()
+    dialog.deleteLater()
+    parent.deleteLater()
+
+
+def test_model_remark_dialog_uses_fluent_rich_text_editor() -> None:
+    """模型备注弹窗应使用可随主题变化的组件库富文本框。"""
+    _app()
+    parent = QWidget()
+    dialog = EditModelRemarkDialog("原备注", parent)
+
+    assert isinstance(dialog.remark_text_edit, TextEdit)
+    assert dialog.remark_text_edit.acceptRichText()
+    assert dialog.remark_text_edit.toPlainText() == "原备注"
+
+    dialog.remark_text_edit.setPlainText("新备注\n第二行")
+    assert dialog.get_remark() == "新备注\n第二行"
     dialog.deleteLater()
     parent.deleteLater()

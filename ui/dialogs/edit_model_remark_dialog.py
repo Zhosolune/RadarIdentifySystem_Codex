@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """编辑模型备注对话框。"""
 
-from PyQt6.QtWidgets import QTextEdit
-from qfluentwidgets import MessageBoxBase, SubtitleLabel, BodyLabel
+from __future__ import annotations
+
+from PyQt6.QtWidgets import QWidget
+from qfluentwidgets import BodyLabel, MessageBoxBase, SubtitleLabel, TextEdit
 
 
 class EditModelRemarkDialog(MessageBoxBase):
@@ -12,15 +14,19 @@ class EditModelRemarkDialog(MessageBoxBase):
         基于组件库对话框基类构建模型备注编辑弹窗，支持填写或清空备注信息。
 
     Attributes:
-        remark_text_edit (QTextEdit): 备注输入框。
+        remark_text_edit: 使用组件库主题样式的备注富文本输入框。
     """
 
-    def __init__(self, current_remark: str, parent=None) -> None:
+    def __init__(
+        self,
+        current_remark: str,
+        parent: QWidget | None = None,
+    ) -> None:
         """初始化编辑模型备注对话框。
 
         Args:
-            current_remark (str): 当前模型备注。
-            parent (QWidget | None): 父组件，默认值为 None。
+            current_remark [str]: 当前模型备注。
+            parent [QWidget | None]: 父组件，默认值为 None。
 
         Returns:
             None: 无返回值。
@@ -34,8 +40,8 @@ class EditModelRemarkDialog(MessageBoxBase):
         title_label = SubtitleLabel("编辑备注", self)
         # 创建提示文本
         hint_label = BodyLabel("请输入模型备注信息", self)
-        # 创建备注输入框
-        self.remark_text_edit = QTextEdit(self)
+        # 使用组件库富文本框统一主题、焦点边框、菜单和滚动条样式。
+        self.remark_text_edit = TextEdit(self)
         self.remark_text_edit.setPlaceholderText("可填写模型用途、来源或适用说明")
         self.remark_text_edit.setPlainText(current_remark)
         self.remark_text_edit.setFixedHeight(120)

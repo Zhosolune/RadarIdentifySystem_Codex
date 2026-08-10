@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QLabel, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 
 from qfluentwidgets import (
+    BodyLabel,
     SettingCardGroup,
     PushSettingCard,
     FluentIcon,
@@ -64,7 +65,7 @@ class ModelManagerInterface(QWidget):
         )
 
         # 创建模型列表标签
-        self.model_list_label = QLabel("模型列表", self.content_widget)
+        self.model_list_label = BodyLabel("模型列表", self.content_widget)
         setFont(self.model_list_label, 20)
         # 创建模型类型切换
         self.segmentedWidget = SegmentedWidget(self.content_widget)

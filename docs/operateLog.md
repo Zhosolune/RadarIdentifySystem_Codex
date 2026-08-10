@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-08-10 17:16
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\dialogs\edit_model_remark_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_model_import_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将模型管理列表的编辑备注输入框替换为 qfluentwidgets 富文本框。
+- 原因：原生 `QTextEdit` 不继承组件库的主题、焦点边框、菜单和滚动条样式，深浅主题切换时视觉状态无法统一。
+- 计划清单：
+  - [x] 核对模型备注编辑弹窗、控制器保存入口和项目现有 Fluent 富文本框用法。
+  - [x] 使用组件库 `TextEdit` 替换原生输入框，保持纯文本读写契约不变。
+  - [x] 补充组件类型、富文本能力、初始值和备注读取回归。
+  - [x] 执行聚焦测试、Python 编译和差异检查。
+- 验证结果：
+  - 编辑模型备注对话框已使用 qfluentwidgets `TextEdit`，主题色、焦点边框、右键菜单和滚动条由组件库统一管理。
+  - 保留原有占位文案、120px 高度、初始焦点和 `setPlainText()` / `toPlainText()` 纯文本保存契约，控制器无需改动。
+  - 模型管理对话框聚焦回归：3 passed，1 个第三方 scipy 弃用警告。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-07 17:19
 - 操作类型：[修改]
 - 影响文件：
