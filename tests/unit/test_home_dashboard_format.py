@@ -8,7 +8,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from ui.components.import_dashboard_panel import format_dashboard_duration
+from ui.components.import_dashboard_panel import (
+    format_dashboard_band,
+    format_dashboard_duration,
+)
 
 
 def test_format_dashboard_duration_uses_ms_until_1000ms() -> None:
@@ -28,11 +31,19 @@ def test_format_dashboard_duration_uses_minutes_above_60s() -> None:
     assert format_dashboard_duration(610_000_000) == "1.02 min"
 
 
+def test_format_dashboard_band_removes_band_suffix() -> None:
+    """波段指标应只展示波段名，并为未知值保留占位符。"""
+    assert format_dashboard_band("S波段") == "S"
+    assert format_dashboard_band("X") == "X"
+    assert format_dashboard_band(None) == "--"
+
+
 if __name__ == "__main__":
     tests = [
         test_format_dashboard_duration_uses_ms_until_1000ms,
         test_format_dashboard_duration_uses_seconds_above_1000ms,
         test_format_dashboard_duration_uses_minutes_above_60s,
+        test_format_dashboard_band_removes_band_suffix,
     ]
     for test in tests:
         test()

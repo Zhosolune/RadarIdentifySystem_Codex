@@ -1,5 +1,30 @@
 # 变更记录
 
+- 时间：2026-08-12 10:36
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_dashboard_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_dashboard_format.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为数据池与 Session 管理器的数据详情增加剩余脉冲指标，并将波段指标值简化为纯波段名。
+- 原因：详情需要同时呈现预处理前、剔除及剩余脉冲数量，且波段卡片无需重复显示“波段”二字。
+- 计划清单：
+  - [x] 核对仪表盘摘要、数据池详情和 Session 详情的真实数据链路。
+  - [x] 复用总脉冲与剔除脉冲计算剩余量，不新增重复持久化字段。
+  - [x] 在 UI 展示边界统一移除波段值末尾的“波段”二字。
+  - [x] 让数据池详情高度按七项指标动态计算，并补充两处详情回归。
+  - [x] 执行详情面板、格式化函数回归、Python 编译和差异检查。
+- 验证结果：
+  - 数据池与 Session 详情均展示七项指标；剩余脉冲按 `总脉冲 - 剔除脉冲` 计算，波段值由 `S波段` 等完整数据格式化为 `S`。
+  - 主页、数据池详情、Session 指标和格式化函数聚焦回归：18 passed、1 deselected，1 个第三方 scipy 弃用警告。
+  - 排除项为既有 Session 标题断言仍期待“Session 管理”，当前界面实际为“切片处理”，与本次指标及波段文案无关；原始整组运行结果为 17 passed、1 failed。
+  - 相关 Python 文件 `py_compile`、格式化模块 doctest 与 `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-12 09:55
 - 操作类型：[修改]
 - 影响文件：

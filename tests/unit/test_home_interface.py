@@ -358,7 +358,14 @@ def test_data_pool_details_uses_upward_panel_width_flyout() -> None:
     assert not first_card.is_selected()
     assert isinstance(view, DataPackageDetailFlyoutView)
     assert view.width() + 30 == panel.width()
-    assert len(view.metric_cards) == 6
+    assert len(view.metric_cards) == 7
+    metrics = {
+        card.findChild(QLabel, "dashboardMetricName").text():
+        card.findChild(QLabel, "dashboardMetricValue").text()
+        for card in view.metric_cards
+    }
+    assert metrics["剩余脉冲"] == "2"
+    assert metrics["波段"] == "C"
     assert target.objectName() == "dataPoolDetailsButton"
     assert make.call_args.kwargs["aniType"] is FlyoutAnimationType.PULL_UP
     assert view.close_button.objectName() == "dataPoolDetailCloseButton"

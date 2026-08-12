@@ -40,6 +40,7 @@ from ui.components.edge_tab_view import EdgeTabWidget
 from ui.components.import_dashboard_panel import (
     DashboardCard,
     DashboardMetric,
+    format_dashboard_band,
     format_dashboard_duration,
 )
 
@@ -168,12 +169,13 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
         header_layout.addWidget(self.close_button)
         root_layout.addLayout(header_layout)
 
+        metrics = self._build_metrics(package)
         metrics_widget = QWidget(self)
         metrics_widget.setObjectName("dataPoolDetailMetrics")
         # 根据弹层实际宽度计算行数，窄窗口下也不会裁切流式指标卡。
         metrics_available_width = max(1, width - 34)
         cards_per_row = max(1, (metrics_available_width + 10) // 120)
-        metric_rows = ceil(6 / cards_per_row)
+        metric_rows = ceil(len(metrics) / cards_per_row)
         metrics_widget.setFixedHeight(
             metric_rows * 60 + max(0, metric_rows - 1) * 10 + 6
         )
@@ -188,7 +190,7 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
         self.metrics_layout.setWidgetMinimumWidth(110)
         root_layout.addWidget(metrics_widget)
 
-        for metric in self._build_metrics(package):
+        for metric in metrics:
             card = DashboardCard(metric, metrics_widget)
             self.metric_cards.append(card)
             self.metrics_layout.addWidget(card)
@@ -262,23 +264,28 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
         self._root_layout.addWidget(widget, stretch, align)
 
     def _build_metrics(self, package: DataPackage) -> list[DashboardMetric]:
-        """构建与 Session 详情一致的六项解析指标。"""
+        """构建与 Session 详情一致的七项解析指标。"""
         info = package.dashboard_info
         if not isinstance(info, PulseDashboardInfo):
             return [
                 DashboardMetric("总脉冲", "--"),
                 DashboardMetric("剔除脉冲", "--"),
+                DashboardMetric("剩余脉冲", "--"),
                 DashboardMetric("幅度丢弃", "--"),
                 DashboardMetric("持续时间", "--"),
-                DashboardMetric("波段", package.band or "--"),
+                DashboardMetric("波段", format_dashboard_band(package.band)),
                 DashboardMetric("预计切片数", "--"),
             ]
         return [
             DashboardMetric("总脉冲", str(info.total_pulses)),
             DashboardMetric("剔除脉冲", str(info.removed_pulses)),
+            DashboardMetric(
+                "剩余脉冲",
+                str(max(info.total_pulses - info.removed_pulses, 0)),
+            ),
             DashboardMetric("幅度丢弃", str(info.amplitude_dropped_pulses)),
             DashboardMetric("持续时间", format_dashboard_duration(info.duration)),
-            DashboardMetric("波段", info.band or "--"),
+            DashboardMetric("波段", format_dashboard_band(info.band)),
             DashboardMetric("预计切片数", str(info.estimated_slice_count)),
         ]
 

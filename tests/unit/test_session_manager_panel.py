@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 from qfluentwidgets import ScrollArea, TextEdit
 
 from core.models.dashboard_info import PulseDashboardInfo
@@ -69,7 +69,14 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
     assert panel._file_size_value_label.text() == "9 B"
     assert panel._file_path_value_label.text() == str(source_file)
     assert panel._remark_value_label.text() == "无"
-    assert len(panel._metric_cards) == 6
+    assert len(panel._metric_cards) == 7
+    metrics = {
+        card.findChild(QLabel, "dashboardMetricName").text():
+        card.findChild(QLabel, "dashboardMetricValue").text()
+        for card in panel._metric_cards
+    }
+    assert metrics["剩余脉冲"] == "10"
+    assert metrics["波段"] == "C"
     assert len(panel.session_command_bar.actions()) == 4
     assert panel._header_layout.indexOf(panel.session_command_bar) >= 0
     assert panel._detail_layout.indexOf(panel.session_command_bar) == -1
@@ -263,6 +270,29 @@ def test_session_manager_panel_metric_layout_uses_adaptive_flow() -> None:
     assert panel._metrics_layout.widgetMinimumWidth() == 110
     assert panel._metrics_layout.needAni is True
     assert panel._metrics_layout.isTight is True
+
+
+def test_session_manager_builds_remaining_pulse_and_short_band_metrics() -> None:
+    """Session 详情指标应包含剩余脉冲，并只展示纯波段名。"""
+    _app()
+    panel = SessionManagerPanel()
+    session = ProcessingSession(session_id="session_metrics")
+    session.dashboard_info = PulseDashboardInfo(
+        total_pulses=12,
+        removed_pulses=2,
+        amplitude_dropped_pulses=1,
+        duration=25_000,
+        band="S波段",
+        estimated_slice_count=3,
+    )
+
+    metrics = {
+        metric.label: metric.value
+        for metric in panel._build_metrics(session)
+    }
+
+    assert metrics["剩余脉冲"] == "10"
+    assert metrics["波段"] == "S"
 
 
 def test_session_manager_panel_uses_single_metadata_edit_action() -> None:

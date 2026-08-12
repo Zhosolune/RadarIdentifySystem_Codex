@@ -23,7 +23,12 @@ from qfluentwidgets.common.font import setFont
 from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingSession
 from ui.components.card_navigation_list import CardNavigationList
-from ui.components.import_dashboard_panel import DashboardCard, DashboardMetric, format_dashboard_duration
+from ui.components.import_dashboard_panel import (
+    DashboardCard,
+    DashboardMetric,
+    format_dashboard_band,
+    format_dashboard_duration,
+)
 
 
 class SessionManagerPanel(SimpleCardWidget):
@@ -506,9 +511,19 @@ class SessionManagerPanel(SimpleCardWidget):
         return [
             DashboardMetric("总脉冲", str(dashboard_info.total_pulses)),
             DashboardMetric("剔除脉冲", str(dashboard_info.removed_pulses)),
+            DashboardMetric(
+                "剩余脉冲",
+                str(
+                    max(
+                        dashboard_info.total_pulses
+                        - dashboard_info.removed_pulses,
+                        0,
+                    )
+                ),
+            ),
             DashboardMetric("幅度丢弃", str(dashboard_info.amplitude_dropped_pulses)),
             DashboardMetric("持续时间", format_dashboard_duration(dashboard_info.duration)),
-            DashboardMetric("波段", dashboard_info.band or "--"),
+            DashboardMetric("波段", format_dashboard_band(dashboard_info.band)),
             DashboardMetric("预计切片数", str(dashboard_info.estimated_slice_count)),
         ]
 
@@ -517,6 +532,7 @@ class SessionManagerPanel(SimpleCardWidget):
         return [
             DashboardMetric("总脉冲", "--"),
             DashboardMetric("剔除脉冲", "--"),
+            DashboardMetric("剩余脉冲", "--"),
             DashboardMetric("幅度丢弃", "--"),
             DashboardMetric("持续时间", "--"),
             DashboardMetric("波段", "--"),

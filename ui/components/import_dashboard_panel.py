@@ -61,6 +61,29 @@ def format_dashboard_duration(duration: float) -> str:
     return f"{milliseconds:.2f} ms"
 
 
+def format_dashboard_band(band: str | None) -> str:
+    """格式化仪表盘波段卡片中的波段名称。
+
+    Args:
+        band [str | None]: Core 层波段名称，例如 ``"S波段"``；为空时表示未知。
+
+    Returns:
+        str: 去掉末尾“波段”的短名称；未知波段返回 ``"--"``。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> format_dashboard_band("S波段")
+        'S'
+        >>> format_dashboard_band(None)
+        '--'
+    """
+    if not band:
+        return "--"
+    return band.removesuffix("波段") or "--"
+
+
 @dataclass(frozen=True)
 class DashboardMetric:
     """仪表盘指标项。
