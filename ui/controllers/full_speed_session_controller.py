@@ -327,7 +327,7 @@ class FullSpeedSessionController(QObject):
         if is_cancellable:
             dialog = MessageBox(
                 "取消全速处理",
-                f"确认取消“{session.display_name}”的本次全速处理吗？"
+                f"确认取消“{session.display_name}”的本次全速处理吗？\n"
                 "任务、参数和模型选择将保留，并恢复为等待启动状态；"
                 "已生成的 Excel 文件不会删除。",
                 self._message_parent,
