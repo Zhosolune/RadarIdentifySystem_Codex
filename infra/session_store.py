@@ -22,7 +22,7 @@ from typing import Any
 
 import numpy as np
 
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.processing_session import ProcessingStage
 from core.models.pulse_batch import (
@@ -503,6 +503,9 @@ class SessionStore:
                 "preprocess_result": {
                     "total_pulses": session.preprocess_result.total_pulses,
                     "filtered_pulses": session.preprocess_result.filtered_pulses,
+                    "amplitude_dropped_pulses": (
+                        session.preprocess_result.amplitude_dropped_pulses
+                    ),
                     "toa_flip_count": session.preprocess_result.toa_flip_count,
                     "time_range": session.preprocess_result.time_range,
                     "estimated_slice_count": (
@@ -564,7 +567,7 @@ class SessionStore:
                 raw_payload = metadata["raw_batch"]
                 preprocess_payload = metadata["preprocess_result"]
                 dashboard_payload = metadata["dashboard_info"]
-                dashboard_info = ExcelDashboardInfo(
+                dashboard_info = PulseDashboardInfo(
                     total_pulses=int(dashboard_payload["total_pulses"]),
                     removed_pulses=int(dashboard_payload["removed_pulses"]),
                     amplitude_dropped_pulses=int(
@@ -580,6 +583,12 @@ class SessionStore:
                     data=preprocess_data,
                     total_pulses=int(preprocess_payload["total_pulses"]),
                     filtered_pulses=int(preprocess_payload["filtered_pulses"]),
+                    amplitude_dropped_pulses=int(
+                        preprocess_payload.get(
+                            "amplitude_dropped_pulses",
+                            dashboard_info.amplitude_dropped_pulses,
+                        )
+                    ),
                     toa_flip_count=int(preprocess_payload["toa_flip_count"]),
                     time_range=float(preprocess_payload["time_range"]),
                     estimated_slice_count=int(

@@ -7,7 +7,7 @@ from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets.common.router import qrouter
 
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.data_package import DataPackage
 from core.models.processing_session import ProcessingMode
 from core.models.pulse_batch import PulseBatch
@@ -36,7 +36,7 @@ def _app() -> QApplication:
 def _build_package() -> DataPackage:
     """构造可持久化的数据池测试包。"""
     data = np.array([[5000.0, 1.0, 90.0, 10.0, 11.0, 0.0]])
-    dashboard = ExcelDashboardInfo(
+    dashboard = PulseDashboardInfo(
         total_pulses=1,
         removed_pulses=0,
         amplitude_dropped_pulses=0,

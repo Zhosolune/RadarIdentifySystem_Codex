@@ -7,7 +7,7 @@ import json
 import numpy as np
 import pytest
 
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.data_package import DataPackage
 from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.pulse_batch import PulseBatch
@@ -25,7 +25,7 @@ def _build_package(package_id: str = "package-1") -> DataPackage:
         ]
     )
     processed_data = raw_data.copy()
-    dashboard = ExcelDashboardInfo(
+    dashboard = PulseDashboardInfo(
         total_pulses=2,
         removed_pulses=0,
         amplitude_dropped_pulses=0,
@@ -117,3 +117,30 @@ def test_data_pool_registry_blocks_deleting_referenced_package(
         (registry.store.root_dir / "index.json").read_text(encoding="utf-8")
     )
     assert index_payload["package_ids"] == []
+
+
+def test_data_pool_registry_registers_multi_band_batch_atomically(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """多波段批量注册失败时不保留内存或磁盘中的半批结果。"""
+    store = DataPoolStore(tmp_path / "pool")
+    registry = DataPoolRegistry(store)
+    first = _build_package("package-l")
+    second = _build_package("package-s")
+    original_save = store.save_package
+
+    def _save_with_second_failure(package: DataPackage) -> None:
+        """保存首包并在第二包模拟持久化失败。"""
+        if package.package_id == second.package_id:
+            raise OSError("模拟第二波段保存失败")
+        original_save(package)
+
+    monkeypatch.setattr(store, "save_package", _save_with_second_failure)
+
+    with pytest.raises(OSError, match="模拟第二波段保存失败"):
+        registry.register_many((first, second))
+
+    assert registry.all_packages() == []
+    assert not (store.root_dir / first.package_id).exists()
+    assert not (store.root_dir / second.package_id).exists()

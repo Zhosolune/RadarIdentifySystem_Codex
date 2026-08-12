@@ -81,6 +81,66 @@ class DataPoolRegistry:
             self._packages[package.package_id] = package
             return package
 
+    def register_many(
+        self,
+        packages: tuple[DataPackage, ...],
+    ) -> tuple[DataPackage, ...]:
+        """以一次导入任务为边界批量注册多个数据包。
+
+        任一数据包持久化失败时，会删除本批次已经写入或正在写入的数据包，
+        防止一次多波段导入只留下部分结果。
+
+        Args:
+            packages [tuple[DataPackage, ...]]: 按稳定波段顺序排列的数据包。
+
+        Returns:
+            tuple[DataPackage, ...]: 完成注册的原数据包元组。
+
+        Raises:
+            ValueError: 批次内 ID 重复或任一 ID 已存在时抛出。
+            OSError: 持久化或回滚清理失败时抛出。
+
+        Example:
+            >>> registry = DataPoolRegistry()
+            >>> registry.register_many(())
+            ()
+        """
+        if not packages:
+            return ()
+
+        with self._lock:
+            package_ids = [package.package_id for package in packages]
+            if len(set(package_ids)) != len(package_ids):
+                raise ValueError("批量注册的数据包 ID 不能重复")
+            existing_ids = [
+                package_id
+                for package_id in package_ids
+                if package_id in self._packages
+            ]
+            if existing_ids:
+                raise ValueError(f"数据包 ID 已存在: {existing_ids[0]}")
+
+            attempted_ids: list[str] = []
+            try:
+                for package in packages:
+                    # 保存可能在抛错前创建目录，因此先记录 ID 供失败回滚。
+                    attempted_ids.append(package.package_id)
+                    self.store.save_package(package)
+                    self._packages[package.package_id] = package
+            except Exception as exc:
+                cleanup_errors: list[Exception] = []
+                for package_id in reversed(attempted_ids):
+                    self._packages.pop(package_id, None)
+                    try:
+                        self.store.delete_package(package_id)
+                    except Exception as cleanup_exc:
+                        cleanup_errors.append(cleanup_exc)
+                if cleanup_errors:
+                    raise OSError("批量注册失败，且部分数据包回滚清理失败") from exc
+                raise
+
+            return packages
+
     def restore(self) -> list[DataPackage]:
         """从磁盘恢复全部数据包。
 

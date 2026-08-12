@@ -12,7 +12,7 @@ from .pulse_batch import (
     PulseBatch,
 )
 from .slice_result import PreprocessResult, SliceResult
-from .dashboard_info import ExcelDashboardInfo, FileDashboardInfo
+from .dashboard_info import FileDashboardInfo, PulseDashboardInfo
 from .data_package import DataPackage
 from .processing_session import ProcessingMode, ProcessingSession, ProcessingStage
 from .algorithm_params import (
@@ -55,7 +55,7 @@ __all__ = [
     "PULSE_COLUMN_COUNT",
     "PreprocessResult",
     "SliceResult",
-    "ExcelDashboardInfo",
+    "PulseDashboardInfo",
     "FileDashboardInfo",
     "DataPackage",
     "ProcessingMode",

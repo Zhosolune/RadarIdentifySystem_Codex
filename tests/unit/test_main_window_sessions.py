@@ -15,7 +15,7 @@ from pytest import MonkeyPatch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.signal_bus import signal_bus
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingSession
 from core.models.processing_session import ProcessingStage
 from core.models.pulse_batch import PulseBatch
@@ -244,7 +244,7 @@ def test_main_window_registers_parsed_session_and_emits_lifecycle_signals(
             source_path="E:/data/imported.xlsx",
             source_type="excel",
         )
-        dashboard_info = ExcelDashboardInfo(
+        dashboard_info = PulseDashboardInfo(
             total_pulses=1,
             removed_pulses=0,
             amplitude_dropped_pulses=0,
@@ -319,7 +319,7 @@ def test_main_window_add_session_from_import_stays_on_home_and_persists_remark(
             display_name="imported.xlsx",
             remark="导入备注",
         )
-        dashboard_info = ExcelDashboardInfo(
+        dashboard_info = PulseDashboardInfo(
             total_pulses=1,
             removed_pulses=0,
             amplitude_dropped_pulses=0,
@@ -685,7 +685,7 @@ def test_main_window_restores_import_cache_for_sessions(
     )
     raw_data = np.array([[1200.0, 3.0, 50.0, 40.0, 40.0, 10.0]])
     preprocess_data = np.array([[1200.0, 3.0, 50.0, 40.0, 40.0, 10.0]])
-    dashboard_info = ExcelDashboardInfo(
+    dashboard_info = PulseDashboardInfo(
         total_pulses=1,
         removed_pulses=0,
         amplitude_dropped_pulses=0,

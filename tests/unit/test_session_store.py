@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingMode, ProcessingSession
 from core.models.processing_session import ProcessingStage
 from core.models.pulse_batch import PulseBatch
@@ -97,7 +97,7 @@ def test_session_store_round_trips_import_cache(tmp_path: Path) -> None:
     session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
     raw_data = np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]])
     preprocess_data = np.array([[1000.0, 2.0, 40.0, 30.0, 30.0, 0.0]])
-    dashboard_info = ExcelDashboardInfo(
+    dashboard_info = PulseDashboardInfo(
         total_pulses=1,
         removed_pulses=0,
         amplitude_dropped_pulses=0,

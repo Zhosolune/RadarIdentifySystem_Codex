@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import ScrollArea, TextEdit
 
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingSession
 from ui.components.card_navigation_list import UNIFIED_NAVIGATION_FONT_FAMILIES
 from ui.components.session_manager_panel import SessionManagerPanel
@@ -42,7 +42,7 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
         display_name="A.xlsx",
         created_at=datetime(2026, 6, 22, 12, 30),
     )
-    session.dashboard_info = ExcelDashboardInfo(
+    session.dashboard_info = PulseDashboardInfo(
         total_pulses=12,
         removed_pulses=2,
         amplitude_dropped_pulses=1,

@@ -12,8 +12,8 @@ from typing import TypeAlias
 
 
 @dataclass(frozen=True)
-class ExcelDashboardInfo:
-    """Excel 文件仪表盘摘要信息。
+class PulseDashboardInfo:
+    """统一脉冲数据包的仪表盘摘要信息。
 
     Attributes:
         total_pulses: 原始脉冲总数。
@@ -24,7 +24,7 @@ class ExcelDashboardInfo:
         estimated_slice_count: 按切片长度估算的切片数量。
 
     Example:
-        >>> info = ExcelDashboardInfo(10, 2, 2, 2500000.0, "C波段", 1)
+        >>> info = PulseDashboardInfo(10, 2, 2, 2500000.0, "C波段", 1)
         >>> info.amplitude_dropped_pulses == info.removed_pulses
         True
     """
@@ -37,8 +37,8 @@ class ExcelDashboardInfo:
     estimated_slice_count: int
 
 
-FileDashboardInfo: TypeAlias = ExcelDashboardInfo
+FileDashboardInfo: TypeAlias = PulseDashboardInfo
 """所有文件类型仪表盘摘要信息的联合类型。
 
-后续接入 bin/mat 时在此处扩展联合类型，避免 UI 层绑定到具体算法过程。
+摘要由归一化后的脉冲数据派生，与 Excel、BIN 等外部容器格式无关。
 """

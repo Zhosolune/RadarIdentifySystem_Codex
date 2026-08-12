@@ -33,7 +33,7 @@ from qfluentwidgets import (
 
 from app.custom_icon import CustomIcon
 from app.style_sheet import StyleSheet
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.data_package import DataPackage
 from ui.components.card_navigation_list import CardNavigationItem
 from ui.components.edge_tab_view import EdgeTabWidget
@@ -264,7 +264,7 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
     def _build_metrics(self, package: DataPackage) -> list[DashboardMetric]:
         """构建与 Session 详情一致的六项解析指标。"""
         info = package.dashboard_info
-        if not isinstance(info, ExcelDashboardInfo):
+        if not isinstance(info, PulseDashboardInfo):
             return [
                 DashboardMetric("总脉冲", "--"),
                 DashboardMetric("剔除脉冲", "--"),

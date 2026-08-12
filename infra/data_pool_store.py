@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 
 from core.models.data_package import DataPackage
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult
 from utils.paths import get_data_pool_dir
@@ -94,6 +94,9 @@ class DataPoolStore:
                 "preprocess_result": {
                     "total_pulses": package.preprocess_result.total_pulses,
                     "filtered_pulses": package.preprocess_result.filtered_pulses,
+                    "amplitude_dropped_pulses": (
+                        package.preprocess_result.amplitude_dropped_pulses
+                    ),
                     "toa_flip_count": package.preprocess_result.toa_flip_count,
                     "time_range": package.preprocess_result.time_range,
                     "estimated_slice_count": (
@@ -163,6 +166,12 @@ class DataPoolStore:
                 data=preprocess_data,
                 total_pulses=int(preprocess_payload["total_pulses"]),
                 filtered_pulses=int(preprocess_payload["filtered_pulses"]),
+                amplitude_dropped_pulses=int(
+                    preprocess_payload.get(
+                        "amplitude_dropped_pulses",
+                        dashboard.amplitude_dropped_pulses,
+                    )
+                ),
                 toa_flip_count=int(preprocess_payload["toa_flip_count"]),
                 time_range=float(preprocess_payload["time_range"]),
                 estimated_slice_count=int(
@@ -285,9 +294,9 @@ class DataPoolStore:
         return package_ids
 
     @staticmethod
-    def _build_dashboard(payload: dict[str, Any]) -> ExcelDashboardInfo:
+    def _build_dashboard(payload: dict[str, Any]) -> PulseDashboardInfo:
         """从持久化字典恢复 Excel 仪表盘摘要。"""
-        return ExcelDashboardInfo(
+        return PulseDashboardInfo(
             total_pulses=int(payload["total_pulses"]),
             removed_pulses=int(payload["removed_pulses"]),
             amplitude_dropped_pulses=int(

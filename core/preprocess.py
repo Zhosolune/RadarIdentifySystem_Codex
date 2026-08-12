@@ -44,6 +44,15 @@ _TOA_FLIP_THRESHOLD: float = -6e8
 """TOA 差分小于该值（0.1us）时判定为时间翻折。
 旧版 -6e4 ms = -6e4 × 10000 = -6e8 (0.1us)。"""
 
+_TOA_FLIP_PREVIOUS_STEP_COUNT: int = 2
+"""翻折候选之前用于排除局部高值平台的连续增量数量。"""
+
+_TOA_FLIP_MIN_POST_OBSERVATIONS: int = 2
+"""翻折候选低位点开始至少需要确认的连续观测数量。"""
+
+_TOA_FLIP_MAX_POST_OBSERVATIONS: int = 3
+"""翻折候选低位点开始最多检查的连续观测数量。"""
+
 # 频段 CF 均值边界（MHz）
 _BAND_THRESHOLDS: list[tuple[float, str]] = [
     (1000.0, None),   # CF < 1000MHz → 丢弃（超低频段，不纳入后续处理）
@@ -99,44 +108,64 @@ def fix_toa_flip(
     """修正 TOA 时间轴翻折（计数器溢出回绕）。
 
     功能描述：
-        雷达前端计数器在达到最大值后会从头计数（溢出回绕），表现为 TOA
-        序列出现大幅下跌（diff < flip_threshold 0.1us）。本函数通过检测下跌点，
-        将后续段的 TOA 值平移修正，使时间轴单调递增，最终归零（以第一个
-        脉冲时间为基准）。
+        雷达前端计数器达到上限后从头计数，表现为 TOA 序列出现大幅下降。
+        为避免单点局部极大值或局部极小值被误判为回卷，候选点还必须满足：
+        1. 候选高值不是由同等级的大幅正向突刺形成；
+        2. 回落后的连续观测仍低于翻折前基线；
+        3. 回落后的短窗口保持非递减。
 
-        算法与旧版 DataProcessor.process_raw_data 完全对齐：
-            for idx in flip_indices:
-                delta = time_data[idx] - time_data[idx+1]
-                time_data[idx+1:] += delta
-            time_data -= time_data[0]
+        仅通过确认的候选会平移其后全部 TOA；修正方式与既有实现一致，
+        并在至少存在一个真实翻折时以首个脉冲为基准归零。
 
-    参数说明：
-        data (np.ndarray): shape=(N, 6) 的脉冲数据数组（不修改原数组）。
-        toa_col (int): TOA 列的列索引，默认 COL_TOA=5。
-        flip_threshold (float): 差分阈值（0.1us），低于此值判定为翻折，默认 -6e8。
-        session_id (str): 会话标识，用于日志追踪。
+    Args:
+        data [np.ndarray]: shape=(N, 6) 的脉冲数据数组，不修改原数组。
+        toa_col [int]: TOA 列索引，默认 COL_TOA=5。
+        flip_threshold [float]: 候选下降阈值，单位 0.1us，必须小于 0。
+        session_id [str]: 会话标识，用于日志追踪。
 
-    返回值说明：
-        tuple[np.ndarray, int]:
-            - 修正后的新数组（shape 不变）。
-            - 检测到的翻折点数量（用于统计日志）。
+    Returns:
+        tuple[np.ndarray, int]: 修正后的同形状数组，以及确认的翻折点数量。
 
-    异常说明：
-        ValueError: data.ndim != 2 或列数不足时抛出。
+    Raises:
+        ValueError: data.ndim != 2、列数不足或阈值不小于 0 时抛出。
+
+    Example:
+        >>> rows = np.zeros((7, 6), dtype=float)
+        >>> rows[:, COL_TOA] = [4294000000, 4294100000, 4294200000, 100000, 200000, 300000, 400000]
+        >>> fixed, count = fix_toa_flip(rows)
+        >>> count
+        1
+        >>> bool(np.all(np.diff(fixed[:, COL_TOA]) >= 0))
+        True
     """
     if data.ndim != 2 or data.shape[1] <= toa_col:
         raise ValueError(
             f"fix_toa_flip: data 必须为至少 {toa_col + 1} 列的二维数组，"
             f"实际 shape={data.shape}"
         )
+    if flip_threshold >= 0:
+        raise ValueError("flip_threshold 必须小于 0")
 
     # 在副本上操作，不修改传入数组
     result = data.copy()
     time_data = result[:, toa_col].copy()
 
-    # 计算相邻 TOA 差分，定位翻折点的前一行索引（与旧版 np.diff 语义一致）
-    flip_indices = np.where(np.diff(time_data) < flip_threshold)[0]
+    # 大幅下降只产生候选，必须结合前后连续趋势排除局部测量异常。
+    flip_candidates = np.flatnonzero(np.diff(time_data) < flip_threshold)
+    flip_indices = _confirm_toa_flip_candidates(
+        time_data,
+        flip_candidates,
+        flip_threshold,
+    )
     flip_count = len(flip_indices)
+
+    rejected_count = len(flip_candidates) - flip_count
+    if rejected_count > 0:
+        LOGGER.debug(
+            "排除 %d 个 TOA 伪翻折候选",
+            rejected_count,
+            extra={"session_id": session_id},
+        )
 
     if flip_count > 0:
         LOGGER.warning("检测到 %d 个时间翻折点，开始修正", flip_count, extra={"session_id": session_id})
@@ -152,6 +181,61 @@ def fix_toa_flip(
                      float(time_data[0]) / 1e4, float(time_data[-1]) / 1e4, extra={"session_id": session_id})
 
     return result, flip_count
+
+
+def _confirm_toa_flip_candidates(
+    time_data: np.ndarray,
+    candidate_indices: np.ndarray,
+    flip_threshold: float,
+) -> np.ndarray:
+    """结合候选点前后趋势筛出可信的 TOA 翻折位置。"""
+    confirmed: list[int] = []
+    max_normal_forward_step = abs(flip_threshold)
+
+    for candidate in candidate_indices:
+        index = int(candidate)
+
+        # 翻折前至少需要两个连续增量，才能识别“正常值 -> 局部高值平台”
+        # 这类不一定紧邻候选的大幅正向突刺。
+        if index < _TOA_FLIP_PREVIOUS_STEP_COUNT:
+            continue
+
+        pre_window = time_data[
+            index - _TOA_FLIP_PREVIOUS_STEP_COUNT : index + 1
+        ]
+        pre_steps = np.diff(pre_window)
+        baseline_before_high = time_data[index - 1]
+
+        # 局部极大值或短平台之前通常存在同等级巨大正跳；真实回卷前的
+        # 计数应在最近两个增量内持续以正常幅度向前推进。
+        if not bool(
+            np.all((pre_steps >= 0) & (pre_steps <= max_normal_forward_step))
+        ):
+            continue
+
+        post_end = min(
+            len(time_data),
+            index + 1 + _TOA_FLIP_MAX_POST_OBSERVATIONS,
+        )
+        post_window = time_data[
+            index + 1 : post_end
+        ]
+        if len(post_window) < _TOA_FLIP_MIN_POST_OBSERVATIONS:
+            continue
+
+        # 真实回卷后的连续观测应持续处于翻折前基线以下；单点极大值
+        # 回落后会迅速回到原基线，单点极小值也会在后续记录中反弹。
+        if not bool(np.all(post_window < baseline_before_high)):
+            continue
+
+        # 回卷后的低位计数器应继续向前。要求完整窗口非递减，避免只验证
+        # 第一条后继记录而漏过紧随其后的异常反弹或二次下跌。
+        if not bool(np.all(np.diff(post_window) >= 0)):
+            continue
+
+        confirmed.append(index)
+
+    return np.asarray(confirmed, dtype=np.int64)
 
 
 def detect_band(data: np.ndarray, cf_col: int = COL_CF, session_id: str = "-") -> str | None:
@@ -206,6 +290,9 @@ def preprocess(
     pa_col: int = COL_PA,
     cf_col: int = COL_CF,
     session_id: str = "-",
+    source_total_pulses: int | None = None,
+    source_amplitude_dropped_pulses: int | None = None,
+    band_name: str | None = None,
 ) -> PreprocessResult:
     """组合预处理步骤，返回 PreprocessResult。
 
@@ -229,20 +316,35 @@ def preprocess(
         pa_col (int): PA 列索引，默认 COL_PA=2。
         cf_col (int): CF 列索引，默认 COL_CF=0。
         session_id (str): 会话标识，用于日志追踪。
+        source_total_pulses (int | None): 来源组应用格式特有过滤前的脉冲数；
+            为空时使用输入数据行数。
+        source_amplitude_dropped_pulses (int | None): 来源组中 PA=255 的总数，
+            用于保留与其他过滤原因重叠的统计；为空时从输入数据计算。
+        band_name (str | None): 已由公共波段拆分确定的波段名称；为空时按 CF 推断。
 
     返回值说明：
         PreprocessResult: 预处理结果数据对象。
 
     异常说明：
-        ValueError: data 不是二维脉冲矩阵时，由内部函数抛出。
+        ValueError: 数据形状、来源总数或 PA 丢弃统计不合法时抛出。
     """
     LOGGER.info("开始预处理，来源=%s type=%s 行数=%d",
                  source_path, source_type, len(data), extra={"session_id": session_id})
 
-    total_pulses = len(data)
+    total_pulses = len(data) if source_total_pulses is None else source_total_pulses
+    if total_pulses < len(data):
+        raise ValueError("source_total_pulses 不能小于输入数据行数")
 
     # 步骤 1: 剔除无效 PA
     cleaned = clean_pa(data, pa_col=pa_col, session_id=session_id)
+    # 同时计入格式特有过滤和 PA=255 清洗，确保多格式摘要统计口径一致。
+    amplitude_dropped_pulses = (
+        len(data) - len(cleaned)
+        if source_amplitude_dropped_pulses is None
+        else source_amplitude_dropped_pulses
+    )
+    if not (0 <= amplitude_dropped_pulses <= total_pulses):
+        raise ValueError("source_amplitude_dropped_pulses 必须位于 0 和来源总数之间")
     filtered_pulses = total_pulses - len(cleaned)
 
     # 步骤 2: 修正 TOA 翻折
@@ -260,7 +362,9 @@ def preprocess(
         estimated_slice_count = 0
 
     # 步骤 4: 推断频段
-    band = detect_band(fixed, cf_col=cf_col, session_id=session_id) if len(fixed) > 0 else None
+    band = band_name
+    if band is None and len(fixed) > 0:
+        band = detect_band(fixed, cf_col=cf_col, session_id=session_id)
 
     LOGGER.info(
         "预处理完成。总数=%d 剔除=%d 翻折点=%d 时间跨度=%.2f ms 估算切片=%d 频段=%s",
@@ -273,6 +377,7 @@ def preprocess(
         data=fixed,
         total_pulses=total_pulses,
         filtered_pulses=filtered_pulses,
+        amplitude_dropped_pulses=amplitude_dropped_pulses,
         toa_flip_count=flip_count,
         time_range=time_range,
         estimated_slice_count=estimated_slice_count,

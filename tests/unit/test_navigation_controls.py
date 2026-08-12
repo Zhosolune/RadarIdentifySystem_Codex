@@ -675,7 +675,7 @@ def test_slice_controller_uses_constructor_session(
     sip.delete(interface)
 
 
-def test_data_package_parsed_does_not_replace_constructor_session(
+def test_data_packages_parsed_does_not_replace_constructor_session(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """全局数据包解析事件不应替换构造时绑定的 Session。"""
@@ -693,7 +693,7 @@ def test_data_package_parsed_does_not_replace_constructor_session(
 
     interface = _slice_interface(constructor_session)
 
-    signal_bus.data_package_parsed.emit(package)
+    signal_bus.data_packages_parsed.emit("import-navigation", (package,))
 
     assert interface._session is constructor_session
     assert interface.cluster_column.title_label.text() == "暂无聚类结果"

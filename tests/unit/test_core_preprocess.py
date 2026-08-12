@@ -22,6 +22,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import numpy as np
+import pytest
 
 from core.preprocess import clean_pa, fix_toa_flip, detect_band, preprocess
 from core.models.pulse_batch import COL_PA, COL_TOA, COL_CF
@@ -119,6 +120,30 @@ def test_fix_toa_flip_single_flip():
     assert np.all(diffs >= 0), f"修正后 TOA 应单调不减，diff={diffs}"
 
 
+def test_fix_toa_flip_confirms_real_uint32_wrap():
+    """32 位计数器从高位回到低位后连续递增时应确认真实翻折。"""
+    toa = np.array(
+        [
+            4_294_000_000,
+            4_294_100_000,
+            4_294_200_000,
+            100_000,
+            200_000,
+            300_000,
+            400_000,
+        ],
+        dtype=float,
+    )
+    data = _make_uniform(len(toa))
+    data[:, COL_TOA] = toa
+
+    fixed, count = fix_toa_flip(data)
+
+    assert count == 1
+    assert fixed[0, COL_TOA] == 0
+    assert np.all(np.diff(fixed[:, COL_TOA]) >= 0)
+
+
 def test_fix_toa_flip_multiple_flips():
     """多翻折点：修正后 TOA 仍单调不减。"""
     # 第一段 0~30, 翻折到 -1e5, 再从 -1e5 到 -1e5+30, 再翻折
@@ -142,6 +167,108 @@ def test_fix_toa_flip_multiple_flips():
     fixed_toa = fixed[:, COL_TOA]
     diffs = np.diff(fixed_toa)
     assert np.all(diffs >= 0), f"多翻折修正后 TOA 应单调不减"
+
+
+def test_fix_toa_flip_rejects_local_maximum_measurement_error():
+    """单点局部极大值后的大幅回落不应被当作计数器翻折。"""
+    toa = np.array(
+        [
+            100_000,
+            200_000,
+            300_000,
+            1_000_000_000,
+            400_000,
+            500_000,
+            600_000,
+        ],
+        dtype=float,
+    )
+    data = _make_uniform(len(toa))
+    data[:, COL_TOA] = toa
+
+    fixed, count = fix_toa_flip(data)
+
+    assert count == 0
+    np.testing.assert_array_equal(fixed[:, COL_TOA], toa)
+
+
+def test_fix_toa_flip_rejects_short_local_maximum_plateau():
+    """连续两个局部高值后的回落也不应绕过前向突刺检查。"""
+    toa = np.array(
+        [
+            100_000,
+            200_000,
+            300_000,
+            1_000_000_000,
+            1_000_100_000,
+            400_000,
+            500_000,
+            600_000,
+        ],
+        dtype=float,
+    )
+    data = _make_uniform(len(toa))
+    data[:, COL_TOA] = toa
+
+    fixed, count = fix_toa_flip(data)
+
+    assert count == 0
+    np.testing.assert_array_equal(fixed[:, COL_TOA], toa)
+
+
+def test_fix_toa_flip_rejects_local_minimum_measurement_error():
+    """单点局部极小值即使先产生大幅下降，也不应平移后续正常时间。"""
+    toa = np.array(
+        [
+            100_000,
+            200_000,
+            300_000,
+            -1_000_000_000,
+            400_000,
+            500_000,
+            600_000,
+        ],
+        dtype=float,
+    )
+    data = _make_uniform(len(toa))
+    data[:, COL_TOA] = toa
+
+    fixed, count = fix_toa_flip(data)
+
+    assert count == 0
+    np.testing.assert_array_equal(fixed[:, COL_TOA], toa)
+
+
+def test_fix_toa_flip_requires_post_wrap_monotonic_trend():
+    """低位区后续再次下降时拒绝尚未稳定的翻折候选。"""
+    toa = np.array(
+        [
+            100_000,
+            200_000,
+            300_000,
+            400_000,
+            -1_000_000_000,
+            -999_800_000,
+            -999_900_000,
+            -999_700_000,
+        ],
+        dtype=float,
+    )
+    data = _make_uniform(len(toa))
+    data[:, COL_TOA] = toa
+
+    fixed, count = fix_toa_flip(data)
+
+    assert count == 0
+    np.testing.assert_array_equal(fixed[:, COL_TOA], toa)
+
+
+def test_fix_toa_flip_rejects_non_negative_threshold():
+    """翻折下降阈值必须保持为负数。"""
+    data = _make_uniform(3)
+
+    with pytest.raises(ValueError, match="flip_threshold 必须小于 0"):
+        fix_toa_flip(data, flip_threshold=0)
 
 
 def test_fix_toa_flip_empty():
@@ -267,7 +394,13 @@ if __name__ == "__main__":
         test_clean_pa_empty,
         test_fix_toa_flip_no_flip,
         test_fix_toa_flip_single_flip,
+        test_fix_toa_flip_confirms_real_uint32_wrap,
         test_fix_toa_flip_multiple_flips,
+        test_fix_toa_flip_rejects_local_maximum_measurement_error,
+        test_fix_toa_flip_rejects_short_local_maximum_plateau,
+        test_fix_toa_flip_rejects_local_minimum_measurement_error,
+        test_fix_toa_flip_requires_post_wrap_monotonic_trend,
+        test_fix_toa_flip_rejects_non_negative_threshold,
         test_fix_toa_flip_empty,
         test_fix_toa_original_not_modified,
         test_detect_band_L,

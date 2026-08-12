@@ -25,7 +25,8 @@ class PreprocessResult:
     属性：
         data (np.ndarray): 预处理后的脉冲数据，shape=(M, 6)。
         total_pulses (int): 预处理前的脉冲总数。
-        filtered_pulses (int): 因 PA=255 被剔除的脉冲数量。
+        filtered_pulses (int): 来源特有规则与 PA 清洗合计剔除的唯一脉冲数量。
+        amplitude_dropped_pulses (int): 仅因 PA=255 被剔除的脉冲数量。
         toa_flip_count (int): 检测到的时间翻折点数量。
         time_range (float): 有效 TOA 的时间跨度（0.1us）。
         estimated_slice_count (int): 按默认 250ms 估算的切片数量。
@@ -36,6 +37,7 @@ class PreprocessResult:
     data: np.ndarray
     total_pulses: int = 0
     filtered_pulses: int = 0
+    amplitude_dropped_pulses: int = 0
     toa_flip_count: int = 0
     time_range: float = 0.0
     estimated_slice_count: int = 0

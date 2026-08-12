@@ -1,5 +1,76 @@
 # 变更记录
 
+- 时间：2026-08-12 09:37
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\preprocess.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_core_preprocess.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：优化 TOA 翻折候选确认，避免单点或短平台局部极大值造成伪回卷修正。
+- 原因：现有逻辑只按相邻大幅下降判断翻折，局部高值突刺后的正常回落会被误判，并错误平移后续全部 TOA。
+- 计划清单：
+  - [x] 核对当前阈值、归零语义、调用链和既有多翻折测试。
+  - [x] 使用翻折前后连续趋势共同确认候选，排除单点局部极大/极小异常。
+  - [x] 保持函数签名、TOA 单位、输入只读边界和既有真实翻折结果。
+  - [x] 补充真实翻折、局部极大值、局部极小值和多翻折回归。
+  - [x] 执行预处理及导入链路回归、Python 编译和差异检查。
+- 验证结果：
+  - 大幅负差分现在只产生候选；候选前最近两个增量必须正常非递减且不超过既有阈值绝对值，排除单点/短平台局部极大值之前的大幅正跳。
+  - 候选后的低位窗口至少包含两条、最多检查三条观测，必须持续低于翻折前基线且保持非递减，排除局部极小值和不稳定低位序列。
+  - 保留 `fix_toa_flip(data, toa_col, flip_threshold, session_id)` 公开签名、0.1us 单位、只在确认翻折后归零及按相邻边界差值平移的既有行为。
+  - 真实 32 位高位到低位、既有单翻折、多翻折、局部极大、短高值平台、局部极小、低位非单调、空数据和输入不变专项回归：9 passed。
+  - 预处理、仪表盘、解析器与导入链路回归：48 passed、1 deselected；排除项为既有 `test_preprocess_estimated_slice_count` 将 0.1us 数据 `0~500` 误写为 500ms 的单位断言，与本次逻辑无关。
+  - 数据池、Session 持久化、全速运行与导出扩大回归：81 passed，1 个第三方 scipy 弃用警告。
+  - `py_compile`、`core.preprocess` doctest 与 `git diff --check`：通过（仅换行符提示；doctest 日志在当前 PowerShell 代码页显示乱码，不影响退出状态）。
+- 测试状态：[已测试]
+
+- 时间：2026-08-12 08:32
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\parsers.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\parsers\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\banding.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\dashboard.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\preprocess.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\dashboard_info.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\slice_result.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\signal_bus.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\data_pool_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\import_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\data_pool_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\目录结构与分层约束.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\重构接口对接手册.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\功能对齐矩阵.md`
+- 变更摘要：将单一 Excel 导入链路重构为可注册解析器、公共 L/S/C 波段拆分和一次任务返回多个独立数据包的通用导入链路，并接入 BIN PDW 解析。
+- 原因：BIN 与多波段 Excel 都需要按实际频段生成至多三个独立数据包，且后续新增格式时不应继续修改线程编排或复制波段业务规则。
+- 计划清单：
+  - [x] 核对现有解析、预处理、仪表盘、事件、数据池和持久化边界。
+  - [x] 将单文件解析器模块替换为解析器包，保留稳定公开接口并接入 BIN 解码规则。
+  - [x] 在 Core 增加公共 L/S/C 波段拆分，保持现有 TOA 翻折和 PA 原值处理。
+  - [x] 分离导入任务 ID 与数据包 ID，使一次任务可返回并注册多个数据包。
+  - [x] 泛化 Excel 专属仪表盘契约并保证 Excel 既有行为不变。
+  - [x] 补充 Excel 单/多波段、BIN 解码/过滤、多数据包注册和失败隔离回归。
+  - [x] 执行聚焦测试、Python 编译和差异检查。
+- 验证结果：
+  - BIN 已按 16 个大端 uint16/32 字节记录解码，Type、RF、F26、PA、PCSAOA/PCSPA 处理与确认规则一致；PA 保持原值，TOA 保持 0.1us 原始计数并交由现有 Core 翻折逻辑。
+  - Excel 与 BIN 统一按逐行 CF 拆分 L/S/C；单次导入使用独立 import_id，并返回零至三个独立 package_id。
+  - F26 与 PA 重叠无效时，总剔除按唯一脉冲计数，PA 原因统计仍保持旧代码的独立计数语义。
+  - 多波段数据包使用批量注册和失败回滚，避免持久化半批结果；通用脉冲仪表盘可由 Excel/BIN 共用。
+  - 解析、拆分、Worker、Controller、数据池、UI 聚焦回归：46 passed，1 个第三方 scipy 弃用警告。
+  - Session/数据池扩大回归：80 passed、2 failed；失败为既有 500ms 测试单位断言和模型列表为空时参数窗口保存问题，与本次导入重构无关。
+  - 主窗口/Session 管理回归：24 passed、1 failed；失败为既有页面标题“切片处理”与旧断言“Session 管理”不一致，与本次改动无关。
+  - 全速运行与导出回归：15 passed，1 个第三方 scipy 弃用警告。
+  - 相关 Python 文件 `py_compile`、新模块 doctest 与 `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-10 17:16
 - 操作类型：[修改]
 - 影响文件：

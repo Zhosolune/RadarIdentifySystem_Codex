@@ -20,7 +20,7 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.common.font import setFont
 
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingSession
 from ui.components.card_navigation_list import CardNavigationList
 from ui.components.import_dashboard_panel import DashboardCard, DashboardMetric, format_dashboard_duration
@@ -500,7 +500,7 @@ class SessionManagerPanel(SimpleCardWidget):
     def _build_metrics(self, session: ProcessingSession) -> list[DashboardMetric]:
         """构建当前 session 的导入仪表盘指标。"""
         dashboard_info = session.dashboard_info
-        if not isinstance(dashboard_info, ExcelDashboardInfo):
+        if not isinstance(dashboard_info, PulseDashboardInfo):
             return self._build_empty_metrics()
 
         return [

@@ -14,9 +14,14 @@ from core.models.data_package import DataPackage
 from core.models.processing_session import ProcessingMode
 from core.models.pulse_batch import PulseBatch
 from infra.data_pool_store import DataPoolStore
+from infra.parsers import ParsedPulseSource
 from runtime.data_pool_registry import DataPoolRegistry
 import runtime.threading.import_worker as import_worker_module
-from runtime.threading.import_worker import ImportWorker, ImportWorkerResult
+from runtime.threading.import_worker import (
+    ImportExecutionRequest,
+    ImportWorker,
+    ImportWorkerResult,
+)
 import runtime.workflows.import_workflow as import_workflow_module
 from runtime.workflows.import_workflow import ImportWorkflow
 import ui.controllers.home_controller as home_controller_module
@@ -89,8 +94,8 @@ class _ImportPanelStub:
         """返回选中行。"""
         return 0
 
-    def current_excel_data_format(self) -> str:
-        """返回显式 Excel 格式。"""
+    def current_data_format(self) -> str:
+        """返回当前来源的显式解析格式。"""
         return self.excel_data_format
 
 
@@ -168,8 +173,8 @@ def _build_package(package_id: str = "package1") -> DataPackage:
 
 def _disconnect_home_controller(controller: HomeController) -> None:
     """断开控制器注册到全局总线的测试信号。"""
-    signal_bus.data_package_parsed.disconnect(
-        controller.register_parsed_package
+    signal_bus.data_packages_parsed.disconnect(
+        controller.register_parsed_packages
     )
     signal_bus.stage_failed.disconnect(controller._on_parse_stage_failed)
 
@@ -177,37 +182,41 @@ def _disconnect_home_controller(controller: HomeController) -> None:
 def test_data_package_event_does_not_emit_session_registered() -> None:
     """解析完成只发布数据包，不应隐式创建任何 Session。"""
     package = _build_package()
-    received_packages: list[DataPackage] = []
+    received_packages: list[tuple[str, tuple[DataPackage, ...]]] = []
     received_session_ids: list[str] = []
-    signal_bus.data_package_parsed.connect(received_packages.append)
+    callback = lambda import_id, packages: received_packages.append(
+        (import_id, packages)
+    )
+    signal_bus.data_packages_parsed.connect(callback)
     signal_bus.session_registered.connect(received_session_ids.append)
     try:
-        signal_bus.data_package_parsed.emit(package)
-        assert received_packages == [package]
+        signal_bus.data_packages_parsed.emit("import-1", (package,))
+        assert received_packages == [("import-1", (package,))]
         assert received_session_ids == []
     finally:
-        signal_bus.data_package_parsed.disconnect(received_packages.append)
+        signal_bus.data_packages_parsed.disconnect(callback)
         signal_bus.session_registered.disconnect(received_session_ids.append)
 
 
 def test_import_workflow_finished_emits_data_package() -> None:
     """导入工作流成功后应只发布新的数据包事件。"""
     package = _build_package()
-    received: list[DataPackage] = []
+    received: list[tuple[str, tuple[DataPackage, ...]]] = []
     workflow = ImportWorkflow()
     fake_worker = _FakeImportWorker()
     workflow._worker = cast(Any, fake_worker)
-    signal_bus.data_package_parsed.connect(received.append)
+    callback = lambda import_id, packages: received.append((import_id, packages))
+    signal_bus.data_packages_parsed.connect(callback)
     try:
         workflow._on_worker_finished(
-            package.package_id,
-            ImportWorkerResult(True, package, "ok"),
+            "import-1",
+            ImportWorkerResult(True, (package,), "ok"),
         )
-        assert received == [package]
+        assert received == [("import-1", (package,))]
         assert fake_worker.delete_later_called
         assert workflow._worker is None
     finally:
-        signal_bus.data_package_parsed.disconnect(received.append)
+        signal_bus.data_packages_parsed.disconnect(callback)
 
 
 def test_home_controller_passes_selected_excel_format(
@@ -234,8 +243,12 @@ def test_home_controller_passes_selected_excel_format(
     monkeypatch.setattr(
         home_controller_module.import_workflow,
         "start_import",
-        lambda file_path, data_format: (
-            captured.update(file_path=file_path, data_format=data_format)
+        lambda file_path, source_type, data_format: (
+            captured.update(
+                file_path=file_path,
+                source_type=source_type,
+                data_format=data_format,
+            )
             or "package-new"
         ),
     )
@@ -244,9 +257,60 @@ def test_home_controller_passes_selected_excel_format(
         controller.parse_selected_file()
         assert captured == {
             "file_path": "new_format.xlsx",
+            "source_type": "excel",
             "data_format": "new",
         }
-        assert controller._active_parse_package_id == "package-new"
+        assert controller._active_import_id == "package-new"
+    finally:
+        _disconnect_home_controller(controller)
+
+
+def test_home_controller_passes_selected_bin_rule(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """主页 BIN 入口应显式传递来源类型和固定 PDW 规则。"""
+    view = _HomeViewStub()
+    registry = DataPoolRegistry(DataPoolStore(tmp_path / "pool"))
+    controller = HomeController(view, registry)
+    captured: dict[str, object] = {}
+    entry = SimpleNamespace(path=Path("mixed.bin"), format_key="bin")
+    monkeypatch.setattr(
+        controller.file_manager,
+        "get_entry_at",
+        lambda _format_key, _row_index: entry,
+    )
+    monkeypatch.setattr(
+        view.import_panel,
+        "current_data_format",
+        lambda: "pdw_v1",
+    )
+    monkeypatch.setattr(
+        home_controller_module.import_workflow,
+        "is_running",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        home_controller_module.import_workflow,
+        "start_import",
+        lambda file_path, source_type, data_format: (
+            captured.update(
+                file_path=file_path,
+                source_type=source_type,
+                data_format=data_format,
+            )
+            or "import-bin"
+        ),
+    )
+    monkeypatch.setattr(controller, "_show_processing_dialog", lambda: None)
+    try:
+        controller.parse_selected_file()
+        assert captured == {
+            "file_path": "mixed.bin",
+            "source_type": "bin",
+            "data_format": "pdw_v1",
+        }
+        assert controller._active_import_id == "import-bin"
     finally:
         _disconnect_home_controller(controller)
 
@@ -261,24 +325,36 @@ def test_import_worker_passes_excel_format_and_returns_package(
     class _ParserStub:
         """记录解析参数并返回六列批次。"""
 
-        def parse(self, file_path: str, data_format: str = "old") -> PulseBatch:
+        def parse(
+            self,
+            file_path: str,
+            data_format: str | None = "old",
+        ) -> ParsedPulseSource:
             """返回单脉冲批次。"""
-            captured.update(file_path=file_path, data_format=data_format)
-            return PulseBatch(
-                np.array([[5000.0, 1.0, 100.0, 90.0, 90.0, 0.0]]),
+            captured.update(file_path=file_path, data_format=str(data_format))
+            return ParsedPulseSource(
+                data=np.array([[5000.0, 1.0, 100.0, 90.0, 90.0, 0.0]]),
                 source_path=file_path,
                 source_type="excel",
-                total_pulses=1,
+                source_valid_mask=np.ones(1, dtype=bool),
+                total_records=1,
             )
 
-    monkeypatch.setattr(import_worker_module, "ExcelPulseParser", _ParserStub)
+    monkeypatch.setattr(
+        import_worker_module,
+        "create_pulse_parser",
+        lambda _source_type: _ParserStub(),
+    )
     worker = ImportWorker(
-        "new_format.xlsx",
-        data_format="new",
-        package_id="package-new",
+        ImportExecutionRequest(
+            import_id="import-new",
+            file_path="new_format.xlsx",
+            source_type="excel",
+            data_format="new",
+        )
     )
     worker.finished_signal.connect(
-        lambda _package_id, result: results.append(result)
+        lambda _import_id, result: results.append(result)
     )
     worker.run()
 
@@ -287,8 +363,57 @@ def test_import_worker_passes_excel_format_and_returns_package(
         "data_format": "new",
     }
     assert results[0].success
-    assert results[0].package.package_id == "package-new"
-    assert not results[0].package.preprocess_result.data.flags.writeable
+    assert len(results[0].packages) == 1
+    assert results[0].packages[0].preprocess_result.band == "C波段"
+    assert not results[0].packages[0].preprocess_result.data.flags.writeable
+
+
+def test_bin_import_worker_returns_independent_lsc_packages(tmp_path) -> None:
+    """BIN 导入应按公共规则生成 L/S/C 数据包并保留旧过滤语义。"""
+    records = np.zeros((3, 16), dtype=">u2")
+    records[:, 0] = [3, 5, 6]
+    records[:, 2] = [1500, 3000, 5000]
+    records[:, 5] = [100, 200, 300]
+    records[:, 6] = 20
+    records[:, 7] = 10
+    records[:, 11] = [100, 255, 255]
+    records[:, 14] = [100, 200, 300]
+    records[1, 15] = 1 << 10
+    bin_path = tmp_path / "mixed.bin"
+    bin_path.write_bytes(records.tobytes())
+
+    results: list[ImportWorkerResult] = []
+    worker = ImportWorker(
+        ImportExecutionRequest(
+            import_id="import-bin",
+            file_path=str(bin_path),
+            source_type="bin",
+            data_format="pdw_v1",
+        )
+    )
+    worker.finished_signal.connect(
+        lambda _import_id, result: results.append(result)
+    )
+
+    worker.run()
+
+    assert results[0].success
+    packages = results[0].packages
+    assert [package.preprocess_result.band for package in packages] == [
+        "L波段",
+        "S波段",
+        "C波段",
+    ]
+    assert [package.raw_batch.total_pulses for package in packages] == [1, 1, 1]
+    assert packages[0].raw_batch.data[0, 2] == 100
+    assert packages[0].raw_batch.data[0, 5] == 100
+    assert packages[0].preprocess_result.remaining_pulses == 1
+    assert packages[1].raw_batch.n_pulses == 0
+    assert packages[1].preprocess_result.filtered_pulses == 1
+    assert packages[1].preprocess_result.amplitude_dropped_pulses == 1
+    assert packages[2].raw_batch.n_pulses == 1
+    assert packages[2].preprocess_result.remaining_pulses == 0
+    assert packages[2].preprocess_result.amplitude_dropped_pulses == 1
 
 
 def test_import_workflow_passes_format_and_package_id_to_worker(
@@ -302,16 +427,12 @@ def test_import_workflow_passes_format_and_package_id_to_worker(
 
         def __init__(
             self,
-            file_path: str,
-            data_format: str = "old",
-            package_id: str | None = None,
+            request: ImportExecutionRequest,
             parent: QObject | None = None,
         ) -> None:
             """保存构造参数。"""
             captured.update(
-                file_path=file_path,
-                data_format=data_format,
-                package_id=package_id,
+                request=request,
                 parent=parent,
             )
             self.finished_signal = _SignalStub()
@@ -326,14 +447,17 @@ def test_import_workflow_passes_format_and_package_id_to_worker(
 
     monkeypatch.setattr(import_workflow_module, "ImportWorker", _WorkerStub)
     workflow = ImportWorkflow()
-    package_id = workflow.start_import(
+    import_id = workflow.start_import(
         "new_format.xlsx",
+        source_type="excel",
         data_format="new",
     )
 
-    assert captured["file_path"] == "new_format.xlsx"
-    assert captured["data_format"] == "new"
-    assert captured["package_id"] == package_id
+    request = cast(ImportExecutionRequest, captured["request"])
+    assert request.file_path == "new_format.xlsx"
+    assert request.source_type == "excel"
+    assert request.data_format == "new"
+    assert request.import_id == import_id
     assert captured["parent"] is workflow
     assert captured["started"] is True
 
@@ -347,7 +471,7 @@ def test_home_controller_registers_parsed_package_in_data_pool(
     registry = DataPoolRegistry(DataPoolStore(tmp_path / "pool"))
     controller = HomeController(view, registry)
     package = _build_package("package-home")
-    controller._active_parse_package_id = package.package_id
+    controller._active_import_id = "import-home"
     controller._processing_dialog = None
     monkeypatch.setattr(
         home_controller_module.InfoBar,
@@ -355,11 +479,11 @@ def test_home_controller_registers_parsed_package_in_data_pool(
         lambda **_kwargs: None,
     )
     try:
-        controller.register_parsed_package(package)
+        controller.register_parsed_packages("import-home", (package,))
         assert registry.get(package.package_id) is package
         assert view.data_pool_panel.packages == [package]
         assert view.data_pool_panel.selected_package_id == package.package_id
-        assert controller._active_parse_package_id is None
+        assert controller._active_import_id is None
     finally:
         _disconnect_home_controller(controller)
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from math import ceil
 
-from core.models.dashboard_info import ExcelDashboardInfo, FileDashboardInfo
+from core.models.dashboard_info import FileDashboardInfo, PulseDashboardInfo
 from core.models.pulse_batch import COL_TOA
 from core.models.slice_result import PreprocessResult
 
@@ -17,8 +17,7 @@ from core.models.slice_result import PreprocessResult
 class DashboardInfoManager:
     """按文件类型构建仪表盘摘要信息。
 
-    该类集中管理不同数据文件类型的仪表盘指标派生规则。当前仅实现 Excel，
-    bin/mat 后续接入时应新增对应构建方法，而不是把判断逻辑散落到 UI 或线程层。
+    该类从统一预处理结果派生数据包摘要，不依赖 Excel、BIN 等外部容器格式。
     """
 
     def build(
@@ -35,7 +34,7 @@ class DashboardInfoManager:
             slice_length: 切片长度，单位为 0.1us，必须大于 0。
 
         Returns:
-            仪表盘摘要信息；暂未实现的文件类型返回 None。
+            仪表盘摘要信息。
 
         Raises:
             ValueError: 当 ``slice_length`` 小于或等于 0 时抛出。
@@ -44,30 +43,27 @@ class DashboardInfoManager:
             >>> import numpy as np
             >>> from core.models.slice_result import PreprocessResult
             >>> result = PreprocessResult(data=np.empty((0, 6)))
-            >>> DashboardInfoManager().build("bin", result) is None
-            True
+            >>> DashboardInfoManager().build("bin", result).total_pulses
+            0
         """
         if slice_length <= 0:
             raise ValueError("slice_length 必须大于 0")
 
-        normalized_type = source_type.strip().lower()
-        if normalized_type == "excel":
-            return self.build_excel_info(preprocess_result, slice_length)
-        return None
+        return self.build_pulse_info(preprocess_result, slice_length)
 
-    def build_excel_info(
+    def build_pulse_info(
         self,
         preprocess_result: PreprocessResult,
         slice_length: float = 2_500_000,
-    ) -> ExcelDashboardInfo:
-        """生成 Excel 文件仪表盘摘要信息。
+    ) -> PulseDashboardInfo:
+        """生成统一脉冲数据包的仪表盘摘要信息。
 
         Args:
             preprocess_result: 已完成 PA 清洗和 TOA 翻折修正的预处理结果。
             slice_length: 切片长度，单位为 0.1us，必须大于 0。
 
         Returns:
-            Excel 文件仪表盘摘要信息，包含总脉冲、剔除脉冲、幅度丢弃、
+            脉冲数据包摘要信息，包含总脉冲、剔除脉冲、幅度丢弃、
             持续时间、波段与预计切片数。
 
         Raises:
@@ -78,7 +74,7 @@ class DashboardInfoManager:
             >>> from core.models.slice_result import PreprocessResult
             >>> data = np.array([[5000, 1, 100, 90, 90, 0], [5000, 1, 100, 90, 90, 10]], dtype=float)
             >>> result = PreprocessResult(data=data, total_pulses=2, band="C波段")
-            >>> DashboardInfoManager().build_excel_info(result).duration
+            >>> DashboardInfoManager().build_pulse_info(result).duration
             10.0
         """
         if slice_length <= 0:
@@ -87,12 +83,12 @@ class DashboardInfoManager:
         duration = self._duration_from_fixed_toa(preprocess_result)
         estimated_slice_count = int(ceil(duration / slice_length)) if duration > 0 else 0
 
-        # Excel 现阶段只有 PA=255 清洗一种剔除来源，因此二者保持一致。
-        amplitude_dropped_pulses = preprocess_result.filtered_pulses
-        return ExcelDashboardInfo(
+        return PulseDashboardInfo(
             total_pulses=preprocess_result.total_pulses,
             removed_pulses=preprocess_result.filtered_pulses,
-            amplitude_dropped_pulses=amplitude_dropped_pulses,
+            amplitude_dropped_pulses=(
+                preprocess_result.amplitude_dropped_pulses
+            ),
             duration=duration,
             band=preprocess_result.band,
             estimated_slice_count=estimated_slice_count,

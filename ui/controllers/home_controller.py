@@ -68,7 +68,7 @@ class HomeController(QObject):
         self.session_coordinator = session_coordinator
         self.interactive_session_registrar = interactive_session_registrar
         self.file_manager = ImportFileListManager()
-        self._active_parse_package_id: str | None = None
+        self._active_import_id: str | None = None
         self._processing_dialog: ProcessingDialog | None = None
         self._connect_signals()
 
@@ -161,7 +161,7 @@ class HomeController(QObject):
             self.view.import_panel.descendAction,
         ):
             action.triggered.connect(lambda _checked=False: self.apply_sort())
-        signal_bus.data_package_parsed.connect(self.register_parsed_package)
+        signal_bus.data_packages_parsed.connect(self.register_parsed_packages)
         signal_bus.stage_failed.connect(self._on_parse_stage_failed)
         self.view.data_pool_panel.createSessionRequested.connect(
             self.create_session_from_package
@@ -193,8 +193,8 @@ class HomeController(QObject):
         if entry is None:
             self._show_top_warning("未选择文件", "请先在当前标签页选择一个文件。")
             return
-        if entry.format_key != "excel":
-            self._show_top_warning("暂不支持", "当前仅支持解析 Excel 文件。")
+        if not import_workflow.supports_source_type(entry.format_key):
+            self._show_top_warning("暂不支持", "当前仅支持解析 Excel 和 BIN 文件。")
             return
         if import_workflow.is_running():
             self._show_top_warning("正在解析", "已有文件正在解析，请等待完成后再试。")
@@ -205,24 +205,30 @@ class HomeController(QObject):
         self._show_processing_dialog()
 
         try:
-            # 点击解析时冻结格式选择，后台线程不再读取可变 UI 状态。
-            data_format = self.view.import_panel.current_excel_data_format()
-            self._active_parse_package_id = import_workflow.start_import(
+            # 点击解析时冻结来源类型和格式规则，后台线程不再读取可变 UI 状态。
+            data_format = self.view.import_panel.current_data_format()
+            self._active_import_id = import_workflow.start_import(
                 str(entry.path),
-                data_format,
+                source_type=entry.format_key,
+                data_format=data_format,
             )
         except Exception as exc:
-            self._active_parse_package_id = None
+            self._active_import_id = None
             self.view.import_panel.parseButton.setEnabled(True)
             self.view.import_panel.parseButton.setText("解析")
             self._close_processing_dialog()
             self._show_top_warning("解析失败", str(exc))
 
-    def register_parsed_package(self, package: DataPackage) -> None:
-        """将解析完成的数据包持久化注册到数据池。
+    def register_parsed_packages(
+        self,
+        import_id: str,
+        packages: tuple[DataPackage, ...],
+    ) -> None:
+        """将一次导入生成的数据包作为同一批次注册到数据池。
 
         Args:
-            package: 已完成解析、预处理和输入冻结的数据包。
+            import_id: 导入任务 ID。
+            packages: 已完成解析、预处理和输入冻结的数据包元组。
 
         Returns:
             None: 无返回值。
@@ -233,23 +239,27 @@ class HomeController(QObject):
         Example:
             无。
         """
-        if package.package_id != self._active_parse_package_id:
+        if import_id != self._active_import_id:
             return
 
-        self._active_parse_package_id = None
+        self._active_import_id = None
         self.view.import_panel.parseButton.setEnabled(True)
         self.view.import_panel.parseButton.setText("解析")
         self._close_processing_dialog()
 
         try:
-            self.data_pool_registry.register(package)
+            self.data_pool_registry.register_many(packages)
         except Exception as exc:
             self._show_top_warning("数据池注册失败", str(exc))
             return
-        self.refresh_data_pool_panel(package.package_id)
+        selected_package_id = packages[0].package_id if packages else None
+        self.refresh_data_pool_panel(selected_package_id)
         InfoBar.success(
             title="已加入数据池",
-            content=f"{package.display_name} 已完成解析，可创建处理 Session。",
+            content=(
+                f"已生成并注册 {len(packages)} 个波段数据包，"
+                "可分别创建处理 Session。"
+            ),
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,
@@ -423,16 +433,16 @@ class HomeController(QObject):
 
     def _on_parse_stage_failed(
         self,
-        session_id: str,
+        import_id: str,
         stage: str,
         _slice_index: int | None,
         error_msg: str,
     ) -> None:
         """处理首页解析工作流失败事件。"""
-        if session_id != self._active_parse_package_id or stage != "importing":
+        if import_id != self._active_import_id or stage != "importing":
             return
 
-        self._active_parse_package_id = None
+        self._active_import_id = None
         self.view.import_panel.parseButton.setEnabled(True)
         self.view.import_panel.parseButton.setText("解析")
         self._close_processing_dialog()
@@ -444,7 +454,7 @@ class HomeController(QObject):
         self._processing_dialog = ProcessingDialog(
             self.view,
             title="解析数据",
-            content="正在读取并预处理 Excel 文件，请稍候...",
+            content="正在读取、分波段并预处理数据文件，请稍候...",
         )
         self._processing_dialog.show()
 

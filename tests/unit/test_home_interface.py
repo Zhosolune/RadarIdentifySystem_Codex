@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import Flyout, FlyoutAnimationType
 
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.data_package import DataPackage
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult
@@ -51,7 +51,7 @@ def _build_data_package(
             [5001.0, 1.2, 91.0, 12.0, 13.0, 100.0],
         ]
     )
-    dashboard = ExcelDashboardInfo(
+    dashboard = PulseDashboardInfo(
         total_pulses=2,
         removed_pulses=0,
         amplitude_dropped_pulses=0,
@@ -226,6 +226,12 @@ def test_import_data_panel_reports_selected_excel_format() -> None:
 
     assert panel.current_excel_data_format() == "new"
     assert panel.oldFormatAction.isChecked() is False
+
+    panel.tab_widget.setCurrentIndex(1)
+
+    assert panel.current_format_key() == "bin"
+    assert panel.current_data_format() == "pdw_v1"
+    assert not panel.option_button.isEnabled()
 
 
 def test_data_pool_responsively_uses_two_to_four_equal_card_columns() -> None:

@@ -223,6 +223,8 @@ class ImportDataPanel(SimpleCardWidget):
 
         self._init_ui()
         self._connect_menu_feedback()
+        self.tab_widget.currentChanged.connect(self._sync_format_option_state)
+        self._sync_format_option_state(self.tab_widget.currentIndex())
 
     def _init_ui(self) -> None:
         """构建 CommandBar → EdgeTabWidget 两层 UI 结构。
@@ -400,6 +402,33 @@ class ImportDataPanel(SimpleCardWidget):
             ('old', 'new')
         """
         return "new" if self.newFormatAction.isChecked() else "old"
+
+    def current_data_format(self) -> str | None:
+        """返回当前来源类型对应的解析规则。
+
+        Excel 使用用户选择的新旧规则，BIN 当前固定使用 ``pdw_v1``；尚未
+        支持解析的格式返回 None。
+
+        Returns:
+            str | None: 当前解析规则标识。
+
+        Raises:
+            无显式抛出异常。
+
+        Example:
+            >>> isinstance("pdw_v1", str)
+            True
+        """
+        format_key = self.current_format_key()
+        if format_key == "excel":
+            return self.current_excel_data_format()
+        if format_key == "bin":
+            return "pdw_v1"
+        return None
+
+    def _sync_format_option_state(self, _index: int) -> None:
+        """仅在 Excel 标签页启用当前的新旧格式选项。"""
+        self.option_button.setEnabled(self.current_format_key() == "excel")
 
     def _connect_menu_feedback(self) -> None:
         """连接可选中菜单项的状态提示信号。

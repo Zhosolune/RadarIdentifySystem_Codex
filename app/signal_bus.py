@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from core.models.data_package import DataPackage
-
-
 class _SignalBus(QObject):
     """全局单例事件总线。
 
@@ -29,8 +26,8 @@ class _SignalBus(QObject):
     # -------------------------------------------------------------------
     # 结果数据事件
     # -------------------------------------------------------------------
-    # 解析完成后携带只读数据包，由主页注册到数据池。
-    data_package_parsed = pyqtSignal(DataPackage)
+    # 解析完成后携带导入任务 ID 与只读数据包元组，由主页批量注册到数据池。
+    data_packages_parsed = pyqtSignal(str, object)
     # 全速任务配置、进度或终态变化后发出，主页据此刷新对应卡片。
     full_speed_session_changed = pyqtSignal(str)
 

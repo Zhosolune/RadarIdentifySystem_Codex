@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from app.app_config import appConfig, qconfig
-from core.models.dashboard_info import ExcelDashboardInfo
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingSession
 from core.models.pulse_batch import PulseBatch
 from core.models.slice_result import PreprocessResult
@@ -71,7 +71,7 @@ def _attach_import_cache_payload(
     band: str,
 ) -> None:
     """为测试 session 填充可写入导入缓存的最小运行态数据。"""
-    dashboard_info = ExcelDashboardInfo(
+    dashboard_info = PulseDashboardInfo(
         total_pulses=len(raw_data),
         removed_pulses=0,
         amplitude_dropped_pulses=0,

@@ -86,7 +86,15 @@
                 "modified_timestamp": 1782484223.1843398
             }
         ],
-        "bin": [],
+        "bin": [
+            {
+                "path": "E:\\competition\\测试数据\\1-1.bin",
+                "display_name": "1-1.bin",
+                "original_name": "1-1.bin",
+                "size_bytes": 104857600,
+                "modified_timestamp": 1621822948.0
+            }
+        ],
         "mat": []
     },
     "ignored_paths": [],
