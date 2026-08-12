@@ -203,6 +203,9 @@ class SliceController(QObject):
             
         # 恢复按钮状态
         self.view.right_panel.navigation_control_card.start_slicing_button.setEnabled(True)
+
+        # 切片结果已写回 Session，此时将预计数量切换为实际数量。
+        self._refresh_slice_count_info()
         
         # 加载第0片
         self._load_slice_image(0)
@@ -285,6 +288,9 @@ class SliceController(QObject):
             
         # 恢复按钮状态
         self.view.right_panel.navigation_control_card.start_slicing_button.setEnabled(True)
+
+        # 兼容旧的完成入口，确保实际切片数量同步展示。
+        self._refresh_slice_count_info()
         
         # 加载第0片
         self._load_slice_image(0)
@@ -493,8 +499,29 @@ class SliceController(QObject):
         )
 
     def refresh_navigation_state(self) -> None:
-        """刷新当前切片导航按钮状态。"""
+        """刷新当前切片导航按钮与数量信息状态。"""
         self._update_navigation_buttons()
+        self._refresh_slice_count_info()
+
+    def _refresh_slice_count_info(self) -> None:
+        """根据当前 Session 结果刷新预计或实际切片数量。"""
+        session = self.view._session
+        if session.slice_result is not None:
+            self.view.right_panel.slice_info_label.setText(
+                f"已获得 {session.slice_result.slice_count} 个250ms切片"
+            )
+            return
+
+        # 数据池摘要是预计数量的首选来源，旧缓存缺少摘要时回退到预处理结果。
+        if session.dashboard_info is not None:
+            estimated_count = session.dashboard_info.estimated_slice_count
+        elif session.preprocess_result is not None:
+            estimated_count = session.preprocess_result.estimated_slice_count
+        else:
+            estimated_count = 0
+        self.view.right_panel.slice_info_label.setText(
+            f"预计将获得 {estimated_count} 个250ms切片"
+        )
 
     def _set_slice_navigation_enabled(
         self,

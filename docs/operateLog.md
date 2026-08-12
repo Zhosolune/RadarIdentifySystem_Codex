@@ -1,5 +1,27 @@
 # 变更记录
 
+- 时间：2026-08-12 16:49
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\slice_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：恢复切片页面右侧预计切片数与实际切片数的初始化、完成事件和 Session 恢复展示。
+- 原因：`slice_info_label` 拆分到右侧组件后只有静态默认文案，控制器未将 Session 中已有的预计及实际数量同步到标签。
+- 计划清单：
+  - [x] 核对预计切片数、实际切片数和切片完成事件的现有数据链路。
+  - [x] 由 `SliceController` 统一刷新标签，不让 UI 组件直接读取业务数据。
+  - [x] 页面创建与导航状态刷新时优先显示实际数量，否则显示预计数量。
+  - [x] 切片完成后将预计文案切换为实际数量文案。
+  - [x] 补充摘要来源、旧缓存回退、已有结果恢复和完成事件回归。
+- 验证结果：
+  - 新建页面从 `dashboard_info.estimated_slice_count` 显示预计数量，缺少摘要时回退到 `preprocess_result.estimated_slice_count`，两者均缺失时安全显示 0。
+  - 已有 `slice_result` 的 Session 在页面创建或导航刷新时直接显示实际数量；切片完成事件也会立即切换为实际数量。
+  - 新增切片数量专项回归：4 passed、12 deselected，1 个第三方 scipy 弃用警告。
+  - 切片界面与导航扩大回归：25 passed、3 failed；3 个失败分别为既有卡片排列、合并结果占位文案和快照标题断言，与本次数量标签修改无关。
+  - 相关源码内存编译与本次差异检查：通过（仅换行符提示）；磁盘 `py_compile` 因现有 `__pycache__` 临时文件权限被拒，测试导入已覆盖语法校验。
+- 测试状态：[已测试]
+
 - 时间：2026-08-12 10:50
 - 操作类型：[修改]
 - 影响文件：

@@ -26,7 +26,9 @@ from qfluentwidgets import (
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from core.models.dashboard_info import PulseDashboardInfo
 from core.models.processing_session import ProcessingSession
+from core.models.slice_result import PreprocessResult, SingleSlice, SliceResult
 from infra.plotting.types import RenderedImageBundle
 from ui.interfaces.slice_interface import SliceInterface
 from ui.components.analysis_result_card import (
@@ -75,6 +77,111 @@ def _app() -> QApplication:
 def _slice_interface() -> SliceInterface:
     """创建显式绑定 Session 的切片页面。"""
     return SliceInterface(session=ProcessingSession())
+
+
+def _dashboard_info(estimated_slice_count: int) -> PulseDashboardInfo:
+    """创建包含指定预计切片数的测试仪表盘摘要。"""
+    return PulseDashboardInfo(
+        total_pulses=10,
+        removed_pulses=0,
+        amplitude_dropped_pulses=0,
+        duration=2_500_000.0,
+        band="S波段",
+        estimated_slice_count=estimated_slice_count,
+    )
+
+
+def test_slice_info_shows_estimated_count_when_page_is_created(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """页面创建时应显示 Session 摘要中的预计切片数量。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: [],
+    )
+    session = ProcessingSession(dashboard_info=_dashboard_info(7))
+    interface = SliceInterface(session=session)
+
+    assert interface.right_panel.slice_info_label.text() == "预计将获得 7 个250ms切片"
+
+    sip.delete(interface)
+
+
+def test_slice_info_falls_back_to_preprocess_estimate(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """仪表盘摘要缺失时应回退显示预处理结果中的预计数量。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: [],
+    )
+    session = ProcessingSession(
+        preprocess_result=PreprocessResult(
+            data=np.empty((0, 6)),
+            estimated_slice_count=4,
+        )
+    )
+    interface = SliceInterface(session=session)
+
+    assert interface.right_panel.slice_info_label.text() == "预计将获得 4 个250ms切片"
+
+    sip.delete(interface)
+
+
+def test_slice_info_shows_actual_count_for_existing_slice_result(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """恢复已有切片结果的页面时应直接显示实际切片数量。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: [],
+    )
+    slices = [
+        SingleSlice(index, np.empty((0, 6)), (float(index), float(index + 1)))
+        for index in range(3)
+    ]
+    session = ProcessingSession(
+        dashboard_info=_dashboard_info(9),
+        slice_result=SliceResult(slices=slices),
+    )
+    interface = SliceInterface(session=session)
+
+    assert interface.right_panel.slice_info_label.text() == "已获得 3 个250ms切片"
+
+    sip.delete(interface)
+
+
+def test_slice_info_updates_to_actual_count_after_slicing_finished(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """切片完成事件应将预计数量切换为实际切片数量。"""
+    _app()
+    monkeypatch.setattr(
+        "ui.components.model_selection_card.get_enabled_model_paths",
+        lambda model_type: [],
+    )
+    session = ProcessingSession(dashboard_info=_dashboard_info(6))
+    interface = SliceInterface(session=session)
+    controller = interface._slice_controller
+    monkeypatch.setattr(controller, "_load_slice_image", lambda index: None)
+    monkeypatch.setattr(
+        interface._identify_controller,
+        "load_cluster_image",
+        lambda index, reset_index: None,
+    )
+    monkeypatch.setattr("ui.controllers.slice_controller.InfoBar.success", lambda **kwargs: None)
+    session.slice_result = SliceResult(
+        slices=[SingleSlice(0, np.empty((0, 6)), (0.0, 1.0))]
+    )
+
+    controller._on_stage_finished(session.session_id, "slicing", None)
+
+    assert interface.right_panel.slice_info_label.text() == "已获得 1 个250ms切片"
+
+    sip.delete(interface)
 
 
 def test_slice_param_panel_is_mounted_in_matching_drawer(
