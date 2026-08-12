@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-08-12 09:55
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\merge_image_column.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_slice_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将合并界面 PRI 图像右上角透明切换按钮的 Tooltip 接入 qfluentwidgets 组件。
+- 原因：原实现仅设置 Qt 原生 Tooltip 文案，没有安装组件库 Tooltip 过滤器，提示外观与应用主题不一致。
+- 计划清单：
+  - [x] 定位 PRI hover 按钮和项目现有 Fluent Tooltip 用法。
+  - [x] 为按钮安装 `ToolTipFilter`，保留动态模式文案与现有交互。
+  - [x] 补充 Tooltip 组件类型和显示位置回归断言。
+  - [x] 执行 PRI 按钮聚焦回归、Python 编译和差异检查。
+- 验证结果：
+  - PRI hover 切换按钮已安装 qfluentwidgets `ToolTipFilter`，提示固定显示在按钮上方，动态模式文案保持不变。
+  - PRI hover 按钮与双模式快照窗口聚焦回归：2 passed、10 deselected，1 个第三方 scipy 弃用警告。
+  - 相关 Python 文件 `py_compile` 与 `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-12 09:37
 - 操作类型：[修改]
 - 影响文件：

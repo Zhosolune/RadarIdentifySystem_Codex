@@ -19,6 +19,8 @@ from qfluentwidgets import (
     ScrollArea,
     SimpleCardWidget,
     TableWidget,
+    ToolTipFilter,
+    ToolTipPosition,
     TransparentToolButton,
 )
 
@@ -530,6 +532,9 @@ def test_merge_pri_image_hover_button_requests_mode_toggle() -> None:
         assert isinstance(button, TransparentToolButton)
         assert button.parent() is image_card
         assert button.objectName() == "mergePriModeToggleButton"
+        tooltip_filters = button.findChildren(ToolTipFilter)
+        assert len(tooltip_filters) == 1
+        assert tooltip_filters[0].position is ToolTipPosition.TOP
         assert all(
             not card.image_card.findChildren(TransparentToolButton)
             for card in (

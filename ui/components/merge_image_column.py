@@ -13,7 +13,12 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import Theme, TransparentToolButton
+from qfluentwidgets import (
+    Theme,
+    ToolTipFilter,
+    ToolTipPosition,
+    TransparentToolButton,
+)
 
 from app.custom_icon import CustomIcon
 from ui.components.image_snapshot_window import ImageSnapshotWindow
@@ -258,6 +263,14 @@ class MergeImageColumn(QWidget):
             Qt.CursorShape.PointingHandCursor
         )
         self.pri_mode_toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # 使用 Fluent Tooltip 过滤器接管原生提示事件，保持主题与动效一致。
+        self.pri_mode_toggle_button.installEventFilter(
+            ToolTipFilter(
+                self.pri_mode_toggle_button,
+                1000,
+                ToolTipPosition.TOP,
+            )
+        )
         self.pri_mode_toggle_button.hide()
         self.pri_mode_toggle_button.clicked.connect(
             lambda _checked=False: self.pri_mode_toggle_requested.emit()
