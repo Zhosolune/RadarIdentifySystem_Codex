@@ -31,7 +31,7 @@ class FullSpeedStatus(Enum):
     PAUSING = "pausing"
     PAUSED = "paused"
     RESTARTING = "restarting"
-    DELETING = "deleting"
+    CANCELLING = "cancelling"
     EXPORTING = "exporting"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -338,7 +338,7 @@ class FullSpeedSessionRegistry:
                 FullSpeedStatus.PAUSING,
                 FullSpeedStatus.PAUSED,
                 FullSpeedStatus.RESTARTING,
-                FullSpeedStatus.DELETING,
+                FullSpeedStatus.CANCELLING,
                 FullSpeedStatus.EXPORTING,
             }:
                 raise RuntimeError("全速任务正在执行")
@@ -396,7 +396,7 @@ class FullSpeedSessionRegistry:
                 FullSpeedStatus.PAUSING,
                 FullSpeedStatus.PAUSED,
                 FullSpeedStatus.RESTARTING,
-                FullSpeedStatus.DELETING,
+                FullSpeedStatus.CANCELLING,
             }:
                 # 暂停请求发出后忽略已排队的旧进度，不能覆盖暂停状态。
                 return
@@ -528,8 +528,8 @@ class FullSpeedSessionRegistry:
             state.current_stage = "正在重新执行"
             state.message = "正在清理暂停现场，随后将从第一个切片开始"
 
-    def mark_deleting(self, session_id: str) -> None:
-        """锁定暂停任务入口并等待 Worker 安全终止。
+    def mark_cancelling(self, session_id: str) -> None:
+        """锁定暂停任务入口并等待 Worker 安全取消。
 
         Args:
             session_id [str]: 目标 Session ID。
@@ -543,11 +543,14 @@ class FullSpeedSessionRegistry:
         """
         with self._lock:
             state = self._require_state(session_id)
-            if state.status is not FullSpeedStatus.PAUSED:
-                raise RuntimeError("当前全速任务不在可删除的暂停状态")
-            state.status = FullSpeedStatus.DELETING
-            state.current_stage = "正在删除"
-            state.message = "正在终止暂停现场并清理 Worker"
+            if state.status not in {
+                FullSpeedStatus.PAUSING,
+                FullSpeedStatus.PAUSED,
+            }:
+                raise RuntimeError("当前全速任务不在可取消状态")
+            state.status = FullSpeedStatus.CANCELLING
+            state.current_stage = "正在取消"
+            state.message = "正在终止暂停现场并清理本次运行结果"
 
     def mark_succeeded(self, session_id: str, output_file: str) -> None:
         """记录成功状态并持久化输出文件。
@@ -633,18 +636,19 @@ class FullSpeedSessionRegistry:
                 FullSpeedStatus.PAUSING,
                 FullSpeedStatus.PAUSED,
                 FullSpeedStatus.RESTARTING,
-                FullSpeedStatus.DELETING,
+                FullSpeedStatus.CANCELLING,
                 FullSpeedStatus.EXPORTING,
             }:
                 raise RuntimeError("全速任务执行期间不能删除")
             self.session_registry.close(session_id, delete_persisted=True)
             self._states.pop(session_id, None)
 
-    def finalize_delete(self, session_id: str) -> None:
-        """在暂停 Worker 已退出后完成 Session 删除。
+    def finalize_cancel(self, session_id: str) -> None:
+        """在暂停 Worker 已退出后恢复任务初始状态。
 
-        本入口只供工作流在线程清理完成后调用，避免仍存活的 Worker 向已删除
-        Session 回写进度或终态。
+        保留任务元数据、关联数据包、参数、模型选择和保存目录；清理本次运行
+        的切片及下游结果，解除执行快照冻结，并清空结果文件引用。磁盘上已经
+        生成的 Excel 文件不由本入口删除。
 
         Args:
             session_id [str]: 目标 Session ID。
@@ -654,16 +658,48 @@ class FullSpeedSessionRegistry:
 
         Raises:
             KeyError: Session 或状态不存在时抛出。
-            RuntimeError: 任务没有处于正在删除状态时抛出。
-            OSError: 持久化删除失败时抛出。
+            RuntimeError: 任务没有处于正在取消状态时抛出。
+            OSError: 初始状态持久化失败时抛出。
         """
         with self._lock:
             state = self._require_state(session_id)
-            if state.status is not FullSpeedStatus.DELETING:
-                raise RuntimeError("当前全速任务没有等待安全删除")
-            self._require_session(session_id)
-            self.session_registry.close(session_id, delete_persisted=True)
-            self._states.pop(session_id, None)
+            if state.status is not FullSpeedStatus.CANCELLING:
+                raise RuntimeError("当前全速任务没有等待安全取消")
+            session = self._require_session(session_id)
+
+            # 保留引用以便持久化失败时完整恢复内存状态。
+            previous_stage = session.stage
+            previous_slice_result = session.slice_result
+            previous_cluster_result = session.cluster_result
+            previous_slice_states = session.slice_processing_states
+            previous_recognition_result = session.recognition_result
+            previous_merge_plan = session.merge_plan
+            previous_merge_result = session.merge_result
+            previous_locked = session.full_speed_locked
+            previous_exported_file = session.exported_file_path
+
+            session.reset_to_preprocessed_state()
+            session.full_speed_locked = False
+            session.exported_file_path = ""
+            try:
+                self.session_registry.persist_session(session_id)
+            except Exception:
+                session.stage = previous_stage
+                session.slice_result = previous_slice_result
+                session.cluster_result = previous_cluster_result
+                session.slice_processing_states = previous_slice_states
+                session.recognition_result = previous_recognition_result
+                session.merge_plan = previous_merge_plan
+                session.merge_result = previous_merge_result
+                session.full_speed_locked = previous_locked
+                session.exported_file_path = previous_exported_file
+                raise
+
+            self._states[session_id] = FullSpeedExecutionState(
+                output_dir=(
+                    session.config_snapshot.business.export_dir_path
+                ),
+            )
 
     def referenced_package_ids(self) -> set[str]:
         """返回全速 Session 当前引用的全部数据包 ID。

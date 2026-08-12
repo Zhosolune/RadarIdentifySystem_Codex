@@ -1,5 +1,32 @@
 # 变更记录
 
+- 时间：2026-08-12 10:50
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\full_speed_session_registry.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\full_speed_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_session_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\full_speed_session_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_runtime.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将全速任务暂停后的删除入口改为取消本次处理，并在 Worker 安全退出后把任务恢复到初始状态。
+- 原因：暂停后的主要意图是放弃本次运行并保留任务配置，而不是永久删除整个全速 Session。
+- 计划清单：
+  - [x] 核对暂停、继续、重新执行和安全删除的现有状态机及线程终止边界。
+  - [x] 增加独立取消中状态和安全取消工作流，保留任务但清理本次运行产物。
+  - [x] 让暂停卡片按钮显示“取消”，取消完成后恢复“删除”。
+  - [x] 调整控制器确认文案与动作分发，保留非运行任务的永久删除能力。
+  - [x] 补充运行期、卡片状态与控制器回归并执行静态检查。
+- 验证结果：
+  - 用户点击暂停后，卡片从暂停中开始即把“删除”切换为“取消”；确认后进入“正在取消/取消中”且禁用重复操作。
+  - Worker 在安全检查点退出后保留全速 Session、数据包引用、任务信息、当前参数、模型选择及保存目录，清理切片/聚类/识别/合并产物和结果文件引用，解除 `full_speed_locked`，并恢复 `CONFIGURING/等待启动/0%`；磁盘 Excel 不删除。
+  - 初始、失败、中断和成功等停止状态仍使用“删除”永久移除 Session；旧 `DELETING`、`_delete_requests`、暂停安全删除链已无残留。
+  - 全速运行时、卡片状态和控制器动作聚焦回归：24 passed、2 deselected，1 个第三方 scipy 弃用警告。
+  - 排除项为既有全速滚动条沟槽断言仍要求 20px 和额外 8px 间距，当前实现为 10px，本次未修改滚动布局或 QSS；原始整组结果为 23 passed、2 failed。
+  - 相关 Python 文件 `py_compile`、注册器 doctest 与 `git diff --check`：通过（仅换行符提示）。
+- 测试状态：[已测试]
+
 - 时间：2026-08-12 10:36
 - 操作类型：[修改]
 - 影响文件：

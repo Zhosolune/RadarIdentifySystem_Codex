@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from PyQt6.QtCore import QAbstractAnimation, Qt
 from PyQt6.QtGui import QColor, QFont
@@ -30,7 +31,12 @@ from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
 from runtime.full_speed_session_registry import (
     FullSpeedExecutionState,
+    FullSpeedSessionRegistry,
     FullSpeedStatus,
+)
+from runtime.workflows.full_speed_workflow import FullSpeedWorkflow
+from ui.controllers.full_speed_session_controller import (
+    FullSpeedSessionController,
 )
 from ui.components.full_speed_params_window import FullSpeedParamsWindow
 from ui.components.full_speed_session_panel import FullSpeedSessionPanel
@@ -167,7 +173,7 @@ def test_full_speed_card_maps_status_to_badge_text_and_progress_state() -> None:
             True,
             False,
         ),
-        FullSpeedStatus.DELETING: (
+        FullSpeedStatus.CANCELLING: (
             FluentIcon.SYNC,
             InfoLevel.WARNING,
             "#9d5d00",
@@ -236,7 +242,7 @@ def test_full_speed_card_maps_status_to_badge_text_and_progress_state() -> None:
             FullSpeedStatus.RUNNING,
             FullSpeedStatus.PAUSING,
             FullSpeedStatus.RESTARTING,
-            FullSpeedStatus.DELETING,
+            FullSpeedStatus.CANCELLING,
         }:
             assert card.status_badge.isHidden()
             assert not card.status_spinner.isHidden()
@@ -299,7 +305,7 @@ def test_full_speed_card_maps_start_action_to_execution_status() -> None:
         FullSpeedStatus.PAUSING: ("暂停中", False),
         FullSpeedStatus.PAUSED: ("重新执行", True),
         FullSpeedStatus.RESTARTING: ("重新执行中", False),
-        FullSpeedStatus.DELETING: ("删除中", False),
+        FullSpeedStatus.CANCELLING: ("取消中", False),
         FullSpeedStatus.EXPORTING: ("保存中", False),
         FullSpeedStatus.SUCCEEDED: ("已完成", False),
         FullSpeedStatus.FAILED: ("重试", True),
@@ -348,7 +354,8 @@ def test_full_speed_pause_lifecycle_supports_continue_or_restart() -> None:
     assert not card.start_button.isEnabled()
     assert not card.pause_button.isEnabled()
     assert card.pause_button.text() == "暂停中"
-    assert not card.delete_button.isEnabled()
+    assert card.delete_button.isEnabled()
+    assert card.delete_button.text() == "取消"
 
     card.update_state(
         session,
@@ -363,18 +370,20 @@ def test_full_speed_pause_lifecycle_supports_continue_or_restart() -> None:
     assert card.pause_button.isEnabled()
     assert card.pause_button.text() == "继续"
     assert card.delete_button.isEnabled()
+    assert card.delete_button.text() == "取消"
 
     card.update_state(
         session,
-        FullSpeedExecutionState(status=FullSpeedStatus.DELETING),
+        FullSpeedExecutionState(status=FullSpeedStatus.CANCELLING),
     )
 
-    assert card.status_label.text() == "正在删除"
+    assert card.status_label.text() == "正在取消"
     assert not card.output_button.isEnabled()
     assert not card.params_button.isEnabled()
     assert not card.start_button.isEnabled()
     assert not card.pause_button.isEnabled()
     assert not card.delete_button.isEnabled()
+    assert card.delete_button.text() == "取消中"
 
     card.update_state(
         session,
@@ -390,6 +399,98 @@ def test_full_speed_pause_lifecycle_supports_continue_or_restart() -> None:
     assert not card.pause_button.isEnabled()
     assert card.pause_button.text() == "继续"
     assert card.delete_button.isEnabled()
+    assert card.delete_button.text() == "取消"
+
+    card.update_state(
+        session,
+        FullSpeedExecutionState(status=FullSpeedStatus.CONFIGURING),
+    )
+
+    assert card.delete_button.isEnabled()
+    assert card.delete_button.text() == "删除"
+
+
+def test_controller_routes_paused_delete_button_to_cancel(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """暂停后的删除入口应确认取消本次处理，而非删除 Session。"""
+    _app()
+    panel = FullSpeedSessionPanel()
+    parent = QWidget()
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = ProcessingSession(
+        session_id="fullspeed-controller-cancel",
+        processing_mode=ProcessingMode.FULL_SPEED,
+        display_name="控制器取消任务",
+    )
+    session.config_snapshot.business.export_dir_path = str(tmp_path / "out")
+    registry.register(session)
+    registry.begin(session.session_id)
+    registry.mark_pausing(session.session_id)
+    registry.mark_paused(session.session_id)
+    workflow = FullSpeedWorkflow(registry)
+
+    class _WorkerStub:
+        """记录控制器发出的取消请求。"""
+
+        def __init__(self) -> None:
+            """初始化取消标记。"""
+            self.cancel_requested = False
+
+        def isRunning(self) -> bool:
+            """模拟仍在暂停等待的 Worker。"""
+            return True
+
+        def request_cancel(self) -> None:
+            """记录取消请求。"""
+            self.cancel_requested = True
+
+    worker = _WorkerStub()
+    workflow._workers[session.session_id] = worker
+    dialogs: list[object] = []
+
+    class _MessageBoxStub:
+        """记录取消确认框标题、正文和按钮文案。"""
+
+        def __init__(self, title: str, content: str, _parent: QWidget) -> None:
+            """记录本次确认框参数。"""
+            self.title = title
+            self.content = content
+            self.yesButton = MagicMock()
+            self.cancelButton = MagicMock()
+            dialogs.append(self)
+
+        def exec(self) -> bool:
+            """模拟用户确认取消。"""
+            return True
+
+    monkeypatch.setattr(
+        "ui.controllers.full_speed_session_controller.MessageBox",
+        _MessageBoxStub,
+    )
+    controller = FullSpeedSessionController(
+        panel,
+        MagicMock(),
+        registry,
+        workflow,
+        parent,
+    )
+
+    controller.delete_session(session.session_id)
+
+    assert len(dialogs) == 1
+    dialog = dialogs[0]
+    assert dialog.title == "取消全速处理"
+    assert "恢复为等待启动状态" in dialog.content
+    dialog.yesButton.setText.assert_called_once_with("取消处理")
+    dialog.cancelButton.setText.assert_called_once_with("返回")
+    assert worker.cancel_requested
+    assert registry.get(session.session_id) is session
+    assert (
+        registry.state(session.session_id).status
+        is FullSpeedStatus.CANCELLING
+    )
 
 
 def test_full_speed_card_scrolls_long_output_path_without_truncation() -> None:

@@ -49,7 +49,7 @@ _STATUS_TEXT = {
     FullSpeedStatus.PAUSING: "正在暂停",
     FullSpeedStatus.PAUSED: "已暂停",
     FullSpeedStatus.RESTARTING: "正在重新执行",
-    FullSpeedStatus.DELETING: "正在删除",
+    FullSpeedStatus.CANCELLING: "正在取消",
     FullSpeedStatus.EXPORTING: "正在保存",
     FullSpeedStatus.SUCCEEDED: "已完成",
     FullSpeedStatus.FAILED: "失败",
@@ -62,7 +62,7 @@ _START_ACTION_TEXT = {
     FullSpeedStatus.PAUSING: "暂停中",
     FullSpeedStatus.PAUSED: "重新执行",
     FullSpeedStatus.RESTARTING: "重新执行中",
-    FullSpeedStatus.DELETING: "删除中",
+    FullSpeedStatus.CANCELLING: "取消中",
     FullSpeedStatus.EXPORTING: "保存中",
     FullSpeedStatus.SUCCEEDED: "已完成",
     FullSpeedStatus.FAILED: "重试",
@@ -109,7 +109,7 @@ _STATUS_VISUALS = {
         "#0078d4",
         "#4cc2ff",
     ),
-    FullSpeedStatus.DELETING: (
+    FullSpeedStatus.CANCELLING: (
         FluentIcon.SYNC,
         InfoLevel.WARNING,
         "#9d5d00",
@@ -150,7 +150,7 @@ class FullSpeedSessionCard(CardWidget):
         parametersRequested: 请求修改 Session 参数快照的信号。
         startRequested: 请求开始或重试的信号。
         pauseRequested: 请求暂停或继续的信号。
-        deleteRequested: 请求删除 Session 的信号。
+        deleteRequested: 请求取消本次处理或删除 Session 的信号。
         openOutputRequested: 请求打开结果文件的信号。
     """
 
@@ -354,7 +354,7 @@ class FullSpeedSessionCard(CardWidget):
         pausing = state.status is FullSpeedStatus.PAUSING
         paused = state.status is FullSpeedStatus.PAUSED
         restarting = state.status is FullSpeedStatus.RESTARTING
-        deleting = state.status is FullSpeedStatus.DELETING
+        cancelling = state.status is FullSpeedStatus.CANCELLING
         exporting = state.status is FullSpeedStatus.EXPORTING
         settings_editable = not session.full_speed_locked or paused
         self.output_button.setEnabled(
@@ -362,7 +362,7 @@ class FullSpeedSessionCard(CardWidget):
             and not running
             and not pausing
             and not restarting
-            and not deleting
+            and not cancelling
             and not exporting
         )
         self.params_button.setEnabled(
@@ -370,7 +370,7 @@ class FullSpeedSessionCard(CardWidget):
             and not running
             and not pausing
             and not restarting
-            and not deleting
+            and not cancelling
             and not exporting
         )
         # 只有尚未启动或未成功结束的任务可以进入执行流程；成功任务由运行时禁止重启。
@@ -384,13 +384,28 @@ class FullSpeedSessionCard(CardWidget):
             running or (paused and not state.restart_required)
         )
         self.open_button.setEnabled(bool(state.output_file))
+        # 暂停请求发出后，该入口代表放弃本次运行；恢复初始态后再恢复删除语义。
+        self.delete_button.setText(
+            "取消中"
+            if cancelling
+            else (
+                "取消"
+                if state.status in {
+                    FullSpeedStatus.PAUSING,
+                    FullSpeedStatus.PAUSED,
+                }
+                else "删除"
+            )
+        )
         self.delete_button.setEnabled(
-            paused
+            state.status in {
+                FullSpeedStatus.PAUSING,
+                FullSpeedStatus.PAUSED,
+            }
             or not (
                 running
-                or pausing
                 or restarting
-                or deleting
+                or cancelling
                 or exporting
             )
         )
@@ -404,7 +419,7 @@ class FullSpeedSessionCard(CardWidget):
             FullSpeedStatus.RUNNING,
             FullSpeedStatus.PAUSING,
             FullSpeedStatus.RESTARTING,
-            FullSpeedStatus.DELETING,
+            FullSpeedStatus.CANCELLING,
         }:
             self.status_badge.hide()
             self.status_spinner.setCustomBarColor(light_color, dark_color)
@@ -437,7 +452,7 @@ class FullSpeedSessionCard(CardWidget):
             FullSpeedStatus.PAUSING,
             FullSpeedStatus.PAUSED,
             FullSpeedStatus.RESTARTING,
-            FullSpeedStatus.DELETING,
+            FullSpeedStatus.CANCELLING,
             FullSpeedStatus.INTERRUPTED,
         }:
             self.progress_bar.pause()
@@ -451,7 +466,7 @@ class FullSpeedSessionPanel(SimpleCardWidget):
         parametersRequested: 携带 Session ID 的参数编辑请求。
         startRequested: 携带 Session ID 的开始请求。
         pauseRequested: 携带 Session ID 的暂停或继续请求。
-        deleteRequested: 携带 Session ID 的删除请求。
+        deleteRequested: 携带 Session ID 的取消本次处理或删除请求。
         openOutputRequested: 携带 Session ID 的打开结果请求。
     """
 

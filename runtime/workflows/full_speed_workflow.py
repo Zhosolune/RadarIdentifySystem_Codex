@@ -53,7 +53,7 @@ class FullSpeedWorkflow(QObject):
         self.registry = registry
         self._workers: dict[str, WorkerType] = {}
         self._restart_requests: set[str] = set()
-        self._delete_requests: set[str] = set()
+        self._cancel_requests: set[str] = set()
 
     def start(self, session_id: str) -> None:
         """启动新任务或按冻结参数重试已中断的全速 Session。
@@ -180,15 +180,46 @@ class FullSpeedWorkflow(QObject):
         signal_bus.full_speed_session_changed.emit(session_id)
         return True
 
-    def delete(self, session_id: str) -> bool:
-        """删除停止任务，或先终止暂停 Worker 再异步删除。
+    def cancel_paused(self, session_id: str) -> bool:
+        """终止暂停 Worker，并在其退出后恢复任务初始状态。
 
         Args:
             session_id [str]: 目标 Session ID。
 
         Returns:
-            bool: 已完成删除或已登记安全删除返回 True；任务当前不可删除
-                返回 False。
+            bool: 已登记安全取消返回 True；任务当前不可取消返回 False。
+
+        Raises:
+            KeyError: Session 不存在时抛出。
+        """
+        state = self.registry.state(session_id)
+        if state is None:
+            raise KeyError(f"全速 Session 不存在: {session_id}")
+        worker = self._workers.get(session_id)
+        if (
+            state.status not in {
+                FullSpeedStatus.PAUSING,
+                FullSpeedStatus.PAUSED,
+            }
+            or worker is None
+            or not worker.isRunning()
+            or session_id in self._cancel_requests
+        ):
+            return False
+        self.registry.mark_cancelling(session_id)
+        self._cancel_requests.add(session_id)
+        worker.request_cancel()
+        signal_bus.full_speed_session_changed.emit(session_id)
+        return True
+
+    def delete(self, session_id: str) -> bool:
+        """永久删除没有运行中 Worker 的全速 Session。
+
+        Args:
+            session_id [str]: 目标 Session ID。
+
+        Returns:
+            bool: 删除完成返回 True；任务仍在执行返回 False。
 
         Raises:
             KeyError: Session 不存在时抛出。
@@ -198,14 +229,6 @@ class FullSpeedWorkflow(QObject):
         if state is None:
             raise KeyError(f"全速 Session 不存在: {session_id}")
         worker = self._workers.get(session_id)
-        if state.status is FullSpeedStatus.PAUSED:
-            if worker is None or not worker.isRunning():
-                return False
-            self.registry.mark_deleting(session_id)
-            self._delete_requests.add(session_id)
-            worker.request_cancel()
-            signal_bus.full_speed_session_changed.emit(session_id)
-            return True
         if worker is not None and worker.isRunning():
             return False
         self.registry.delete(session_id)
@@ -287,8 +310,8 @@ class FullSpeedWorkflow(QObject):
         should_restart = (
             result.cancelled and session_id in self._restart_requests
         )
-        should_delete = (
-            result.cancelled and session_id in self._delete_requests
+        should_cancel = (
+            result.cancelled and session_id in self._cancel_requests
         )
         try:
             if result.success:
@@ -299,7 +322,7 @@ class FullSpeedWorkflow(QObject):
                     None,
                 )
             elif result.cancelled:
-                if not should_restart and not should_delete:
+                if not should_restart and not should_cancel:
                     self.registry.mark_interrupted(session_id)
                     signal_bus.stage_failed.emit(
                         session_id,
@@ -326,17 +349,17 @@ class FullSpeedWorkflow(QObject):
             self.registry.mark_failed(session_id, str(error))
         finally:
             self._restart_requests.discard(session_id)
-            self._delete_requests.discard(session_id)
+            self._cancel_requests.discard(session_id)
             worker = self._workers.pop(session_id, None)
             if worker is not None:
                 worker.deleteLater()
 
-        if should_delete:
+        if should_cancel:
             try:
-                self.registry.finalize_delete(session_id)
+                self.registry.finalize_cancel(session_id)
             except Exception as error:
                 LOGGER.error(
-                    "删除暂停任务失败: %s",
+                    "取消暂停任务失败: %s",
                     error,
                     exc_info=True,
                     extra={"session_id": session_id},

@@ -287,10 +287,10 @@ def test_workflow_restarts_paused_worker_from_current_settings(
     )
 
 
-def test_workflow_safely_deletes_paused_session_after_worker_stops(
+def test_workflow_cancels_paused_run_and_restores_initial_state(
     tmp_path,
 ) -> None:
-    """暂停任务应先终止并清理 Worker，再删除 Session。"""
+    """暂停任务应先终止 Worker，再保留 Session 并恢复初始状态。"""
     registry = FullSpeedSessionRegistry(tmp_path / "sessions")
     session = registry.register(_build_full_speed_session(tmp_path / "out"))
     registry.begin(session.session_id)
@@ -321,12 +321,13 @@ def test_workflow_safely_deletes_paused_session_after_worker_stops(
     worker = _WorkerStub()
     workflow._workers[session.session_id] = worker
 
-    assert workflow.delete(session.session_id)
+    session.exported_file_path = str(tmp_path / "existing.xlsx")
+    assert workflow.cancel_paused(session.session_id)
     assert worker.cancel_requested
     assert registry.get(session.session_id) is session
     assert (
         registry.state(session.session_id).status
-        is FullSpeedStatus.DELETING
+        is FullSpeedStatus.CANCELLING
     )
 
     workflow._on_finished(
@@ -336,7 +337,34 @@ def test_workflow_safely_deletes_paused_session_after_worker_stops(
 
     assert worker.deleted
     assert session.session_id not in workflow._workers
-    assert session.session_id not in workflow._delete_requests
+    assert session.session_id not in workflow._cancel_requests
+    assert registry.get(session.session_id) is session
+    state = registry.state(session.session_id)
+    assert state is not None
+    assert state.status is FullSpeedStatus.CONFIGURING
+    assert state.current_stage == "等待启动"
+    assert state.progress == 0
+    assert state.output_file == ""
+    assert state.output_dir == str(tmp_path / "out")
+    assert not session.full_speed_locked
+    assert session.exported_file_path == ""
+    assert session.slice_result is None
+    assert session.cluster_result is None
+    assert session.recognition_result is None
+    assert session.merge_plan is None
+    assert session.merge_result is None
+    assert registry.restore()[0].session_id == session.session_id
+
+
+def test_workflow_deletes_configuring_session_after_cancel_semantics_change(
+    tmp_path,
+) -> None:
+    """初始状态的删除入口仍应永久删除全速 Session。"""
+    registry = FullSpeedSessionRegistry(tmp_path / "sessions")
+    session = registry.register(_build_full_speed_session(tmp_path / "out"))
+    workflow = FullSpeedWorkflow(registry)
+
+    assert workflow.delete(session.session_id)
     assert registry.get(session.session_id) is None
     assert registry.state(session.session_id) is None
 

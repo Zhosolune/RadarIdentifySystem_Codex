@@ -305,7 +305,7 @@ class FullSpeedSessionController(QObject):
             )
 
     def delete_session(self, session_id: str) -> None:
-        """确认后删除停止任务，或安全终止暂停现场后删除。
+        """按任务状态取消本次暂停处理或永久删除停止任务。
 
         Args:
             session_id [str]: 目标全速 Session ID。
@@ -317,29 +317,51 @@ class FullSpeedSessionController(QObject):
         if session is None:
             return
         state = self.registry.state(session_id)
-        paused_hint = (
-            "暂停处理现场将先终止并清理。"
-            if state is not None and state.status is FullSpeedStatus.PAUSED
-            else ""
+        is_cancellable = (
+            state is not None
+            and state.status in {
+                FullSpeedStatus.PAUSING,
+                FullSpeedStatus.PAUSED,
+            }
         )
-        dialog = MessageBox(
-            "删除全速 Session",
-            f"确认删除“{session.display_name}”吗？{paused_hint}"
-            "已生成的 Excel 文件不会删除。",
-            self._message_parent,
-        )
+        if is_cancellable:
+            dialog = MessageBox(
+                "取消全速处理",
+                f"确认取消“{session.display_name}”的本次全速处理吗？"
+                "任务、参数和模型选择将保留，并恢复为等待启动状态；"
+                "已生成的 Excel 文件不会删除。",
+                self._message_parent,
+            )
+            dialog.yesButton.setText("取消处理")
+            dialog.cancelButton.setText("返回")
+        else:
+            dialog = MessageBox(
+                "删除全速 Session",
+                f"确认删除“{session.display_name}”吗？"
+                "已生成的 Excel 文件不会删除。",
+                self._message_parent,
+            )
+            dialog.yesButton.setText("删除")
+            dialog.cancelButton.setText("取消")
         if not dialog.exec():
             return
         try:
-            if not self.workflow.delete(session_id):
+            if is_cancellable:
+                if not self.workflow.cancel_paused(session_id):
+                    raise RuntimeError("当前全速任务无法取消")
+            elif not self.workflow.delete(session_id):
                 raise RuntimeError("当前全速任务仍在执行，暂时不能删除")
         except Exception as error:
-            self._show_warning("删除失败", str(error))
+            self._show_warning(
+                "取消失败" if is_cancellable else "删除失败",
+                str(error),
+            )
             return
 
-        params_window = self._param_windows.get(session_id)
-        if params_window is not None:
-            params_window.close()
+        if not is_cancellable:
+            params_window = self._param_windows.get(session_id)
+            if params_window is not None:
+                params_window.close()
         self.refresh_panel()
 
     def open_output(self, session_id: str) -> None:
