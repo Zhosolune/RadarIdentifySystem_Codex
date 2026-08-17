@@ -92,6 +92,10 @@ class SliceRightPanel(QWidget):
         self.option_cards_group.addSettingCard(self.redraw_option_card)
         operate_panel_layout.addWidget(self.navigation_control_card)
 
+        self.slice_result_label = QLabel("雷达识别与分析结果", self)
+        self.slice_result_label.setObjectName("sliceInfoLabel")
+        self.slice_result_label.setFixedHeight(30)
+
         self.analysis_result_card = AnalysisResultCard(self)
         addStyleSheet(self.analysis_result_card.table, StyleSheet.SLICE_INTERFACE)
 
@@ -101,7 +105,7 @@ class SliceRightPanel(QWidget):
         """创建顶部导航、伸缩结果表和底部绘图选项布局。"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(2)
 
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
@@ -114,5 +118,6 @@ class SliceRightPanel(QWidget):
         # 绘图选项和指定切片绘制
         layout.addWidget(self.option_cards_group)
         # 结果表
+        layout.addWidget(self.slice_result_label)
         layout.addWidget(self.analysis_result_card)
         layout.addStretch(1)
