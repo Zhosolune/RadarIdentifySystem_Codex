@@ -1,5 +1,54 @@
 # 变更记录
 
+- 时间：2026-08-18 16:56
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\build.ps1`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\RadarIdentifySystem.spec`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\RadarIdentifySystem.iss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\version_info.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\RadarIdentifySystem.version.txt`（删除）
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_packaging_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：实施完整安装包覆盖升级，并统一安装包与 EXE 的版本来源。
+- 原因：现有安装器不会清理旧版 `_internal`，且构建参数、项目元数据和 EXE 版本资源可能产生版本漂移。
+- 计划清单：
+  - [x] 核对固定 AppId、安装目录、用户数据目录和当前版本传递链路。
+  - [x] 升级前仅清理 `{app}\_internal`，保留用户数据和 Inno Setup 卸载器。
+  - [x] 以 `pyproject.toml` 为唯一版本源，构建时生成 Windows EXE 版本资源。
+  - [x] 补充覆盖升级、版本一致性和用户数据隔离的静态回归。
+  - [x] 验证 PowerShell 语法、专项测试、Inno Setup 编译和完整构建链路。
+- 验证结果：
+  - 打包配置专项回归：5 passed；覆盖固定 AppId、精确清理范围、用户数据隔离、Inno Setup 发现和单一版本来源。
+  - `uv lock --check --cache-dir .uv-cache`、Python 内存编译、PowerShell 语法和 `git diff --check` 均通过，仅存在 Git 的 LF/CRLF 提示。
+  - PyInstaller 6.22.2 完整重建成功，EXE 文件版本与产品版本均为 `0.1.0`；Inno Setup 6.7.3 成功解析 `[InstallDelete]` 并完成编译，安装器产品版本为 `0.1.0`。
+  - 生成 `artifacts\RadarIdentifySystem-Setup-0.1.0.exe`，大小 106.01 MiB，SHA-256 为 `41c5c74a5a82832c10bc1997f7b157df6b7df3dcc4637a7ce0dedcebcf60a64a`。
+  - 未直接修改本机现有安装和 `%LOCALAPPDATA%\RadarIdentifySystem`；首次安装及跨版本覆盖的人工验收应在独立测试环境执行。
+- 测试状态：[已测试]
+
+- 时间：2026-08-18 16:23
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\build.ps1`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\RadarIdentifySystem.iss`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_packaging_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：支持显式指定并自动发现非系统盘安装的 Inno Setup 编译器。
+- 原因：原构建脚本只检查 `PATH` 和 C 盘默认目录，无法识别 D 盘的有效安装。
+- 计划清单：
+  - [x] 核对当前查找逻辑和本机 Inno Setup 注册表信息。
+  - [x] 增加 `-IsccPath` 参数及 PATH、注册表、默认目录的分级发现。
+  - [x] 修正 Inno Setup 6.7.3 检出的卸载回调参数重名问题。
+  - [x] 补充打包配置回归、PowerShell 语法和真实编译器验证。
+- 验证结果：
+  - 无参数自动发现、显式传入 `ISCC.exe`、显式传入安装目录三种方式均解析到 `D:\Program Files (x86)\Inno Setup 6\ISCC.exe`。
+  - 完整 PyInstaller 构建成功并实际调用 Inno Setup 6.7.3；修正卸载回调参数重名后，安装器脚本编译成功。
+  - 生成 `artifacts\RadarIdentifySystem-Setup-0.1.0.exe`，大小 106 MiB，SHA-256 为 `712bb243b8078f47dd9e276d19af2063eb958cb060294a7e04107722b0d0293e`。
+  - 打包配置回归：4 passed；PowerShell 语法与 `git diff --check` 通过，仅存在 Git 的 LF/CRLF 提示。
+- 测试状态：[已测试]
+
 - 时间：2026-08-18 15:50
 - 操作类型：[重构]
 - 影响文件：

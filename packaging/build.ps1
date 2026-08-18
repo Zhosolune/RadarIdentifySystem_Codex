@@ -1,8 +1,64 @@
 param(
-    [string]$Version = "0.1.0",
+    [string]$IsccPath = "",
     [switch]$SkipSync,
     [switch]$SkipInstaller
 )
+
+function Resolve-InnoSetupCompiler {
+    param(
+        [string]$RequestedPath
+    )
+
+    # 显式路径优先，既允许传入 ISCC.exe，也允许传入 Inno Setup 安装目录。
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        $ExplicitPath = $RequestedPath
+        if (Test-Path -LiteralPath $ExplicitPath -PathType Container) {
+            $ExplicitPath = Join-Path $ExplicitPath "ISCC.exe"
+        }
+        if (-not (Test-Path -LiteralPath $ExplicitPath -PathType Leaf)) {
+            throw "指定的 Inno Setup 编译器不存在：$ExplicitPath"
+        }
+        return (Resolve-Path -LiteralPath $ExplicitPath).Path
+    }
+
+    # 优先复用 PATH 中可直接调用的编译器。
+    $IsccCommand = Get-Command iscc.exe -CommandType Application -ErrorAction SilentlyContinue
+    if ($null -ne $IsccCommand) {
+        return $IsccCommand.Source
+    }
+
+    # Inno Setup 会记录真实安装目录，可覆盖非系统盘和按用户安装场景。
+    $RegistryKeys = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1"
+    )
+    foreach ($RegistryKey in $RegistryKeys) {
+        if (-not (Test-Path -LiteralPath $RegistryKey)) {
+            continue
+        }
+        $InstallLocation = (Get-ItemProperty -LiteralPath $RegistryKey).InstallLocation
+        if ([string]::IsNullOrWhiteSpace($InstallLocation)) {
+            continue
+        }
+        $RegistryIsccPath = Join-Path $InstallLocation "ISCC.exe"
+        if (Test-Path -LiteralPath $RegistryIsccPath -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $RegistryIsccPath).Path
+        }
+    }
+
+    # 最后兼容未写入注册表的标准安装目录。
+    $ProgramRoots = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    foreach ($ProgramRoot in $ProgramRoots) {
+        $DefaultIsccPath = Join-Path $ProgramRoot "Inno Setup 6\ISCC.exe"
+        if (Test-Path -LiteralPath $DefaultIsccPath -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $DefaultIsccPath).Path
+        }
+    }
+
+    throw "未找到 Inno Setup 6。请使用 -IsccPath 指定 ISCC.exe，或使用 -SkipInstaller 仅构建 onedir。"
+}
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -13,6 +69,8 @@ $PythonPath = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $PyInstallerPath = Join-Path $ProjectRoot ".venv\Scripts\pyinstaller.exe"
 $IconSource = Join-Path $ProjectRoot "resources\images\icon.png"
 $IconTarget = Join-Path $BuildRoot "icon.ico"
+$VersionResourcePath = Join-Path $BuildRoot "RadarIdentifySystem.version.txt"
+$VersionScriptPath = Join-Path $PSScriptRoot "version_info.py"
 
 Set-Location $ProjectRoot
 
@@ -50,6 +108,20 @@ if (-not (Test-Path -LiteralPath $PyInstallerPath -PathType Leaf)) {
 New-Item -ItemType Directory -Path $BuildRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $ArtifactRoot -Force | Out-Null
 
+# 以 pyproject.toml 为唯一版本源，构建时生成 Windows EXE 版本资源。
+$VersionOutput = & $PythonPath $VersionScriptPath `
+    --project-file (Join-Path $ProjectRoot "pyproject.toml") `
+    --output-file $VersionResourcePath
+if ($LASTEXITCODE -ne 0) {
+    throw "应用版本资源生成失败"
+}
+$Version = [string]($VersionOutput | Select-Object -Last 1)
+$Version = $Version.Trim()
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    throw "未能从 pyproject.toml 读取应用版本"
+}
+Write-Host "构建应用版本：$Version"
+
 # 从现有 PNG 机械转换多尺寸 ICO，不改变图标视觉内容。
 $IconScript = "from PIL import Image; image=Image.open(r'$IconSource').convert('RGBA'); image.save(r'$IconTarget', format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 & $PythonPath -c $IconScript
@@ -67,19 +139,9 @@ if ($SkipInstaller) {
     exit 0
 }
 
-$IsccCommand = Get-Command iscc.exe -ErrorAction SilentlyContinue
-if ($null -eq $IsccCommand) {
-    $DefaultIscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
-    if (Test-Path -LiteralPath $DefaultIscc -PathType Leaf) {
-        $IsccPath = $DefaultIscc
-    } else {
-        throw "未找到 Inno Setup 6。安装后重试，或使用 -SkipInstaller 仅构建 onedir。"
-    }
-} else {
-    $IsccPath = $IsccCommand.Source
-}
-
-& $IsccPath "/DMyAppVersion=$Version" (Join-Path $PSScriptRoot "RadarIdentifySystem.iss")
+$ResolvedIsccPath = Resolve-InnoSetupCompiler -RequestedPath $IsccPath
+Write-Host "使用 Inno Setup 编译器：$ResolvedIsccPath"
+& $ResolvedIsccPath "/DMyAppVersion=$Version" (Join-Path $PSScriptRoot "RadarIdentifySystem.iss")
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup 安装包构建失败"
 }

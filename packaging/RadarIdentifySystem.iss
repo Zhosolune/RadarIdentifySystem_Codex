@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.0"
+  #error "MyAppVersion must be provided by packaging/build.ps1"
 #endif
 
 #define MyAppName "RadarIdentifySystem"
@@ -35,6 +35,10 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 [Files]
 Source: "..\dist\RadarIdentifySystem\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; 覆盖升级前清理旧依赖，避免已删除或改名的 DLL、PYD 和 Python 包残留。
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
@@ -43,11 +47,11 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
-procedure CurUninstallStep(CurUninstallStep: TUninstallStep);
+procedure CurUninstallStep(UninstallStep: TUninstallStep);
 var
   UserDataDir: String;
 begin
-  if CurUninstallStep = usPostUninstall then
+  if UninstallStep = usPostUninstall then
   begin
     UserDataDir := ExpandConstant('{localappdata}\RadarIdentifySystem');
     if MsgBox(

@@ -8,7 +8,7 @@ from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 
 ROOT = Path(SPECPATH).resolve().parent
 ICON_FILE = ROOT / "build" / "packaging" / "icon.ico"
-VERSION_FILE = ROOT / "packaging" / "RadarIdentifySystem.version.txt"
+VERSION_FILE = ROOT / "build" / "packaging" / "RadarIdentifySystem.version.txt"
 ONNXRUNTIME_HOOK = ROOT / "packaging" / "runtime_hooks" / "preload_onnxruntime.py"
 
 analysis = Analysis(
