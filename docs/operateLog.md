@@ -1,5 +1,27 @@
 # 变更记录
 
+- 时间：2026-08-18 15:50
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.gitattributes`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\models\DTOA\02.09_ResNet_CA_Transformer_DTOA-final-73-accuracy1.00-val_accuracy0.99.onnx`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\resources\models\PA\03.16_SparseMorphNet_PA-checkpoint-19-f10.98-val_f11.00.onnx`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：仅重写 `origin/newUI..newUI` 的本地提交，将两个默认 ONNX 模型从 Git LFS 指针转换为普通 Git 对象。
+- 原因：仓库所有者的 GitHub LFS 预算已阻止推送，而两个模型单文件均低于普通 Git 的文件限制。
+- 计划清单：
+  - [x] 确认工作区干净、远端分支为祖先，并建立转换前本地备份分支。
+  - [x] 重写尚未推送的提交，不修改远端已有历史。
+  - [x] 验证模型大小、SHA-256、Git blob 类型及 LFS 待上传列表。
+  - [ ] 推送转换后的 `newUI` 分支。
+- 验证结果：
+  - 本地备份分支 `backup/newUI-before-lfs-export-20260818` 已固定在迁移前提交 `f972686`；远端 `origin/newUI` 仍是转换后分支的祖先。
+  - `git lfs migrate export` 只重写 4 个未推送提交，两个 ONNX 在当前提交中分别为 8,329,769 和 14,961,798 字节的普通 Git blob。
+  - `.gitattributes` 使用 `binary` 标记 ONNX，不再配置 LFS filter；`git lfs push --dry-run origin newUI` 的待上传对象为空。
+  - 默认模型大小和 SHA-256、依赖及打包配置回归：3 passed；`git diff --check` 通过，仅存在 Git 的 LF/CRLF 提示。
+  - 远端推送因安全策略要求用户明确确认上传目标和内容而暂停，本地分支已准备完成。
+- 测试状态：[已测试]
+
 - 时间：2026-08-18 11:21
 - 操作类型：[修改]
 - 影响文件：
