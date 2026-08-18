@@ -1,5 +1,24 @@
 # 变更记录
 
+- 时间：2026-08-18 11:21
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\qfluentwidgets\common\config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_theme_color.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将项目内置 qfluentwidgets 源码的默认主题色改为 `#4772c3`。
+- 原因：新配置和无持久化主题色的运行环境应直接使用项目指定的默认品牌色。
+- 计划清单：
+  - [x] 核对组件库默认值、应用配置加载和设置页自定义主题色链路。
+  - [x] 修改组件库默认主题色，不覆盖用户已经持久化的自定义颜色。
+  - [x] 补充默认值回归并执行静态检查。
+- 验证结果：
+  - 组件库 `QConfig.themeColor` 的默认值已从 `#009faa` 改为 `#4772c3`；应用仍先加载持久化配置，因此已有用户自定义主题色不会被覆盖。
+  - 默认主题色专项回归：1 passed；实际使用 `themeColor()` 的分析结果表头回归：1 passed。
+  - 相关 Python 文件内存编译与 `git diff --check`：通过，仅存在 Git 的 LF/CRLF 提示。
+  - 扩大分析结果卡片测试为 5 passed、2 failed；失败项是既有 PRI 文本换行和用户已调整 QSS 的旧断言，与本次默认主题色修改无关。
+- 测试状态：[已测试]
+
 - 时间：2026-08-18 10:34
 - 操作类型：[重构]
 - 影响文件：
