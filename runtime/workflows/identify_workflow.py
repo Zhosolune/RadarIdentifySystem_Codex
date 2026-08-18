@@ -15,6 +15,7 @@ from core.models.cluster_result import ClusteringResult, SliceClusterResult
 from core.models.processing_session import ProcessingSession, ProcessingStage
 from core.models.recognition_result import RecognitionResult, SliceRecognitionResult
 from runtime.algorithm_params import build_identify_pipeline_params
+from utils.paths import get_runtime_temp_dir
 from runtime.threading.identify_worker import IdentifyWorker, IdentifyWorkerResult
 
 
@@ -161,7 +162,7 @@ class IdentifyWorkflow(QObject):
                 LOGGER.warning("session 模型路径为空，推理将无法执行！请在当前 session 中选择 PA 和 DTOA 模型。")
                 return
 
-            temp_dir = qconfig.get(appConfig.logDir)
+            temp_dir = str(get_runtime_temp_dir())
             # 获取缓存推理服务，由 app 层负责模型实例复用或重建。
             self._inference_service = get_cached_inference_service(
                 pa_path=pa_path, dtoa_path=dtoa_path, temp_dir=temp_dir

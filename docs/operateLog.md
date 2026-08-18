@@ -1,5 +1,37 @@
 # 变更记录
 
+- 时间：2026-08-18 10:34
+- 操作类型：[重构]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\utils\paths.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\app_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\logger.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\app\model_bootstrap.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\`、`infra\` 下相关持久化调用
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\pyproject.toml`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\uv.lock`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：统一 Windows 用户数据、安装资源和进程临时路径，建立可复现依赖及 PyInstaller/Inno Setup 安装链路。
+- 原因：正式安装后必须隔离只读程序资源、用户持久化数据和临时文件，并保证构建依赖与安装升级行为可复现。
+- 计划清单：
+  - [x] 审计全部路径调用、配置加载时机、资源定位和现有测试边界。
+  - [x] 建立统一 `AppPaths`，区分正式版与开发版数据根目录并提供测试覆盖能力。
+  - [x] 迁移配置、日志、Session、数据池、用户模型、缓存和临时目录调用。
+  - [x] 对旧开发目录和旧版用户目录执行保守迁移，不覆盖新目录已有数据。
+  - [x] 建立 `pyproject.toml`、`uv.lock`，明确本地 `qfluentwidgets` 为唯一源码来源。
+  - [x] 添加 PyInstaller `onedir/windowed` 配置与 Inno Setup 按用户安装脚本。
+  - [x] 补充路径、迁移和打包配置测试并执行聚焦回归。
+- 验证结果：
+  - 路径、迁移、依赖锁定和打包配置专项测试：8 passed；路径、日志、模型、Session、全速注册表和主窗口分层聚焦回归：108 passed。
+  - PyInstaller 6.22.2 实际完成 `onedir/windowed` 构建，产物共 1651 个文件、314.24 MiB，EXE 文件版本为 0.1.0。
+  - 通过自定义 runtime hook 在 Qt 前预加载 ONNX Runtime，保留 scikit-learn 所需的 MSVC DLL；冻结程序 offscreen 持续运行 30 秒，PA 与 DTOA 默认模型均完成 CPU 真实推理预热，未出现 DLL 加载或预热错误。
+  - `uv lock --check`、PowerShell 构建脚本语法、15 个相关 Python 文件内存编译和 `git diff --check` 均通过；仅存在 Git 的 LF/CRLF 提示。
+  - 扩大检查中的 `test_data_pool_session_routing.py` 仍有 1 个既有失败：全速参数窗口保存后 `eps_cf` 未更新；本次未修改该 UI/控制器链路，与路径及打包实现无关。
+  - 当前机器未安装 Inno Setup 6，因此 `.iss` 已完成静态检查但未实际编译安装包；正式发布前仍需确认 PyQt/qfluentwidgets 商业或 GPL 授权及默认模型再分发权。
+- 测试状态：[已测试]
+
 - 时间：2026-08-12 16:49
 - 操作类型：[修改]
 - 影响文件：

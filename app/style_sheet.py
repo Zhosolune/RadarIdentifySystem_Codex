@@ -9,6 +9,7 @@ from PyQt6.QtCore import QFile
 from qfluentwidgets import StyleSheetBase, Theme, qconfig
 
 from app import resource_rc  # noqa: F401  # 导入即注册 Qt 资源
+from utils.paths import get_resources_dir
 
 
 class StyleSheet(StyleSheetBase, Enum):
@@ -40,7 +41,7 @@ class StyleSheet(StyleSheetBase, Enum):
 
         effective_theme = qconfig.theme if theme == Theme.AUTO else theme
         theme_name = effective_theme.value.lower()
-        local_qss_path = Path(__file__).resolve().parent.parent / "resources" / "qss" / theme_name / f"{self.value}.qss"
+        local_qss_path = get_resources_dir() / "qss" / theme_name / f"{self.value}.qss"
         if local_qss_path.exists():
             return str(local_qss_path).replace("\\", "/")
 

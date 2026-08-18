@@ -17,7 +17,11 @@ from qfluentwidgets import (
     setThemeColor,
 )
 
-from utils.paths import get_config_file_path, get_log_dir
+from utils.paths import (
+    get_config_file_path,
+    get_log_dir,
+    get_user_model_root_dir,
+)
 
 
 class AppConfig(QConfig):
@@ -37,6 +41,12 @@ class AppConfig(QConfig):
     """
 
     # 日志目录 ─────────────────────────────────────────────────────────────────
+    configSchemaVersion = ConfigItem(
+        "System",
+        "ConfigSchemaVersion",
+        1,
+        validator=RangeValidator(1, 1),
+    )
     logDir = ConfigItem(
         "System",
         "LogDir",
@@ -262,7 +272,7 @@ class AppConfig(QConfig):
     userModelRootDir = ConfigItem(
         group="model",
         name="userModelRootDir",
-        default=str(Path.home() / ".RadarIdentifySystem" / "models"),
+        default=str(get_user_model_root_dir()),
     )
     # 旧版单选路径仅用于首次迁移，运行期只读写下方复数列表配置。
     modelPaEnabledPath = ConfigItem(
@@ -317,6 +327,5 @@ class AppConfig(QConfig):
 appConfig = AppConfig()
 
 appConfig.themeMode.value = Theme.AUTO
-# _CONFIG_PATH = Path.home() / ".RadarIdentifySystem" / "config.json"
 _CONFIG_PATH = get_config_file_path()
 qconfig.load(str(_CONFIG_PATH), appConfig)

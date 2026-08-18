@@ -1,5 +1,6 @@
 # 忽略所有日志文件
 *.onnx
+!resources/models/**/*.onnx
 *.log
 log/
 logs/
@@ -12,6 +13,9 @@ temp/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.test-tmp/
+.venv/
+.uv-cache/
 .coverage
 htmlcov/
 *.xlsx
@@ -20,6 +24,7 @@ htmlcov/
 .vscode/
 dist/
 build/
+artifacts/
 .spec
 .vercel/
 

@@ -21,8 +21,10 @@ import numpy as np
 
 try:
     import onnxruntime as ort
-except ImportError:
+    _ORT_IMPORT_ERROR: ImportError | None = None
+except ImportError as error:
     ort = None
+    _ORT_IMPORT_ERROR = error
 
 from infra.plotting.utils import _BASE_SPECS
 
@@ -91,7 +93,7 @@ def resolve_execution_providers(device_preference: str) -> list[str]:
     if normalized_preference not in {"AUTO", "CPU", "GPU"}:
         raise ValueError(f"不支持的 ONNX 推理设备偏好: {device_preference}")
     if ort is None:
-        raise RuntimeError("未检测到 onnxruntime，推理功能不可用")
+        raise RuntimeError("未检测到 onnxruntime，推理功能不可用") from _ORT_IMPORT_ERROR
 
     available = set(ort.get_available_providers())
     if normalized_preference == "CPU":

@@ -20,7 +20,7 @@ from core.models.session_config import SessionConfigSnapshot
 from core.models.session_model import SessionModelSelection
 from infra.session_store import SessionStore
 from runtime.session_registry import SessionRegistry
-from utils.paths import get_session_config_dir
+from utils.paths import get_full_speed_session_dir
 
 
 class FullSpeedStatus(Enum):
@@ -77,7 +77,7 @@ class FullSpeedSessionRegistry:
 
         Args:
             root_dir [Path | None]: 自定义持久化目录，默认使用
-                ``config/sessions/full_speed``。
+                ``data/sessions/full_speed``。
 
         Returns:
             None: 无返回值。
@@ -85,7 +85,7 @@ class FullSpeedSessionRegistry:
         Raises:
             OSError: 持久化目录创建失败时抛出。
         """
-        store = SessionStore(root_dir or get_session_config_dir() / "full_speed")
+        store = SessionStore(root_dir or get_full_speed_session_dir())
         self.session_registry = SessionRegistry(store)
         self._states: dict[str, FullSpeedExecutionState] = {}
         self._lock = threading.RLock()

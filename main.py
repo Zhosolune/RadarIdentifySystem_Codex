@@ -12,21 +12,6 @@ import traceback
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
 from qfluentwidgets import FluentTranslator
-from app.app_config import appConfig, qconfig
-from app.application import create_application_services
-from app.model_bootstrap import (
-    initialize_model_runtime,
-    shutdown_model_runtime,
-    start_model_runtime_preload,
-)
-from ui.main_window import MainWindow
-from app.logger import (
-    configure_logging,
-    get_current_log_file_path,
-    set_log_level,
-    shutdown_logging,
-)
-from app import resource_rc
 import logging
 
 ROOT = Path(__file__).resolve().parent
@@ -103,6 +88,36 @@ def exception_hook(exctype: type, value: BaseException, tb: object) -> None:
 
 
 def main() -> None:
+    """准备用户存储并启动桌面应用。
+
+    Returns:
+        None: Qt 事件循环结束后通过 ``sys.exit`` 返回退出码。
+
+    Raises:
+        OSError: 用户数据迁移、目录创建或临时目录清理失败时抛出。
+        ValueError: 旧版持久化 JSON 无法安全迁移时抛出。
+    """
+    # 必须先完成旧数据迁移，再导入会立即加载 qconfig 或冻结日志路径的模块。
+    from app.bootstrap import cleanup_application_runtime, prepare_application_storage
+
+    migration_result = prepare_application_storage()
+
+    from app import resource_rc  # noqa: F401  # 导入即注册 Qt 资源
+    from app.app_config import appConfig, qconfig
+    from app.application import create_application_services
+    from app.logger import (
+        configure_logging,
+        get_current_log_file_path,
+        set_log_level,
+        shutdown_logging,
+    )
+    from app.model_bootstrap import (
+        initialize_model_runtime,
+        shutdown_model_runtime,
+        start_model_runtime_preload,
+    )
+    from ui.main_window import MainWindow
+
     configure_logging(
         qconfig.get(appConfig.logDir),
         qconfig.get(appConfig.logLevel),
@@ -114,6 +129,13 @@ def main() -> None:
 
     LOGGER.info("=========================================", extra={"session_id": "-"})
     LOGGER.info("RadarIdentifySystem Starting...", extra={"session_id": "-"})
+    LOGGER.info(
+        "旧数据迁移状态：performed=%s, copied=%d, skipped=%d",
+        migration_result.performed,
+        migration_result.copied_files,
+        migration_result.skipped_files,
+        extra={"session_id": "-"},
+    )
     LOGGER.info(
         "日志记录等级：%s",
         qconfig.get(appConfig.logLevel),
@@ -166,6 +188,7 @@ def main() -> None:
         # 先关闭后台预热线程，再释放日志句柄，避免退出阶段继续写日志。
         shutdown_model_runtime()
         shutdown_logging()
+        cleanup_application_runtime()
     sys.exit(exit_code)
 
 

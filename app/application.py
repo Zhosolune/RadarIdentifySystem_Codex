@@ -13,6 +13,10 @@ from runtime.full_speed_session_registry import FullSpeedSessionRegistry
 from runtime.session_coordinator import SessionCoordinator
 from runtime.session_registry import SessionRegistry
 from runtime.workflows.full_speed_workflow import FullSpeedWorkflow
+from utils.paths import (
+    get_data_pool_dir,
+    get_full_speed_session_dir,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,10 +67,15 @@ def create_application_services(
     """
     interactive_registry = session_registry or SessionRegistry()
     session_root = interactive_registry.store.root_dir
+    default_layout = session_registry is None
     data_pool_root = (
-        session_root.parent / "data_pool"
-        if session_root.name == "sessions"
-        else session_root / "data_pool"
+        get_data_pool_dir(create=False)
+        if default_layout
+        else (
+            session_root.parent / "data_pool"
+            if session_root.name == "sessions"
+            else session_root / "data_pool"
+        )
     )
     pool_registry = (
         data_pool_registry
@@ -77,7 +86,11 @@ def create_application_services(
 
     full_speed_registry = (
         full_speed_session_registry
-        or FullSpeedSessionRegistry(session_root / "full_speed")
+        or FullSpeedSessionRegistry(
+            get_full_speed_session_dir()
+            if default_layout
+            else session_root / "full_speed"
+        )
     )
     coordinator = SessionCoordinator(
         interactive_registry,

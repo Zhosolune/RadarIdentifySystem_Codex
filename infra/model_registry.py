@@ -4,7 +4,8 @@
 import json
 import os
 import logging
-from utils.paths import get_config_dir
+from pathlib import Path
+from utils.paths import get_model_metadata_file_path
 
 LOGGER = logging.getLogger(__name__)
 
@@ -14,8 +15,10 @@ class ModelRegistry:
     提供模型自定义名称与备注的持久化存储与查询。
     """
     
-    # 默认保存在 config 目录下，避免打包后写入 resources 失败
-    META_FILE = get_config_dir() / "meta.json"
+    @staticmethod
+    def _meta_file() -> Path:
+        """动态返回模型元数据文件，避免导入期冻结用户数据路径。"""
+        return get_model_metadata_file_path()
 
     @classmethod
     def _normalize_data(cls, raw_data: dict) -> dict:
@@ -40,10 +43,11 @@ class ModelRegistry:
     @classmethod
     def _load(cls) -> dict:
         """加载元数据配置。"""
-        if not cls.META_FILE.exists():
+        meta_file = cls._meta_file()
+        if not meta_file.exists():
             return {"names": {}, "remarks": {}}
         try:
-            with open(cls.META_FILE, 'r', encoding='utf-8') as f:
+            with open(meta_file, 'r', encoding='utf-8') as f:
                 raw_data = json.load(f)
                 return cls._normalize_data(raw_data)
         except Exception as e:
@@ -54,8 +58,9 @@ class ModelRegistry:
     def _save(cls, data: dict):
         """保存元数据配置。"""
         try:
-            cls.META_FILE.parent.mkdir(parents=True, exist_ok=True)
-            with open(cls.META_FILE, 'w', encoding='utf-8') as f:
+            meta_file = cls._meta_file()
+            meta_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(meta_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except Exception as e:
             LOGGER.error(f"保存模型元数据失败: {e}")

@@ -5,7 +5,7 @@
 
 Example:
     >>> from pathlib import Path
-    >>> store = SessionStore(Path("config/sessions"))
+    >>> store = SessionStore(Path("data/sessions/interactive"))
     >>> isinstance(store.load_index(), SessionIndex)
     True
 """

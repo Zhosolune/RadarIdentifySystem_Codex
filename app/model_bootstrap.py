@@ -17,6 +17,8 @@ from infra.onnx_runtime_pool import (
     OnnxModelRuntimePool,
     validate_onnx_model_contract,
 )
+from utils.paths import get_builtin_model_dir as resolve_builtin_model_dir
+from utils.paths import get_user_model_root_dir as get_default_user_model_root_dir
 
 LOGGER = logging.getLogger(__name__)
 SYSTEM_DEFAULT_NAME = "系统默认"
@@ -108,7 +110,7 @@ def get_user_model_root_dir() -> Path:
         无。
     """
     configured_root = qconfig.get(appConfig.userModelRootDir)
-    default_root = Path.home() / ".RadarIdentifySystem" / "models"
+    default_root = get_default_user_model_root_dir()
     normalized_root = str(configured_root).strip() if configured_root else ""
     if not normalized_root:
         return default_root
@@ -129,7 +131,7 @@ def get_builtin_model_dir(model_type: str) -> Path:
     """
     normalized_type = _normalize_model_type(model_type)
     # 返回资源目录中的内置模型路径
-    return Path(__file__).resolve().parent.parent / "resources" / "models" / normalized_type
+    return resolve_builtin_model_dir(normalized_type)
 
 
 def get_user_model_dir(model_type: str) -> Path:

@@ -22,6 +22,7 @@ from runtime.threading.full_speed_worker import (
     FullSpeedWorker,
     FullSpeedWorkerResult,
 )
+from utils.paths import get_runtime_temp_dir
 
 
 LOGGER = logging.getLogger(__name__)
@@ -462,7 +463,7 @@ class FullSpeedWorkflow(QObject):
         """从 Session 创建与后续 UI 变更隔离的深拷贝快照。"""
         if session.preprocess_result is None or session.raw_batch is None:
             raise ValueError("全速 Session 缺少原始脉冲或预处理结果")
-        configured_temp_dir = str(qconfig.get(appConfig.logDir)).strip()
+        runtime_temp_dir = str(get_runtime_temp_dir())
         return FullSpeedExecutionRequest(
             session_id=session.session_id,
             data_package_id=session.data_package_id,
@@ -480,10 +481,7 @@ class FullSpeedWorkflow(QObject):
                 session.model_selection.to_dict()
             ),
             output_dir=session.config_snapshot.business.export_dir_path,
-            temp_dir=(
-                configured_temp_dir
-                or session.config_snapshot.business.export_dir_path
-            ),
+            temp_dir=runtime_temp_dir,
             compute_device=str(
                 qconfig.get(appConfig.fullSpeedComputeDevice)
             ).upper(),
