@@ -80,6 +80,21 @@ def test_dialog_accepts_matching_model_contract(tmp_path: Path) -> None:
     parent.deleteLater()
 
 
+def test_import_dialog_uses_fluent_remark_editor() -> None:
+    """导入模型对话框应使用组件库文本框并保持备注纯文本契约。"""
+    _app()
+    parent = QWidget()
+    dialog = ImportModelDialog(parent=parent)
+
+    assert isinstance(dialog.remarkTextEdit, TextEdit)
+    assert dialog.remarkTextEdit.placeholderText() == "可填写模型用途、来源或适用说明"
+
+    dialog.remarkTextEdit.setPlainText("来源说明\n适用范围")
+    assert dialog.getModelInfo()[3] == "来源说明\n适用范围"
+    dialog.deleteLater()
+    parent.deleteLater()
+
+
 def test_model_remark_dialog_uses_fluent_rich_text_editor() -> None:
     """模型备注弹窗应使用可随主题变化的组件库富文本框。"""
     _app()

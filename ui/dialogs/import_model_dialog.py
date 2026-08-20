@@ -5,7 +5,7 @@ import os
 from typing import Callable
 
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QHBoxLayout, QFileDialog, QTextEdit, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QFileDialog, QWidget
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
@@ -15,6 +15,7 @@ from qfluentwidgets import (
     MessageBoxBase,
     PushButton,
     SubtitleLabel,
+    TextEdit,
 )
 
 
@@ -75,7 +76,7 @@ class ImportModelDialog(MessageBoxBase):
 
         # 模型备注
         self.remarkLabel = BodyLabel("备注信息 (可选)")
-        self.remarkTextEdit = QTextEdit()
+        self.remarkTextEdit = TextEdit()
         self.remarkTextEdit.setPlaceholderText("可填写模型用途、来源或适用说明")
         self.remarkTextEdit.setFixedHeight(88)
 

@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-08-20 08:45
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\dialogs\import_model_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_model_import_dialog.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：将导入模型对话框的备注输入框替换为 qfluentwidgets `TextEdit`，保持现有纯文本读取契约。
+- 原因：备注输入框应由组件库统一提供主题、焦点、菜单和滚动条样式，不应直接使用 Qt 原生 `QTextEdit`。
+- 计划清单：
+  - [x] 核对导入模型对话框当前控件及备注纯文本读取契约。
+  - [x] 使用组件库 `TextEdit` 替换原生 `QTextEdit`，保持现有高度、占位提示和读取行为。
+  - [x] 补充组件类型与纯文本读取回归并执行专项测试。
+- 验证结果：
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests\unit\test_model_import_dialog.py -q --basetemp=.pytest_tmp_model_dialog -p no:cacheprovider`：4 passed，1 个 qfluentwidgets/scipy 既有弃用警告。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m py_compile ui\dialogs\import_model_dialog.py tests\unit\test_model_import_dialog.py`：通过。
+  - `git diff --check -- ui/dialogs/import_model_dialog.py tests/unit/test_model_import_dialog.py docs/operateLog.md`：无空白错误，仅有 Git 的 LF/CRLF 提示。
+- 测试状态：[已测试]
+
 - 时间：2026-08-18 16:56
 - 操作类型：[修改]
 - 影响文件：
