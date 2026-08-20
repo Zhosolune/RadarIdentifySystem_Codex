@@ -44,9 +44,10 @@ PyInstaller `onedir/windowed` 构建和 Inno Setup 安装包编译。
 
 ## 版本升级
 
-发布新版本时，先修改 `pyproject.toml` 中的 `[project].version`，再重新执行
-构建脚本。将生成的新版本完整安装包提供给用户，用户关闭应用后直接运行即可，
-无需先卸载旧版本。
+完整发布流程以 [`RELEASE_SOP.md`](RELEASE_SOP.md) 为准。简化顺序为：修改
+`pyproject.toml` 中的 `[project].version`，执行 `uv lock --cache-dir .uv-cache`，
+检查并提交 `uv.lock`，完成测试后执行构建脚本。将生成的新版本完整安装包提供给
+用户，用户关闭应用后直接运行即可，无需先卸载旧版本。
 
 安装器使用固定 `AppId` 和安装目录进行覆盖升级。写入新文件前只清理
 `{app}\_internal`，防止已删除或改名的 DLL、PYD 和 Python 包残留；不会清理

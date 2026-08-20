@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-08-20 09:26
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\RELEASE_SOP.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：建立 Windows 新版本打包、覆盖升级验收与发布归档的标准操作流程。
+- 原因：原打包说明遗漏修改项目版本后更新 `uv.lock` 的必要步骤，无法作为完整发布依据。
+- 计划清单：
+  - [x] 明确版本规则、锁文件更新、测试、构建和产物校验步骤。
+  - [x] 明确首次安装、同版本重装和跨版本覆盖升级验收标准。
+  - [x] 明确发布归档、回滚准备、异常处理和发布检查清单。
+  - [x] 在打包说明中添加 SOP 入口并修正简化发布流程。
+  - [x] 检查文档链接、命令、路径和 Markdown 差异。
+- 验证结果：
+  - SOP 包含 `uv lock`、锁文件检查、锁定环境同步、专项与完整回归、正式构建、版本及 SHA-256 校验、安装验收、发布标签和回滚准备。
+  - README 相对链接可解析到 `packaging\RELEASE_SOP.md`；Markdown 代码围栏数量与关键命令检查通过。
+  - `git diff --check -- packaging\RELEASE_SOP.md packaging\README.md docs\operateLog.md` 通过，仅存在 Git 的 LF/CRLF 提示。
+- 测试状态：[无需测试]
+
 - 时间：2026-08-20 08:45
 - 操作类型：[修改]
 - 影响文件：
