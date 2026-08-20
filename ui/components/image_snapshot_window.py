@@ -200,7 +200,7 @@ class ImageSnapshotWindow(FluentWidget):
 
     Attributes:
         image_label [PixelPerfectImageLabel]: 用于整数倍显示图像快照的标签。
-        image_name_label [SubtitleLabel]: 展示列标题与维度名称组成的图像名称。
+        image_name_label [BodyLabel]: 展示列标题与维度名称组成的图像名称。
         scroll_area [SmoothScrollArea]: 支持纵横双向滚轮浏览的图像区域。
         zoom_control_widget [QWidget]: 承载居中倍率按钮的控制区。
         zoom_out_button [TransparentToolButton]: 将图像倍率降低一级的按钮。
@@ -232,7 +232,7 @@ class ImageSnapshotWindow(FluentWidget):
 
         Args:
             image [QImage]: 需要独立显示的非空图像。
-            title [str]: 非空窗口标题。
+            title [str]: 内容区展示的非空图像名称。
 
         Returns:
             None: 无返回值。
