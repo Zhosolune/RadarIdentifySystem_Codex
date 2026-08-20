@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-08-20 16:21
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\LICENSE`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为项目添加 GNU General Public License v3.0 许可证并补充 README 授权说明。
+- 原因：明确项目源码的复制、修改和分发条件。
+- 计划清单：
+  - [x] 从 GNU 官方站点核对 GPLv3 标准文本。
+  - [x] 添加根目录许可证全文并更新 README。
+  - [x] 校验许可证版本、文本完整性、文档链接与 Git 差异。
+- 验证结果：
+  - 本地 `LICENSE` 与 `https://www.gnu.org/licenses/gpl-3.0.txt` 均为 674 行，逐行比较差异数为 0。
+  - 本地许可证 SHA-256 为 `3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986`，与 GNU 官方文本一致。
+  - README 的 GPLv3 相对链接可解析到根目录 `LICENSE`，其余仓库内链接无缺失。
+  - `rg -n "[ \t]+$" LICENSE README.md docs\operateLog.md` 未发现行尾空白。
+  - `git diff --check -- README.md docs/operateLog.md` 通过，仅存在 Git 的 LF/CRLF 提示；`LICENSE` 为新增未跟踪文件。
+- 测试状态：[无需测试]
+
 - 时间：2026-08-20 16:06
 - 操作类型：[新增]
 - 影响文件：

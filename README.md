@@ -195,4 +195,6 @@ runtime → infra → core
 
 ## 许可证与发布提醒
 
-仓库当前未提供独立许可证文件。对外分发前必须确认源码、PyQt6、PyQt6-Fluent-Widgets、PyQt6-Frameless-Window 以及内置 ONNX 模型的使用和再分发授权。当前安装包使用 CPU 版 `onnxruntime`，不得宣称内置 GPU 推理支持。
+本项目源码采用 [GNU General Public License v3.0](LICENSE) 许可证。复制、修改或分发本项目时，必须遵守 GPLv3 的完整条款，包括在分发目标代码时向接收者提供对应源码。
+
+第三方依赖、qfluentwidgets 组件代码、图标和内置 ONNX 模型不因本项目采用 GPLv3 而自动变更其原有授权。对外分发前仍须分别确认 PyQt6、PyQt6-Fluent-Widgets、PyQt6-Frameless-Window 以及内置模型的使用和再分发条件。当前安装包使用 CPU 版 `onnxruntime`，不得宣称内置 GPU 推理支持。
