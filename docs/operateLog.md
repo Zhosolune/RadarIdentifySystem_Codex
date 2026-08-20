@@ -1,5 +1,23 @@
 # 变更记录
 
+- 时间：2026-08-20 16:06
+- 操作类型：[新增]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：编写仓库根目录项目说明文档，集中说明功能、架构、环境、运行、测试与打包方式。
+- 原因：仓库根目录缺少 README，新成员无法从单一入口了解项目用途和开发流程。
+- 计划清单：
+  - [x] 核对项目元数据、入口、目录分层和现有发布文档。
+  - [x] 编写根目录 README，并确保命令、路径和数据契约与源码一致。
+  - [x] 检查文档链接、Markdown 结构和 Git 差异。
+- 验证结果：
+  - README 声明版本与 `pyproject.toml` 的 `0.2.1` 一致。
+  - 11 个仓库内相对链接均可解析，18 个 Markdown 代码围栏成对闭合。
+  - `rg -n "[ \t]+$" README.md docs\operateLog.md` 未发现行尾空白。
+  - `git diff --check -- README.md docs/operateLog.md` 通过，仅存在 Git 的 LF/CRLF 提示；README 为新增未跟踪文件。
+- 测试状态：[无需测试]
+
 - 时间：2026-08-20 09:26
 - 操作类型：[新增]
 - 影响文件：
