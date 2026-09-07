@@ -11,7 +11,7 @@ from PyQt6 import sip
 from PyQt6.QtCore import QEventLoop, QTimer, Qt
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QDialog, QWidget
-from qfluentwidgets import Dialog, qconfig
+from qfluentwidgets import Dialog, MessageBox, qconfig
 from qfluentwidgets.common.router import qrouter
 
 from app.app_config import appConfig
@@ -361,6 +361,105 @@ def test_real_create_dialog_closes_after_directory_refresh(
         )
         assert len(registry.all_sessions()) == 1
         assert registry.all_sessions()[0].raw_batch is package.raw_batch
+    finally:
+        qconfig.set(appConfig.importDataDirs, original_directories, save=False)
+        qrouter.history = [
+            item
+            for item in qrouter.history
+            if item.stacked is not window.stackedWidget
+        ]
+        qrouter.stackHistories.pop(window.stackedWidget, None)
+        window.close()
+        QApplication.processEvents()
+        sip.delete(window)
+        QApplication.processEvents()
+
+
+@pytest.mark.parametrize("remove_source", [False, True])
+def test_real_delete_data_package_dialog_works_after_directory_refresh(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    remove_source: bool,
+) -> None:
+    """目录移除后，删除数据包确认窗口应接收真实鼠标点击。"""
+    _app()
+    original_directories = list(qconfig.get(appConfig.importDataDirs))
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    source_file = source_dir / "demo.xlsx"
+    source_file.write_bytes(b"cached-data")
+    package = _build_package(
+        str(source_file),
+        source_file.stat().st_size,
+    )
+    data_pool_registry = DataPoolRegistry(DataPoolStore(tmp_path / "data_pool"))
+    data_pool_registry.register(package)
+    qconfig.set(appConfig.importDataDirs, [str(source_dir)], save=False)
+    window = MainWindow(
+        session_registry=SessionRegistry(SessionStore(tmp_path / "interactive")),
+        data_pool_registry=data_pool_registry,
+        full_speed_session_registry=FullSpeedSessionRegistry(
+            tmp_path / "full_speed"
+        ),
+    )
+    file_manager = ImportFileListManager(
+        ImportFileListStore(tmp_path / "import_file_list.json")
+    )
+    file_manager.scan([str(source_dir)])
+
+    class _AutoConfirmDeleteDialog(MessageBox):
+        """使用真实删除确认窗口并通过屏幕命中自动确认。"""
+
+        def __init__(self, title: str, content: str, parent=None) -> None:
+            """初始化确认窗口并设置防卡死定时器。"""
+            super().__init__(title, content, parent)
+            self.watchdog_expired = False
+            QTimer.singleShot(350, self._click_confirm)
+            self._watchdog = QTimer(self)
+            self._watchdog.setSingleShot(True)
+            self._watchdog.timeout.connect(self._abort_stuck_dialog)
+            self._watchdog.start(3_000)
+            self.finished.connect(self._watchdog.stop)
+
+        def _click_confirm(self) -> None:
+            """点击屏幕实际命中的确认按钮。"""
+            _click_visible_widget(self.yesButton)
+
+        def _abort_stuck_dialog(self) -> None:
+            """输入异常时退出窗口，避免测试无限等待。"""
+            self.watchdog_expired = True
+            QDialog.done(self, QDialog.DialogCode.Rejected)
+
+    try:
+        window.home_controller.file_manager = file_manager
+        qconfig.set(appConfig.importDataDirs, [], save=False)
+        cleared_rows = file_manager.scan([])
+        window.homeInterface.import_panel.set_files_by_type(cleared_rows)
+        if remove_source:
+            source_file.unlink()
+            source_dir.rmdir()
+        monkeypatch.setattr(
+            "ui.controllers.home_controller.MessageBox",
+            _AutoConfirmDeleteDialog,
+        )
+
+        window.show()
+        QTest.qWait(1_200)
+        window.home_controller.refresh_data_pool_panel(package.package_id)
+        _click_visible_widget(window.homeInterface.data_pool_panel.delete_button)
+        dialog = window.home_controller._delete_data_package_dialog
+        assert dialog is not None
+        assert QApplication.activeModalWidget() is None
+
+        # 重复触发只能激活已有确认窗口，不能叠加第二个遮罩。
+        window.home_controller.delete_data_package(package.package_id)
+        assert window.home_controller._delete_data_package_dialog is dialog
+        QTest.qWait(800)
+
+        assert not dialog.watchdog_expired
+        assert window.home_controller._delete_data_package_dialog is None
+        assert data_pool_registry.get(package.package_id) is None
+        assert window.findChildren(_AutoConfirmDeleteDialog) == []
     finally:
         qconfig.set(appConfig.importDataDirs, original_directories, save=False)
         qrouter.history = [

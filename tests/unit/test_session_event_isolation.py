@@ -779,3 +779,67 @@ def test_home_create_action_delegates_mode_and_package(
         "全速任务",
         "测试备注",
     )
+
+
+def test_home_delete_action_waits_for_nonmodal_confirmation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """数据包只能在非模态确认窗口返回接受结果后删除。"""
+    package = _build_package("package-delete")
+    registry = DataPoolRegistry(DataPoolStore(tmp_path / "pool"))
+    registry.register(package)
+    refresh_calls: list[str] = []
+
+    class _DialogStub(QObject):
+        """提供删除确认窗口所需的最小异步接口。"""
+
+        finished = pyqtSignal(int)
+
+        def __init__(self, _title: str, _content: str, _parent=None) -> None:
+            """初始化窗口状态。"""
+            super().__init__()
+            self.shown = False
+
+        def show(self) -> None:
+            """记录非模态显示动作。"""
+            self.shown = True
+
+        def raise_(self) -> None:
+            """兼容重复触发时的窗口提升。"""
+
+        def activateWindow(self) -> None:
+            """兼容重复触发时的窗口激活。"""
+
+    class _View(QObject):
+        """提供确认窗口父对象的最小视图。"""
+
+        def window(self):
+            """返回自身作为窗口父对象。"""
+            return self
+
+    controller = HomeController.__new__(HomeController)
+    controller.view = _View()
+    controller.data_pool_registry = registry
+    controller.session_coordinator = None
+    controller._delete_data_package_dialog = None
+    controller._show_top_warning = lambda _title, _content: None
+    controller.refresh_data_pool_panel = lambda: refresh_calls.append("refresh")
+    monkeypatch.setattr(home_controller_module, "MessageBox", _DialogStub)
+
+    controller.delete_data_package(package.package_id)
+    dialog = controller._delete_data_package_dialog
+    assert dialog is not None
+    assert dialog.shown
+    assert registry.get(package.package_id) is package
+
+    dialog.finished.emit(0)
+    assert registry.get(package.package_id) is package
+    assert refresh_calls == []
+
+    controller.delete_data_package(package.package_id)
+    dialog = controller._delete_data_package_dialog
+    assert dialog is not None
+    dialog.finished.emit(1)
+    assert registry.get(package.package_id) is None
+    assert refresh_calls == ["refresh"]

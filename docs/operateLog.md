@@ -1,5 +1,25 @@
 # 变更记录
 
+- 时间：2026-09-07 14:50
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：数据包删除确认窗口改用控制器持有的非原生模态生命周期，修复同一场景下确认窗口鼠标输入失效。
+- 原因：创建 Session 流程已退出 Qt 原生模态栈，但 `delete_data_package()` 仍使用 `MessageBox.exec()`；目录删除后的窗口状态下会复现相同的模态输入抓取问题。
+- 实现结果：
+  - `HomeController` 独立持有数据包删除确认窗口，重复触发只激活现有窗口。
+  - 删除确认使用 `show()/finished`，不进入 Qt 原生模态栈；取消不删除，确认后才检查 Session 引用并删除数据包。
+  - 确认窗口结束后执行 `deleteLater()` 并清空控制器引用，避免残留遮罩。
+  - 真实窗口回归通过 `QApplication.widgetAt()` 点击屏幕实际命中的确认按钮，覆盖源文件仍存在和已经删除两种情况。
+- 测试状态：[已测试]
+  - Windows 原生窗口删除确认回归：`2 passed`。
+  - 删除确认取消/接受状态回归：`1 passed`。
+  - 导入线程、目录刷新、数据池及 Session 创建/删除相关回归：`30 passed, 1 deselected`；跳过项为既有全速参数保存无关失败。
+  - 本轮涉及的 Python 文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有 LF/CRLF 转换提示。
+
 - 时间：2026-09-07 11:26
 - 操作类型：[修改]
 - 影响文件：

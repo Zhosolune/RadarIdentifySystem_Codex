@@ -72,6 +72,7 @@ class HomeController(QObject):
         self._active_import_id: str | None = None
         self._processing_dialog: ProcessingDialog | None = None
         self._create_session_dialog: CreateSessionDialog | None = None
+        self._delete_data_package_dialog: MessageBox | None = None
         self._connect_signals()
 
         # 延迟到事件循环空闲后渲染已持久化列表，启动时不自动扫描目录。
@@ -431,7 +432,7 @@ class HomeController(QObject):
         return session
 
     def delete_data_package(self, package_id: str) -> None:
-        """确认后删除未被任何 Session 引用的数据包。
+        """非模态显示确认窗口并删除未被 Session 引用的数据包。
 
         Args:
             package_id [str]: 目标数据包 ID。
@@ -439,6 +440,10 @@ class HomeController(QObject):
         Returns:
             None: 无返回值。
         """
+        if self._delete_data_package_dialog is not None:
+            self._delete_data_package_dialog.raise_()
+            self._delete_data_package_dialog.activateWindow()
+            return
         package = self.data_pool_registry.get(package_id)
         if package is None:
             return
@@ -450,7 +455,30 @@ class HomeController(QObject):
             ),
             self.view.window() or self.view,
         )
-        if not dialog.exec():
+        self._delete_data_package_dialog = dialog
+        # MessageBox 已覆盖整个父窗口，使用 show() 即可阻止背景交互；不要让
+        # 数据包删除确认再次进入曾导致鼠标输入失效的 Qt 原生模态栈。
+        dialog.finished.connect(
+            lambda result: self._finish_delete_data_package_dialog(
+                dialog,
+                result,
+                package_id,
+            )
+        )
+        dialog.show()
+
+    def _finish_delete_data_package_dialog(
+        self,
+        dialog: MessageBox,
+        result: int,
+        package_id: str,
+    ) -> None:
+        """释放删除确认窗口，并在用户确认后删除数据包。"""
+        if self._delete_data_package_dialog is not dialog:
+            return
+        self._delete_data_package_dialog = None
+        dialog.deleteLater()
+        if result != QDialog.DialogCode.Accepted:
             return
         referenced_ids = (
             self.session_coordinator.referenced_data_package_ids()
