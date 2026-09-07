@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from math import ceil
-from pathlib import Path
+from pathlib import PurePath
 
 from PyQt6.QtCore import QEvent, QObject, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QResizeEvent
@@ -42,6 +42,7 @@ from ui.components.import_dashboard_panel import (
     DashboardMetric,
     format_dashboard_band,
     format_dashboard_duration,
+    format_file_size_bytes,
 )
 
 
@@ -200,7 +201,7 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
         info_layout = QVBoxLayout(info_widget)
         info_layout.setContentsMargins(2, 0, 2, 2)
         info_layout.setSpacing(5)
-        file_path = Path(package.source_path) if package.source_path else None
+        file_path = PurePath(package.source_path) if package.source_path else None
         info_layout.addWidget(
             self._create_info_row("数据包 ID", package.package_id, info_widget)
         )
@@ -214,7 +215,7 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
         info_layout.addWidget(
             self._create_info_row(
                 "文件大小",
-                self._format_source_file_size(file_path),
+                format_file_size_bytes(package.source_size_bytes),
                 info_widget,
             )
         )
@@ -314,24 +315,6 @@ class DataPackageDetailFlyoutView(FlyoutViewBase):
         layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignTop)
         layout.addWidget(value_label, 1, Qt.AlignmentFlag.AlignTop)
         return row
-
-    def _format_source_file_size(self, file_path: Path | None) -> str:
-        """格式化源文件大小。"""
-        if file_path is None or not file_path.exists():
-            return "未知"
-
-        units = ("B", "KB", "MB", "GB", "TB")
-        size = float(max(file_path.stat().st_size, 0))
-        for unit in units:
-            if size < 1024 or unit == units[-1]:
-                return (
-                    f"{int(size)} {unit}"
-                    if unit == "B"
-                    else f"{size:.1f} {unit}"
-                )
-            size /= 1024
-        return f"{size:.1f} TB"
-
 
 class _DataPoolTabPage(QWidget):
     """按可用宽度承载两列至四列等宽数据卡片。"""
@@ -674,7 +657,7 @@ class DataPoolPanel(SimpleCardWidget):
         if source_type in self.package_pages:
             return source_type
 
-        suffix = Path(package.source_path).suffix.lower()
+        suffix = PurePath(package.source_path).suffix.lower()
         if suffix in {".xls", ".xlsx"}:
             return "excel"
         if suffix == ".bin":

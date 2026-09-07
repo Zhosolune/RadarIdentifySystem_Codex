@@ -7,7 +7,9 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
-from PyQt6.QtCore import QObject
+from PyQt6 import sip
+from PyQt6.QtCore import QEventLoop, QObject, QTimer, pyqtSignal
+from PyQt6.QtWidgets import QApplication
 
 from app.signal_bus import signal_bus
 from core.models.data_package import DataPackage
@@ -28,6 +30,17 @@ import ui.controllers.home_controller as home_controller_module
 from ui.controllers.home_controller import HomeController
 
 
+_APP: QApplication | None = None
+
+
+def _app() -> QApplication:
+    """返回进程级 Qt 应用并持有强引用。"""
+    global _APP
+    app = QApplication.instance() or QApplication([])
+    _APP = app
+    return app
+
+
 class _SignalStub:
     """提供测试用连接接口的轻量信号替身。"""
 
@@ -38,6 +51,11 @@ class _SignalStub:
     def connect(self, callback: object) -> None:
         """记录连接的回调。"""
         self.callbacks.append(callback)
+
+    def emit(self, *args: object) -> None:
+        """按连接顺序同步调用全部回调。"""
+        for callback in self.callbacks:
+            callback(*args)
 
 
 class _ActionStub:
@@ -198,8 +216,35 @@ def test_data_package_event_does_not_emit_session_registered() -> None:
         signal_bus.session_registered.disconnect(received_session_ids.append)
 
 
+def test_directory_config_change_does_not_trigger_file_scan(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """目录配置变化不应扫描文件，只有刷新动作可以显式触发扫描。"""
+    refresh_calls: list[str] = []
+    monkeypatch.setattr(
+        HomeController,
+        "refresh_import_files",
+        lambda _controller: refresh_calls.append("refresh"),
+    )
+    view = _HomeViewStub()
+    registry = DataPoolRegistry(DataPoolStore(tmp_path / "pool"))
+    controller = HomeController(view, registry)
+    try:
+        home_controller_module.appConfig.importDataDirs.valueChanged.emit(
+            [str(tmp_path)]
+        )
+        assert refresh_calls == []
+
+        refresh_callback = view.import_panel.refresh_action.triggered.callbacks[0]
+        refresh_callback()
+        assert refresh_calls == ["refresh"]
+    finally:
+        _disconnect_home_controller(controller)
+
+
 def test_import_workflow_finished_emits_data_package() -> None:
-    """导入工作流成功后应只发布新的数据包事件。"""
+    """结果发布时不得销毁仍未发出原生 finished 的 QThread。"""
     package = _build_package()
     received: list[tuple[str, tuple[DataPackage, ...]]] = []
     workflow = ImportWorkflow()
@@ -213,10 +258,86 @@ def test_import_workflow_finished_emits_data_package() -> None:
             ImportWorkerResult(True, (package,), "ok"),
         )
         assert received == [("import-1", (package,))]
+        assert not fake_worker.delete_later_called
+        assert workflow._worker is fake_worker
+
+        workflow._on_worker_thread_finished()
+
         assert fake_worker.delete_later_called
         assert workflow._worker is None
     finally:
         signal_bus.data_packages_parsed.disconnect(callback)
+
+
+def test_import_workflow_deletes_real_worker_only_after_native_finished(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """真实 QThread 在结果发出后继续收尾时不得被提前销毁。"""
+    app = _app()
+    source_file = tmp_path / "thread-lifecycle.xlsx"
+    source_file.write_bytes(b"source")
+
+    class _ParserStub:
+        """返回单波段数据以驱动真实 ImportWorker。"""
+
+        def parse(
+            self,
+            file_path: str,
+            data_format: str | None = None,
+        ) -> ParsedPulseSource:
+            """构造单条 C 波段解析结果。"""
+            return ParsedPulseSource(
+                data=np.array([[5000.0, 1.0, 100.0, 90.0, 90.0, 0.0]]),
+                source_path=file_path,
+                source_type="excel",
+                source_valid_mask=np.ones(1, dtype=bool),
+                total_records=1,
+            )
+
+    class _SlowFinalImportWorker(ImportWorker):
+        """结果发出后保留短暂原生线程收尾窗口。"""
+
+        def run(self) -> None:
+            """执行真实导入并延迟返回，放大错误销毁时序。"""
+            super().run()
+            self.msleep(100)
+
+    monkeypatch.setattr(
+        import_worker_module,
+        "create_pulse_parser",
+        lambda _source_type: _ParserStub(),
+    )
+    monkeypatch.setattr(
+        import_workflow_module,
+        "ImportWorker",
+        _SlowFinalImportWorker,
+    )
+    workflow = ImportWorkflow()
+    workflow.start_import(
+        str(source_file),
+        source_type="excel",
+        data_format="new",
+    )
+    worker = workflow._worker
+    assert worker is not None
+    result_states: list[tuple[bool, bool]] = []
+    worker.finished_signal.connect(
+        lambda _import_id, _result: result_states.append(
+            (worker.isRunning(), sip.isdeleted(worker))
+        )
+    )
+    event_loop = QEventLoop()
+    worker.finished.connect(event_loop.quit)
+    QTimer.singleShot(3_000, event_loop.quit)
+
+    event_loop.exec()
+    app.processEvents()
+
+    assert result_states == [(True, False)]
+    assert workflow._worker is None
+    app.processEvents()
+    assert sip.isdeleted(worker)
 
 
 def test_home_controller_passes_selected_excel_format(
@@ -234,6 +355,11 @@ def test_home_controller_passes_selected_excel_format(
         controller.file_manager,
         "get_entry_at",
         lambda _format_key, _row_index: entry,
+    )
+    monkeypatch.setattr(
+        controller.file_manager,
+        "is_entry_importable",
+        lambda _entry, _directories: True,
     )
     monkeypatch.setattr(
         home_controller_module.import_workflow,
@@ -281,6 +407,11 @@ def test_home_controller_passes_selected_bin_rule(
         lambda _format_key, _row_index: entry,
     )
     monkeypatch.setattr(
+        controller.file_manager,
+        "is_entry_importable",
+        lambda _entry, _directories: True,
+    )
+    monkeypatch.setattr(
         view.import_panel,
         "current_data_format",
         lambda: "pdw_v1",
@@ -311,6 +442,62 @@ def test_home_controller_passes_selected_bin_rule(
             "data_format": "pdw_v1",
         }
         assert controller._active_import_id == "import-bin"
+    finally:
+        _disconnect_home_controller(controller)
+
+
+def test_home_controller_rejects_entry_outside_current_directories(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """目录已移除时解析入口应清理失效列表项且不启动后台任务。"""
+    view = _HomeViewStub()
+    registry = DataPoolRegistry(DataPoolStore(tmp_path / "pool"))
+    controller = HomeController(view, registry)
+    entry = SimpleNamespace(
+        path=tmp_path / "removed" / "stale.xlsx",
+        format_key="excel",
+    )
+    empty_rows = {"excel": [], "bin": [], "mat": []}
+    warnings: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        controller.file_manager,
+        "get_entry_at",
+        lambda _format_key, _row_index: entry,
+    )
+    monkeypatch.setattr(
+        controller.file_manager,
+        "is_entry_importable",
+        lambda _entry, _directories: False,
+    )
+    monkeypatch.setattr(
+        controller.file_manager,
+        "scan",
+        lambda directories: empty_rows,
+    )
+    monkeypatch.setattr(controller, "_get_import_directories", lambda: [])
+    monkeypatch.setattr(
+        controller,
+        "_show_top_warning",
+        lambda title, content: warnings.append((title, content)),
+    )
+    monkeypatch.setattr(
+        home_controller_module.import_workflow,
+        "start_import",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("失效文件不应启动解析")
+        ),
+    )
+    try:
+        controller.parse_selected_file()
+        assert view.import_panel.files_by_type == empty_rows
+        assert warnings == [
+            (
+                "文件已失效",
+                "所选文件已不在当前数据目录中，或文件当前无法访问。",
+            )
+        ]
+        assert controller._active_import_id is None
     finally:
         _disconnect_home_controller(controller)
 
@@ -405,6 +592,10 @@ def test_bin_import_worker_returns_independent_lsc_packages(tmp_path) -> None:
         "C波段",
     ]
     assert [package.raw_batch.total_pulses for package in packages] == [1, 1, 1]
+    assert all(
+        package.source_size_bytes == bin_path.stat().st_size
+        for package in packages
+    )
     assert packages[0].raw_batch.data[0, 2] == 100
     assert packages[0].raw_batch.data[0, 5] == 100
     assert packages[0].preprocess_result.remaining_pulses == 1
@@ -436,6 +627,7 @@ def test_import_workflow_passes_format_and_package_id_to_worker(
                 parent=parent,
             )
             self.finished_signal = _SignalStub()
+            self.finished = _SignalStub()
 
         def isRunning(self) -> bool:
             """模拟未运行状态。"""
@@ -460,6 +652,8 @@ def test_import_workflow_passes_format_and_package_id_to_worker(
     assert request.import_id == import_id
     assert captured["parent"] is workflow
     assert captured["started"] is True
+    worker = cast(Any, workflow._worker)
+    assert worker.finished.callbacks == [workflow._on_worker_thread_finished]
 
 
 def test_home_controller_registers_parsed_package_in_data_pool(
@@ -509,15 +703,17 @@ def test_home_create_action_delegates_mode_and_package(
     registry.register(package)
     captured: dict[str, Any] = {}
 
-    class _DialogStub:
+    class _DialogStub(QObject):
         """返回确定的全速 Session 配置。"""
+
+        finished = pyqtSignal(int)
 
         def __init__(self, _default_name: str, _parent=None) -> None:
             """忽略构造参数。"""
+            super().__init__()
 
-        def exec(self) -> bool:
-            """模拟确认创建。"""
-            return True
+        def show(self) -> None:
+            """保留窗口，等待测试模拟确认或取消。"""
 
         def get_session_name(self) -> str:
             """返回名称。"""
@@ -560,6 +756,7 @@ def test_home_create_action_delegates_mode_and_package(
     controller.data_pool_registry = registry
     controller.session_coordinator = _Coordinator()
     controller.interactive_session_registrar = None
+    controller._create_session_dialog = None
     controller._show_top_warning = lambda _title, _content: None
     monkeypatch.setattr(home_controller_module, "CreateSessionDialog", _DialogStub)
     monkeypatch.setattr(
@@ -569,6 +766,13 @@ def test_home_create_action_delegates_mode_and_package(
     )
 
     controller.create_session_from_package(package.package_id)
+    assert captured == {}
+    controller._create_session_dialog.finished.emit(0)
+    assert captured == {}
+    assert controller._create_session_dialog is None
+    controller.create_session_from_package(package.package_id)
+    controller._create_session_dialog.finished.emit(1)
+    assert controller._create_session_dialog is None
     assert captured["args"] == (
         package.package_id,
         ProcessingMode.FULL_SPEED,

@@ -94,6 +94,15 @@ class ImportWorker(QThread):
                 request.file_path,
                 data_format=request.data_format,
             )
+            # 文件大小只在后台解析阶段读取一次，后续数据包和 Session 详情
+            # 仅使用缓存值，避免 UI 主线程重新访问已移除或不可用的源目录。
+            try:
+                source_size_bytes = max(
+                    Path(parsed_source.source_path).stat().st_size,
+                    0,
+                )
+            except OSError:
+                source_size_bytes = None
             band_indices = split_pulse_indices_by_band(parsed_source.data)
 
             packages: list[DataPackage] = []
@@ -136,6 +145,7 @@ class ImportWorker(QThread):
                         raw_batch=raw_batch,
                         preprocess_result=preprocess_result,
                         dashboard_info=preprocess_result.dashboard_info,
+                        source_size_bytes=source_size_bytes,
                         data_format=request.data_format,
                     )
                 )

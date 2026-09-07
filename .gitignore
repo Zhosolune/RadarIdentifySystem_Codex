@@ -13,6 +13,7 @@ temp/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.pytest_tmp/
 .test-tmp/
 .venv/
 .uv-cache/

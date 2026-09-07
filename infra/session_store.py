@@ -428,6 +428,14 @@ class SessionStore:
             metadata = self._read_json(session_dir / "session.json")
             config_payload = self._read_json(session_dir / "config.json")
             model_payload = metadata.get("model_selection")
+            source_size_value = metadata.get("source_size_bytes")
+            source_size_bytes = (
+                source_size_value
+                if isinstance(source_size_value, int)
+                and not isinstance(source_size_value, bool)
+                and source_size_value >= 0
+                else None
+            )
             metadata_session_id = self._validate_session_id(
                 _require_string_session_id(metadata["session_id"]),
             )
@@ -445,6 +453,7 @@ class SessionStore:
                 ),
                 source_path=str(metadata["source_path"]),
                 source_type=str(metadata["source_type"]),
+                source_size_bytes=source_size_bytes,
                 data_format=metadata.get("data_format"),
                 created_at=datetime.fromisoformat(str(metadata["created_at"])),
                 display_name=str(metadata["display_name"]),
@@ -771,6 +780,7 @@ class SessionStore:
             "processing_mode": session.processing_mode.value,
             "source_path": session.source_path,
             "source_type": session.source_type,
+            "source_size_bytes": session.source_size_bytes,
             "data_format": session.data_format,
             "created_at": session.created_at.isoformat(),
             "display_name": session.display_name,

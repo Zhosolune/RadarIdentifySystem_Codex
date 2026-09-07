@@ -1,6 +1,6 @@
 """导入文件列表管理器。
 
-该模块负责导入文件列表的加载、保存、扫描合并、排序和列表移除操作，不依赖 UI 层。
+该模块负责导入文件列表的加载、保存、目录对账、排序和列表移除操作，不依赖 UI 层。
 
 Example:
     >>> manager = ImportFileListManager()
@@ -110,13 +110,17 @@ class ImportFileListManager:
         return self.sort(self.sort_key, self.sort_ascending, save_state=False)
 
     def scan(self, directories: list[str]) -> FileScanResult:
-        """扫描导入目录直属文件并增量合并到当前列表。
+        """扫描导入目录直属文件并与当前目录集合全量对账。
+
+        每次扫描都会重新构建可见文件集合，确保已移除目录、已删除文件和
+        暂时不可访问文件不会继续保留在可解析列表中。用户单独移除的文件
+        仍由 ``ignored_paths`` 排除，目录重新添加时也不会自动恢复。
 
         Args:
             directories: 待扫描目录路径列表；不存在或不可访问的路径会被跳过。
 
         Returns:
-            合并新文件后的表格行数据。
+            与当前有效目录完成对账后的表格行数据。
 
         Raises:
             OSError: 当状态文件保存失败时抛出。
@@ -126,6 +130,9 @@ class ImportFileListManager:
             >>> manager.scan([])
             {'excel': [], 'bin': [], 'mat': []}
         """
+        reconciled_entries = self._empty_entries()
+        scanned_paths: set[str] = set()
+
         for directory in directories:
             root = Path(directory).expanduser()
             if not root.is_dir():
@@ -142,9 +149,20 @@ class ImportFileListManager:
                     continue
 
                 entry = self._build_entry(file_path)
-                if entry is not None and not self._has_entry(entry.path):
-                    self.files_by_type[entry.format_key].append(entry)
+                if entry is None:
+                    continue
 
+                # 同一目录被重复配置或通过等价路径访问时，只保留一个列表项。
+                normalized_path = self._normalize_path(entry.path)
+                if (
+                    normalized_path in self.ignored_paths
+                    or normalized_path in scanned_paths
+                ):
+                    continue
+                scanned_paths.add(normalized_path)
+                reconciled_entries[entry.format_key].append(entry)
+
+        self.files_by_type = reconciled_entries
         return self.sort(self.sort_key, self.sort_ascending)
 
     def remove_at(self, format_key: str, row_index: int) -> FileScanResult:
@@ -269,6 +287,63 @@ class ImportFileListManager:
             return None
         return rows[row_index]
 
+    def is_entry_importable(
+        self,
+        entry: ImportFileEntry,
+        directories: list[str],
+    ) -> bool:
+        """判断文件条目当前是否仍可从已配置数据目录发起解析。
+
+        校验遵循扫描器的直属文件语义：文件必须存在、扩展名仍与条目类型
+        一致、未被用户单独忽略，并且规范化父目录属于当前有效目录集合。
+
+        Args:
+            entry [ImportFileEntry]: 待校验的文件列表条目。
+            directories [list[str]]: 当前配置的数据目录路径列表。
+
+        Returns:
+            bool: 条目仍属于有效数据目录且文件可访问时返回 True。
+
+        Raises:
+            无显式抛出异常；无效或不可访问路径统一返回 False。
+
+        Example:
+            >>> manager = ImportFileListManager()
+            >>> missing = ImportFileEntry(
+            ...     Path("missing.xlsx"),
+            ...     "excel",
+            ...     "missing.xlsx",
+            ...     "missing.xlsx",
+            ...     0.0,
+            ...     0,
+            ... )
+            >>> manager.is_entry_importable(missing, [])
+            False
+        """
+        normalized_path = self._normalize_path(entry.path)
+        if normalized_path in self.ignored_paths:
+            return False
+        if self._resolve_format_key(entry.path) != entry.format_key:
+            return False
+
+        try:
+            if not entry.path.is_file():
+                return False
+        except OSError:
+            return False
+
+        normalized_parent = self._normalize_path(entry.path.parent)
+        for directory in directories:
+            root = Path(directory).expanduser()
+            try:
+                if not root.is_dir():
+                    continue
+            except OSError:
+                continue
+            if self._normalize_path(root) == normalized_parent:
+                return True
+        return False
+
     def _entries_from_state(self, state: dict[str, Any]) -> dict[str, list[ImportFileEntry]]:
         """从 JSON 状态构建文件条目分组。"""
         entries_by_type = self._empty_entries()
@@ -362,17 +437,6 @@ class ImportFileListManager:
             if suffix in extensions:
                 return format_key
         return None
-
-    def _has_entry(self, file_path: Path) -> bool:
-        """判断当前列表或忽略集合中是否已包含文件路径。"""
-        normalized_path = self._normalize_path(file_path)
-        if normalized_path in self.ignored_paths:
-            return True
-        return any(
-            self._normalize_path(entry.path) == normalized_path
-            for entries in self.files_by_type.values()
-            for entry in entries
-        )
 
     def _normalize_path(self, file_path: Path) -> str:
         """规范化文件路径用于去重。"""

@@ -1,5 +1,145 @@
 # 变更记录
 
+- 时间：2026-09-07 11:26
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\qfluentwidgets\components\settings\folder_list_setting_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：清理目录删除确认框残留的原生模态窗口，并使创建 Session 窗口完全退出 Qt 原生模态栈。
+- 原因：用户确认此前修复后故障仍存在；2026-09-07 11:00 的真实运行日志和 Windows 事件记录显示解析成功后再次发生 `AppHangB1`。此前回归直接向按钮对象注入鼠标事件，绕过了 Windows 屏幕命中与模态输入抓取，不能检测“名称框可输入但按钮无法点击”。
+- 排查与完成清单：
+  - [x] 读取真实开发环境运行日志及同时间段 Windows `AppHangB1` 记录，确认故障仍然存在。
+  - [x] 将回归改为通过 `QApplication.widgetAt()` 获取屏幕真实命中控件后点击，并等待启动画面及目录卡片展开完成。
+  - [x] 新增目录确认框关闭后不得残留为主窗口子对象、创建窗口不得进入原生模态栈的断言。
+  - [x] `FolderListSettingCard` 在目录确认框 `exec()` 返回后调用 `deleteLater()`，释放父窗口持有的隐藏原生窗口。
+  - [x] 创建 Session 窗口由 `open()` 改为 `show()`；继续使用 `MessageBoxBase` 自身的全窗遮罩阻止背景交互，不再申请 Qt 原生模态输入抓取。
+- 测试状态：[已测试]
+  - 修复前新增残留窗口断言稳定失败：目录确认框仍存在于主窗口子对象中。
+  - Windows 原生平台完整操作顺序及四种模式组合：`4 passed`。
+  - 导入线程、目录刷新、数据池和创建 Session 相关回归：`23 passed, 1 deselected`；跳过项为既有全速参数保存无关失败。
+  - 本轮涉及的 Python 文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有 LF/CRLF 转换提示。
+
+- 时间：2026-09-07 09:12
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：创建 Session 改用非阻塞弹窗，明确弹窗和解析遮罩释放时机，补齐真实按钮与可见窗口回归。
+- 原因：用户继续报告移除目录并刷新后打开创建窗口卡死；工作区已有源文件元数据解耦和导入线程清理修复。本轮修复前未复现卡死，不能确认唯一根因；原测试隐藏主窗口并绕过解析按钮，无法覆盖真实遮罩生命周期。针对嵌套模态循环和隐藏窗口残留进行防御性修复。
+- 计划与完成清单：
+  - [x] 检查目录配置、文件扫描、数据包注册及 Session 创建调用链，保留已有未提交改动。
+  - [x] 创建窗口使用 open()/finished，入口立即返回；重复点击激活已有窗口，取消不创建任务，关闭后 deleteLater()。
+  - [x] 解析遮罩在 finished 后 deleteLater()，释放进度环与窗口对象。
+  - [x] 显示主窗口并点击真实解析按钮，使用真实 QThread 和 55,815 条脉冲；删除目录确认与 Session 确认通过鼠标事件完成。
+  - [x] 覆盖两种 Session 模式，以及仅移除目录配置、同时删除源文件两类场景；检查缓存数据复用、非阻塞返回、重复点击和遮罩销毁。
+- 联动约定：目录配置决定扫描范围；手动刷新更新文件列表；解析结果独立存入数据池；创建 Session 只引用数据包，不依赖原目录或原文件继续存在。
+- 测试状态：[已测试]
+  - Windows 原生平台可见窗口回归：`4 passed, 15 deselected`。
+  - 本轮独立复核目录移除、源文件删除、真实创建窗口及 QThread 原生结束清理：`12 passed`。
+  - 本轮扩大复核数据池、Session 持久化/管理、主页及主窗口链路：`104 passed, 1 failed, 1 deselected`；唯一失败为既有页面标题旧断言，与本次联动逻辑无关。
+  - 本轮全部修改的 Python 文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有 LF/CRLF 转换提示。
+  - `test_session_event_isolation.py`、`test_data_pool_session_routing.py`、`test_data_pool.py`、`test_import_file_list_manager.py`：`28 passed, 1 failed`；失败为既有全速参数窗口保存后 eps_cf 仍为 2.0 的断言，2026-09-04 日志已记录，本轮未修改该逻辑。
+  - 仍需用户在原始复现环境验证；以上通过不等于已经证实原卡死根因。
+
+- 时间：2026-09-04 15:56
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\workflows\import_workflow.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+- 变更摘要：继续修复解析完成后删除目录并刷新，再打开 Session 创建窗口时应用挂起的问题。
+- 原因：`ImportWorker.finished_signal` 在 `run()` 返回前发出，原实现收到业务结果后立即 `deleteLater()` 并清空引用，可能在底层 `QThread` 尚处于 `finally` 收尾时提前销毁线程对象，破坏后续模态窗口事件循环。
+- 计划清单：
+  - [x] 增加真实目录删除确认、手动刷新和真实 Session 创建窗口回归。
+  - [x] 修正 ImportWorker 自定义结果信号与 QThread 原生结束信号之间的清理边界。
+  - [x] 运行导入线程生命周期、完整操作顺序及相关 Session 回归。
+- 实现结果：
+  - 自定义结果信号只负责发布导入结果；Worker 仅在 `QThread.finished` 原生信号到达后执行 `deleteLater()` 并释放引用。
+  - 导入工作流在 Worker 完整生命周期结束前保持忙碌，禁止重入启动下一次导入。
+  - 端到端回归使用真实导入线程和 55,815 条脉冲，覆盖删除目录确认、手动刷新、真实 Session 创建窗口自动确认及 Session 注册。
+- 测试状态：[已测试]
+  - 导入线程生命周期、完整操作顺序及文件列表聚焦回归：`20 passed`，1 个第三方 scipy 弃用警告。
+  - MainWindow、数据池、Session 注册/持久化/管理及主页扩大回归：`98 passed, 2 failed`；失败分别为既有全速参数窗口保存断言和旧页面标题断言，与本次导入线程改动无关，且均已在早前记录中注明。
+  - 本轮全部修改的 Python 文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有既有 LF/CRLF 转换提示。
+
+- 时间：2026-09-04 10:13
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\data_package.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\core\models\processing_session.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\runtime\threading\import_worker.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\data_pool_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_dashboard_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_manager_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_store.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：修复移除数据目录并刷新后，从已解析数据包创建 Session 时可能卡死的问题。
+- 原因：数据包和 Session 详情仍在 UI 主线程回查原始文件路径，破坏了已解析缓存与数据目录的独立性；不可访问路径可能阻塞界面。
+- 计划清单：
+  - [x] 增加数据包、Session 文件大小元数据往返及详情不访问源文件系统的回归测试。
+  - [x] 在解析阶段缓存源文件大小，并贯通数据包、Session 与持久化元数据。
+  - [x] 将数据池和 Session 详情改为只读取缓存元数据，兼容旧缓存缺失字段。
+  - [x] 运行聚焦测试、相关扩展回归、语法检查与差异检查。
+- 验证结果：
+  - 数据模型、持久化与文件列表回归：`54 passed`。
+  - 导入 Worker、目录动作与事件隔离回归：`12 passed`。
+  - “目录移除并刷新后创建 Session 不访问源文件系统”及缺失源目录详情回归：`2 passed`。
+  - 主页和数据池详情扩展回归：`6 passed`；Session 注册表与全速引用持久化扩展回归：`20 passed`；主窗口 Session 创建扩展回归：`2 passed`。
+  - 目标文件 `py_compile` 通过；`git diff --check` 通过，仅有既有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-09-04 09:29
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：移除数据目录配置变化与文件扫描的自动联动，目录增删只更新配置，文件列表仅在用户点击“刷新”时扫描和对账。
+- 原因：数据目录配置只负责维护目录集合，文件扫描必须由用户点击“刷新”显式触发。
+- 计划清单：
+  - [x] 增加“目录配置变化不自动刷新、刷新按钮仍可用”的回归测试。
+  - [x] 移除目录配置变化与文件列表刷新的信号连接及回调。
+  - [x] 运行聚焦测试、语法检查与差异检查。
+- 验证结果：
+  - 新增行为回归：`1 passed`。
+  - 文件列表与导入事件聚焦回归：`17 passed`。
+  - 主页界面及 Session 创建相关回归：`10 passed`。
+  - 目标文件 `py_compile` 通过；`git diff --check` 通过，仅有既有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
+- 时间：2026-09-03 11:07
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：文件列表刷新改为与当前数据目录全量对账，目录配置变化后立即刷新，并在解析前拦截已移出目录或不可访问的文件。
+- 原因：文件列表刷新当前仅增量追加，未与现行数据目录配置进行全量对账。
+- 计划清单：
+  - [x] 增加目录移除、失效文件和解析入口防御性校验回归测试。
+  - [x] 将刷新调整为当前目录集合的全量对账并持久化结果。
+  - [x] 在目录配置变化时自动刷新，解析前再次校验文件有效性。
+  - [x] 运行聚焦测试、语法检查与差异检查。
+- 验证结果：
+  - 聚焦回归：`16 passed`。
+  - 主页界面回归：`6 passed`；主页导入与 Session 创建主窗口回归：`4 passed`。
+  - 架构、数据池和 Session 注册表扩展回归：`25 passed, 1 failed`；失败用例 `test_main_window_routes_data_package_to_peer_session_systems` 隔离复跑仍失败于既有全速参数保存断言（`eps_cf` 保持 `2.0` 而非 `7.25`），与本次改动路径无关。
+  - 目标文件 `py_compile` 通过；`git diff --check` 通过，仅有既有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-08-20 16:21
 - 操作类型：[新增]
 - 影响文件：

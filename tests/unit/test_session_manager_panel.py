@@ -39,6 +39,7 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
     session = ProcessingSession(
         session_id="session_a",
         source_path=str(source_file),
+        source_size_bytes=9,
         display_name="A.xlsx",
         created_at=datetime(2026, 6, 22, 12, 30),
     )
@@ -97,6 +98,26 @@ def test_session_manager_panel_uses_card_navigation_list_and_detail_view(
     ]
     assert info_titles == ["Session ID：", "文件名：", "文件大小：", "文件路径：", "备注信息："]
     assert panel.session_titles() == ["A.xlsx"]
+
+
+def test_session_manager_uses_cached_size_when_source_directory_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    """源目录不可访问时详情应只展示 Session 中缓存的文件大小。"""
+    _app()
+    panel = SessionManagerPanel()
+    missing_source = tmp_path / "已移除目录" / "cached.xlsx"
+    session = ProcessingSession(
+        session_id="session_cached_size",
+        source_path=str(missing_source),
+        source_size_bytes=1536,
+        display_name="cached.xlsx",
+    )
+
+    panel.set_sessions([session])
+
+    assert panel._file_name_value_label.text() == "cached.xlsx"
+    assert panel._file_size_value_label.text() == "1.5 KB"
 
 
 def test_session_manager_detail_info_scroll_area_uses_remaining_space() -> None:

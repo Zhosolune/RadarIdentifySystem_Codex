@@ -134,6 +134,7 @@ class ProcessingSession:
         processing_mode (ProcessingMode): Session 处理模式。
         source_path (str): 数据文件路径。
         source_type (str): 数据来源类型，"excel" / "bin" / "mat"。
+        source_size_bytes (int | None): 数据包缓存的源文件大小，未知时为 None。
         data_format (str | None): 来源数据格式，例如 Excel 的 ``old`` / ``new``。
         created_at (datetime): 会话创建时间戳。
         display_name (str): 会话展示名称，默认使用源文件名或 session_id。
@@ -172,6 +173,7 @@ class ProcessingSession:
     processing_mode: ProcessingMode = ProcessingMode.SLICE_INTERACTIVE
     source_path: str = ""
     source_type: str = "unknown"
+    source_size_bytes: int | None = None
     data_format: str | None = None
     created_at: datetime = field(default_factory=datetime.now)
     display_name: str = ""
@@ -256,6 +258,7 @@ class ProcessingSession:
             processing_mode=processing_mode,
             source_path=package.source_path,
             source_type=package.source_type,
+            source_size_bytes=package.source_size_bytes,
             data_format=package.data_format,
             display_name=display_name.strip() or package.display_name,
             remark=remark.strip() or "无",

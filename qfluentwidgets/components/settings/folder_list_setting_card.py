@@ -123,6 +123,9 @@ class FolderListSettingCard(ExpandSettingCard):
         w = Dialog(title, content, self.window())
         w.yesSignal.connect(lambda: self.__removeFolder(item))
         w.exec()
+        # 对话框以主窗口为父对象，exec() 返回后不会自动析构；若继续保留这个
+        # 隐藏的原生模态窗口，后续遮罩对话框可能拿不到鼠标输入。
+        w.deleteLater()
 
     def __removeFolder(self, item):
         """ remove folder """

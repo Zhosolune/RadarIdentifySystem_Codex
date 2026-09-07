@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -35,6 +36,7 @@ def _build_package(package_id: str = "package-1") -> DataPackage:
     )
     return DataPackage(
         package_id=package_id,
+        source_size_bytes=12_345,
         raw_batch=PulseBatch(
             raw_data,
             source_path="E:/data/demo.xlsx",
@@ -67,6 +69,7 @@ def test_data_package_is_shared_read_only_between_sessions() -> None:
     assert interactive.preprocess_result is full_speed.preprocess_result
     assert interactive.data_package_id == full_speed.data_package_id
     assert interactive.data_format == full_speed.data_format == "new"
+    assert interactive.source_size_bytes == full_speed.source_size_bytes == 12_345
     assert interactive.slice_result is None
     assert full_speed.slice_result is None
     with pytest.raises(ValueError):
@@ -84,6 +87,7 @@ def test_data_pool_store_round_trip_and_recovers_from_broken_index(
     restored = store.load_package(package.package_id)
     assert restored.source_type == "excel"
     assert restored.data_format == "new"
+    assert restored.source_size_bytes == 12_345
     assert np.array_equal(
         restored.preprocess_result.data,
         package.preprocess_result.data,
@@ -96,6 +100,26 @@ def test_data_pool_store_round_trip_and_recovers_from_broken_index(
     )
     discovered = store.load_all_packages()
     assert [item.package_id for item in discovered] == [package.package_id]
+
+
+def test_data_pool_store_loads_legacy_package_without_source_size(
+    tmp_path: Path,
+) -> None:
+    """旧数据包缺少文件大小字段时应继续恢复且不回查源文件。"""
+    store = DataPoolStore(tmp_path / "pool")
+    package = _build_package()
+    store.save_package(package)
+    metadata_path = store.root_dir / package.package_id / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata.pop("source_size_bytes")
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    restored = store.load_package(package.package_id)
+
+    assert restored.source_size_bytes is None
 
 
 def test_data_pool_registry_blocks_deleting_referenced_package(

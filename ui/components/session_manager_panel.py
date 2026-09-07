@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
+from pathlib import PurePath
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
@@ -28,6 +28,7 @@ from ui.components.import_dashboard_panel import (
     DashboardMetric,
     format_dashboard_band,
     format_dashboard_duration,
+    format_file_size_bytes,
 )
 
 
@@ -462,14 +463,16 @@ class SessionManagerPanel(SimpleCardWidget):
             self._refresh_metric_cards(self._build_empty_metrics())
             return
 
-        file_path = Path(session.source_path) if session.source_path else None
+        file_path = PurePath(session.source_path) if session.source_path else None
         # 保持固定标题，仅刷新基础文件信息。
         self._detail_name_label.setText("数据包信息")
         # 刷新 session_id。
         self._session_id_value_label.setText(session.session_id)
         # 刷新基础文件信息。
         self._file_name_value_label.setText(file_path.name if file_path else "--")
-        self._file_size_value_label.setText(self._format_source_file_size(file_path))
+        self._file_size_value_label.setText(
+            format_file_size_bytes(session.source_size_bytes)
+        )
         self._file_path_value_label.setText(session.source_path or "--")
         self._remark_value_label.setText(self._session_remark_text(session))
         # 重建导入仪表盘指标卡。
@@ -552,21 +555,6 @@ class SessionManagerPanel(SimpleCardWidget):
             card = DashboardCard(metric, self._detail_metrics_widget)
             self._metric_cards.append(card)
             self._metrics_layout.addWidget(card)
-
-    def _format_source_file_size(self, file_path: Path | None) -> str:
-        """格式化源文件大小文本。"""
-        if file_path is None or not file_path.exists():
-            return "未知"
-
-        units = ["B", "KB", "MB", "GB", "TB"]
-        size = float(max(file_path.stat().st_size, 0))
-        for unit in units:
-            if size < 1024 or unit == units[-1]:
-                if unit == "B":
-                    return f"{int(size)} {unit}"
-                return f"{size:.1f} {unit}"
-            size /= 1024
-        return f"{size:.1f} TB"
 
     def _session_remark_text(self, session: ProcessingSession) -> str:
         """返回 session 备注文本。"""

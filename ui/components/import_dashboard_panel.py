@@ -84,6 +84,40 @@ def format_dashboard_band(band: str | None) -> str:
     return band.removesuffix("波段") or "--"
 
 
+def format_file_size_bytes(size_bytes: int | None) -> str:
+    """格式化已缓存的文件大小，不访问源文件系统。
+
+    Args:
+        size_bytes [int | None]: 文件字节数；None 或负数表示未知。
+
+    Returns:
+        str: 适合详情面板展示的文件大小文本；未知时返回“未知”。
+
+    Raises:
+        无显式抛出异常。
+
+    Example:
+        >>> format_file_size_bytes(1536)
+        '1.5 KB'
+        >>> format_file_size_bytes(None)
+        '未知'
+    """
+    if (
+        not isinstance(size_bytes, int)
+        or isinstance(size_bytes, bool)
+        or size_bytes < 0
+    ):
+        return "未知"
+
+    units = ("B", "KB", "MB", "GB", "TB")
+    size = float(size_bytes)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            return f"{int(size)} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
 @dataclass(frozen=True)
 class DashboardMetric:
     """仪表盘指标项。

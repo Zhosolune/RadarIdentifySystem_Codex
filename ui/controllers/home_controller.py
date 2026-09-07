@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, Qt, QTimer
+from PyQt6.QtWidgets import QDialog
 from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox, qconfig
 
 from app.signal_bus import signal_bus
@@ -70,6 +71,7 @@ class HomeController(QObject):
         self.file_manager = ImportFileListManager()
         self._active_import_id: str | None = None
         self._processing_dialog: ProcessingDialog | None = None
+        self._create_session_dialog: CreateSessionDialog | None = None
         self._connect_signals()
 
         # 延迟到事件循环空闲后渲染已持久化列表，启动时不自动扫描目录。
@@ -193,6 +195,22 @@ class HomeController(QObject):
         if entry is None:
             self._show_top_warning("未选择文件", "请先在当前标签页选择一个文件。")
             return
+
+        # 列表项可能来自旧持久化状态或目录配置变更；启动线程前按当前目录
+        # 再校验一次，避免把已撤销扫描范围中的路径提交给后台工作流。
+        directories = self._get_import_directories()
+        if not self.file_manager.is_entry_importable(entry, directories):
+            try:
+                files_by_type = self.file_manager.scan(directories)
+            except OSError as error:
+                self._show_top_warning("文件列表刷新失败", str(error))
+                return
+            self.view.import_panel.set_files_by_type(files_by_type)
+            self._show_top_warning(
+                "文件已失效",
+                "所选文件已不在当前数据目录中，或文件当前无法访问。",
+            )
+            return
         if not import_workflow.supports_source_type(entry.format_key):
             self._show_top_warning("暂不支持", "当前仅支持解析 Excel 和 BIN 文件。")
             return
@@ -285,10 +303,12 @@ class HomeController(QObject):
         )
 
     def create_session_from_package(self, package_id: str) -> None:
-        """从选中数据包创建交互式或全速 Session。
+        """非阻塞打开创建窗口，确认后从数据包创建指定模式的 Session。
+
+        同时只保留一个创建窗口；目录配置和文件列表不参与数据包有效性判断。
 
         Args:
-            package_id: 数据池数据包 ID。
+            package_id [str]: 数据池数据包 ID。
 
         Returns:
             None: 无返回值。
@@ -300,6 +320,10 @@ class HomeController(QObject):
             >>> callable(HomeController.create_session_from_package)
             True
         """
+        if self._create_session_dialog is not None:
+            self._create_session_dialog.raise_()
+            self._create_session_dialog.activateWindow()
+            return
         package = self.data_pool_registry.get(package_id)
         if package is None:
             self._show_top_warning("数据包不存在", "请刷新数据池后重试。")
@@ -312,7 +336,30 @@ class HomeController(QObject):
 
         default_display_name = package.display_name
         dialog = CreateSessionDialog(default_display_name, window)
-        if not dialog.exec():
+        self._create_session_dialog = dialog
+        # MessageBoxBase 自身已铺满父窗口并提供遮罩；使用 show() 避免再次
+        # 进入 Qt 原生模态栈。目录确认框刚退出时若仍有原生输入抓取，open()
+        # 会让新窗口可接收键盘焦点却无法接收鼠标事件。
+        dialog.finished.connect(
+            lambda result: self._finish_create_session_dialog(
+                dialog, result, package_id, default_display_name,
+            )
+        )
+        dialog.show()
+
+    def _finish_create_session_dialog(
+        self,
+        dialog: CreateSessionDialog,
+        result: int,
+        package_id: str,
+        default_display_name: str,
+    ) -> None:
+        """释放创建窗口，并仅在确认后从数据池构造 Session。"""
+        if self._create_session_dialog is not dialog:
+            return
+        self._create_session_dialog = None
+        dialog.deleteLater()
+        if result != QDialog.DialogCode.Accepted:
             return
 
         session_name = dialog.get_session_name().strip() or default_display_name
@@ -456,6 +503,8 @@ class HomeController(QObject):
             title="解析数据",
             content="正在读取、分波段并预处理数据文件，请稍候...",
         )
+        # close() 包含淡出动画，必须等 finished 后再销毁遮罩和进度环。
+        self._processing_dialog.finished.connect(self._processing_dialog.deleteLater)
         self._processing_dialog.show()
 
     def _close_processing_dialog(self) -> None:

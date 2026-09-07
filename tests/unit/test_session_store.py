@@ -40,7 +40,11 @@ class _RecordingRLock:
 def test_session_store_writes_index_session_and_config(tmp_path: Path) -> None:
     """保存 session 时应写入索引、元数据和配置文件。"""
     store = SessionStore(tmp_path)
-    session = ProcessingSession(source_path="E:/data/a.xlsx", source_type="excel")
+    session = ProcessingSession(
+        source_path="E:/data/a.xlsx",
+        source_type="excel",
+        source_size_bytes=9,
+    )
     session.config_snapshot.clustering.eps_cf = 8.0
     session.model_selection.pa_model_path = "E:/models/pa.pt"
 
@@ -53,6 +57,7 @@ def test_session_store_writes_index_session_and_config(tmp_path: Path) -> None:
 
     restored = store.load_session(session.session_id)
     assert restored.source_path == "E:/data/a.xlsx"
+    assert restored.source_size_bytes == 9
     assert restored.display_name == "a.xlsx"
     assert restored.config_snapshot.clustering.eps_cf == 8.0
     assert restored.model_selection.pa_model_path == "E:/models/pa.pt"
@@ -74,6 +79,26 @@ def test_session_store_index_omits_startup_restore_state(tmp_path: Path) -> None
 
     assert "active_session_id" not in payload
     assert "last_exit_view" not in payload
+
+
+def test_session_store_loads_legacy_metadata_without_source_size(
+    tmp_path: Path,
+) -> None:
+    """旧 Session 元数据缺少文件大小字段时应按未知值兼容恢复。"""
+    store = SessionStore(tmp_path)
+    session = ProcessingSession(source_path="E:/data/legacy.xlsx")
+    store.upsert_session(session)
+    metadata_path = tmp_path / session.session_id / "session.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata.pop("source_size_bytes")
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    restored = store.load_session(session.session_id)
+
+    assert restored.source_size_bytes is None
 
 
 def test_session_store_upsert_uses_reentrant_lock_for_index_update(

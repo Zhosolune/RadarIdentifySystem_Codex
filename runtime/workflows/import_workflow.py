@@ -36,8 +36,8 @@ class ImportWorkflow(QObject):
         self._worker: Optional[ImportWorker] = None
 
     def is_running(self) -> bool:
-        """返回工作流当前是否正在运行。"""
-        return self._worker is not None and self._worker.isRunning()
+        """返回导入线程是否仍处于完整生命周期内。"""
+        return self._worker is not None
 
     def supports_source_type(self, source_type: str) -> bool:
         """判断来源类型是否已经配置解析器。
@@ -73,7 +73,7 @@ class ImportWorkflow(QObject):
         异常说明：
             RuntimeError: 当已有任务在运行时抛出。
         """
-        if self._worker is not None and self._worker.isRunning():
+        if self._worker is not None:
             raise RuntimeError("正在导入中，无法启动新任务")
 
         import_id = uuid.uuid4().hex
@@ -90,6 +90,9 @@ class ImportWorkflow(QObject):
             parent=self,
         )
         self._worker.finished_signal.connect(self._on_worker_finished)
+        # 自定义结果信号在 run() 返回前发出，此时底层线程仍可能处于 finally
+        # 清理阶段；只能等待 QThread 原生 finished 后再销毁 QObject。
+        self._worker.finished.connect(self._on_worker_thread_finished)
         self._worker.start()
         return import_id
 
@@ -98,15 +101,7 @@ class ImportWorkflow(QObject):
         import_id: str,
         result: ImportWorkerResult,
     ) -> None:
-        """接收线程完成信号并分发全局事件。
-
-        功能描述：
-            工作线程完成后，释放引用并发出 stage_finished 信号，同时记录日志。
-
-        参数说明：
-            import_id (str): 导入任务 ID。
-            result (ImportWorkerResult): 线程执行结果。
-        """
+        """接收业务结果并分发事件，不在此处释放线程对象。"""
         LOGGER.info(
             "导入工作流完成: %s",
             result.message,
@@ -124,9 +119,13 @@ class ImportWorkflow(QObject):
                 result.message,
             )
             
-        if self._worker is not None:
-            self._worker.deleteLater()
-            self._worker = None
+    def _on_worker_thread_finished(self) -> None:
+        """在 QThread 完全退出后释放 Worker 引用和 Qt 对象。"""
+        worker = self._worker
+        if worker is None:
+            return
+        worker.deleteLater()
+        self._worker = None
 
 
 # 单例工作流实例

@@ -84,6 +84,7 @@ class DataPoolStore:
                 "display_name": package.display_name,
                 "source_path": package.source_path,
                 "source_type": package.source_type,
+                "source_size_bytes": package.source_size_bytes,
                 "created_at": package.created_at.isoformat(),
                 "data_format": package.data_format,
                 "raw_batch": {
@@ -156,6 +157,14 @@ class DataPoolStore:
             dashboard = self._build_dashboard(metadata["dashboard_info"])
             raw_payload = metadata["raw_batch"]
             preprocess_payload = metadata["preprocess_result"]
+            source_size_value = metadata.get("source_size_bytes")
+            source_size_bytes = (
+                source_size_value
+                if isinstance(source_size_value, int)
+                and not isinstance(source_size_value, bool)
+                and source_size_value >= 0
+                else None
+            )
             raw_batch = PulseBatch(
                 data=raw_data,
                 source_path=str(raw_payload["source_path"]),
@@ -185,6 +194,7 @@ class DataPoolStore:
                 display_name=str(metadata["display_name"]),
                 source_path=str(metadata["source_path"]),
                 source_type=str(metadata["source_type"]),
+                source_size_bytes=source_size_bytes,
                 created_at=datetime.fromisoformat(str(metadata["created_at"])),
                 data_format=metadata.get("data_format"),
                 raw_batch=raw_batch,

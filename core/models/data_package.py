@@ -37,6 +37,7 @@ class DataPackage:
         display_name: 数据池中展示的名称。
         source_path: 原始文件路径。
         source_type: 原始文件类型，例如 ``excel``。
+        source_size_bytes: 解析时缓存的原始文件大小；旧缓存未知时为 None。
         created_at: 数据包创建时间。
         data_format: 来源文件的显式格式，例如 Excel 的 ``old`` 或 ``new``。
         raw_batch: 解析器归一化后的六列原始脉冲批次。
@@ -51,6 +52,7 @@ class DataPackage:
     display_name: str = ""
     source_path: str = ""
     source_type: str = "unknown"
+    source_size_bytes: int | None = None
     created_at: datetime = field(default_factory=datetime.now)
     data_format: str | None = None
 
