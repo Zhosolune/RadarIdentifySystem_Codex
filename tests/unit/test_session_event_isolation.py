@@ -7,8 +7,9 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
+import pytest
 from PyQt6 import sip
-from PyQt6.QtCore import QEventLoop, QObject, QTimer, pyqtSignal
+from PyQt6.QtCore import QEventLoop, QObject, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 
 from app.signal_bus import signal_bus
@@ -97,12 +98,17 @@ class _ImportPanelStub:
         self.ascendAction = _ActionStub()
         self.descendAction = _ActionStub()
         self.parseButton = _ButtonStub()
+        self.fileSelectionChanged = _SignalStub()
         self.excel_data_format = "old"
         self.files_by_type: object | None = None
 
     def set_files_by_type(self, files_by_type: object) -> None:
         """记录文件列表。"""
         self.files_by_type = files_by_type
+
+    def set_removed_directory_rows(self, rows: dict[str, set[int]]) -> None:
+        """记录目录失效标记。"""
+        self.removed_directory_rows = rows
 
     def current_format_key(self) -> str:
         """返回选中的文件类型。"""
@@ -195,6 +201,9 @@ def _disconnect_home_controller(controller: HomeController) -> None:
         controller.register_parsed_packages
     )
     signal_bus.stage_failed.disconnect(controller._on_parse_stage_failed)
+    home_controller_module.appConfig.importDataDirs.valueChanged.disconnect(
+        controller._sync_directory_status
+    )
 
 
 def test_data_package_event_does_not_emit_session_registered() -> None:
@@ -241,6 +250,91 @@ def test_directory_config_change_does_not_trigger_file_scan(
         assert refresh_calls == ["refresh"]
     finally:
         _disconnect_home_controller(controller)
+
+
+@pytest.mark.parametrize("format_key,extension", [("excel", "xlsx"), ("bin", "bin"), ("mat", "mat")])
+def test_removed_directory_status_preserves_filename_and_parse_state(
+    tmp_path: Path,
+    monkeypatch,
+    format_key: str,
+    extension: str,
+) -> None:
+    """目录移除、排序、重新添加及刷新应同步独立状态列和解析按钮。"""
+    from qfluentwidgets import qconfig
+    from infra.import_file_list_manager import ImportFileListManager
+    from infra.import_file_list_store import ImportFileListStore
+    from ui.components.import_data_panel import ImportDataPanel
+    from qfluentwidgets.components.widgets.tool_tip import ItemViewToolTipDelegate
+
+    app = _app()
+    source = tmp_path / "source"
+    source.mkdir()
+    filename = f"完整原文件名_不能被状态覆盖.{extension}"
+    (source / filename).touch()
+    config_item = home_controller_module.appConfig.importDataDirs
+    original = list(qconfig.get(config_item))
+    view = _HomeViewStub()
+    panel = ImportDataPanel()
+    view.import_panel = panel
+    controller = HomeController(view, DataPoolRegistry(DataPoolStore(tmp_path / "pool")))
+    manager = ImportFileListManager(ImportFileListStore(tmp_path / "files.json"))
+    controller.file_manager = manager
+    try:
+        qconfig.set(config_item, [str(source)], save=False)
+        controller.refresh_import_files()
+        app.processEvents()
+        panel.tab_widget.setCurrentIndex(["excel", "bin", "mat"].index(format_key))
+        table = panel.file_pages[format_key]
+        table.selectRow(0)
+        assert isinstance(table.delegate.tooltipDelegate, ItemViewToolTipDelegate)
+        assert table.horizontalHeaderItem(3).text() == "状态"
+        assert not table.isColumnHidden(3)
+        assert table.item(0, 3).text() == ""
+        assert panel.parseButton.isEnabled()
+        with monkeypatch.context() as context:
+            context.setattr(manager, "scan", lambda _dirs: pytest.fail("配置变化不应扫描"))
+            qconfig.set(config_item, [], save=False)
+            assert table.rowCount() == 1
+            assert table.item(0, 0).text() == filename
+            assert table.item(0, 3).text() == "目录已移除"
+            assert not table.isColumnHidden(3)
+            panel.resize(850, 350)
+            panel.show()
+            app.processEvents()
+            name_rect = table.visualItemRect(table.item(0, 0))
+            status_rect = table.visualItemRect(table.item(0, 3))
+            assert not name_rect.intersects(status_rect)
+            available_width = table.viewport().width()
+            expected_widths = [
+                available_width * stretch // 12
+                for stretch in (5, 3, 2)
+            ]
+            expected_widths.append(available_width - sum(expected_widths))
+            assert [table.columnWidth(column) for column in range(4)] == expected_widths
+            assert "刷新后" in table.item(0, 3).data(Qt.ItemDataRole.ToolTipRole)
+            assert not panel.parseButton.isEnabled()
+            controller.apply_sort()
+            assert table.item(0, 3).text() == "目录已移除"
+            # 等价目录仍覆盖该文件；恢复只重绘，不扫描。
+            qconfig.set(config_item, [str(source / ".")], save=False)
+            table.selectRow(0)
+            assert table.item(0, 3).text() == ""
+            assert not table.isColumnHidden(3)
+            assert panel.parseButton.isEnabled()
+            controller._active_import_id = "busy"
+            qconfig.set(config_item, [], save=False)
+            qconfig.set(config_item, [str(source)], save=False)
+            assert not panel.parseButton.isEnabled()
+            controller._active_import_id = None
+        qconfig.set(config_item, [], save=False)
+        controller.refresh_import_files()
+        assert table.rowCount() == 0
+        assert not panel.parseButton.isEnabled()
+    finally:
+        _disconnect_home_controller(controller)
+        qconfig.set(config_item, original, save=False)
+        sip.delete(controller)
+        sip.delete(panel)
 
 
 def test_import_workflow_finished_emits_data_package() -> None:

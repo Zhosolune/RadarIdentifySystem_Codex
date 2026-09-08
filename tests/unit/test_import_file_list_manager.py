@@ -16,6 +16,22 @@ from infra.import_file_list_manager import ImportFileListManager
 from infra.import_file_list_store import ImportFileListStore
 
 
+def test_removed_directory_rows_follow_direct_child_scan_scope(tmp_path: Path) -> None:
+    """标记遵循直属扫描范围，等价目录保留覆盖且不修改持久化列表。"""
+    child = tmp_path / "child"
+    child.mkdir()
+    (child / "demo.xlsx").touch()
+    state_path = tmp_path / "state.json"
+    manager = ImportFileListManager(ImportFileListStore(state_path))
+    manager.scan([str(child)])
+    saved = state_path.read_bytes()
+    assert manager.removed_directory_rows([str(child / ".")])["excel"] == set()
+    assert manager.removed_directory_rows([str(tmp_path)])["excel"] == {0}
+    assert manager.removed_directory_rows([str(tmp_path), str(child)])["excel"] == set()
+    assert manager.removed_directory_rows([])["excel"] == {0}
+    assert state_path.read_bytes() == saved
+
+
 def test_get_entry_at_returns_selected_file_entry(tmp_path: Path) -> None:
     """通过格式键和行号取得已扫描文件条目。"""
     excel_file = tmp_path / "demo.xlsx"

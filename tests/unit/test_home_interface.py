@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QWidget,
 )
-from qfluentwidgets import Flyout, FlyoutAnimationType
+from qfluentwidgets import Flyout, FlyoutAnimationType, ToolTipFilter
 
 from core.models.dashboard_info import PulseDashboardInfo
 from core.models.data_package import DataPackage
@@ -276,6 +276,7 @@ def test_data_pool_responsively_uses_two_to_four_equal_card_columns() -> None:
     first_card = first_row_cards[0]
     assert isinstance(first_card, CardNavigationItem)
     assert first_card.title_label.text() == packages[0].display_name
+    assert first_card.title_label.findChild(ToolTipFilter) is not None
     assert first_card.subtitle_label is not None
     assert first_card.subtitle_label.text() == "C波段"
     visible_text = " ".join(

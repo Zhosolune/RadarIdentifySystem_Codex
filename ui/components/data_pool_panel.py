@@ -26,6 +26,8 @@ from qfluentwidgets import (
     PushButton,
     ScrollArea,
     SimpleCardWidget,
+    ToolTipFilter,
+    ToolTipPosition,
     TransparentPushButton,
     TransparentToolButton,
     setFont,
@@ -83,6 +85,13 @@ class DataPackageCard(CardNavigationItem):
         self.setObjectName("dataPoolCard")
         self.setMinimumWidth(0)
         self.title_label.setToolTip(package.display_name)
+        self.title_label.installEventFilter(
+            ToolTipFilter(
+                self.title_label,
+                500,
+                ToolTipPosition.BOTTOM,
+            )
+        )
         self.title_label.setMinimumWidth(0)
         self.title_label.setSizePolicy(
             QSizePolicy.Policy.Ignored,

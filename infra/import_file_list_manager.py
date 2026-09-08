@@ -264,6 +264,24 @@ class ImportFileListManager:
             for format_key, entries in self.files_by_type.items()
         }
 
+    def removed_directory_rows(self, directories: list[str]) -> dict[str, set[int]]:
+        """计算不再属于配置目录的行，不扫描磁盘或修改持久化列表。
+
+        Args:
+            directories [list[str]]: 当前数据目录配置，遵循直属文件扫描规则。
+
+        Returns:
+            dict[str, set[int]]: 各格式中需要标记目录已移除的行号。
+        """
+        roots = {self._normalize_path(Path(path)) for path in directories}
+        return {
+            key: {
+                row for row, entry in enumerate(entries)
+                if self._normalize_path(entry.path.parent) not in roots
+            }
+            for key, entries in self.files_by_type.items()
+        }
+
     def get_entry_at(self, format_key: str, row_index: int) -> ImportFileEntry | None:
         """获取指定格式与表格行对应的文件条目。
 

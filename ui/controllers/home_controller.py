@@ -92,6 +92,7 @@ class HomeController(QObject):
             无显式抛出异常。
         """
         self.view.import_panel.set_files_by_type(self.file_manager.to_table_rows())
+        self._sync_directory_status()
 
     def refresh_import_files(self) -> None:
         """刷新导入数据面板中的文件列表。
@@ -108,6 +109,7 @@ class HomeController(QObject):
         directories = self._get_import_directories()
         files_by_type = self.file_manager.scan(directories)
         self.view.import_panel.set_files_by_type(files_by_type)
+        self._sync_directory_status()
 
     def remove_selected_file(self) -> None:
         """从当前标签页列表中移除选中的文件行。
@@ -128,6 +130,7 @@ class HomeController(QObject):
 
         files_by_type = self.file_manager.remove_at(format_key, row_index)
         self.view.import_panel.set_files_by_type(files_by_type)
+        self._sync_directory_status()
 
     def apply_sort(self) -> None:
         """按当前排序菜单选项重新排序文件列表。
@@ -146,6 +149,7 @@ class HomeController(QObject):
             ascending=self.view.import_panel.is_sort_ascending(),
         )
         self.view.import_panel.set_files_by_type(files_by_type)
+        self._sync_directory_status()
 
     def _connect_signals(self) -> None:
         """连接主页相关控件信号。"""
@@ -156,6 +160,8 @@ class HomeController(QObject):
             lambda _checked=False: self.remove_selected_file()
         )
         self.view.import_panel.parseButton.clicked.connect(self.parse_selected_file)
+        self.view.import_panel.fileSelectionChanged.connect(self._sync_parse_button)
+        appConfig.importDataDirs.valueChanged.connect(self._sync_directory_status)
         for action in (
             self.view.import_panel.nameAction,
             self.view.import_panel.sizeAction,
@@ -171,6 +177,25 @@ class HomeController(QObject):
         )
         self.view.data_pool_panel.deletePackageRequested.connect(
             self.delete_data_package
+        )
+
+    def _sync_directory_status(self) -> None:
+        """目录配置变化只更新标记，不扫描或移除文件列表条目。"""
+        self.view.import_panel.set_removed_directory_rows(
+            self.file_manager.removed_directory_rows(self._get_import_directories())
+        )
+        self._sync_parse_button()
+
+    def _sync_parse_button(self) -> None:
+        """按当前选择和解析状态更新按钮，禁止解析目录已移除的条目。"""
+        panel = self.view.import_panel
+        key = panel.current_format_key()
+        row = panel.current_selected_row()
+        removed = self.file_manager.removed_directory_rows(self._get_import_directories())
+        panel.parseButton.setEnabled(
+            self._active_import_id is None
+            and self.file_manager.get_entry_at(key, row) is not None
+            and row not in removed.get(key, set())
         )
 
     def parse_selected_file(self) -> None:
@@ -207,6 +232,7 @@ class HomeController(QObject):
                 self._show_top_warning("文件列表刷新失败", str(error))
                 return
             self.view.import_panel.set_files_by_type(files_by_type)
+            self._sync_directory_status()
             self._show_top_warning(
                 "文件已失效",
                 "所选文件已不在当前数据目录中，或文件当前无法访问。",
@@ -233,7 +259,7 @@ class HomeController(QObject):
             )
         except Exception as exc:
             self._active_import_id = None
-            self.view.import_panel.parseButton.setEnabled(True)
+            self._sync_parse_button()
             self.view.import_panel.parseButton.setText("解析")
             self._close_processing_dialog()
             self._show_top_warning("解析失败", str(exc))
@@ -262,7 +288,7 @@ class HomeController(QObject):
             return
 
         self._active_import_id = None
-        self.view.import_panel.parseButton.setEnabled(True)
+        self._sync_parse_button()
         self.view.import_panel.parseButton.setText("解析")
         self._close_processing_dialog()
 
@@ -518,7 +544,7 @@ class HomeController(QObject):
             return
 
         self._active_import_id = None
-        self.view.import_panel.parseButton.setEnabled(True)
+        self._sync_parse_button()
         self.view.import_panel.parseButton.setText("解析")
         self._close_processing_dialog()
         self._show_top_warning("解析失败", error_msg)

@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QActionGroup
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QActionGroup, QColor, QBrush
 from PyQt6.QtWidgets import (QHeaderView, QHBoxLayout, QVBoxLayout, QWidget, QTableWidgetItem)
 
-from qfluentwidgets import (Action, SimpleCardWidget, CommandBar, ToolTipFilter, ToolTipPosition,
+from qfluentwidgets import (Action, SimpleCardWidget, CommandBar,
                             FluentIcon, TableWidget, TransparentDropDownPushButton, CheckableMenu, 
                             MenuIndicatorType, TransparentPushButton, setFont,
-                            InfoBar, InfoBarPosition)
+                            InfoBar, InfoBarPosition, isDarkTheme, qconfig)
 
 from ui.components.edge_tab_view import EdgeTabWidget
 from app.custom_icon import CustomIcon
@@ -25,7 +25,7 @@ from app.custom_icon import CustomIcon
 class _FileTableWidget(TableWidget):
     """文件信息表格。"""
 
-    _COLUMN_STRETCHES: tuple[int, int, int] = (5, 3, 2)
+    _COLUMN_STRETCHES: tuple[int, int, int, int] = (5, 3, 2, 2)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """
@@ -34,13 +34,16 @@ class _FileTableWidget(TableWidget):
         """
         super().__init__(parent)
         self.setObjectName("fileTableWidget")
+        # TableWidget 内置的 qfluentwidgets ItemViewToolTipDelegate 负责
+        # 根据 ToolTipRole 绘制组件库样式提示。
+        self.delegate.tooltipDelegate.setToolTipDelay(500)
         self._init_table()
 
     def _init_table(self) -> None:
         """初始化表格列、表头和基础交互。"""
-        self.setColumnCount(3)
+        self.setColumnCount(4)
         self.setRowCount(0)
-        self.setHorizontalHeaderLabels(["文件名", "修改日期", "大小"])
+        self.setHorizontalHeaderLabels(["文件名", "修改日期", "大小", "状态"])
         self.setShowGrid(False)
         self.verticalHeader().hide()
         self.setBorderVisible(False)
@@ -94,6 +97,11 @@ class _FileTableWidget(TableWidget):
                 item = QTableWidgetItem(text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 self.setItem(row, column, item)
+            self.item(row, 0).setData(
+                Qt.ItemDataRole.ToolTipRole,
+                file_info[0],
+            )
+            self.setItem(row, 3, QTableWidgetItem(""))
 
         self._apply_column_widths()
         # 数据量变化后同步刷新覆盖式滚动条区域。
@@ -114,13 +122,13 @@ class _FileTableWidget(TableWidget):
         self._adjust_overlay_scroll_bars()
 
     def _apply_column_widths(self) -> None:
-        """按配置比例设置文件名、修改日期、大小三列宽度。"""
+        """按统一比例分配文件名、修改日期、大小和状态四列宽度。"""
         total_stretch = sum(self._COLUMN_STRETCHES)
         available_width = max(0, self.viewport().width())
         if available_width <= 0:
             return
 
-        # 最后一列吃掉四舍五入误差，保证三列总宽等于可视区宽度。
+        # 最后一列吃掉整数除法误差，保证四列总宽等于可视区宽度。
         used_width = 0
         for column, stretch in enumerate(self._COLUMN_STRETCHES):
             if column == len(self._COLUMN_STRETCHES) - 1:
@@ -173,7 +181,10 @@ class ImportDataPanel(SimpleCardWidget):
         refresh_action: 刷新动作。
         remove_action: 移除动作。
         sort_action: 排序动作。
+        fileSelectionChanged: 文件选择或当前格式标签变化时发出的信号。
     """
+
+    fileSelectionChanged = pyqtSignal()
 
     # 三个标签的路由键、显示文字、图标
     _TABS: list[tuple[str, str, FluentIcon]] = [
@@ -189,6 +200,7 @@ class ImportDataPanel(SimpleCardWidget):
         super().__init__(parent)
         self.setObjectName("importDataPanel")
         self.file_pages: dict[str, _FileTableWidget] = {}
+        self._removed_directory_rows: dict[str, set[int]] = {}
 
         # 实例化动作
         self.refresh_action = Action(FluentIcon.SYNC, "刷新")
@@ -224,6 +236,8 @@ class ImportDataPanel(SimpleCardWidget):
         self._init_ui()
         self._connect_menu_feedback()
         self.tab_widget.currentChanged.connect(self._sync_format_option_state)
+        self.tab_widget.currentChanged.connect(self.fileSelectionChanged)
+        qconfig.themeChanged.connect(self._refresh_directory_colors)
         self._sync_format_option_state(self.tab_widget.currentIndex())
 
     def _init_ui(self) -> None:
@@ -284,6 +298,7 @@ class ImportDataPanel(SimpleCardWidget):
         for route_key, text, icon in self._TABS:
             table = _FileTableWidget(self.tab_widget)
             self.file_pages[route_key] = table
+            table.itemSelectionChanged.connect(self.fileSelectionChanged)
             table.set_files([])
             self.tab_widget.addTab(table, text, icon, route_key)
 
@@ -312,6 +327,44 @@ class ImportDataPanel(SimpleCardWidget):
         for route_key, table in self.file_pages.items():
             # 未提供的格式按空列表处理，避免保留旧扫描结果。
             table.set_files(files_by_type.get(route_key, []))
+
+    def set_removed_directory_rows(self, rows: dict[str, set[int]]) -> None:
+        """在独立状态列标记失效来源，保留原文件名和当前选择。
+
+        Args:
+            rows [dict[str, set[int]]]: 各文件格式下目录已移除的行号。
+
+        Returns:
+            None: 无返回值。
+        """
+        self._removed_directory_rows = rows
+        self._refresh_directory_colors()
+
+    def _refresh_directory_colors(self) -> None:
+        """按当前主题更新状态列及弱化文字，不覆盖文件名。"""
+        warning = QColor("#ffb454" if isDarkTheme() else "#9d5d00")
+        muted = QColor("#a0a0a0" if isDarkTheme() else "#707070")
+        hint = "所属数据目录已从配置中移除，刷新后此条目将从列表移除。"
+        for key, table in self.file_pages.items():
+            removed = self._removed_directory_rows.get(key, set())
+            for row in range(table.rowCount()):
+                invalid = row in removed
+                status = table.item(row, 3)
+                status.setText("目录已移除" if invalid else "")
+                status.setForeground(QBrush(warning))
+                status.setData(
+                    Qt.ItemDataRole.ToolTipRole,
+                    hint if invalid else None,
+                )
+                for column in range(3):
+                    item = table.item(row, column)
+                    item.setData(Qt.ItemDataRole.ForegroundRole, QBrush(muted) if invalid else None)
+                    item.setData(
+                        Qt.ItemDataRole.ToolTipRole,
+                        (item.text() + "\n" if column == 0 else "") + hint
+                        if invalid else (item.text() if column == 0 else None),
+                    )
+            table._apply_column_widths()
 
     def current_format_key(self) -> str:
         """返回当前激活标签页对应的格式键。

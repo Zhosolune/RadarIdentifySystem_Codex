@@ -1,5 +1,63 @@
 # 变更记录
 
+- 时间：2026-09-08 15:54
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\data_pool_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_home_interface.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：文件列表及数据池的悬停提示统一交由 qfluentwidgets Tooltip 组件绘制。
+- 原因：文件列表此前直接调用 `QTableWidgetItem.setToolTip()`，数据池标题也缺少 Fluent 提示过滤器，显示效果可能退回 Qt 原生 Tooltip。
+- 实现结果：
+  - 文件表格显式使用 `TableWidget` 内置的 `ItemViewToolTipDelegate`，通过 `ToolTipRole` 提供完整文件名和“目录已移除”说明，不再调用原生单元格 Tooltip 接口。
+  - 数据池卡片标题补充 `ToolTipFilter`，完整名称提示与项目主题、动画一致。
+  - 项目业务代码其余 Tooltip 使用点已核对：图像导航、PRI 模式、模型备注、抽屉按钮和滚动名称均已安装 `ToolTipFilter`；主导航由 qfluentwidgets `NavigationToolTipFilter` 接管。
+- 测试状态：[已测试]
+  - 文件列表管理、主页布局与事件隔离回归：`29 passed`。
+  - Windows 原生平台三种文件格式 Tooltip 委托及数据池标题过滤器回归：`4 passed`。
+  - 本轮修改文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有 LF/CRLF 转换提示。
+
+- 时间：2026-09-08 15:37
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：导入文件列表从初始化开始固定显示“状态”表头，四列统一纳入比例宽度配置。
+- 原因：状态列按异常条目动态显示会导致表头跳动；将状态列单独设为固定宽度又与现有比例布局不统一，因此改为四列共用一套伸缩规则。
+- 实现结果：
+  - “状态”列固定显示，正常文件状态为空，目录失效文件显示橙色“目录已移除”。
+  - `_COLUMN_STRETCHES` 扩展为 `5:3:2:2`，文件名、修改日期、大小和状态四列统一按表格可用宽度计算。
+  - 保留原文件名、修改日期和大小信息，状态文本不与文件名单元格重叠。
+- 测试状态：[已测试]
+  - 文件列表管理、主页布局与事件隔离回归：`29 passed`。
+  - Windows 原生平台三种文件格式的固定状态表头、四列比例和目录状态联动回归：`3 passed`。
+  - 本轮修改文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有 LF/CRLF 转换提示。
+
+- 时间：2026-09-08 14:49
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\infra\import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_import_file_list_manager.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：移除数据目录后立即在文件列表的独立状态列显示“目录已移除”，不覆盖或修改原文件名，并禁用对应条目的解析入口。
+- 原因：目录配置与手动刷新分开执行，未刷新时需明确解释旧条目为何不可解析，同时保留原文件信息。
+- 完成清单：
+  - [x] 按现有直属文件扫描范围计算来源失效行；等价配置目录仍有效，不误将父目录当作递归扫描范围。
+  - [x] Excel、BIN、MAT 列表均使用独立状态列，橙色提示随明暗主题变化；原文件名仅弱化颜色，悬停保留完整名称和失效原因。
+  - [x] 无失效条目时隐藏状态列；出现标记时分配独立列宽，防止标记覆盖文件名。
+  - [x] 目录变更只重绘标记；手动刷新移除失效条目；刷新前重新添加目录立即恢复；排序及单项移除后重新对齐行状态。
+  - [x] 当前选择、格式切换、解析完成/失败均重新校验解析按钮；正在解析时重新添加目录不误启用按钮。
+  - [x] 数据池与 Session 生命周期保持独立。
+- 测试状态：[已测试]
+  - 文件列表管理、主页与事件隔离回归：`29 passed`，覆盖状态列不与文件名单元格重叠、配置变更不扫描、持久化列表不受标记影响及三种文件格式。
+  - Windows 原生平台导入、目录移除及 Session 创建回归：`4 passed, 6 deselected`。
+
 - 时间：2026-09-07 16:53
 - 操作类型：[修改]
 - 影响文件：
