@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialog, QWidget
 from pytest import MonkeyPatch
 from qfluentwidgets import qconfig
 
@@ -79,6 +80,86 @@ def test_setting_controller_owns_log_actions_and_initial_path(
         view._responsive_width_adapter,
         ResponsiveContentWidthAdapter,
     )
+
+
+def test_clear_logs_requires_fluent_confirmation(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """取消确认时不得清理日志，确认后才执行清理。"""
+    _app()
+    results = iter(
+        [QDialog.DialogCode.Rejected, QDialog.DialogCode.Accepted]
+    )
+
+    class _MessageBoxStub:
+        """记录组件库确认框参数并依次模拟取消与确认。"""
+
+        def __init__(
+            self,
+            title: str,
+            content: str,
+            parent: QWidget,
+        ) -> None:
+            """初始化确认框桩并保存展示参数。"""
+            self.title = title
+            self.content = content
+            self.parent = parent
+            self.yesButton = MagicMock()
+            self.cancelButton = MagicMock()
+            self.finished = MagicMock()
+            self.deleteLater = MagicMock()
+            dialogs.append(self)
+
+        def show(self) -> None:
+            """显示确认框并回传预设结果。"""
+            callback = self.finished.connect.call_args.args[0]
+            callback(next(results))
+
+        def raise_(self) -> None:
+            """模拟提升已有确认框。"""
+
+        def activateWindow(self) -> None:
+            """模拟激活已有确认框。"""
+
+    dialogs: list[_MessageBoxStub] = []
+    clear_all_logs = MagicMock(return_value=0)
+    monkeypatch.setattr(
+        setting_controller_module,
+        "get_log_dir_path",
+        lambda _value: tmp_path,
+    )
+    monkeypatch.setattr(
+        setting_controller_module,
+        "MessageBox",
+        _MessageBoxStub,
+    )
+    monkeypatch.setattr(
+        setting_controller_module,
+        "clear_all_logs",
+        clear_all_logs,
+    )
+    monkeypatch.setattr(
+        setting_controller_module.InfoBar,
+        "success",
+        MagicMock(),
+    )
+    view = SettingInterface()
+
+    view._controller.handle_clear_logs()
+
+    clear_all_logs.assert_not_called()
+    first_dialog = dialogs[0]
+    assert first_dialog.title == "清理日志"
+    assert "不可恢复" in first_dialog.content
+    first_dialog.yesButton.setText.assert_called_once_with("清理")
+    first_dialog.cancelButton.setText.assert_called_once_with("取消")
+
+    view._controller.handle_clear_logs()
+
+    clear_all_logs.assert_called_once_with(tmp_path)
+    assert len(dialogs) == 2
+    assert view._controller._clear_logs_dialog is None
 
 
 def test_repeated_width_policy_is_attached_as_adapter() -> None:

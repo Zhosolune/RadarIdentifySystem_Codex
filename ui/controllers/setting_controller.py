@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, QUrl
 from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtWidgets import QFileDialog
-from qfluentwidgets import InfoBar, qconfig
+from PyQt6.QtWidgets import QDialog, QFileDialog
+from qfluentwidgets import InfoBar, MessageBox, qconfig
 
 from app.app_config import appConfig
 from app.logger import (
@@ -43,6 +43,7 @@ class SettingController(QObject):
         """
         super().__init__(view)
         self.view = view
+        self._clear_logs_dialog: MessageBox | None = None
         view.log_card.change_path_button.clicked.connect(
             self.handle_change_log_path
         )
@@ -127,11 +128,49 @@ class SettingController(QObject):
         )
 
     def handle_clear_logs(self) -> None:
-        """清理当前配置目录中的历史日志文件。
+        """显示确认弹窗，并在用户确认后清理历史日志。
 
         Returns:
             None: 无返回值。
         """
+        if self._clear_logs_dialog is not None:
+            self._clear_logs_dialog.raise_()
+            self._clear_logs_dialog.activateWindow()
+            return
+
+        dialog = MessageBox(
+            "清理日志",
+            (
+                "确认清理当前日志目录中的全部历史日志文件吗？\n"
+                "此操作不可恢复；当前运行日志会被保留。"
+            ),
+            self.view.window() or self.view,
+        )
+        dialog.yesButton.setText("清理")
+        dialog.cancelButton.setText("取消")
+        self._clear_logs_dialog = dialog
+        # 复用软件内其它删除确认框的非阻塞显示方式，避免叠加原生模态循环。
+        dialog.finished.connect(
+            lambda result: self._finish_clear_logs_dialog(dialog, result)
+        )
+        dialog.show()
+
+    def _finish_clear_logs_dialog(
+        self,
+        dialog: MessageBox,
+        result: int,
+    ) -> None:
+        """释放日志清理确认框，并仅在确认后执行清理。"""
+        if self._clear_logs_dialog is not dialog:
+            return
+        self._clear_logs_dialog = None
+        dialog.deleteLater()
+        if result != QDialog.DialogCode.Accepted:
+            return
+        self._clear_logs()
+
+    def _clear_logs(self) -> None:
+        """清理当前配置目录中的历史日志文件并反馈结果。"""
         try:
             LOGGER.info(
                 "开始清理日志，当前运行日志文件：%s",

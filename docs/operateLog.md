@@ -1,5 +1,15 @@
 # 变更记录
 
+- 时间：2026-09-08 16:05
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\setting_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_interface_responsibilities.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：清理本地日志前新增 Fluent 风格确认弹窗，只有用户确认后才执行删除，并阻止重复弹窗叠加。
+- 原因：日志清理属于不可恢复操作，需要在执行前明确告知影响并允许用户取消。
+- 测试状态：[已测试] `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_interface_responsibilities.py tests/unit/test_logger_session_files.py --basetemp=.pytest-tmp-clear-logs -p no:cacheprovider --disable-warnings -q`（16 passed，1 warning）；`D:\Miniforge3\envs\pyqt6\python.exe -m py_compile ui/controllers/setting_controller.py tests/unit/test_interface_responsibilities.py`（通过）
+
 - 时间：2026-09-08 15:54
 - 操作类型：[修改]
 - 影响文件：

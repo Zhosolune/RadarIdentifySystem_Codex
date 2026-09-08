@@ -350,7 +350,7 @@ class ImportDataPanel(SimpleCardWidget):
             for row in range(table.rowCount()):
                 invalid = row in removed
                 status = table.item(row, 3)
-                status.setText("目录已移除" if invalid else "")
+                status.setText("目录移除" if invalid else "")
                 status.setForeground(QBrush(warning))
                 status.setData(
                     Qt.ItemDataRole.ToolTipRole,
