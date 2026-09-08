@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtWidgets import QDialog
 from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox
 
 from app.signal_bus import signal_bus
@@ -46,6 +47,7 @@ class SessionManagerController(QObject):
         self.view = view
         self.page_host = page_host
         self.coordinator = coordinator
+        self._delete_session_dialog: MessageBox | None = None
         self._connect_signals()
 
     def _connect_signals(self) -> None:
@@ -259,6 +261,10 @@ class SessionManagerController(QObject):
 
     def _on_session_delete_requested(self, session_id: str) -> None:
         """处理“删除 Session”请求。"""
+        if self._delete_session_dialog is not None:
+            self._delete_session_dialog.raise_()
+            self._delete_session_dialog.activateWindow()
+            return
         session = self.coordinator.get_interactive_session(session_id)
         if session is None:
             return
@@ -269,7 +275,32 @@ class SessionManagerController(QObject):
         )
         message_box.yesButton.setText("删除")
         message_box.cancelButton.setText("取消")
-        if not message_box.exec():
+        self._delete_session_dialog = message_box
+        # MessageBox 自身已通过全窗遮罩阻止背景交互；使用 show() 避免目录
+        # 删除后再次进入 Qt 原生模态栈，导致确认按钮无法接收鼠标输入。
+        message_box.finished.connect(
+            lambda result: self._finish_delete_session_dialog(
+                message_box,
+                result,
+                session_id,
+                session.display_name,
+            )
+        )
+        message_box.show()
+
+    def _finish_delete_session_dialog(
+        self,
+        message_box: MessageBox,
+        result: int,
+        session_id: str,
+        display_name: str,
+    ) -> None:
+        """释放删除确认窗口，并仅在确认后删除交互式 Session。"""
+        if self._delete_session_dialog is not message_box:
+            return
+        self._delete_session_dialog = None
+        message_box.deleteLater()
+        if result != QDialog.DialogCode.Accepted:
             return
         try:
             self.page_host.close_session_interface(session_id)
@@ -283,7 +314,7 @@ class SessionManagerController(QObject):
         signal_bus.session_closed.emit(session_id)
         self._show_top_success(
             "已删除",
-            f"Session {session.display_name} 已删除。",
+            f"Session {display_name} 已删除。",
         )
 
     def _show_top_success(self, title: str, content: str) -> None:

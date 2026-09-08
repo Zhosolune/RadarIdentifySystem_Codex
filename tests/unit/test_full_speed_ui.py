@@ -11,6 +11,7 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import (
     QAbstractScrollArea,
     QApplication,
+    QDialog,
     QWidget,
 )
 from qfluentwidgets import (
@@ -459,11 +460,22 @@ def test_controller_routes_paused_delete_button_to_cancel(
             self.content = content
             self.yesButton = MagicMock()
             self.cancelButton = MagicMock()
+            self.finished = MagicMock()
             dialogs.append(self)
 
-        def exec(self) -> bool:
-            """模拟用户确认取消。"""
-            return True
+        def show(self) -> None:
+            """显示窗口并模拟用户确认取消。"""
+            callback = self.finished.connect.call_args.args[0]
+            callback(QDialog.DialogCode.Accepted)
+
+        def raise_(self) -> None:
+            """模拟提升已有窗口。"""
+
+        def activateWindow(self) -> None:
+            """模拟激活已有窗口。"""
+
+        def deleteLater(self) -> None:
+            """模拟延迟销毁窗口。"""
 
     monkeypatch.setattr(
         "ui.controllers.full_speed_session_controller.MessageBox",

@@ -474,6 +474,134 @@ def test_real_delete_data_package_dialog_works_after_directory_refresh(
         QApplication.processEvents()
 
 
+@pytest.mark.parametrize("full_speed", [False, True])
+def test_real_delete_session_dialog_works_after_directory_refresh(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    full_speed: bool,
+) -> None:
+    """目录移除后，两类 Session 删除确认窗口都应接收真实鼠标点击。"""
+    _app()
+    original_directories = list(qconfig.get(appConfig.importDataDirs))
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    source_file = source_dir / "demo.xlsx"
+    source_file.write_bytes(b"cached-data")
+    package = _build_package(
+        str(source_file),
+        source_file.stat().st_size,
+    )
+    data_pool_registry = DataPoolRegistry(DataPoolStore(tmp_path / "data_pool"))
+    data_pool_registry.register(package)
+    interactive_registry = SessionRegistry(SessionStore(tmp_path / "interactive"))
+    full_speed_registry = FullSpeedSessionRegistry(tmp_path / "full_speed")
+    qconfig.set(appConfig.importDataDirs, [str(source_dir)], save=False)
+    window = MainWindow(
+        session_registry=interactive_registry,
+        data_pool_registry=data_pool_registry,
+        full_speed_session_registry=full_speed_registry,
+    )
+    file_manager = ImportFileListManager(
+        ImportFileListStore(tmp_path / "import_file_list.json")
+    )
+    file_manager.scan([str(source_dir)])
+
+    class _AutoConfirmSessionDeleteDialog(MessageBox):
+        """使用真实 Session 删除确认窗口并通过屏幕命中自动确认。"""
+
+        def __init__(self, title: str, content: str, parent=None) -> None:
+            """初始化确认窗口并设置防卡死定时器。"""
+            super().__init__(title, content, parent)
+            self.watchdog_expired = False
+            QTimer.singleShot(350, self._click_confirm)
+            self._watchdog = QTimer(self)
+            self._watchdog.setSingleShot(True)
+            self._watchdog.timeout.connect(self._abort_stuck_dialog)
+            self._watchdog.start(3_000)
+            self.finished.connect(self._watchdog.stop)
+
+        def _click_confirm(self) -> None:
+            """点击屏幕实际命中的确认按钮。"""
+            _click_visible_widget(self.yesButton)
+
+        def _abort_stuck_dialog(self) -> None:
+            """输入异常时退出窗口，避免测试无限等待。"""
+            self.watchdog_expired = True
+            QDialog.done(self, QDialog.DialogCode.Rejected)
+
+    try:
+        window.home_controller.file_manager = file_manager
+        # 模拟删除目录配置并刷新列表，但保留已解析的数据包和其源文件。
+        qconfig.set(appConfig.importDataDirs, [], save=False)
+        cleared_rows = file_manager.scan([])
+        window.homeInterface.import_panel.set_files_by_type(cleared_rows)
+        mode = (
+            ProcessingMode.FULL_SPEED
+            if full_speed
+            else ProcessingMode.SLICE_INTERACTIVE
+        )
+        session = window.home_controller.create_session(
+            package.package_id,
+            mode,
+            "缓存数据 Session",
+            "目录已移除",
+        )
+        controller = (
+            window.full_speed_controller
+            if full_speed
+            else window.session_manager_controller
+        )
+        monkeypatch.setattr(
+            (
+                "ui.controllers.full_speed_session_controller.MessageBox"
+                if full_speed
+                else "ui.controllers.session_manager_controller.MessageBox"
+            ),
+            _AutoConfirmSessionDeleteDialog,
+        )
+        monkeypatch.setattr(
+            "ui.controllers.session_manager_controller.InfoBar.success",
+            lambda **_kwargs: None,
+        )
+
+        window.show()
+        QTest.qWait(1_200)
+        if full_speed:
+            controller.delete_session(session.session_id)
+        else:
+            controller._on_session_delete_requested(session.session_id)
+        dialog = controller._delete_session_dialog
+        assert dialog is not None
+        assert QApplication.activeModalWidget() is None
+
+        # 重复触发只能激活当前确认窗口，不得叠加第二个全窗遮罩。
+        if full_speed:
+            controller.delete_session(session.session_id)
+        else:
+            controller._on_session_delete_requested(session.session_id)
+        assert controller._delete_session_dialog is dialog
+        QTest.qWait(800)
+
+        assert not dialog.watchdog_expired
+        assert controller._delete_session_dialog is None
+        registry = full_speed_registry if full_speed else interactive_registry
+        assert registry.get(session.session_id) is None
+        assert data_pool_registry.get(package.package_id) is package
+        assert window.findChildren(_AutoConfirmSessionDeleteDialog) == []
+    finally:
+        qconfig.set(appConfig.importDataDirs, original_directories, save=False)
+        qrouter.history = [
+            item
+            for item in qrouter.history
+            if item.stacked is not window.stackedWidget
+        ]
+        qrouter.stackHistories.pop(window.stackedWidget, None)
+        window.close()
+        QApplication.processEvents()
+        sip.delete(window)
+        QApplication.processEvents()
+
+
 def test_main_window_routes_data_package_to_peer_session_systems(
     tmp_path,
     monkeypatch,

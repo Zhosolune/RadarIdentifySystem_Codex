@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 import pytest
 from PyQt6 import sip
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialog
 from pytest import MonkeyPatch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -84,6 +85,23 @@ class _FakeDialogButton:
         self.text = text
 
 
+class _FakeFinishedSignal:
+    """测试用完成信号。"""
+
+    def __init__(self) -> None:
+        """初始化回调列表。"""
+        self._callbacks: list[Callable[[int], None]] = []
+
+    def connect(self, callback: Callable[[int], None]) -> None:
+        """记录待触发的完成回调。"""
+        self._callbacks.append(callback)
+
+    def emit(self, result: int) -> None:
+        """同步触发全部完成回调。"""
+        for callback in list(self._callbacks):
+            callback(result)
+
+
 class _FakeMessageBox:
     """测试用 MessageBox 桩对象。"""
 
@@ -97,10 +115,25 @@ class _FakeMessageBox:
         self.parent = parent
         self.yesButton = _FakeDialogButton()
         self.cancelButton = _FakeDialogButton()
+        self.finished = _FakeFinishedSignal()
 
-    def exec(self) -> bool:
-        """返回预设的弹窗结果。"""
-        return self.accepted
+    def show(self) -> None:
+        """显示弹窗并同步发送预设结果。"""
+        result = (
+            QDialog.DialogCode.Accepted.value
+            if self.accepted
+            else QDialog.DialogCode.Rejected.value
+        )
+        self.finished.emit(result)
+
+    def raise_(self) -> None:
+        """模拟提升已显示窗口。"""
+
+    def activateWindow(self) -> None:
+        """模拟激活已显示窗口。"""
+
+    def deleteLater(self) -> None:
+        """模拟延迟销毁窗口。"""
 
 
 @pytest.fixture(autouse=True)

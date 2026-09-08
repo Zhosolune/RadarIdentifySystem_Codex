@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtWidgets import QFileDialog, QWidget
+from PyQt6.QtWidgets import QDialog, QFileDialog, QWidget
 from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox
 
 from app.signal_bus import signal_bus
@@ -61,6 +61,7 @@ class FullSpeedSessionController(QObject):
         self.workflow = workflow
         self._message_parent = parent
         self._param_windows: dict[str, FullSpeedParamsWindow] = {}
+        self._delete_session_dialog: MessageBox | None = None
         self._connect_signals()
 
     def _connect_signals(self) -> None:
@@ -313,6 +314,10 @@ class FullSpeedSessionController(QObject):
         Returns:
             None: 无返回值。
         """
+        if self._delete_session_dialog is not None:
+            self._delete_session_dialog.raise_()
+            self._delete_session_dialog.activateWindow()
+            return
         session = self.registry.get(session_id)
         if session is None:
             return
@@ -343,7 +348,32 @@ class FullSpeedSessionController(QObject):
             )
             dialog.yesButton.setText("删除")
             dialog.cancelButton.setText("取消")
-        if not dialog.exec():
+        self._delete_session_dialog = dialog
+        # MessageBox 已提供父窗口遮罩，无需进入 Qt 原生模态栈；目录移除后的
+        # 相同窗口状态下，exec() 会让确认按钮失去鼠标输入。
+        dialog.finished.connect(
+            lambda result: self._finish_delete_session_dialog(
+                dialog,
+                result,
+                session_id,
+                is_cancellable,
+            )
+        )
+        dialog.show()
+
+    def _finish_delete_session_dialog(
+        self,
+        dialog: MessageBox,
+        result: int,
+        session_id: str,
+        is_cancellable: bool,
+    ) -> None:
+        """释放删除确认窗口，并按原任务状态执行取消或永久删除。"""
+        if self._delete_session_dialog is not dialog:
+            return
+        self._delete_session_dialog = None
+        dialog.deleteLater()
+        if result != QDialog.DialogCode.Accepted:
             return
         try:
             if is_cancellable:

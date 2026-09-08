@@ -1,5 +1,27 @@
 # 变更记录
 
+- 时间：2026-09-07 16:53
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\session_manager_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\full_speed_session_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_main_window_sessions.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_data_pool_session_routing.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：交互式与全速 Session 删除确认窗口统一改用控制器持有的非原生模态生命周期，修复目录移除并刷新后删除 Session 时软件卡死。
+- 原因：前两轮已将创建 Session 和删除数据包迁出 `exec()` 原生模态栈，但两类 Session 删除入口仍调用 `MessageBox.exec()`，在相同窗口状态下会再次触发确认窗口鼠标输入失效。
+- 实现结果：
+  - `SessionManagerController` 与 `FullSpeedSessionController` 均使用 `show()/finished`，确认完成后再执行删除或暂停任务取消，并在结束时清空引用、调用 `deleteLater()`。
+  - 删除确认窗口显示期间重复触发只激活当前窗口，避免叠加多个全窗遮罩。
+  - 保留全速任务“暂停时取消本次处理、停止时永久删除 Session”的原业务分支和文案。
+  - 真实窗口回归覆盖交互式与全速 Session：移除数据目录配置并刷新列表后，数据包仍保留；确认按钮通过 `QApplication.widgetAt()` 屏幕实际命中并点击；确认窗口不进入原生模态栈，Session 删除后数据包继续保留。
+- 测试状态：[已测试]
+  - Session 删除状态与全速暂停取消单元回归：`2 passed`。
+  - Windows 可见窗口、真实鼠标命中回归：`2 passed`。
+  - 数据目录、数据池、Session 创建/删除、导入线程相关扩大回归：`26 passed, 1 failed`；唯一失败为既有全速参数窗口保存后 `eps_cf` 仍为 `2.0` 的无关断言，此前日志已记录。
+  - 本轮修改的 Python 文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有 LF/CRLF 转换提示。
+
 - 时间：2026-09-07 14:50
 - 操作类型：[修改]
 - 影响文件：
