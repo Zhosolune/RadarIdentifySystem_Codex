@@ -325,6 +325,7 @@ class FullSpeedParamsWindow(FluentWidget):
         settingsSaved: 携带参数快照和模型选择草稿的保存信号。
         parameter_items: 参数路径到 Session 配置项的映射。
         parameter_cards: 参数路径到设置卡的映射。
+        model_selection_group: 左栏首位的模型选择设置组。
         model_selection_card: 当前全速 Session 的 PA/DTOA 模型选择卡。
         left_column_widget: 两栏布局的左列容器。
         right_column_widget: 两栏布局的右列容器。
@@ -452,13 +453,18 @@ class FullSpeedParamsWindow(FluentWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(20)
 
+        self.model_selection_group = SettingCardGroup(
+            "选择模型",
+            self.left_column_widget,
+        )
         self.model_selection_card = ModelSelectionCard(
-            parent=self.left_column_widget,
+            parent=self.model_selection_group,
             initial_model_paths={
                 "PA": self._draft_model_selection.pa_model_path,
                 "DTOA": self._draft_model_selection.dtoa_model_path,
             },
         )
+        self.model_selection_group.addSettingCard(self.model_selection_card)
         self._sync_initial_model_selection()
         self.model_selection_card.modelChanged.connect(
             self._on_model_changed
@@ -485,8 +491,8 @@ class FullSpeedParamsWindow(FluentWidget):
             _MERGE_SPECS,
         )
 
-        # 模型选择固定放在左列首位，其余参数组保持既有字段顺序。
-        left_layout.addWidget(self.model_selection_card)
+        # 模型选择组固定放在左列首位，与其余参数组保持一致的视觉层级。
+        left_layout.addWidget(self.model_selection_group)
         left_layout.addWidget(self.cluster_group)
         left_layout.addWidget(self.extract_pri_group)
         left_layout.addStretch(1)

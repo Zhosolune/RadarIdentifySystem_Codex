@@ -621,9 +621,11 @@ def test_full_speed_params_window_edits_isolated_two_column_draft(
 
     assert len(window.parameter_items) == 25
     assert window.left_column_widget.layout().itemAt(0).widget() is (
-        window.model_selection_card
+        window.model_selection_group
     )
-    assert window.model_selection_card.parent() is window.left_column_widget
+    assert window.model_selection_group.titleLabel.text() == "选择模型"
+    assert window.model_selection_group.parent() is window.left_column_widget
+    assert window.model_selection_card.parent() is window.model_selection_group
     assert window.cluster_group.parent() is window.left_column_widget
     assert window.extract_pri_group.parent() is window.left_column_widget
     assert window.recognition_group.parent() is window.right_column_widget

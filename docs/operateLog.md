@@ -1,5 +1,22 @@
 # 变更记录
 
+- 时间：2026-09-09 09:10
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\full_speed_params_window.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_full_speed_ui.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：在全速任务参数窗口左栏首位新增“选择模型”设置组，并将现有 PA/DTOA 模型选择卡纳入该组。
+- 原因：统一模型选择区域与“聚类参数配置”“识别参数配置”等参数区域的视觉层级和组件结构。
+- 实现结果：
+  - 复用 qfluentwidgets `SettingCardGroup`，仅调整模型选择区域的父子布局关系，不改变模型候选、草稿隔离、信号连接及保存提交逻辑。
+  - 更新 UI 回归断言，覆盖分组标题、左栏顺序以及模型选择卡父子关系。
+- 测试状态：[已测试]
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_full_speed_ui.py::test_full_speed_params_window_edits_isolated_two_column_draft -q -p no:cacheprovider --basetemp .pytest-model-group`：通过（1 passed）。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests/unit/test_model_selection_card.py -q -p no:cacheprovider --basetemp .pytest-model-card`：通过（3 passed）。
+  - 相关组合回归 `tests/unit/test_full_speed_ui.py tests/unit/test_model_selection_card.py`：13 passed、2 failed；失败仍为全速任务面板滚动条槽宽/卡片间距两项既有断言，与本次参数窗口分组改动无关。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m py_compile ui/components/full_speed_params_window.py tests/unit/test_full_speed_ui.py`：通过。
+
 - 时间：2026-09-08 17:40
 - 操作类型：[修改]
 - 影响文件：
