@@ -16,7 +16,8 @@ from PyQt6.QtWidgets import (QHeaderView, QHBoxLayout, QVBoxLayout, QWidget, QTa
 from qfluentwidgets import (Action, SimpleCardWidget, CommandBar,
                             FluentIcon, TableWidget, TransparentDropDownPushButton, CheckableMenu, 
                             MenuIndicatorType, TransparentPushButton, setFont,
-                            InfoBar, InfoBarPosition, isDarkTheme, qconfig)
+                            FluentSystemColor, InfoBar, InfoBarPosition,
+                            isDarkTheme, qconfig)
 
 from ui.components.edge_tab_view import EdgeTabWidget
 from app.custom_icon import CustomIcon
@@ -327,6 +328,7 @@ class ImportDataPanel(SimpleCardWidget):
         for route_key, table in self.file_pages.items():
             # 未提供的格式按空列表处理，避免保留旧扫描结果。
             table.set_files(files_by_type.get(route_key, []))
+        self._refresh_directory_colors()
 
     def set_removed_directory_rows(self, rows: dict[str, set[int]]) -> None:
         """在独立状态列标记失效来源，保留原文件名和当前选择。
@@ -342,7 +344,8 @@ class ImportDataPanel(SimpleCardWidget):
 
     def _refresh_directory_colors(self) -> None:
         """按当前主题更新状态列及弱化文字，不覆盖文件名。"""
-        warning = QColor("#ffb454" if isDarkTheme() else "#9d5d00")
+        success = FluentSystemColor.SUCCESS_FOREGROUND.color()
+        warning = FluentSystemColor.CAUTION_FOREGROUND.color()
         muted = QColor("#a0a0a0" if isDarkTheme() else "#707070")
         hint = "所属数据目录已从配置中移除，刷新后此条目将从列表移除。"
         for key, table in self.file_pages.items():
@@ -350,8 +353,8 @@ class ImportDataPanel(SimpleCardWidget):
             for row in range(table.rowCount()):
                 invalid = row in removed
                 status = table.item(row, 3)
-                status.setText("目录移除" if invalid else "")
-                status.setForeground(QBrush(warning))
+                status.setText("目录移除" if invalid else "正常")
+                status.setForeground(QBrush(warning if invalid else success))
                 status.setData(
                     Qt.ItemDataRole.ToolTipRole,
                     hint if invalid else None,

@@ -260,7 +260,7 @@ def test_removed_directory_status_preserves_filename_and_parse_state(
     extension: str,
 ) -> None:
     """目录移除、排序、重新添加及刷新应同步独立状态列和解析按钮。"""
-    from qfluentwidgets import qconfig
+    from qfluentwidgets import FluentSystemColor, qconfig
     from infra.import_file_list_manager import ImportFileListManager
     from infra.import_file_list_store import ImportFileListStore
     from ui.components.import_data_panel import ImportDataPanel
@@ -289,14 +289,22 @@ def test_removed_directory_status_preserves_filename_and_parse_state(
         assert isinstance(table.delegate.tooltipDelegate, ItemViewToolTipDelegate)
         assert table.horizontalHeaderItem(3).text() == "状态"
         assert not table.isColumnHidden(3)
-        assert table.item(0, 3).text() == ""
+        assert table.item(0, 3).text() == "正常"
+        assert (
+            table.item(0, 3).foreground().color()
+            == FluentSystemColor.SUCCESS_FOREGROUND.color()
+        )
         assert panel.parseButton.isEnabled()
         with monkeypatch.context() as context:
             context.setattr(manager, "scan", lambda _dirs: pytest.fail("配置变化不应扫描"))
             qconfig.set(config_item, [], save=False)
             assert table.rowCount() == 1
             assert table.item(0, 0).text() == filename
-            assert table.item(0, 3).text() == "目录已移除"
+            assert table.item(0, 3).text() == "目录移除"
+            assert (
+                table.item(0, 3).foreground().color()
+                == FluentSystemColor.CAUTION_FOREGROUND.color()
+            )
             assert not table.isColumnHidden(3)
             panel.resize(850, 350)
             panel.show()
@@ -314,11 +322,11 @@ def test_removed_directory_status_preserves_filename_and_parse_state(
             assert "刷新后" in table.item(0, 3).data(Qt.ItemDataRole.ToolTipRole)
             assert not panel.parseButton.isEnabled()
             controller.apply_sort()
-            assert table.item(0, 3).text() == "目录已移除"
+            assert table.item(0, 3).text() == "目录移除"
             # 等价目录仍覆盖该文件；恢复只重绘，不扫描。
             qconfig.set(config_item, [str(source / ".")], save=False)
             table.selectRow(0)
-            assert table.item(0, 3).text() == ""
+            assert table.item(0, 3).text() == "正常"
             assert not table.isColumnHidden(3)
             assert panel.parseButton.isEnabled()
             controller._active_import_id = "busy"

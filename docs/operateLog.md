@@ -1,5 +1,22 @@
 # 变更记录
 
+- 时间：2026-09-08 17:40
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\import_data_panel.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：正常文件在固定状态列显示绿色“正常”，目录失效文件继续显示“目录移除”。
+- 原因：固定状态列需要为正常与异常条目提供完整、直观的状态反馈，并统一使用组件库语义色。
+- 实现结果：
+  - 正常状态使用 qfluentwidgets `FluentSystemColor.SUCCESS_FOREGROUND`，随明暗主题自动切换绿色。
+  - 目录失效状态使用 qfluentwidgets `FluentSystemColor.CAUTION_FOREGROUND`，替换此前维护的自定义警告色。
+  - 每次文件列表重建后立即刷新状态文本和颜色；目录重新添加后由“目录移除”恢复为“正常”。
+- 测试状态：[已测试]
+  - 文件列表管理、主页布局与事件隔离回归：`29 passed`。
+  - Windows 原生平台 Excel、BIN、MAT 正常/目录移除状态及组件库语义色回归：`3 passed`。
+  - 本轮修改文件 `py_compile` 通过；`git diff --check` 无空白错误，仅有 LF/CRLF 转换提示。
+
 - 时间：2026-09-08 16:05
 - 操作类型：[修改]
 - 影响文件：
