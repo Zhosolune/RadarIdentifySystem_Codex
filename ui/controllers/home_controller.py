@@ -72,6 +72,7 @@ class HomeController(QObject):
         self._active_import_id: str | None = None
         self._processing_dialog: ProcessingDialog | None = None
         self._create_session_dialog: CreateSessionDialog | None = None
+        self._remove_import_file_dialog: MessageBox | None = None
         self._delete_data_package_dialog: MessageBox | None = None
         self._connect_signals()
 
@@ -112,7 +113,7 @@ class HomeController(QObject):
         self._sync_directory_status()
 
     def remove_selected_file(self) -> None:
-        """从当前标签页列表中移除选中的文件行。
+        """显示确认窗口，并在用户确认后隐藏当前选中的导入文件。
 
         Args:
             无。
@@ -121,11 +122,55 @@ class HomeController(QObject):
             None: 无返回值。
 
         Raises:
-            OSError: 当导入文件列表状态保存失败时抛出。
+            无显式抛出异常。
         """
+        if self._remove_import_file_dialog is not None:
+            self._remove_import_file_dialog.raise_()
+            self._remove_import_file_dialog.activateWindow()
+            return
+
         format_key = self.view.import_panel.current_format_key()
         row_index = self.view.import_panel.current_selected_row()
-        if not format_key or row_index < 0:
+        entry = self.file_manager.get_entry_at(format_key, row_index)
+        if entry is None:
+            return
+
+        dialog = MessageBox(
+            "从文件列表中删除",
+            (
+                f"确认从软件的文件列表中删除“{entry.display_name}”吗？\n"
+                "此操作只会删除软件对当前目录下此文件的可见性，不会删除磁盘上的"
+                "原文件。确认后，软件将不再识别位于该目录下的此文件。\n"
+                "若要让软件重新识别，请重命名该文件或将其移至其他目录。"
+            ),
+            self.view.window() or self.view,
+        )
+        dialog.yesButton.setText("删除")
+        dialog.cancelButton.setText("取消")
+        self._remove_import_file_dialog = dialog
+        dialog.finished.connect(
+            lambda result: self._finish_remove_import_file_dialog(
+                dialog,
+                result,
+                format_key,
+                row_index,
+            )
+        )
+        dialog.show()
+
+    def _finish_remove_import_file_dialog(
+        self,
+        dialog: MessageBox,
+        result: int,
+        format_key: str,
+        row_index: int,
+    ) -> None:
+        """释放文件删除确认窗口，并仅在确认后持久化隐藏文件。"""
+        if self._remove_import_file_dialog is not dialog:
+            return
+        self._remove_import_file_dialog = None
+        dialog.deleteLater()
+        if result != QDialog.DialogCode.Accepted:
             return
 
         files_by_type = self.file_manager.remove_at(format_key, row_index)

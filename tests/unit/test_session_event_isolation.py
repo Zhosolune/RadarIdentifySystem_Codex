@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from PyQt6 import sip
 from PyQt6.QtCore import QEventLoop, QObject, QTimer, Qt, pyqtSignal
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialog
 
 from app.signal_bus import signal_bus
 from core.models.data_package import DataPackage
@@ -945,3 +945,100 @@ def test_home_delete_action_waits_for_nonmodal_confirmation(
     dialog.finished.emit(1)
     assert registry.get(package.package_id) is None
     assert refresh_calls == ["refresh"]
+
+
+def test_home_remove_file_warns_and_keeps_file_hidden_after_refresh(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """文件列表删除应先说明持久隐藏语义，确认后刷新也不得恢复原路径。"""
+    from infra.import_file_list_manager import ImportFileListManager
+    from infra.import_file_list_store import ImportFileListStore
+
+    excel_file = tmp_path / "待隐藏.xlsx"
+    excel_file.write_text("placeholder", encoding="utf-8")
+    manager = ImportFileListManager(ImportFileListStore(tmp_path / "files.json"))
+    manager.scan([str(tmp_path)])
+    created_dialogs: list[_DialogStub] = []
+
+    class _ButtonTextStub:
+        """记录确认窗口按钮文本。"""
+
+        def __init__(self) -> None:
+            """初始化空按钮文本。"""
+            self.text = ""
+
+        def setText(self, text: str) -> None:
+            """记录设置的按钮文本。"""
+            self.text = text
+
+    class _DialogStub(QObject):
+        """记录文件删除确认内容及非模态生命周期。"""
+
+        finished = pyqtSignal(int)
+
+        def __init__(self, title: str, content: str, _parent=None) -> None:
+            """保存确认文案和按钮状态。"""
+            super().__init__()
+            self.title = title
+            self.content = content
+            self.yesButton = _ButtonTextStub()
+            self.cancelButton = _ButtonTextStub()
+            self.shown = False
+            self.raised = False
+            created_dialogs.append(self)
+
+        def show(self) -> None:
+            """记录窗口已显示。"""
+            self.shown = True
+
+        def raise_(self) -> None:
+            """记录重复请求提升已有窗口。"""
+            self.raised = True
+
+        def activateWindow(self) -> None:
+            """兼容重复请求激活已有窗口。"""
+
+    view = _HomeViewStub()
+    controller = HomeController.__new__(HomeController)
+    controller.view = view
+    controller.file_manager = manager
+    controller._remove_import_file_dialog = None
+    controller._active_import_id = None
+    controller._get_import_directories = lambda: [str(tmp_path)]
+    monkeypatch.setattr(home_controller_module, "MessageBox", _DialogStub)
+
+    controller.remove_selected_file()
+    dialog = controller._remove_import_file_dialog
+    assert dialog is not None
+    assert dialog.shown
+    assert dialog.title == "从文件列表中删除"
+    assert "删除软件对当前目录下此文件的可见性" in dialog.content
+    assert "不会删除磁盘上的原文件" in dialog.content
+    assert "软件将不再识别位于该目录下的此文件" in dialog.content
+    assert "重命名" in dialog.content
+    assert "移至其他目录" in dialog.content
+    assert dialog.yesButton.text == "删除"
+    assert dialog.cancelButton.text == "取消"
+    assert manager.get_entry_at("excel", 0) is not None
+
+    # 重复点击只能提升已有确认框，避免叠加窗口或重复删除。
+    controller.remove_selected_file()
+    assert created_dialogs == [dialog]
+    assert dialog.raised
+
+    dialog.finished.emit(QDialog.DialogCode.Rejected.value)
+    assert controller._remove_import_file_dialog is None
+    assert manager.get_entry_at("excel", 0) is not None
+
+    controller.remove_selected_file()
+    dialog = controller._remove_import_file_dialog
+    assert dialog is not None
+    dialog.finished.emit(QDialog.DialogCode.Accepted.value)
+    assert controller._remove_import_file_dialog is None
+    assert manager.get_entry_at("excel", 0) is None
+    assert excel_file.exists()
+
+    controller.refresh_import_files()
+    assert manager.files_by_type["excel"] == []
+    assert excel_file.exists()

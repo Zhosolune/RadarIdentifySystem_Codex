@@ -1,5 +1,27 @@
 # 变更记录
 
+- 时间：2026-09-10 15:54
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\controllers\home_controller.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_session_event_isolation.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：为导入文件列表删除入口增加 Fluent 非模态确认弹窗，明确删除仅持久隐藏当前路径、不会删除磁盘原文件及重新识别方式。
+- 原因：文件被加入忽略集合后刷新不会恢复，必须在执行前让用户知晓该操作的长期识别影响。
+- 实现结果：
+  - 删除按钮不再直接修改文件列表；仅在用户确认后调用既有 `remove_at()` 持久化隐藏路径，取消时不产生任何状态变更。
+  - 确认文案明确说明软件将不再识别该目录下的此文件，如需恢复识别须重命名文件或移至其他目录。
+  - 同一时刻只保留一个确认窗口，重复点击仅提升并激活已有窗口，避免弹窗叠加和重复删除。
+  - 回归覆盖取消、确认、重复点击、确认后刷新不恢复以及磁盘原文件仍存在。
+- 执行清单：
+  - [x] 定位文件列表删除、忽略路径持久化与刷新对账链路。
+  - [x] 实现删除前确认及确认结果处理。
+  - [x] 增加真实 `ImportFileListManager` 状态参与的控制器回归。
+  - [x] 完成聚焦测试、语法编译与差异检查。
+- 测试状态：[已测试]
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m pytest tests\unit\test_session_event_isolation.py tests\unit\test_import_file_list_manager.py -q -p no:cacheprovider --basetemp=.pytest_tmp\remove_file_confirmation_final`：`24 passed, 1 warning`。
+  - `D:\Miniforge3\envs\pyqt6\python.exe -m py_compile ui\controllers\home_controller.py tests\unit\test_session_event_isolation.py`：通过。
+
 - 时间：2026-09-09 09:10
 - 操作类型：[修改]
 - 影响文件：
