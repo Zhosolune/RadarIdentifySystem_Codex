@@ -1,5 +1,30 @@
 # 变更记录
 
+- 时间：2026-09-11 17:20
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\ui\components\analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_analysis_result_card.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：使右侧分析结果表的 PRI 文本按当前单元格真实可绘制宽度动态分行，并随结果列宽度重算行高。
+- 原因：仅按每行最多 8 个 PRI 值预先分行无法覆盖低分辨率和高缩放下的窄结果列，Qt 额外视觉换行后会造成行高低估和省略号。
+- 计划清单：
+  - [x] 保留每行最多 8 项约束，增加基于当前字体和 Fluent 文本矩形的像素宽度分行。
+  - [x] 监听 Stretch 结果列宽度变化，重排 PRI 文本并同步增减行高。
+  - [x] 关闭单元格文本省略，保证已分行的 PRI 数据完整显示。
+  - [x] 补充窄列、宽列、最多 8 项、完整值保留和行高回落回归。
+  - [x] 运行聚焦测试、Python 编译和差异检查。
+- 实现结果：
+  - 分析结果表保留未换行的 PRI 完整文本，通过当前单元格委托、字体和 `QStyle.SE_ItemViewItemText` 取得真实可绘制宽度。
+  - 每次放入下一个 PRI 值时同时检查“不超过 8 项”和“候选文本不超过可绘制宽度”，仅在数值边界插入显式换行。
+  - Stretch 结果列触发 `sectionResized` 后会从原始文本重排，窄列增加行数与行高，宽列则同步回落；表格委托使用 `ElideNone`。
+- 验证结果：
+  - 分析结果表聚焦回归：`6 passed, 1 deselected`；未选中项是既有 QSS 选择器断言。
+  - `QT_SCALE_FACTOR=1.25/1.5/1.75/2` 四档独立进程动态分行回归均为 `1 passed`。
+  - 扩大至页面与合并表聚焦回归：`1 passed, 1 failed`；失败项为既有“分析表应位于底部选项卡上方”旧布局断言，当前实际布局顺序相反，与本次 PRI 改动无关；合并表宽度回归通过。
+  - 相关 Python 文件 `py_compile` 通过；`git diff --check` 通过，仅有 LF/CRLF 转换提示。
+- 测试状态：[已测试]
+
 - 时间：2026-09-10 15:54
 - 操作类型：[修改]
 - 影响文件：

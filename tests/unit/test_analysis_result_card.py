@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 from PyQt6 import sip
-from PyQt6.QtCore import QRect
+from PyQt6.QtCore import QRect, Qt
+from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import Theme, themeColor
 from qfluentwidgets import TableWidget
@@ -172,8 +173,19 @@ def test_analysis_result_card_updates_from_cached_recognition() -> None:
 
         assert table.item(row_by_label["载频/MHz"], 1).text() == "1001"
         assert table.item(row_by_label["脉宽/us"], 1).text() == "1.3"
-        assert table.item(row_by_label["PRI/us"], 1).text() == (
-            "10.0、20.1、30.1、40.1、50.1、60.1\n70.1"
+        pri_text = table.item(row_by_label["PRI/us"], 1).text()
+        assert pri_text.replace("\n", "、") == (
+            "10.0、20.1、30.1、40.1、50.1、60.1、70.1"
+        )
+        assert all(
+            len(line.split("、")) <= card.PRI_VALUES_PER_LINE
+            for line in pri_text.splitlines()
+        )
+        pri_metrics = QFontMetrics(table.item(row_by_label["PRI/us"], 1).font())
+        available_width = card._result_text_available_width()
+        assert all(
+            pri_metrics.horizontalAdvance(line) <= available_width
+            for line in pri_text.splitlines()
         )
         assert table.item(row_by_label["DOA/°"], 1).text() == "360.0"
         assert table.item(row_by_label["PA预测结果"], 1).text() == "部分包络"
@@ -203,6 +215,85 @@ def test_analysis_result_card_updates_from_cached_recognition() -> None:
         assert [table.item(row, 1).text() for row in range(table.rowCount())] == [
             ""
         ] * table.rowCount()
+    finally:
+        sip.delete(card)
+
+
+def test_analysis_result_pri_reflows_with_result_column_width() -> None:
+    """结果列缩放时 PRI 应按真实文本宽度重排并同步行高。"""
+    _app()
+    card = AnalysisResultCard()
+
+    try:
+        pri_values = [1000.0 + index * 111.1 for index in range(12)]
+        recognition = ClusterRecognition(
+            slice_index=0,
+            dim_name="PRI",
+            cluster_index=1,
+            valid_cluster_index=0,
+            pa_label=0,
+            pa_confidence=1.0,
+            dtoa_label=0,
+            dtoa_confidence=1.0,
+            is_valid=True,
+            extracted_params=ExtractedClusterParams(
+                pri_values=pri_values,
+            ),
+        )
+        expected_tokens = card._format_numeric_values(
+            pri_values,
+            decimal_places=1,
+        ).split("、")
+        pri_row = card.ROW_LABELS.index("PRI/us")
+
+        # 用窄视口模拟低分辨率或高缩放后的可用宽度。
+        card.resize(380, 700)
+        card.show()
+        QApplication.processEvents()
+        card.update_from_recognition(recognition)
+        QApplication.processEvents()
+
+        narrow_text = card.table.item(pri_row, 1).text()
+        narrow_lines = narrow_text.splitlines()
+        narrow_height = card.table.rowHeight(pri_row)
+        narrow_available_width = card._result_text_available_width()
+        metrics = QFontMetrics(card.table.item(pri_row, 1).font())
+
+        assert card.table.textElideMode() == Qt.TextElideMode.ElideNone
+        assert [
+            token
+            for line in narrow_lines
+            for token in line.split("、")
+        ] == expected_tokens
+        assert all(
+            len(line.split("、")) <= card.PRI_VALUES_PER_LINE
+            for line in narrow_lines
+        )
+        assert all(
+            metrics.horizontalAdvance(line) <= narrow_available_width
+            for line in narrow_lines
+        )
+        assert narrow_height >= (
+            len(narrow_lines) * metrics.lineSpacing() + card.ROW_VERTICAL_PADDING
+        )
+
+        # 放宽后应由 sectionResized 自动减少行数和行高。
+        card.resize(1000, 700)
+        QApplication.processEvents()
+        wide_text = card.table.item(pri_row, 1).text()
+        wide_lines = wide_text.splitlines()
+
+        assert [
+            token
+            for line in wide_lines
+            for token in line.split("、")
+        ] == expected_tokens
+        assert all(
+            len(line.split("、")) <= card.PRI_VALUES_PER_LINE
+            for line in wide_lines
+        )
+        assert len(wide_lines) < len(narrow_lines)
+        assert card.table.rowHeight(pri_row) < narrow_height
     finally:
         sip.delete(card)
 

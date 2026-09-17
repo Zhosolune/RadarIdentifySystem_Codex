@@ -14,7 +14,15 @@ from PyQt6.QtGui import (
     QPen,
     QResizeEvent,
 )
-from PyQt6.QtWidgets import QHeaderView, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QHeaderView,
+    QSizePolicy,
+    QStyle,
+    QStyleOptionViewItem,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import SmoothScrollBar, TableWidget, qconfig, themeColor
 from qfluentwidgets.common.font import getFont
 from qfluentwidgets.common.style_sheet import isDarkTheme
@@ -327,10 +335,12 @@ class AnalysisResultCard(QWidget):
         super().__init__(parent)
         self.setObjectName("analysisResultCard")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._preferred_table_height = 0
-        self.table = AnalysisResultTableWidget(self)
+        self._preferred_table_height: int = 0
+        self._raw_pri_text: str = ""
+        self._is_adjusting_layout: bool = False
+        self.table: AnalysisResultTableWidget = AnalysisResultTableWidget(self)
         self.table.setObjectName("analysisResultTable")
-        self._result_column = 1
+        self._result_column: int = 1
         self._init_layout()
         self._init_table()
 
@@ -381,6 +391,8 @@ class AnalysisResultCard(QWidget):
         self.table.verticalHeader().setDefaultSectionSize(self.DEFAULT_ROW_HEIGHT)
         self.table.horizontalHeader().setFixedHeight(36)
         self.table.setWordWrap(True)
+        # PRI 由组件按真实文本宽度分行，禁止委托再绘制省略号。
+        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(TableWidget.SelectionMode.NoSelection)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -392,6 +404,7 @@ class AnalysisResultCard(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setColumnWidth(0, 138)
+        header.sectionResized.connect(self._on_header_section_resized)
 
         # 表头与内容均居中，保持截图所示的两列信息对齐方式。
         for column in range(self.table.columnCount()):
@@ -469,6 +482,7 @@ class AnalysisResultCard(QWidget):
             ''
         """
         # 清空结果列，保留左侧指标名称。
+        self._raw_pri_text = ""
         for row in range(self.table.rowCount()):
             self._set_result_text(row, "")
         self._adjust_table_height_to_contents()
@@ -501,9 +515,121 @@ class AnalysisResultCard(QWidget):
 
         # 构建结果文本，参数值从识别缓存中读取。
         row_values = self._build_result_values(recognition)
+        pri_row = self.ROW_LABELS.index("PRI/us")
+        self._raw_pri_text = row_values[pri_row]
         for row, value in enumerate(row_values):
             self._set_result_text(row, value)
+        self._reflow_pri_text()
         self._adjust_table_height_to_contents()
+
+    def _reflow_pri_text(self, *, result_column_width: int | None = None) -> None:
+        """按当前结果列的真实可绘制宽度重排 PRI 文本。"""
+        pri_row = self.ROW_LABELS.index("PRI/us")
+        item = self.table.item(pri_row, self._result_column)
+        if item is None:
+            return
+        item.setText(
+            self._wrap_pri_text(
+                self._raw_pri_text,
+                result_column_width=result_column_width,
+            )
+        )
+
+    def _wrap_pri_text(
+        self,
+        text: str,
+        *,
+        result_column_width: int | None = None,
+    ) -> str:
+        """按结果列像素宽度和每行最多八项规则组织 PRI 文本。
+
+        Args:
+            text [str]: 使用顿号或换行分隔的完整 PRI 文本。
+            result_column_width [int | None]: 用于计算的结果列宽度；为 None 时读取当前列宽。
+
+        Returns:
+            str: 仅在 PRI 值边界处插入换行的完整文本。
+
+        Raises:
+            无显式抛出异常。
+        """
+        tokens = [
+            token
+            for source_line in text.splitlines() or [text]
+            for token in source_line.split("、")
+            if token
+        ]
+        if not tokens:
+            return ""
+
+        pri_row = self.ROW_LABELS.index("PRI/us")
+        item = self.table.item(pri_row, self._result_column)
+        font = item.font() if item is not None else self.table.font()
+        metrics = QFontMetrics(font)
+        available_width = self._result_text_available_width(
+            result_column_width=result_column_width,
+        )
+        lines: list[str] = []
+        current_tokens: list[str] = []
+        for token in tokens:
+            candidate_tokens = [*current_tokens, token]
+            candidate = "、".join(candidate_tokens)
+            if current_tokens and (
+                len(candidate_tokens) > self.PRI_VALUES_PER_LINE
+                or metrics.horizontalAdvance(candidate) > available_width
+            ):
+                lines.append("、".join(current_tokens))
+                current_tokens = [token]
+            else:
+                current_tokens = candidate_tokens
+        if current_tokens:
+            lines.append("、".join(current_tokens))
+        return "\n".join(lines)
+
+    def _result_text_available_width(
+        self,
+        *,
+        result_column_width: int | None = None,
+    ) -> int:
+        """返回 Fluent 委托在分析结果单元格内的真实文本宽度。"""
+        column_width = (
+            result_column_width
+            if result_column_width is not None
+            else self.table.columnWidth(self._result_column)
+        )
+        pri_row = self.ROW_LABELS.index("PRI/us")
+        option = QStyleOptionViewItem()
+        self.table.initViewItemOption(option)
+        index = self.table.model().index(pri_row, self._result_column)
+        self.table.itemDelegate().initStyleOption(option, index)
+        # 单元格比表头分区少 1px，再由当前样式扣除文本留白。
+        option.rect = QRect(0, 0, max(1, column_width - 1), self.DEFAULT_ROW_HEIGHT)
+        text_rect = self.table.style().subElementRect(
+            QStyle.SubElement.SE_ItemViewItemText,
+            option,
+            self.table,
+        )
+        return max(1, text_rect.width())
+
+    def _on_header_section_resized(
+        self,
+        logical_index: int,
+        _old_size: int,
+        new_size: int,
+    ) -> None:
+        """结果列宽度变化时重排 PRI 文本并重算行高。"""
+        if (
+            logical_index != self._result_column
+            or not self._raw_pri_text
+            or self._is_adjusting_layout
+        ):
+            return
+        self._is_adjusting_layout = True
+        try:
+            self._reflow_pri_text(result_column_width=new_size)
+            self._adjust_table_height_to_contents()
+        finally:
+            self._is_adjusting_layout = False
 
     def _adjust_table_height_to_contents(self) -> None:
         """按当前单元格内容自动调整表格高度。
@@ -612,7 +738,6 @@ class AnalysisResultCard(QWidget):
             self._format_numeric_values(
                 params.pri_values,
                 decimal_places=1,
-                values_per_line=self.PRI_VALUES_PER_LINE,
             ),
             self._format_numeric_values(params.doa_values, decimal_places=1),
             PA_LABEL_NAMES.get(recognition.pa_label, f"未知类别{recognition.pa_label}"),
