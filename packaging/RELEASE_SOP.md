@@ -118,7 +118,9 @@ uv sync --locked --group test --group build --cache-dir .uv-cache
 ```
 
 构建脚本固定使用仓库内 `.venv`。PowerShell 当前显示的 Conda 或其他虚拟环境名称
-不决定最终打包环境。
+不决定最终打包环境。不得使用 `uv sync --active` 将发布依赖同步到 Conda 环境。
+`qfluentwidgets` 必须解析到仓库根目录的本地源码，`pyproject.toml` 和 `uv.lock` 均
+不得包含 PyPI 的 `PyQt6-Fluent-Widgets` 包。
 
 ### 5.5 执行发布前测试
 
@@ -261,7 +263,7 @@ Get-FileHash `
 
 对外发布前必须确认：
 
-- PyQt6、PyQt6-Fluent-Widgets、PyQt6-Frameless-Window 的分发授权。
+- PyQt6、仓库内 qfluentwidgets 源码、PyQt6-Frameless-Window 的分发授权。
 - 默认 ONNX 模型的再分发权。
 - 当前安装包为 CPU 版 `onnxruntime`，不得宣称内置 GPU 推理支持。
 - 正式发布是否需要为应用 EXE 和安装包添加代码签名。

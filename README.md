@@ -35,6 +35,10 @@ RadarIdentifySystem 是一套基于 PyQt6 的雷达脉冲数据识别桌面应�
 - Python `>=3.12,<3.13`
 - 推荐安装 [uv](https://docs.astral.sh/uv/)
 
+Conda/Miniforge 可以用于提供 Python 3.12，但项目依赖统一由 uv 管理。不要把依赖
+安装到 Conda `base` 环境，也不要对本项目使用 `uv sync --active`；uv 默认维护仓库
+根目录的 `.venv`，应用、测试和打包均以该环境为准。
+
 ### 使用 uv
 
 在仓库根目录执行：
@@ -44,7 +48,17 @@ uv sync --locked --group test --cache-dir .uv-cache
 uv run python main.py
 ```
 
-### 使用 venv 和 pip
+仓库已包含 `qfluentwidgets/` 组件库源码，不安装 PyPI 的
+`PyQt6-Fluent-Widgets` 包。应用入口、测试引导和 PyInstaller 搜索路径都会优先使用
+仓库根目录；其直接依赖由 `pyproject.toml` 单独声明。可执行以下命令核对实际来源：
+
+```powershell
+uv run python -c "import qfluentwidgets; print(qfluentwidgets.__file__)"
+```
+
+输出路径必须位于当前仓库的 `qfluentwidgets\__init__.py`。
+
+### 使用 venv 和 pip（兼容方式）
 
 ```powershell
 py -3.12 -m venv .venv
@@ -53,7 +67,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-> `pyproject.toml` 与 `uv.lock` 是推荐的依赖基线；`requirements.txt` 主要用于最小运行环境安装。
+> `pyproject.toml` 与 `uv.lock` 是唯一正式依赖基线；`requirements.txt` 仅用于不支持 uv 的兼容安装。
 
 ## 基本使用流程
 
@@ -197,4 +211,4 @@ runtime → infra → core
 
 本项目源码采用 [GNU General Public License v3.0](LICENSE) 许可证。复制、修改或分发本项目时，必须遵守 GPLv3 的完整条款，包括在分发目标代码时向接收者提供对应源码。
 
-第三方依赖、qfluentwidgets 组件代码、图标和内置 ONNX 模型不因本项目采用 GPLv3 而自动变更其原有授权。对外分发前仍须分别确认 PyQt6、PyQt6-Fluent-Widgets、PyQt6-Frameless-Window 以及内置模型的使用和再分发条件。当前安装包使用 CPU 版 `onnxruntime`，不得宣称内置 GPU 推理支持。
+第三方依赖、仓库内 qfluentwidgets 组件源码、图标和内置 ONNX 模型不因本项目采用 GPLv3 而自动变更其原有授权。对外分发前仍须分别确认 PyQt6、qfluentwidgets 本地源码、PyQt6-Frameless-Window 以及内置模型的使用和再分发条件。当前安装包使用 CPU 版 `onnxruntime`，不得宣称内置 GPU 推理支持。

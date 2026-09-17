@@ -22,7 +22,7 @@
 3. 每阶段必须可运行、可回归、可回退。
 
 ## 3. UI 技术栈
-1. 使用 `PyQt6-Fluent-Widgets` 作为主要 UI 组件库。
+1. 使用仓库内 `qfluentwidgets/` 源码作为唯一 UI 组件库来源，不安装 PyPI 同名包。
 2. 使用 `FluentWindow`、`NavigationInterface`、`InfoBar`、`SettingCard` 等组件。
 3. 保留 Matplotlib 图表能力，不强制替换为 Fluent 图表。
 
@@ -55,7 +55,7 @@
 2. `docs/重构执行追踪.md`
 
 ## 8. 许可证与发布前检查
-在发布前必须确认 `PyQt-Fluent-Widgets` 许可策略与分发合规性。
+在发布前必须确认仓库内 `qfluentwidgets` 源码的许可策略与分发合规性。
 
 ## 9. 分阶段执行
 按 `docs/重构阶段索引.md` 的 P00-P12 执行。

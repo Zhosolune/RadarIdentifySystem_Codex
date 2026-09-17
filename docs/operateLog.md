@@ -1,5 +1,29 @@
 # 变更记录
 
+- 时间：2026-09-17 15:55
+- 操作类型：[修改]
+- 影响文件：
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\pyproject.toml`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\requirements.txt`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\uv.lock`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\main.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\conftest.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_packaging_config.py`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\RELEASE_SOP.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
+- 变更摘要：统一由 uv 管理仓库 `.venv`，并强制应用、测试与打包解析仓库内 `qfluentwidgets` 源码，不安装同名 PyPI 组件库。
+- 原因：Conda 环境仅应提供 Python，项目依赖需要由锁文件稳定复现；同时避免环境中的同名组件库覆盖仓库内已纳入版本控制的组件源码。
+- 计划清单：
+  - [ ] 补齐本地组件源码直接使用的第三方运行依赖，并更新 uv 锁文件。
+  - [ ] 调整应用入口和测试引导路径，保证项目根目录具有最高导入优先级。
+  - [ ] 增加依赖声明、锁文件和组件源码解析位置的防回退测试。
+  - [ ] 更新开发与发布文档，明确 Conda、uv 和本地组件源码的职责边界。
+  - [ ] 运行锁文件检查、聚焦测试、完整测试、编译检查和差异检查。
+- 实现结果：进行中。
+- 测试状态：[待测试]
+
 - 时间：2026-09-11 17:20
 - 操作类型：[修改]
 - 影响文件：

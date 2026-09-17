@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import runpy
@@ -13,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_pyproject_uses_local_qfluentwidgets_source() -> None:
-    """运行依赖必须覆盖本地组件库依赖且不得再次安装 PyPI 组件库。"""
+    """运行依赖必须覆盖本地组件源码依赖且不得安装同名 PyPI 组件库。"""
     project = tomllib.loads(
         (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
@@ -23,8 +24,32 @@ def test_pyproject_uses_local_qfluentwidgets_source() -> None:
     assert any(value.startswith("PyQt6==") for value in dependencies)
     assert any(value.startswith("PyQt6-Frameless-Window==") for value in dependencies)
     assert any(value.startswith("darkdetect==") for value in dependencies)
+    assert any(value.startswith("ColorThief==") for value in dependencies)
+    assert any(value.startswith("Pillow==") for value in dependencies)
+    assert any(value.startswith("scipy==") for value in dependencies)
+    assert any(value.startswith("pywin32==") for value in dependencies)
     assert not any("Fluent-Widgets" in value for value in dependencies)
     assert (PROJECT_ROOT / "uv.lock").is_file()
+
+
+def test_qfluentwidgets_import_resolves_to_repository_source() -> None:
+    """组件库模块必须解析到仓库内源码而不是环境中的同名包。"""
+    spec = importlib.util.find_spec("qfluentwidgets")
+
+    assert spec is not None
+    assert spec.origin is not None
+    assert Path(spec.origin).resolve() == (
+        PROJECT_ROOT / "qfluentwidgets" / "__init__.py"
+    ).resolve()
+
+
+def test_lock_file_excludes_pypi_qfluentwidgets_package() -> None:
+    """uv 锁文件不得包含 PyPI 发布的 Fluent Widgets 包。"""
+    lock_data = tomllib.loads((PROJECT_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    package_names = {package["name"].lower() for package in lock_data["package"]}
+
+    assert "pyqt6-fluent-widgets" not in package_names
+    assert "pyqt-fluent-widgets" not in package_names
 
 
 def test_default_model_manifest_matches_release_assets() -> None:

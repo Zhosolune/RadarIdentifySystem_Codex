@@ -10,6 +10,8 @@
 
 脚本依次执行默认模型校验、`uv sync --locked`、多尺寸 ICO 转换、
 PyInstaller `onedir/windowed` 构建和 Inno Setup 安装包编译。
+依赖同步固定写入仓库 `.venv`，不使用当前激活的 Conda 环境；组件库固定收集仓库
+根目录的 `qfluentwidgets/` 源码，不安装 PyPI 的同名组件库包。
 应用版本只在根目录 `pyproject.toml` 的 `[project].version` 中维护，构建脚本
 会据此生成 EXE 版本资源、安装器版本和安装包文件名，不再接受独立版本参数。
 
@@ -57,6 +59,6 @@ PyInstaller `onedir/windowed` 构建和 Inno Setup 安装包编译。
 
 ## 发布阻断项
 
-正式分发前必须确认 PyQt6、PyQt6-Fluent-Widgets、
+正式分发前必须确认 PyQt6、仓库内 qfluentwidgets 源码、
 PyQt6-Frameless-Window 以及默认 ONNX 模型的再分发授权。当前依赖为 CPU
 版 `onnxruntime`，安装包不得宣称内置 GPU 推理支持。

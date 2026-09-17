@@ -4,7 +4,7 @@
 可行，建议采用。
 
 采用方式：
-1. UI 层全面引入 `PyQt6-Fluent-Widgets` 组件。
+1. UI 层统一使用仓库内 `qfluentwidgets/` 组件源码，不安装 PyPI 同名包。
 2. 主题与界面设置使用 `qfluentwidgets` 自带 `QConfig/ConfigItem`。
 3. 业务参数同样放入 `app/app_config.py` 中定义为 `ConfigItem`，统一由 `QConfig` 管理并持久化到 `config/config.json`。
 
@@ -16,7 +16,7 @@
 
 ## 3. 风险与约束
 1. 许可风险：GPLv3（非商用可用，商用需商业授权）。
-2. 安装风险：不能同时安装 PyQt/PySide 多个 Fluent 包（包名同为 `qfluentwidgets`）。
+2. 来源风险：环境中的同名 Fluent 包可能覆盖仓库源码，启动、测试和打包必须固定项目根目录为最高导入优先级。
 3. 迁移成本：现有大量自定义组件需分批替换，不适合一次性重写。
 
 ## 4. 架构建议（重构后）

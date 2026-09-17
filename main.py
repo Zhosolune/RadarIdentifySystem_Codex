@@ -1,21 +1,41 @@
 ﻿# -*- coding: utf-8 -*-
-"""
-RadarIdentifySystem_PyQt6 程序入口
-将父目录加入 sys.path，以便复用 core/db/utils 后端。
+"""RadarIdentifySystem PyQt6 程序入口。
+
+启动时优先解析仓库内源码，避免环境中的同名组件库覆盖本地版本。
 """
 
 import sys
 import os
 from pathlib import Path
 import traceback
+import logging
+
+
+ROOT = Path(__file__).resolve().parent
+ROOT_TEXT = str(ROOT)
+# 始终把仓库根目录放在导入路径首位，确保使用本地 qfluentwidgets 源码。
+while ROOT_TEXT in sys.path:
+    sys.path.remove(ROOT_TEXT)
+sys.path.insert(0, ROOT_TEXT)
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
+import qfluentwidgets
 from qfluentwidgets import FluentTranslator
-import logging
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+
+def _validate_local_qfluentwidgets() -> None:
+    """确认运行时加载的是仓库内组件库源码。"""
+    actual_path = Path(qfluentwidgets.__file__).resolve()
+    expected_path = (ROOT / "qfluentwidgets" / "__init__.py").resolve()
+    if actual_path != expected_path:
+        raise ImportError(
+            "qfluentwidgets 必须从仓库本地源码加载："
+            f"期望 {expected_path}，实际 {actual_path}"
+        )
+
+
+_validate_local_qfluentwidgets()
 
 LOGGER = logging.getLogger(__name__)
 

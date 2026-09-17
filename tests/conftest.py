@@ -9,12 +9,18 @@ from pathlib import Path
 import tempfile
 
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT_TEXT = str(_PROJECT_ROOT)
+# 测试收集前固定仓库源码优先级，防止本机环境中的同名包抢先解析。
+while _PROJECT_ROOT_TEXT in sys.path:
+    sys.path.remove(_PROJECT_ROOT_TEXT)
+sys.path.insert(0, _PROJECT_ROOT_TEXT)
+
 # 在任何测试模块导入 app_config/logger 之前隔离用户数据，避免测试污染真实
 # LocalAppData，也避免受开发者本机既有配置影响。
 _TEST_RUNTIME_ROOT = (
     Path(tempfile.gettempdir()) / f"RadarIdentifySystem-pytest-{os.getpid()}"
 )
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _TEST_CONFIG_FILE = _TEST_RUNTIME_ROOT / "data" / "config" / "config.json"
 if not _TEST_CONFIG_FILE.exists():
     source_config = _PROJECT_ROOT / "config" / "config.json"
@@ -39,10 +45,10 @@ os.environ.setdefault(
 
 
 def pytest_configure() -> None:
-    """初始化测试导入路径。
+    """验证测试使用仓库根目录作为最高优先级导入路径。
 
     功能描述：
-        将项目根目录加入 `sys.path`，确保测试可直接导入各一级包。
+        检查项目根目录位于 `sys.path` 首位，确保测试直接导入仓库源码。
 
     参数说明：
         无。
@@ -51,10 +57,8 @@ def pytest_configure() -> None:
         None: 无返回值。
 
     异常说明：
-        OSError: 当路径解析失败时抛出。
+        RuntimeError: 当项目根目录未处于最高导入优先级时抛出。
     """
 
-    project_root = Path(__file__).resolve().parents[1]
-    root_str = str(project_root)
-    if root_str not in sys.path:
-        sys.path.insert(0, root_str)
+    if not sys.path or Path(sys.path[0]).resolve() != _PROJECT_ROOT:
+        raise RuntimeError("测试必须优先从仓库根目录导入源码")
