@@ -6,6 +6,7 @@
 
 import sys
 import os
+import importlib.util
 from pathlib import Path
 import traceback
 import logging
@@ -18,15 +19,14 @@ while ROOT_TEXT in sys.path:
     sys.path.remove(ROOT_TEXT)
 sys.path.insert(0, ROOT_TEXT)
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
-from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
-import qfluentwidgets
-from qfluentwidgets import FluentTranslator
-
 
 def _validate_local_qfluentwidgets() -> None:
     """确认运行时加载的是仓库内组件库源码。"""
-    actual_path = Path(qfluentwidgets.__file__).resolve()
+    spec = importlib.util.find_spec("qfluentwidgets")
+    if spec is None or spec.origin is None:
+        raise ImportError("未找到仓库内 qfluentwidgets 组件源码")
+
+    actual_path = Path(spec.origin).resolve()
     expected_path = (ROOT / "qfluentwidgets" / "__init__.py").resolve()
     if actual_path != expected_path:
         raise ImportError(
@@ -36,6 +36,11 @@ def _validate_local_qfluentwidgets() -> None:
 
 
 _validate_local_qfluentwidgets()
+
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtCore import Qt, QLocale, qInstallMessageHandler, QtMsgType, QMessageLogContext
+from qfluentwidgets import FluentTranslator
+
 
 LOGGER = logging.getLogger(__name__)
 

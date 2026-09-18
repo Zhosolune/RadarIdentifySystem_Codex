@@ -30,6 +30,10 @@ def test_pyproject_uses_local_qfluentwidgets_source() -> None:
     assert any(value.startswith("pywin32==") for value in dependencies)
     assert not any("Fluent-Widgets" in value for value in dependencies)
     assert (PROJECT_ROOT / "uv.lock").is_file()
+    assert (PROJECT_ROOT / ".python-version").read_text(
+        encoding="utf-8"
+    ).strip() == "3.12.9"
+    assert not (PROJECT_ROOT / "requirements.txt").exists()
 
 
 def test_qfluentwidgets_import_resolves_to_repository_source() -> None:
@@ -41,6 +45,24 @@ def test_qfluentwidgets_import_resolves_to_repository_source() -> None:
     assert Path(spec.origin).resolve() == (
         PROJECT_ROOT / "qfluentwidgets" / "__init__.py"
     ).resolve()
+
+
+def test_application_and_packaging_require_managed_python() -> None:
+    """应用导入和构建必须固定仓库源码与 uv 托管 Python。"""
+    main_text = (PROJECT_ROOT / "main.py").read_text(encoding="utf-8-sig")
+    build_text = (PROJECT_ROOT / "packaging" / "build.ps1").read_text(
+        encoding="utf-8"
+    )
+    spec_text = (
+        PROJECT_ROOT / "packaging" / "RadarIdentifySystem.spec"
+    ).read_text(encoding="utf-8")
+
+    assert main_text.index("sys.path.insert(0, ROOT_TEXT)") < main_text.index(
+        "from qfluentwidgets import FluentTranslator"
+    )
+    assert "_validate_local_qfluentwidgets()" in main_text
+    assert "uv sync --managed-python --locked" in build_text
+    assert 'pathex=[str(ROOT)]' in spec_text
 
 
 def test_lock_file_excludes_pypi_qfluentwidgets_package() -> None:

@@ -18,7 +18,7 @@ RadarIdentifySystem 是一套基于 PyQt6 的雷达脉冲数据识别桌面应�
 
 ## 技术栈
 
-- Python 3.12
+- uv 托管的 CPython 3.12.9
 - PyQt6 6.7.1
 - qfluentwidgets
 - NumPy、pandas、scikit-learn、Matplotlib
@@ -32,21 +32,21 @@ RadarIdentifySystem 是一套基于 PyQt6 的雷达脉冲数据识别桌面应�
 ### 环境要求
 
 - Windows 10/11
-- Python `>=3.12,<3.13`
-- 推荐安装 [uv](https://docs.astral.sh/uv/)
-
-Conda/Miniforge 可以用于提供 Python 3.12，但项目依赖统一由 uv 管理。不要把依赖
-安装到 Conda `base` 环境，也不要对本项目使用 `uv sync --active`；uv 默认维护仓库
-根目录的 `.venv`，应用、测试和打包均以该环境为准。
+- [uv](https://docs.astral.sh/uv/)
 
 ### 使用 uv
 
-在仓库根目录执行：
+项目通过 `.python-version` 固定由 uv 托管 CPython 3.12.9；`pyproject.toml` 声明
+直接依赖，`uv.lock` 锁定完整依赖图。首次在仓库根目录执行：
 
 ```powershell
-uv sync --locked --group test --cache-dir .uv-cache
+uv python install 3.12.9
+uv sync --managed-python --locked --group test --cache-dir .uv-cache
 uv run python main.py
 ```
+
+uv 会在仓库根目录创建 `.venv`。本项目不使用 Conda、系统 Python、pip 或
+`requirements.txt` 管理环境与依赖，也不要使用 `uv sync --active`。
 
 仓库已包含 `qfluentwidgets/` 组件库源码，不安装 PyPI 的
 `PyQt6-Fluent-Widgets` 包。应用入口、测试引导和 PyInstaller 搜索路径都会优先使用
@@ -58,16 +58,7 @@ uv run python -c "import qfluentwidgets; print(qfluentwidgets.__file__)"
 
 输出路径必须位于当前仓库的 `qfluentwidgets\__init__.py`。
 
-### 使用 venv 和 pip（兼容方式）
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python main.py
-```
-
-> `pyproject.toml` 与 `uv.lock` 是唯一正式依赖基线；`requirements.txt` 仅用于不支持 uv 的兼容安装。
+> `.python-version`、`pyproject.toml` 与 `uv.lock` 是唯一正式的 Python 与依赖基线。
 
 ## 基本使用流程
 

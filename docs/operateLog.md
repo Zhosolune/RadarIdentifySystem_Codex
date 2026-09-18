@@ -4,25 +4,43 @@
 - 操作类型：[修改]
 - 影响文件：
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\pyproject.toml`
-  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\requirements.txt`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\.python-version`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\requirements.txt`（删除）
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\uv.lock`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\main.py`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\conftest.py`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\tests\unit\test_packaging_config.py`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\README.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\build.ps1`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\README.md`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\packaging\RELEASE_SOP.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\phases\P01_工程骨架与入口.md`
+  - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\目录结构与分层约束.md`
   - `E:\myProjects_Trae\RadarIdentifySystem_Codex\docs\operateLog.md`
-- 变更摘要：统一由 uv 管理仓库 `.venv`，并强制应用、测试与打包解析仓库内 `qfluentwidgets` 源码，不安装同名 PyPI 组件库。
-- 原因：Conda 环境仅应提供 Python，项目依赖需要由锁文件稳定复现；同时避免环境中的同名组件库覆盖仓库内已纳入版本控制的组件源码。
+- 变更摘要：统一由 uv 管理 CPython 3.12.9、仓库 `.venv` 和全部依赖，并强制应用、测试与打包解析仓库内 `qfluentwidgets` 源码。
+- 原因：移除 Conda、系统 Python、pip 和 requirements 多入口造成的环境歧义，同时避免环境中的同名组件库覆盖仓库内已纳入版本控制的组件源码。
 - 计划清单：
-  - [ ] 补齐本地组件源码直接使用的第三方运行依赖，并更新 uv 锁文件。
-  - [ ] 调整应用入口和测试引导路径，保证项目根目录具有最高导入优先级。
-  - [ ] 增加依赖声明、锁文件和组件源码解析位置的防回退测试。
-  - [ ] 更新开发与发布文档，明确 Conda、uv 和本地组件源码的职责边界。
-  - [ ] 运行锁文件检查、聚焦测试、完整测试、编译检查和差异检查。
-- 实现结果：进行中。
-- 测试状态：[待测试]
+  - [x] 使用 uv 安装并固定 CPython 3.12.9，增加 `.python-version` 基线。
+  - [x] 删除 `requirements.txt`，仅保留 `pyproject.toml` 与 `uv.lock` 管理依赖。
+  - [x] 补齐本地组件源码直接使用的第三方运行依赖，并更新 uv 锁文件。
+  - [x] 调整应用入口和测试引导路径，保证项目根目录具有最高导入优先级。
+  - [x] 增加 Python 版本、依赖声明、锁文件和组件源码解析位置的防回退测试。
+  - [x] 更新开发与发布文档，明确 uv 和本地组件源码的唯一职责边界。
+  - [x] 运行锁文件检查、聚焦测试、完整测试、编译检查和差异检查。
+- 实现结果：
+  - `uv python install 3.12.9` 安装 uv 托管 CPython，并由 `.python-version` 固定项目解释器版本。
+  - 删除 `requirements.txt`；开发、测试和构建均改用 `uv sync --managed-python --locked`，构建脚本不再接受 Conda 或系统 Python 作为环境来源。
+  - `pyproject.toml` 直接声明本地组件源码使用的 ColorThief、Pillow、SciPy 和 Windows pywin32，`uv.lock` 不包含 `PyQt6-Fluent-Widgets`。
+  - 应用入口在导入 Qt/Fluent 组件前将仓库根目录置于 `sys.path` 首位，并校验 `qfluentwidgets` 必须解析到仓库内 `__init__.py`；测试和 PyInstaller 同样固定仓库源码优先。
+  - 从空环境执行 `uv sync --managed-python --locked --group test --cache-dir .uv-cache`，使用 uv 托管 CPython 3.12.9 创建 `.venv` 并安装 34 个包；再次同步显示 `Audited 34 packages`。
+- 验证结果：
+  - `uv lock --managed-python --check --cache-dir .uv-cache`：通过，`Resolved 205 packages`。
+  - `uv pip check --python .\.venv\Scripts\python.exe`：通过，34 个已安装包全部兼容。
+  - `uv run --managed-python --locked --group test python -c ...`：通过，`sys.base_prefix` 指向 uv 托管 CPython 3.12.9，组件路径指向仓库 `qfluentwidgets\__init__.py`，环境中不存在 `PyQt6-Fluent-Widgets` 分发包。
+  - `.\.venv\Scripts\python.exe -m pytest tests\unit\test_packaging_config.py -q -p no:cacheprovider --basetemp .pytest-tmp-uv-managed-final`：`8 passed in 0.06s`。
+  - `.\.venv\Scripts\python.exe -m compileall -q main.py app core infra runtime ui qfluentwidgets tests`：通过。
+  - 完整测试在收集阶段仍被既有问题阻断：`test_core_clustering.py` 导入已不存在的 `cluster_single_slice`，`test_signal_bus.py` 导入已不存在的 `AppSignalBus`；同时 Qt 与 ONNX Runtime 同进程加载时打印 Windows access violation 栈。本次未扩大范围修复这些既有问题。
+- 测试状态：[已测试]
 
 - 时间：2026-09-11 17:20
 - 操作类型：[修改]

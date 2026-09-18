@@ -114,11 +114,13 @@ git diff -- pyproject.toml uv.lock
 ### 5.4 同步测试与构建环境
 
 ```powershell
-uv sync --locked --group test --group build --cache-dir .uv-cache
+uv python install 3.12.9
+uv sync --managed-python --locked --group test --group build --cache-dir .uv-cache
 ```
 
-构建脚本固定使用仓库内 `.venv`。PowerShell 当前显示的 Conda 或其他虚拟环境名称
-不决定最终打包环境。不得使用 `uv sync --active` 将发布依赖同步到 Conda 环境。
+`.python-version` 固定 CPython 3.12.9，Python 本体和仓库 `.venv` 均由 uv 管理。
+不得使用 Conda、系统 Python、pip、`requirements.txt` 或 `uv sync --active` 建立
+发布环境。
 `qfluentwidgets` 必须解析到仓库根目录的本地源码，`pyproject.toml` 和 `uv.lock` 均
 不得包含 PyPI 的 `PyQt6-Fluent-Widgets` 包。
 
@@ -184,7 +186,7 @@ git status --short
 构建脚本依次执行：
 
 1. 校验默认 ONNX 模型大小和 SHA-256。
-2. 使用 `uv sync --locked` 同步锁定依赖。
+2. 使用 `uv sync --managed-python --locked` 同步锁定依赖。
 3. 从 `pyproject.toml` 读取项目版本。
 4. 生成 Windows EXE 版本资源。
 5. 使用 PyInstaller 构建 `onedir/windowed` 程序。

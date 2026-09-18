@@ -92,14 +92,14 @@ foreach ($Model in $Manifest.models) {
 }
 
 if (-not $SkipSync) {
-    uv sync --locked --group test --group build --cache-dir .uv-cache
+    uv sync --managed-python --locked --group test --group build --cache-dir .uv-cache
     if ($LASTEXITCODE -ne 0) {
         throw "uv 依赖同步失败"
     }
 }
 
 if (-not (Test-Path -LiteralPath $PythonPath -PathType Leaf)) {
-    throw "未找到构建环境 Python，请先执行 uv sync --locked --group build"
+    throw "未找到构建环境 Python，请先执行 uv sync --managed-python --locked --group build"
 }
 if (-not (Test-Path -LiteralPath $PyInstallerPath -PathType Leaf)) {
     throw "未找到 PyInstaller，请先同步 build 依赖组"
